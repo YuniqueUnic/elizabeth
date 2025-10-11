@@ -37,6 +37,7 @@ utoipa-scalar = { version = "0.3.0", features = ["axum"] }
 
 tracing = "0.1.41"
 tracing-subscriber = "0.3.20"
+axum_responses = "0.4.4"
 
 
 [build-dependencies]
