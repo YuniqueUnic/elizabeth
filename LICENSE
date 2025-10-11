@@ -1,0 +1,56 @@
+Elizabeth Restricted License (ERL) v1.0
+
+Copyright (c) 2026 unic <yuniqueunic@gmail.com>
+All rights reserved.
+
+1) Definitions
+
+"Software" means the Elizabeth source code, binaries, documentation, and any other files in this repository.
+"Licensor" means the copyright holder.
+"You" means any individual or entity exercising permissions under this license.
+"Commercial Use" means any use primarily intended for commercial advantage or monetary compensation, including offering the Software as a service (SaaS) or deploying it for a business/organization's production use.
+
+2) License Grant (non-commercial evaluation only)
+
+Subject to the terms of this license, the Licensor grants You a limited, non-exclusive, non-transferable, non-sublicensable, revocable license to:
+  a) view and read the Software's source code; and
+  b) run the Software, unmodified, for Your own internal, non-commercial evaluation.
+
+3) Restrictions (permission required)
+
+Unless You have prior written permission from the Licensor, You may NOT:
+  a) modify the Software or create derivative works;
+  b) redistribute, publish, sublicense, or otherwise make the Software available to third parties;
+  c) deploy, host, or run the Software for third parties or in a production environment;
+  d) use the Software for any Commercial Use.
+
+4) Permission Requests
+
+To request permission for any activity listed in Section 3, contact:
+  yuniqueunic@gmail.com
+Permission is granted only if the Licensor confirms it explicitly in writing (for example, via a signed agreement or an email that clearly grants the requested rights).
+
+5) Ownership
+
+The Software is licensed, not sold. The Licensor retains all right, title, and interest in and to the Software.
+
+6) Termination
+
+Any violation of this license terminates the rights granted to You immediately. Upon termination, You must stop using the Software and delete all copies in Your possession or control.
+
+7) Disclaimer
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+
+8) Limitation of Liability
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL THE LICENSOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+----
+
+（中文说明，便于理解；如与英文条款冲突，以英文为准）
+
+本仓库代码为“可阅览/可评估使用”的源代码，作者保留全部权利。
+你可以：查看源代码，并在不修改的前提下用于个人/内部的非商业评估运行。
+你不可以（除非事先获得作者书面同意）：修改源码/制作衍生作品、再发布/分发、对外部署/提供服务、或用于任何商业目的。
+授权申请请联系：yuniqueunic@gmail.com（以作者明确书面授权为准）。

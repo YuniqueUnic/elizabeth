@@ -1,0 +1,76 @@
+# Elizabeth
+
+English: `README.en.md`
+
+Elizabeth 是一个现代化的、以房间为中心（room-centric）的文件分享与协作平台，采用
+Rust + Next.js 技术栈构建。
+
+## 快速开始（Docker，默认 SQLite）
+
+```bash
+git clone https://github.com/YuniqueUnic/elizabeth.git
+cd elizabeth
+
+cp .env.docker .env
+# 生产环境务必修改 JWT_SECRET（长度 >= 32）
+${EDITOR:-nano} .env
+
+docker compose up -d --build
+```
+
+访问：
+
+- 前端：`http://localhost:4001`
+- OpenAPI：`http://localhost:4001/api/v1/docs`
+- 健康检查：`http://localhost:4001/api/v1/health`
+
+## PostgreSQL（可选）
+
+后端基于 `sqlx::AnyPool` 同时支持 SQLite / PostgreSQL：按 `DATABASE_URL`
+自动选择驱动，并自动切换迁移目录（源码：SQLite →
+`crates/board/migrations`，PostgreSQL → `crates/board/migrations_pg`；Docker
+runtime：`/app/migrations` 与 `/app/migrations_pg`）。
+
+- 一键启用（启动内置 PostgreSQL 容器）：
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --build
+```
+
+- 或接入外部 PostgreSQL：在 `.env` 中设置
+  `DATABASE_URL=postgresql://...`（确保后端容器网络可达）。
+
+## 配置要点
+
+- Docker 方式推荐使用 `.env`
+  覆盖关键项：`JWT_SECRET`、`DATABASE_URL`、`DB_MAX_CONNECTIONS`、`DB_MIN_CONNECTIONS`
+  等。
+- 配置文件：`docker/backend/config/backend.yaml`（注意：YAML
+  不会自动插值环境变量；密钥等通过 env 注入）。
+
+## 开发与质量门禁（Rust）
+
+```bash
+cargo fmt --all
+cargo check --workspace --all-targets --all-features
+cargo test --workspace --all-features
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+```
+
+也可以使用 `just verify`（见 `justfile`）。
+
+## 文档
+
+- `docs/README.md`：文档索引（从这里开始）
+- `docs/DOCKER_QUICK_START.md`：Docker 部署最短路径
+- `docs/DEPLOYMENT.md`：生产部署/云平台/反向代理
+- `docs/API_GUIDE.md`：API 说明
+- `docs/WEBSOCKET_GUIDE.md`：WebSocket 协议
+- `docs/ARCHITECTURE.md`：架构与实现细节（长文）
+
+## License
+
+见 `LICENSE`。
+
+未经作者书面同意，不得修改源代码、制作衍生作品、再发布/分发、对外部署/提供服务，或用于任何商业目的。
+有需求请提交 issue 询问许可。一般会及时回复。
