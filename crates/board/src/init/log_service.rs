@@ -12,6 +12,6 @@ pub(crate) fn init(cfg: &configrs::Config) {
     };
     let log_level = match_log_level(&cfg.app.log_level);
 
-    log_service::init_logger_with_level(log_level);
+    logrs::init_logger_with_level(log_level);
     tracing::info!("Logger initialized with level: {:?}", log_level);
 }

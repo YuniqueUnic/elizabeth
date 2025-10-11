@@ -18,7 +18,7 @@ configrs = { workspace = true }
 
 shadow-rs = { version = "1", features = ["no_std"] }
 
-clap = { version = "4.5.48", features = ["derive"] }
+clap = { version = "4.5.48", features = ["derive", "env"] }
 clap_complete = { version = "4", optional = true }
 
 tokio = { version = "1.47.1", features = ["full"] }
