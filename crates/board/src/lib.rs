@@ -1,6 +1,7 @@
 mod cmd;
 mod init;
 
+use axum_responses::http::HttpResponse;
 use clap::Parser;
 use configrs::Config;
 use shadow_rs::shadow;
@@ -30,4 +31,8 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
     log_service::init(cfg);
 
     Ok(())
+}
+
+fn health() -> HttpResponse {
+    HttpResponse::Ok()
 }
