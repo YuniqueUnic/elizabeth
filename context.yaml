@@ -1,0 +1,47 @@
+$schema: "https://raw.githubusercontent.com/context-hub/generator/refs/heads/main/json-schema.json"
+documents:
+  - description: "GIthub CI/CD"
+    outputPath: docs/github-ci-cd.md
+    overwrite: true
+    sources:
+      - type: text
+        description: "github release and build&upload CI/CD"
+        content: |
+          # 下面是我使用 release-plz 这个工具来进行 rust 项目的 release 的 CI/CD workflow 文件
+          但是目前这个仿佛存在问题... 没有办法按照以下流程来运转..
+          1. 我 push commit 或者从其它分支 rebase/merge commit 到 main 分支上
+          2. 自动触发 release 的 github action
+            1. 检测是否有 feat|fix|release 的 commit message
+            2. 有的话, 则触发进一步的 release-pr, bot 创建一个 release (changelog+bump version) 的 PR
+          3. 我去 view 这个 PR, 并且合并这个 PR 到 main
+          4. release-plz PR 成功合并到 main, 触发下一步的 release (发布 release changlog 到releases 中 并且也将 build&upload binaies 到 releases 中)
+          5. 完毕.
+
+          release-plz 相关说明链接:
+          - https://release-plz.dev/docs/github/quickstart
+          - https://release-plz.dev/docs/extra/releasing-binaries
+          - https://release-plz.dev/docs/config
+      - type: file
+        description: "GIthub CI/CD files"
+        sourcePaths:
+          - .github/workflows
+        filePattern: ["*.yaml", "*.yml"]
+
+      - type: file
+        description: "release-plz config file"
+        sourcePaths: .release-plz.toml
+        # filePattern: ["*release-plz.toml"]
+
+  # - description: "Rust project template - Project Structure"
+  #   outputPath: docs/rust-structure.md
+  #   overwrite: true
+  #   sources:
+  #     - type: tree
+  #       description: "Rust Directory Structure"
+  #       sourcePaths:
+  #         - crates
+  #       filePattern: ["*.rs", "*.toml"]
+  #       renderFormat: ascii
+  #       enabled: true
+  #       showCharCount: true
+  #       maxDepth: 5
