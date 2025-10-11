@@ -5,6 +5,16 @@ edition = "2024"
 
 [workspace]
 members = ["crates/board"]
+resolver = "3"
 
 
 [workspace.dependencies]
+
+# 开发依赖
+release-plz = "0.3"
+
+# 用于 changelog 生成的依赖
+git-cliff = "2.0"
+
+# 用于 semver 检查的依赖
+cargo-semver-checks = "0.44"
