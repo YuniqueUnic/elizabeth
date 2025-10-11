@@ -36,3 +36,7 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
 fn health() -> HttpResponse {
     HttpResponse::Ok()
 }
+
+fn status() -> HttpResponse {
+    HttpResponse::Ok()
+}
