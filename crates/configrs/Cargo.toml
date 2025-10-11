@@ -1,0 +1,22 @@
+[package]
+name = "configrs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+merge = { version = "0.2" }
+
+thiserror = { version = "2" }
+derive_more = { version = "2" }
+smart-default = { version = "0.7" }
+tracing = { version = "0.1" }
+
+config = { version = "0.15", features = ["preserve_order"] }
+fs4 = { version = "0.13" }
+
+serde = { version = "1", features = ["derive"] }
+serde_yaml = { version = "0.9" }
+
+
+[dev-dependencies]
+tempfile = "3.23.0"

@@ -3,12 +3,45 @@ name = "board"
 version.workspace = true
 edition.workspace = true
 
+[features]
+default = []
+full = ["completions"]
+dynamic = []
+# Optional features
+completions = ["dep:clap_complete"]
+disable-log = ["logrs/disable-log"]
+structured-log = ["logrs/structured-log"]
+
 [dependencies]
-anyhow = "1.0.100"
+logrs = { workspace = true }
+configrs = { workspace = true }
+
+shadow-rs = { version = "1", features = ["no_std"] }
+
+clap = { version = "4.5.48", features = ["derive"] }
+clap_complete = { version = "4", optional = true }
+
+tokio = { version = "1.47.1", features = ["full"] }
 axum = "0.8.6"
+
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
+
+anyhow = "1.0.100"
 thiserror = "2.0.17"
-tokio = { version = "1.47.1", features = ["full"] }
+
+
 utoipa = "5.4.0"
 utoipa-scalar = { version = "0.3.0", features = ["axum"] }
+
+
+tracing = "0.1.41"
+tracing-subscriber = "0.3.20"
+
+
+[build-dependencies]
+anyhow = { version = "1" }
+toml = { version = "0.9", features = ["preserve_order"] }
+clap = { version = "4", features = ["derive", "env"] }
+clap_complete = { version = "4" }
+shadow-rs = { version = "1", features = ["no_std"] }

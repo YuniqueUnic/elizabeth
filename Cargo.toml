@@ -4,11 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace]
-members = ["crates/board"]
+members = ["crates/*"]
 resolver = "3"
 
 
 [workspace.dependencies]
+logrs = { path = "crates/logrs" }
+configrs = { path = "crates/configrs" }
 
 # 开发依赖
 release-plz = "0.3"

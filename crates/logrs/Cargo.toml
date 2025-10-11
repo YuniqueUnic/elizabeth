@@ -1,0 +1,13 @@
+[package]
+name = "logrs"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = []
+structured-log = ["tracing-subscriber/json"]
+disable-log = ["tracing/max_level_off"]
+
+[dependencies]
+tracing = { version = "0.1" }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
