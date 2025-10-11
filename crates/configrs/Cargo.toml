@@ -7,7 +7,7 @@ edition = "2024"
 merge = { version = "0.2" }
 
 thiserror = { version = "2" }
-derive_more = { version = "2" }
+derive_more = { version = "2", features = ["full"] }
 smart-default = { version = "0.7" }
 tracing = { version = "0.1" }
 

@@ -1,8 +1,11 @@
 mod cmd;
 mod init;
 
-use configrs::AppConfig;
+use clap::Parser;
+use configrs::Config;
 use shadow_rs::shadow;
+
+use crate::init::{cfg_service, const_service, log_service};
 
 shadow!(build);
 
@@ -13,7 +16,7 @@ pub async fn run() -> anyhow::Result<()> {
     println!("Parsed CLI arguments: {cli:?}");
     match cli {
         cmd::Cli::Start(args) => {
-            let cfg = config_service::init(&args)?;
+            let cfg = cfg_service::init(&args)?;
             inner_run(&cfg).await?
         }
         #[cfg(feature = "completions")]
@@ -22,6 +25,8 @@ pub async fn run() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn inner_run(cfg: &AppConfig) -> anyhow::Result<()> {
+async fn inner_run(cfg: &Config) -> anyhow::Result<()> {
+    println!("Starting server with args: {cfg:#?}");
+    log_service::init(cfg);
     Ok(())
 }
