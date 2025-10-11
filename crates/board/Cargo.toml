@@ -1,0 +1,6 @@
+[package]
+name = "board"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
