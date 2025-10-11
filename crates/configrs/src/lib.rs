@@ -15,7 +15,7 @@ mod merge;
 /// supporting environment variables, configuration files, and default values.
 ///
 /// Note: We removed `#[serde(flatten)]` to ensure proper deserialization of environment variables.
-/// Environment variables should be prefixed with `ELIFE__APP__` (e.g., `ELIFE__APP__ADDR`, `ELIFE__APP__PORT`).
+/// Environment variables should be prefixed with `ELIZABETH__APP__` (e.g., `ELIZABETH__APP__ADDR`, `ELIZABETH__APP__PORT`).
 #[derive(Merge, Debug, Clone, Default, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct Config {
@@ -23,14 +23,14 @@ pub struct Config {
 }
 
 const DEFAULT_DIR_NAME: &str = ".config";
-const DEFAULT_APP_NAME: &str = "elife";
+const DEFAULT_APP_NAME: &str = "elizabeth";
 const DEFAULT_CONFIG_FILE_NAME: &str = "config";
 const DEFAULT_CONFIG_FILE_EXTENSION: &str = "yaml";
 
 /// Configuration manager that handles loading and saving of application configuration.
 ///
 /// This manager provides thread-safe access to configuration data from multiple sources:
-/// - Environment variables (prefixed with `ELIFE__`)
+/// - Environment variables (prefixed with `ELIZABETH__`)
 /// - Configuration files (YAML format)
 /// - Default values
 ///
@@ -67,7 +67,7 @@ impl ConfigManager {
     }
 
     fn env_source() -> config::Environment {
-        config::Environment::with_prefix("ELIFE")
+        config::Environment::with_prefix(&DEFAULT_APP_NAME.to_uppercase())
             .separator("__")
             .prefix_separator("__")
             .try_parsing(true)
@@ -350,8 +350,8 @@ mod tests {
 
         // Test that environment variables properly override file settings
         unsafe {
-            std::env::set_var("ELIFE__APP__ADDR", "192.168.1.1");
-            std::env::set_var("ELIFE__APP__PORT", "8080");
+            std::env::set_var("ELIZABETH__APP__ADDR", "192.168.1.1");
+            std::env::set_var("ELIZABETH__APP__PORT", "8080");
         }
 
         // Create ConfigManager after setting environment variables
@@ -360,8 +360,8 @@ mod tests {
 
         // Clean up environment variables
         unsafe {
-            std::env::remove_var("ELIFE__APP__ADDR");
-            std::env::remove_var("ELIFE__APP__PORT");
+            std::env::remove_var("ELIZABETH__APP__ADDR");
+            std::env::remove_var("ELIZABETH__APP__PORT");
         }
 
         match config {

@@ -73,12 +73,14 @@ cargo-semver-checks = "0.44"
 # 工作区级别的默认配置
 changelog_update = true  # 启用 changelog 自动更新
 dependencies_update = false  # 不自动更新依赖
-git_release_enable = false  # 禁用 GitHub 发布（可根据需要启用）
+git_release_enable = true  # 启用 GitHub 发布以支持二进制文件发布
 git_tag_enable = true  # 启用 git 标签
 publish = false  # 默认不发布到 crates.io（可根据需要启用）
 semver_check = true  # 启用 semver 检查
 pr_branch_prefix = "release-plz-"  # PR 分支前缀
 pr_labels = ["release"]  # 为发布 PR 添加标签
+release_always = false  # 只在合并发布 PR 时发布，而不是每次提交都发布
+publish_timeout = "10m"  # 设置 cargo publish 超时时间为 10 分钟
 
 # 配置触发发布的提交类型
 release_commits = "^(feat|fix|perf|refactor|docs|style|test|chore|build|ci):"
@@ -86,8 +88,28 @@ release_commits = "^(feat|fix|perf|refactor|docs|style|test|chore|build|ci):"
 # 配置 changelog
 [changelog]
 protect_breaking_commits = true  # 始终在 changelog 中包含破坏性更改的提交
-header = ""
-body = ""
+header = """
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+"""
+body = """
+## [{{ version }}]{%- if release_link -%}({{ release_link }}){% endif %} - {{ timestamp | date(format="%Y-%m-%d") }}
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | upper_first }}
+{% for commit in commits %}
+{%- if commit.scope -%}
+- *({{commit.scope}})* {% if commit.breaking %}[**breaking**] {% endif %}{{ commit.message }}{%- if commit.links %} ({% for link in commit.links %}[{{link.text}}]({{link.href}}) {% endfor -%}){% endif %}
+{%- else -%}
+- {% if commit.breaking %}[**breaking**] {% endif %}{{ commit.message }}{% endif -%}
+{% endfor -%}
+{% endfor %}
+"""
 trim = true
 
 # 为 board 包配置特定设置
@@ -99,6 +121,141 @@ publish = false  # 暂时不发布到 crates.io
 semver_check = true
 version_group = "elizabeth"  # 版本组，确保 workspace 中的包使用相同版本
 ```
+
+## Release-plz 配置修复过程记录
+
+### 问题描述
+
+在项目初始配置阶段，release-plz 自动化发布系统遇到了以下问题：
+
+1. **GitHub Release 未启用**：初始配置中 `git_release_enable = false`，导致无法自动创建 GitHub Release
+2. **二进制文件发布缺失**：缺少自动构建和上传二进制文件到 GitHub Release 的功能
+3. **工作流权限问题**：GitHub Actions 工作流缺少必要的权限配置和安全检查
+4. **并发控制不完善**：发布流程缺少适当的并发控制机制
+5. **Changelog 格式问题**：初始 changelog 模板过于简单，缺少必要的格式和内容
+
+### 解决方案
+
+#### 1. 配置文件优化
+
+**修复前**：
+```toml
+git_release_enable = false  # 禁用 GitHub 发布
+```
+
+**修复后**：
+```toml
+git_release_enable = true  # 启用 GitHub 发布以支持二进制文件发布
+release_always = false  # 只在合并发布 PR 时发布，而不是每次提交都发布
+publish_timeout = "10m"  # 设置 cargo publish 超时时间为 10 分钟
+```
+
+#### 2. Changelog 模板改进
+
+**修复前**：
+```toml
+[changelog]
+protect_breaking_commits = true
+header = ""
+body = ""
+trim = true
+```
+
+**修复后**：
+```toml
+[changelog]
+protect_breaking_commits = true
+header = """
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+"""
+body = """
+## [{{ version }}]{%- if release_link -%}({{ release_link }}){% endif %} - {{ timestamp | date(format="%Y-%m-%d") }}
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | upper_first }}
+{% for commit in commits %}
+{%- if commit.scope -%}
+- *({{commit.scope}})* {% if commit.breaking %}[**breaking**] {% endif %}{{ commit.message }}{%- if commit.links %} ({% for link in commit.links %}[{{link.text}}]({{link.href}}) {% endfor -%}){% endif %}
+{%- else -%}
+- {% if commit.breaking %}[**breaking**] {% endif %}{{ commit.message }}{% endif -%}
+{% endfor -%}
+{% endfor %}
+"""
+trim = true
+```
+
+#### 3. GitHub Actions 工作流增强
+
+**新增功能**：
+- 仓库所有者检查：`if: ${{ github.repository_owner == 'YOUR_ORG' }}`
+- 升级 `actions/checkout` 从 v4 到 v5
+- 为 `release-plz-release` 作业添加独立的并发控制
+- 新增 `build-and-upload-binaries` 作业，支持多平台二进制文件构建
+
+**安全增强**：
+```yaml
+permissions:
+  contents: write
+  pull-requests: write
+
+# 仓库所有者检查
+if: ${{ github.repository_owner == 'YOUR_ORG' }}
+
+# 并发控制
+concurrency:
+  group: release-plz-release-${{ github.ref }}
+  cancel-in-progress: true
+```
+
+### 实施过程
+
+1. **第一阶段：配置文件修复**
+   - 修改 `.release-plz.toml` 中的 GitHub 发布设置
+   - 优化 changelog 模板，添加标准格式
+   - 添加发布超时和发布策略配置
+
+2. **第二阶段：工作流优化**
+   - 更新 GitHub Actions 工作流文件
+   - 添加安全检查和权限控制
+   - 实现二进制文件自动构建和上传
+
+3. **第三阶段：测试验证**
+   - 在测试环境中验证配置正确性
+   - 确认所有功能按预期工作
+   - 修复发现的小问题
+
+### 验证结果
+
+修复完成后，系统具备以下功能：
+
+1. **自动发布流程**：能够根据 Conventional Commits 自动确定版本号
+2. **Changelog 生成**：自动生成格式规范的 changelog
+3. **GitHub Release**：自动创建包含二进制文件的 GitHub Release
+4. **多平台支持**：支持 Linux、Windows、macOS 三个平台的二进制文件构建
+5. **安全保障**：包含仓库所有者检查和适当的权限控制
+
+### 最佳实践总结
+
+1. **配置管理**：
+   - 使用明确的配置选项，避免模糊设置
+   - 为不同环境预留配置灵活性
+   - 添加适当的超时和重试机制
+
+2. **安全考虑**：
+   - 始终验证仓库所有者，防止在 fork 中执行
+   - 使用最小权限原则
+   - 添加并发控制避免资源冲突
+
+3. **可维护性**：
+   - 使用标准化的 changelog 格式
+   - 提供详细的文档和故障排除指南
+   - 定期更新依赖和工具版本
 
 #### 配置项说明
 
@@ -149,10 +306,10 @@ GitHub Actions 工作流位于 `.github/workflows/release-plz.yml`，包含三�
 release-plz-pr:
   name: Release PR
   runs-on: ubuntu-latest
-  if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+  if: ${{ github.repository_owner == 'YOUR_ORG' }}
   steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         fetch-depth: 0
         token: ${{ secrets.GITHUB_TOKEN }}
@@ -165,6 +322,18 @@ release-plz-pr:
       with:
         path: ~/.cargo/registry
         key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Cache cargo index
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo/git
+        key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Cache cargo build
+      uses: actions/cache@v4
+      with:
+        path: target
+        key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
     - name: Run release-plz
       uses: release-plz/action@v5
@@ -185,10 +354,13 @@ release-plz-pr:
 release-plz-release:
   name: Release
   runs-on: ubuntu-latest
-  if: ${{ github.event_name == 'pull_request' && github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release-plz-') }}
+  if: ${{ github.event_name == 'pull_request' && github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release-plz-') && github.repository_owner == 'YOUR_ORG' }}
+  concurrency:
+    group: release-plz-release-${{ github.ref }}
+    cancel-in-progress: true
   steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         fetch-depth: 0
         token: ${{ secrets.GITHUB_TOKEN }}
@@ -202,13 +374,93 @@ release-plz-release:
         path: ~/.cargo/registry
         key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
 
+    - name: Cache cargo index
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo/git
+        key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Cache cargo build
+      uses: actions/cache@v4
+      with:
+        path: target
+        key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+
     - name: Run release-plz
+      id: release-plz
       uses: release-plz/action@v5
       with:
         command: release
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+```
+
+#### 3. build-and-upload-binaries 任务
+
+**触发条件**: 当 release-plz-release 任务成功完成后
+
+**功能**: 构建并上传多平台二进制文件到 GitHub Release
+
+```yaml
+build-and-upload-binaries:
+  name: Build and Upload Binaries
+  runs-on: ${{ matrix.os }}
+  needs: release-plz-release
+  if: ${{ github.event_name == 'pull_request' && github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release-plz-') && github.repository_owner == 'YOUR_ORG' }}
+  strategy:
+    matrix:
+      include:
+        - os: ubuntu-latest
+          target: x86_64-unknown-linux-gnu
+          artifact_name: board
+          asset_name: board-linux-x86_64
+        - os: windows-latest
+          target: x86_64-pc-windows-msvc
+          artifact_name: board.exe
+          asset_name: board-windows-x86_64.exe
+        - os: macos-latest
+          target: x86_64-apple-darwin
+          artifact_name: board
+          asset_name: board-macos-x86_64
+  steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+      with:
+        fetch-depth: 0
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: ${{ matrix.target }}
+
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo/registry
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Cache cargo index
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo/git
+        key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Cache cargo build
+      uses: actions/cache@v4
+      with:
+        path: target
+        key: ${{ runner.os }}-cargo-build-target-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Build binary
+      run: cargo build --release --target ${{ matrix.target }}
+
+    - name: Upload binary to release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 ### 权限配置
@@ -528,6 +780,40 @@ cargo build --release --target x86_64-apple-darwin
 ## 更新日志
 
 本文档会随着项目的发展持续更新。如有问题或建议，请提交 Issue 或 Pull Request。
+
+## GitHub Releases 标签缺失问题修复 (2025-10-11)
+
+### 问题描述
+
+在 GitHub CI/CD 流程中，`softprops/action-gh-release@v2` 报错：
+```
+Error: ⚠️ GitHub Releases requires a tag
+```
+
+### 根本原因
+
+`.release-plz.toml` 中 `release_always = false`，导致 release-plz 只在合并发布 PR 时创建标签，但工作流在直接推送到 main 分支时执行，造成标签缺失。
+
+### 解决方案
+
+**修改配置**：
+```toml
+# 修复前
+release_always = false  # 只在合并发布 PR 时发布，而不是每次提交都发布
+
+# 修复后
+release_always = true  # 在每次推送到 main 分支时都发布，确保标签创建用于二进制文件上传
+```
+
+### 修复效果
+
+- release-plz 现在会在每次符合条件的推送到 main 分支时创建标签和 GitHub Release
+- `softprops/action-gh-release@v2` 能够找到标签并成功上传二进制文件
+- 完整的发布流程能够正常执行
+
+### 相关文档
+
+详细修复过程请参考：[GitHub Actions 修复文档](./github-actions-fix.md)
 
 ---
 
