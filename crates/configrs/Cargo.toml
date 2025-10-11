@@ -1,7 +1,9 @@
 [package]
 name = "configrs"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true  # 使用 workspace 版本
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 merge = { version = "0.2" }

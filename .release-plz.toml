@@ -1,25 +1,34 @@
 [workspace]
 changelog_path = "CHANGELOG.md"
 changelog_update = true
-dependencies_update = true
-git_release_enable = true  # 这个应该确保创建 GitHub Release
-git_tag_enable = true
+dependencies_update = true # run `cargo update` in the release PR
+git_release_enable = false  # workspace 级别禁用 release
+git_tag_enable = false      # workspace 级别禁用 tag
 publish = false
 semver_check = true
 pr_branch_prefix = "release-plz-"
 pr_labels = ["release"]
 publish_timeout = "10m"
+git_release_body = """
+{{ changelog }}
+{% if remote.contributors %}
+### Contributors
+{% for contributor in remote.contributors %}
+* @{{ contributor.username }}
+{% endfor %}
+{% endif %}
+"""
 
 [changelog]
 protect_breaking_commits = true
 body = """
-## `{{ package }}` - [{{ version }}]{%- if release_link -%}({{ release_link }}){% endif %} - {{ timestamp | date(format="%Y-%m-%d") }}
+## Elizabeth Board - [{{ version }}]{%- if release_link -%}({{ release_link }}){% endif %} - {{ timestamp | date(format="%Y-%m-%d") }}
 
 {% for group, commits in commits | group_by(attribute="group") %}
 ### {{ group | upper_first }}
 {% for commit in commits %}
 {%- if commit.scope -%}
-- *({{commit.scope}})* {% if commit.breaking %}[**breaking**] {% endif %}{{ commit.message }}{%- if commit.links %} ({% for link in commit.links %}[{{link.text}}]({{link.href}}) {% endfor -%}){% endif %}
+- _({{commit.scope}})_ {% if commit.breaking %}[**breaking**] {% endif %}{{ commit.message }}{%- if commit.links %} ({% for link in commit.links %}[{{link.text}}]({{link.href}}) {% endfor -%}){% endif %}
 {% else -%}
 - {% if commit.breaking %}[**breaking**] {% endif %}{{ commit.message }}
 {% endif -%}
@@ -27,3 +36,14 @@ body = """
 {% endfor -%}
 """
 trim = true
+
+# 只配置主包
+[[package]]
+name = "board"
+changelog_path = "CHANGELOG.md"
+publish = false
+semver_check = true
+git_release_enable = true   # 只有 board 创建 GitHub release
+git_tag_enable = true       # 只有 board 创建 git tag
+git_release_name = "elizabeth-board-v{{ version }}"
+git_tag_name = "v{{ version }}"

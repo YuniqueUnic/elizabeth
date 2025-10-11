@@ -3,6 +3,7 @@ name: CD # Continuous Deployment
 on:
   release:
     types: [published]
+  workflow_dispatch:
 
 env:
   CARGO_INCREMENTAL: 0
@@ -20,11 +21,23 @@ defaults:
     shell: bash
 
 jobs:
+  debug-release:
+    name: Debug Release Info
+    runs-on: ubuntu-latest
+    steps:
+      - name: Debug release event
+        run: |
+          echo "Release event triggered!"
+          echo "Release name: ${{ github.event.release.name }}"
+          echo "Release tag: ${{ github.event.release.tag_name }}"
+          echo "Release published: ${{ github.event.release.published_at }}"
+          echo "Repository owner: ${{ github.repository_owner }}"
+
   upload-assets:
     name: ${{ matrix.target }}
     permissions:
-      contents: write
-    if: github.repository_owner == 'yuniqueunic'
+      contents: write # to upload release assets
+    if: github.repository_owner == 'yuniqueunic' && (startsWith(github.event.release.tag_name, 'v') || startsWith(github.event.release.name, 'elizabeth-board-v'))
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -71,7 +84,7 @@ jobs:
 
       - uses: taiki-e/upload-rust-binary-action@v1.27.0
         with:
-          bin: elizabeth-board
+          bin: board
           target: ${{ matrix.target }}
           tar: all
           zip: windows
