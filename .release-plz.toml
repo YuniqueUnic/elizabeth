@@ -1,23 +1,20 @@
 [workspace]
-# set the path of all the crates to the changelog to the root of the repository
 changelog_path = "CHANGELOG.md"
 changelog_update = true
 dependencies_update = true
-git_release_enable = true
+git_release_enable = true  # 这个应该确保创建 GitHub Release
 git_tag_enable = true
 publish = false
 semver_check = true
-release_always = false   # 注意：改为 false，这样 release-plz 不会在每次 push 都强制做 release，而是等你合并 release-pr
 pr_branch_prefix = "release-plz-"
 pr_labels = ["release"]
-release_commits = "^(feat|fix|release)(.+)?"
 publish_timeout = "10m"
 
 [changelog]
 protect_breaking_commits = true
 body = """
-
 ## `{{ package }}` - [{{ version }}]{%- if release_link -%}({{ release_link }}){% endif %} - {{ timestamp | date(format="%Y-%m-%d") }}
+
 {% for group, commits in commits | group_by(attribute="group") %}
 ### {{ group | upper_first }}
 {% for commit in commits %}
@@ -30,15 +27,3 @@ body = """
 {% endfor -%}
 """
 trim = true
-
-[[package]]
-name = "board"
-changelog_path = "CHANGELOG.md"
-publish = false
-semver_check = true
-
-[[package]]
-name = "configrs"
-changelog_path = "CHANGELOG.md"
-publish = false
-semver_check = true
