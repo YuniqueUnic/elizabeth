@@ -1,10 +1,13 @@
 # Elizabeth
 
-Elizabeth 是一个基于 Rust 的文件分享和协作平台项目，旨在提供简单、安全、高效的文件共享解决方案。
+Elizabeth 是一个基于 Rust
+的文件分享和协作平台项目，旨在提供简单、安全、高效的文件共享解决方案。
 
 ## 项目概述
 
-Elizabeth 项目致力于构建一个现代化的文件分享系统，支持多种文件类型、实时协作和高级安全特性。项目采用模块化设计，使用 Rust 语言确保高性能和内存安全。
+Elizabeth
+项目致力于构建一个现代化的文件分享系统，支持多种文件类型、实时协作和高级安全特性。项目采用模块化设计，使用
+Rust 语言确保高性能和内存安全。
 
 ### 核心特性
 
@@ -80,7 +83,8 @@ elizabeth/
 
 ## 发布系统
 
-Elizabeth 项目使用 [release-plz](https://release-plz.ieni.dev/) 实现自动化版本发布流程。该系统能够：
+Elizabeth 项目使用 [release-plz](https://release-plz.ieni.dev/)
+实现自动化版本发布流程。该系统能够：
 
 - 根据 Conventional Commits 自动确定版本号
 - 自动生成和维护 changelog
@@ -123,7 +127,8 @@ git commit -m "fix(login): resolve token expiration issue"
 git commit -m "feat(api)!: change user endpoint response format"
 ```
 
-详细的发布系统配置和使用方法请参考 [`docs/release-plz.md`](./docs/release-plz.md)。
+详细的发布系统配置和使用方法请参考
+[`docs/release-plz.md`](./docs/release-plz.md)。
 
 ## 开发指南
 
@@ -194,7 +199,8 @@ git commit -m "feat(api)!: change user endpoint response format"
 
 - [release-plz](https://release-plz.ieni.dev/) - 自动化发布工具
 - [git-cliff](https://github.com/orhun/git-cliff) - Changelog 生成工具
-- [cargo-semver-checks](https://github.com/obi1kenobi/cargo-semver-checks) - 语义化版本检查
+- [cargo-semver-checks](https://github.com/obi1kenobi/cargo-semver-checks) -
+  语义化版本检查
 
 ### 相关项目
 

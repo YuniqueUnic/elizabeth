@@ -10,7 +10,7 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::init::{cfg_service, const_service, log_service};
 use configrs::Config;
-use route::*;
+// use route::*;
 
 shadow!(build);
 

@@ -1,6 +1,7 @@
 # Release-plz 自动化发布系统
 
-本文档详细介绍了 elizabeth 项目中集成的 release-plz 自动化发布系统的配置、使用方法和最佳实践。
+本文档详细介绍了 elizabeth 项目中集成的 release-plz
+自动化发布系统的配置、使用方法和最佳实践。
 
 ## 目录
 
@@ -16,7 +17,8 @@
 
 ## 概述
 
-[release-plz](https://release-plz.ieni.dev/) 是一个专为 Rust 项目设计的发布自动化工具，它能够：
+[release-plz](https://release-plz.ieni.dev/) 是一个专为 Rust
+项目设计的发布自动化工具，它能够：
 
 - 根据 Conventional Commits 自动确定版本号
 - 自动生成和维护 changelog
@@ -128,7 +130,8 @@ version_group = "elizabeth"  # 版本组，确保 workspace 中的包使用相�
 
 在项目初始配置阶段，release-plz 自动化发布系统遇到了以下问题：
 
-1. **GitHub Release 未启用**：初始配置中 `git_release_enable = false`，导致无法自动创建 GitHub Release
+1. **GitHub Release 未启用**：初始配置中
+   `git_release_enable = false`，导致无法自动创建 GitHub Release
 2. **二进制文件发布缺失**：缺少自动构建和上传二进制文件到 GitHub Release 的功能
 3. **工作流权限问题**：GitHub Actions 工作流缺少必要的权限配置和安全检查
 4. **并发控制不完善**：发布流程缺少适当的并发控制机制
@@ -139,11 +142,13 @@ version_group = "elizabeth"  # 版本组，确保 workspace 中的包使用相�
 #### 1. 配置文件优化
 
 **修复前**：
+
 ```toml
 git_release_enable = false  # 禁用 GitHub 发布
 ```
 
 **修复后**：
+
 ```toml
 git_release_enable = true  # 启用 GitHub 发布以支持二进制文件发布
 release_always = false  # 只在合并发布 PR 时发布，而不是每次提交都发布
@@ -153,6 +158,7 @@ publish_timeout = "10m"  # 设置 cargo publish 超时时间为 10 分钟
 #### 2. Changelog 模板改进
 
 **修复前**：
+
 ```toml
 [changelog]
 protect_breaking_commits = true
@@ -162,6 +168,7 @@ trim = true
 ```
 
 **修复后**：
+
 ```toml
 [changelog]
 protect_breaking_commits = true
@@ -193,12 +200,14 @@ trim = true
 #### 3. GitHub Actions 工作流增强
 
 **新增功能**：
+
 - 仓库所有者检查：`if: ${{ github.repository_owner == 'YOUR_ORG' }}`
 - 升级 `actions/checkout` 从 v4 到 v5
 - 为 `release-plz-release` 作业添加独立的并发控制
 - 新增 `build-and-upload-binaries` 作业，支持多平台二进制文件构建
 
 **安全增强**：
+
 ```yaml
 permissions:
   contents: write
@@ -259,23 +268,24 @@ concurrency:
 
 #### 配置项说明
 
-| 配置项 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `changelog_update` | bool | true | 是否自动更新 changelog |
-| `dependencies_update` | bool | false | 是否自动更新依赖版本 |
-| `git_release_enable` | bool | false | 是否创建 GitHub Release |
-| `git_tag_enable` | bool | true | 是否创建 git 标签 |
-| `publish` | bool | false | 是否发布到 crates.io |
-| `semver_check` | bool | true | 是否进行语义化版本检查 |
-| `pr_branch_prefix` | string | "release-plz-" | 发布 PR 的分支前缀 |
-| `pr_labels` | array | ["release"] | 发布 PR 的标签 |
-| `release_commits` | string | - | 触发发布的提交类型正则表达式 |
+| 配置项                | 类型   | 默认值         | 说明                         |
+| --------------------- | ------ | -------------- | ---------------------------- |
+| `changelog_update`    | bool   | true           | 是否自动更新 changelog       |
+| `dependencies_update` | bool   | false          | 是否自动更新依赖版本         |
+| `git_release_enable`  | bool   | false          | 是否创建 GitHub Release      |
+| `git_tag_enable`      | bool   | true           | 是否创建 git 标签            |
+| `publish`             | bool   | false          | 是否发布到 crates.io         |
+| `semver_check`        | bool   | true           | 是否进行语义化版本检查       |
+| `pr_branch_prefix`    | string | "release-plz-" | 发布 PR 的分支前缀           |
+| `pr_labels`           | array  | ["release"]    | 发布 PR 的标签               |
+| `release_commits`     | string | -              | 触发发布的提交类型正则表达式 |
 
 ## GitHub Actions 集成
 
 ### 工作流文件
 
-GitHub Actions 工作流位于 `.github/workflows/release-plz.yml`，包含三个主要任务：
+GitHub Actions 工作流位于
+`.github/workflows/release-plz.yml`，包含三个主要任务：
 
 #### 最新优化内容
 
@@ -481,22 +491,23 @@ concurrency:
 
 ## Conventional Commits 规范
 
-release-plz 基于 Conventional Commits 规范来确定版本号和生成 changelog。项目中支持的提交类型包括：
+release-plz 基于 Conventional Commits 规范来确定版本号和生成
+changelog。项目中支持的提交类型包括：
 
 ### 提交类型
 
-| 类型 | 说明 | 版本影响 |
-|------|------|----------|
-| `feat` | 新功能 | 次版本 (minor) |
-| `fix` | 修复 bug | 补丁版本 (patch) |
-| `perf` | 性能优化 | 次版本 (minor) |
-| `refactor` | 代码重构 | 补丁版本 (patch) |
-| `docs` | 文档更新 | 补丁版本 (patch) |
-| `style` | 代码格式调整 | 补丁版本 (patch) |
-| `test` | 测试相关 | 补丁版本 (patch) |
-| `chore` | 构建过程或辅助工具的变动 | 补丁版本 (patch) |
-| `build` | 构建系统或依赖变更 | 补丁版本 (patch) |
-| `ci` | CI 配置文件和脚本的变更 | 补丁版本 (patch) |
+| 类型       | 说明                     | 版本影响         |
+| ---------- | ------------------------ | ---------------- |
+| `feat`     | 新功能                   | 次版本 (minor)   |
+| `fix`      | 修复 bug                 | 补丁版本 (patch) |
+| `perf`     | 性能优化                 | 次版本 (minor)   |
+| `refactor` | 代码重构                 | 补丁版本 (patch) |
+| `docs`     | 文档更新                 | 补丁版本 (patch) |
+| `style`    | 代码格式调整             | 补丁版本 (patch) |
+| `test`     | 测试相关                 | 补丁版本 (patch) |
+| `chore`    | 构建过程或辅助工具的变动 | 补丁版本 (patch) |
+| `build`    | 构建系统或依赖变更       | 补丁版本 (patch) |
+| `ci`       | CI 配置文件和脚本的变更  | 补丁版本 (patch) |
 
 ### 提交格式
 
@@ -598,6 +609,7 @@ fix(api)!: change parameter types
 **问题**: 工作流执行失败，提示权限不足
 
 **解决方案**:
+
 - 检查 GitHub 仓库设置中的 Actions 权限
 - 确保 "Allow GitHub Actions to create and approve pull requests" 选项已启用
 - 验证 GITHUB_TOKEN 权限配置
@@ -607,6 +619,7 @@ fix(api)!: change parameter types
 **问题**: semver 检查失败
 
 **解决方案**:
+
 - 检查 `Cargo.toml` 中的版本号是否符合语义化版本规范
 - 确认破坏性更改是否正确标记
 - 手动更新版本号后重新运行
@@ -616,6 +629,7 @@ fix(api)!: change parameter types
 **问题**: changelog 格式不正确或内容缺失
 
 **解决方案**:
+
 - 检查提交信息是否符合 Conventional Commits 规范
 - 验证 `.release-plz.toml` 中的 changelog 配置
 - 手动编辑 `CHANGELOG.md` 后重新运行
@@ -625,6 +639,7 @@ fix(api)!: change parameter types
 **问题**: 无法自动创建发布 PR
 
 **解决方案**:
+
 - 检查 main 分支是否有新的符合触发条件的提交
 - 验证 GitHub Actions 工作流配置
 - 检查仓库是否有冲突的 PR
@@ -786,17 +801,20 @@ cargo build --release --target x86_64-apple-darwin
 ### 问题描述
 
 在 GitHub CI/CD 流程中，`softprops/action-gh-release@v2` 报错：
+
 ```
 Error: ⚠️ GitHub Releases requires a tag
 ```
 
 ### 根本原因
 
-`.release-plz.toml` 中 `release_always = false`，导致 release-plz 只在合并发布 PR 时创建标签，但工作流在直接推送到 main 分支时执行，造成标签缺失。
+`.release-plz.toml` 中 `release_always = false`，导致 release-plz 只在合并发布
+PR 时创建标签，但工作流在直接推送到 main 分支时执行，造成标签缺失。
 
 ### 解决方案
 
 **修改配置**：
+
 ```toml
 # 修复前
 release_always = false  # 只在合并发布 PR 时发布，而不是每次提交都发布
