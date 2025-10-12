@@ -1,6 +1,7 @@
 https://github.com/oustn/cloudflare-drop?tab=readme-ov-file
 https://github.com/99percentpeople/weblink p2p WebRTC
-https://github.com/szabodanika/microbin/tree/master 很接近我想要的了，但是 license 和 url 问题
+https://github.com/szabodanika/microbin/tree/master 很接近我想要的了，但是
+license 和 url 问题
 
 https://github.com/blenderskool/blaze p2p file sharing
 
@@ -14,5 +15,4 @@ https://github.com/blenderskool/blaze p2p file sharing
 6. 支持图片对比 (左右滑动对比)
 7. 接入 cloudflare R2 等 s3.
 
-尽量让所有的东西都在一页上显示
-单一可执行文件完成部署
+尽量让所有的东西都在一页上显示 单一可执行文件完成部署

@@ -1,0 +1,102 @@
+# prek configuration for Rust projects
+# https://github.com/j178/prek
+
+# 指定 prek 最低版本
+minimum_prek_version: 0.2.0
+
+repos:
+  # 基础文件检查 - 使用 prek 内置的快速实现
+  - repo: "https://github.com/pre-commit/pre-commit-hooks"
+    rev: v6.0.0
+    hooks:
+      # 移除行尾空白 (内置快速实现)
+      - id: trailing-whitespace
+      # 确保文件以换行符结尾 (内置快速实现)
+      - id: end-of-file-fixer
+      # 检查 YAML 文件语法 (内置快速实现)
+      - id: check-yaml
+      # 检查 TOML 文件语法 (内置快速实现)
+      - id: check-toml
+      # 防止提交大文件 (内置快速实现)
+      - id: check-added-large-files
+        args: ["--maxkb=500"]
+      # 检查合并冲突标记
+      - id: check-merge-conflict
+      # 混合换行符检查 (内置快速实现)
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+
+  - repo: https://github.com/bneijt/deno-pre-commit
+    rev: 2.2.5
+    hooks:
+      - id: deno-fmt
+        exclude_types: ["javascript", "jsx", "ts", "tsx", "json"]
+
+  # Rust 格式化
+  - repo: local
+    hooks:
+      - id: rustfmt
+        name: rustfmt
+        entry: cargo fmt --all -- --check
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+  # Rust 快速编译检查
+  - repo: local
+    hooks:
+      - id: cargo-check
+        name: cargo check
+        entry: cargo check --all-features
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+  # Rust clippy 代码质量检查
+  - repo: local
+    hooks:
+      - id: clippy
+        name: clippy
+        entry: cargo clippy --all-features -- -D warnings
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+  # Rust 测试 - 仅在 push 阶段运行
+  - repo: local
+    hooks:
+      - id: cargo-test
+        name: cargo test
+        entry: cargo test --all-features
+        language: system
+        pass_filenames: false
+        stages: [push]
+
+  # 拼写检查 - 使用 typos (Rust 编写，性能优秀)
+  - repo: https://github.com/crate-ci/typos
+    rev: v1.38.1
+    hooks:
+      - id: typos
+
+  # # 5. secret 检测 - 使用 gitleaks (Go 编写，高性能，无需 baseline)
+  # - repo: https://github.com/gitleaks/gitleaks
+  #   rev: v8.24.2
+  #   hooks:
+  #     - id: gitleaks
+
+  # 检测敏感信息和 .env 文件
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ["--baseline", ".secrets.baseline"]
+        exclude: .*\.lock$
+
+  # 防止提交 .env 文件
+  - repo: local
+    hooks:
+      - id: forbid-env-files
+        name: Block .env files
+        entry: "Blocking .env files from being committed"
+        language: fail
+        files: '^\.env(\.|$)'

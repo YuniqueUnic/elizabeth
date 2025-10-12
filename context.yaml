@@ -14,7 +14,7 @@ documents:
             1. 检测是否有 feat|fix|release 的 commit message
             2. 有的话, 则触发进一步的 release-pr, bot 创建一个 release (changelog+bump version) 的 PR
           3. 我去 view 这个 PR, 并且合并这个 PR 到 main
-          4. release-plz PR 成功合并到 main, 触发下一步的 release (发布 release changlog 到releases 中 并且也将 build&upload binaies 到 releases 中)
+          4. release-plz PR 成功合并到 main, 触发下一步的 release (发布 release changelog 到releases 中 并且也将 build&upload binaries 到 releases 中)
           5. 完毕.
 
           release-plz 相关说明链接:
