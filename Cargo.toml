@@ -1,6 +1,6 @@
 [workspace.package]
 name = "elizabeth"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 authors=["unic <yuniqueunic@gmail.com>"]
 license-file = "LICENSE"
