@@ -7,25 +7,29 @@ and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
 ## Elizabeth Board - [0.3.0](https://github.com/YuniqueUnic/elizabeth/compare/v0.2.0...v0.3.0) - 2025-10-12
 
-
 ### Added
+
 - _(board)_ add health check endpoint
 - _(board)_ add axum_responses dependency
 
 ### Fixed
+
 - _(board)_ add OpenAPI documentation and scalar UI
 - _(board)_ add status endpoint
 
 ### Other
+
 - _(board)_ modularize routing and API documentation
 - _(workspace)_ centralize package metadata in workspace
 - _(release)_ add release binaries workflow and update release-plz config
 - _(deps)_ update convert_case and clap dependencies
-- _(board)_ structure the core application named borad.
+- _(board)_ structure the core application named board.
 - _(project)_ initialize project configuration for Elizabeth
 - _(workspace)_ rename crate from elizabeth to board
+
 ## Elizabeth Board - [0.2.0](https://github.com/YuniqueUnic/elizabeth/compare/v0.1.0...v0.2.0) - 2025-10-12
 
 ### Added
