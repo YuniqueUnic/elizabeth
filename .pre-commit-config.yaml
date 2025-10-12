@@ -27,7 +27,7 @@ repos:
         args: ["--fix=lf"]
 
   - repo: https://github.com/bneijt/deno-pre-commit
-    rev: 2.2.5
+    rev: 2.5.0
     hooks:
       - id: deno-fmt
         exclude_types: ["javascript", "jsx", "ts", "tsx", "json"]

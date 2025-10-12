@@ -306,7 +306,7 @@ build-and-upload-binaries:
 - 启用 semver 检查
 - PR 分支前缀：`release-plz-`
 - PR 标签：`["release"]`
-- 发布超时设置：10分钟
+- 发布超时设置：10 分钟
 
 ### 使用方法
 
