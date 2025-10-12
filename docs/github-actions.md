@@ -60,21 +60,25 @@ concurrency:
 **触发条件**：当有代码推送到 main 分支时
 
 **安全检查**：
+
 ```yaml
 if: ${{ github.repository_owner == 'YOUR_ORG' }}
 ```
 
 **主要步骤**：
+
 1. 检出代码（完整历史）
 2. 安装 Rust 工具链
 3. 缓存 Cargo 注册表、索引和构建产物
 4. 运行 release-plz 创建发布 PR
 
 **环境变量**：
+
 - `GITHUB_TOKEN`: 用于创建和操作 Pull Request
 - `CARGO_REGISTRY_TOKEN`: 用于发布到 crates.io（当前配置为不发布）
 
 **详细配置**：
+
 ```yaml
 release-plz-pr:
   name: Release PR
@@ -122,11 +126,13 @@ release-plz-pr:
 **触发条件**：当 release-plz 创建的 PR 被合并时
 
 **触发条件详解**：
+
 ```yaml
 if: ${{ github.event_name == 'pull_request' && github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release-plz-') && github.repository_owner == 'YOUR_ORG' }}
 ```
 
 **并发控制**：
+
 ```yaml
 concurrency:
   group: release-plz-release-${{ github.ref }}
@@ -134,12 +140,14 @@ concurrency:
 ```
 
 **主要步骤**：
+
 1. 检出代码（完整历史）
 2. 安装 Rust 工具链
 3. 缓存 Cargo 注册表、索引和构建产物
 4. 运行 release-plz 执行发布流程
 
 **详细配置**：
+
 ```yaml
 release-plz-release:
   name: Release
@@ -191,11 +199,13 @@ release-plz-release:
 **触发条件**：当 release-plz-release 任务成功完成后
 
 **依赖关系**：
+
 ```yaml
 needs: release-plz-release
 ```
 
 **矩阵构建策略**：
+
 ```yaml
 strategy:
   matrix:
@@ -215,6 +225,7 @@ strategy:
 ```
 
 **主要步骤**：
+
 1. 检出代码（完整历史）
 2. 安装 Rust 工具链和目标平台
 3. 缓存 Cargo 注册表、索引和构建产物
@@ -222,6 +233,7 @@ strategy:
 5. 上传二进制文件到 GitHub Release
 
 **详细配置**：
+
 ```yaml
 build-and-upload-binaries:
   name: Build and Upload Binaries
@@ -299,9 +311,11 @@ build-and-upload-binaries:
 ### 使用方法
 
 1. **开发新功能**：正常在 main 分支上进行开发
-2. **自动创建发布 PR**：当有符合触发条件的提交推送到 main 分支时，GitHub Actions 会自动创建一个包含版本更新和 changelog 的 PR
+2. **自动创建发布 PR**：当有符合触发条件的提交推送到 main 分支时，GitHub Actions
+   会自动创建一个包含版本更新和 changelog 的 PR
 3. **审核和合并**：审核自动生成的 PR，确认无误后合并
-4. **自动发布**：合并 PR 后，GitHub Actions 会自动执行发布流程，创建 git 标签和 GitHub Release
+4. **自动发布**：合并 PR 后，GitHub Actions 会自动执行发布流程，创建 git 标签和
+   GitHub Release
 
 ### 版本触发规则
 
@@ -314,6 +328,7 @@ release-plz 会根据以下提交类型触发版本更新：
 ### 缓存策略
 
 工作流使用三层缓存优化构建性能：
+
 1. **Cargo 注册表缓存**：缓存下载的 crate 包
 2. **Cargo git 依赖缓存**：缓存 git 依赖
 3. **构建产物缓存**：缓存编译结果
@@ -321,11 +336,13 @@ release-plz 会根据以下提交类型触发版本更新：
 ### 支持的平台和文件
 
 **支持的平台**：
+
 - Linux (x86_64-unknown-linux-gnu)
 - Windows (x86_64-pc-windows-msvc)
 - macOS (x86_64-apple-darwin)
 
 **二进制文件命名**：
+
 - `board-linux-x86_64`
 - `board-windows-x86_64.exe`
 - `board-macos-x86_64`
@@ -335,6 +352,7 @@ release-plz 会根据以下提交类型触发版本更新：
 #### 仓库所有者检查
 
 所有关键作业都包含仓库所有者检查：
+
 ```yaml
 if: ${{ github.repository_owner == 'YOUR_ORG' }}
 ```
@@ -344,6 +362,7 @@ if: ${{ github.repository_owner == 'YOUR_ORG' }}
 #### 权限最小化
 
 仅授予必要的权限：
+
 ```yaml
 permissions:
   contents: write
@@ -380,7 +399,8 @@ permissions:
 
 #### release-binaries.yml
 
-项目还包含一个独立的工作流文件 `release-binaries.yml`，用于在 GitHub Release 发布时构建二进制文件：
+项目还包含一个独立的工作流文件 `release-binaries.yml`，用于在 GitHub Release
+发布时构建二进制文件：
 
 ```yaml
 name: Release Binaries
@@ -391,6 +411,7 @@ on:
 ```
 
 这个工作流支持额外的 macOS ARM64 构建：
+
 - macOS (aarch64-apple-darwin)
 - 文件命名：`board-macos-aarch64`
 
@@ -410,8 +431,10 @@ error[E0463]: can't find crate for `std`
 #### 根本原因
 
 问题出现在以下场景：
+
 1. **交叉编译环境**：在非 macOS 环境中尝试编译 macOS 目标平台
-2. **目标平台缺失**：`dtolnay/rust-toolchain@stable` action 虽然支持 `targets` 参数，但在某些情况下可能无法正确安装所有目标平台
+2. **目标平台缺失**：`dtolnay/rust-toolchain@stable` action 虽然支持 `targets`
+   参数，但在某些情况下可能无法正确安装所有目标平台
 3. **构建矩阵复杂性**：项目支持多个目标平台，包括：
    - `x86_64-unknown-linux-gnu` (Linux)
    - `x86_64-pc-windows-msvc` (Windows)
@@ -423,6 +446,7 @@ error[E0463]: can't find crate for `std`
 在两个工作流文件中都添加了明确的目标平台安装步骤：
 
 **release-plz.yml 修复**：
+
 ```yaml
 - name: Install Rust toolchain
   uses: dtolnay/rust-toolchain@stable
@@ -434,6 +458,7 @@ error[E0463]: can't find crate for `std`
 ```
 
 **release-binaries.yml 修复**：
+
 ```yaml
 - name: Install Rust toolchain
   uses: dtolnay/rust-toolchain@stable
@@ -446,8 +471,10 @@ error[E0463]: can't find crate for `std`
 
 #### 修复原理
 
-1. **双重保障**：既使用 `dtolnay/rust-toolchain` 的 `targets` 参数，又显式调用 `rustup target add`
-2. **确保安装**：`rustup target add` 命令会确保目标平台被正确安装，即使 action 的 `targets` 参数失败
+1. **双重保障**：既使用 `dtolnay/rust-toolchain` 的 `targets` 参数，又显式调用
+   `rustup target add`
+2. **确保安装**：`rustup target add` 命令会确保目标平台被正确安装，即使 action
+   的 `targets` 参数失败
 3. **兼容性**：这种方案对所有目标平台都有效，包括交叉编译场景
 4. **最小影响**：只是添加了一个额外的步骤，不会影响现有的构建流程
 
@@ -456,6 +483,7 @@ error[E0463]: can't find crate for `std`
 修复后可以通过以下方式验证：
 
 1. **本地测试**：
+
 ```bash
 # 检查目标平台是否已安装
 rustup target list --installed
@@ -469,6 +497,7 @@ cargo build --release --target x86_64-apple-darwin
 ```
 
 2. **CI/CD 验证**：
+
 - 触发 GitHub Actions 工作流
 - 检查构建日志中是否出现目标平台安装步骤
 - 确认所有平台的二进制文件都能成功构建
@@ -478,7 +507,8 @@ cargo build --release --target x86_64-apple-darwin
 基于这次修复，总结出的 Rust 交叉编译最佳实践：
 
 1. **明确指定目标平台**：始终在工作流中明确指定需要的目标平台
-2. **双重安装策略**：同时使用 action 的 `targets` 参数和 `rustup target add` 命令
+2. **双重安装策略**：同时使用 action 的 `targets` 参数和 `rustup target add`
+   命令
 3. **缓存策略**：为每个目标平台使用独立的构建缓存键
 4. **矩阵构建**：使用 GitHub Actions 的矩阵策略并行构建多个平台
 5. **错误处理**：在构建步骤中添加适当的错误检查和日志输出
@@ -494,7 +524,8 @@ cargo build --release --target x86_64-apple-darwin
 
 1. **仓库设置**：确保 GitHub 仓库设置中允许 Actions 创建和操作 Pull Request
 2. **密钥配置**：如需发布到 crates.io，需要配置 `CARGO_REGISTRY_TOKEN` 密钥
-3. **发布配置**：当前配置不自动发布到 crates.io，如需启用请修改 `.release-plz.toml`
+3. **发布配置**：当前配置不自动发布到 crates.io，如需启用请修改
+   `.release-plz.toml`
 4. **版本兼容**：工作流使用最新的 release-plz-action v5 版本
 5. **构建时间**：二进制文件构建需要额外的构建时间，请耐心等待
 6. **网络环境**：多平台构建可能需要较长时间，建议在网络良好环境下进行
@@ -534,10 +565,10 @@ cargo build --release --target x86_64-apple-darwin
    ```bash
    # 检查配置
    release-plz config
-   
+
    # 预览 changelog
    release-plz changelog
-   
+
    # 验证版本号
    release-plz verify
    ```
@@ -546,7 +577,7 @@ cargo build --release --target x86_64-apple-darwin
    ```bash
    # 验证配置文件语法
    toml lint .release-plz.toml
-   
+
    # 检查 workspace 配置
    cargo metadata --format-version 1
    ```

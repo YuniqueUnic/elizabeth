@@ -1,5 +1,15 @@
 /target
 .DS_Store
-
-.env
 .context
+
+# 环境变量和敏感信息
+.env
+.env.*
+!.env.example
+!.env.template
+
+# secrets baseline（可选择是否提交）
+# .secrets.baseline
+
+# prek 缓存（如果使用 PREK_HOME 本地缓存）
+.prek/

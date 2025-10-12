@@ -1,6 +1,6 @@
 use crate::build;
 
-pub const INFO: &'static str = shadow_rs::formatcp!(
+pub const INFO: &str = shadow_rs::formatcp!(
     r#"
 version: {}
 branch: {}
