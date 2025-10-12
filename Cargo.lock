@@ -225,7 +225,7 @@ dependencies = [
 
 [[package]]
 name = "board"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -368,7 +368,7 @@ dependencies = [
 
 [[package]]
 name = "configrs"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "config",
  "derive_more",
@@ -1083,7 +1083,7 @@ checksum = "34080505efa8e45a4b816c349525ebe327ceaa8559756f0356cba97ef3bf7432"
 
 [[package]]
 name = "logrs"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "tracing",
  "tracing-subscriber",
