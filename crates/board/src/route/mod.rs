@@ -3,7 +3,6 @@ mod status;
 pub use status::*;
 
 use axum::Json;
-use axum_responses::http::HttpResponse;
 
 use utoipa::OpenApi;
 use utoipa_scalar::{Scalar, Servable};
@@ -39,12 +38,4 @@ pub async fn openapi() -> Json<utoipa::openapi::OpenApi> {
 pub fn scalar(api: utoipa::openapi::OpenApi) -> (Scalar<utoipa::openapi::OpenApi>, String) {
     let path = format!("{}/scalar", API_PREFIX);
     (Scalar::with_url(path.clone(), api), path)
-}
-
-fn health() -> HttpResponse {
-    HttpResponse::Ok()
-}
-
-fn status() -> HttpResponse {
-    HttpResponse::Ok()
 }

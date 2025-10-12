@@ -39,6 +39,8 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
 
     let (router, api) = OpenApiRouter::new()
         .routes(routes!(route::openapi))
+        .routes(routes!(route::health))
+        .routes(routes!(route::status))
         .split_for_parts();
 
     let (scalar, scalar_path) = route::scalar(api);
