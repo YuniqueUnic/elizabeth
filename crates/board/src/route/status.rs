@@ -1,9 +1,17 @@
+use axum::response::IntoResponse;
 use axum_responses::http::HttpResponse;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::route::API_PREFIX;
+
+pub fn api_router() -> OpenApiRouter {
+    OpenApiRouter::new()
+        .routes(routes!(health))
+        .routes(routes!(status))
+}
 
 #[utoipa::path(
     get,
@@ -12,8 +20,7 @@ use crate::route::API_PREFIX;
         (status = 200, description = "Service is running")
     )
 )]
-#[axum_macros::debug_handler]
-pub async fn health() -> HttpResponse {
+pub async fn health() -> impl IntoResponse {
     HttpResponse::Ok()
 }
 
@@ -31,8 +38,7 @@ pub struct Status {
         (status = 200, description = "The status of service", body = ())
     )
 )]
-#[axum_macros::debug_handler]
-pub async fn status() -> HttpResponse {
+pub async fn status() -> impl IntoResponse {
     let status = Status {
         uptime: Utc::now().to_rfc3339(),
         ..Default::default()

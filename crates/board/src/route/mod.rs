@@ -1,6 +1,4 @@
-mod status;
-
-pub use status::*;
+pub mod status;
 
 use axum::Json;
 
