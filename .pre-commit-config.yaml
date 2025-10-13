@@ -26,6 +26,11 @@ repos:
       - id: mixed-line-ending
         args: ["--fix=lf"]
 
+  - repo: https://github.com/YuniqueUnic/autocorrect-pre-commit
+    rev: 2.14.0
+    hooks:
+      - id: autocorrect-fix
+
   - repo: https://github.com/bneijt/deno-pre-commit
     rev: 2.5.0
     hooks:
