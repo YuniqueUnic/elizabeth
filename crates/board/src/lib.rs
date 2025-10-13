@@ -10,7 +10,6 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::init::{cfg_service, const_service, log_service};
 use configrs::Config;
-// use route::*;
 
 shadow!(build);
 
@@ -37,19 +36,26 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
     let addr: SocketAddr = format!("{}:{}", cfg.app.addr, cfg.app.port).parse()?;
     let listener = tokio::net::TcpListener::bind(addr).await?;
 
-    let (router, api) = OpenApiRouter::new()
-        .routes(routes!(route::openapi))
-        .routes(routes!(route::health))
-        .routes(routes!(route::status))
-        .split_for_parts();
-
-    let (scalar, scalar_path) = route::scalar(api);
-    let app = router.merge(scalar);
+    let (scalar_path, router) = build_api_router();
 
     println!("Server listening on http://{addr}");
     println!("Scalar listening on http://{addr}{}", &scalar_path);
 
-    axum::serve(listener, app.into_make_service())
+    axum::serve(listener, router.into_make_service())
         .await
         .map_err(anyhow::Error::new)
+}
+
+fn build_api_router() -> (String, axum::Router) {
+    let (root_router, mut api) = OpenApiRouter::new()
+        .routes(routes!(route::openapi))
+        .split_for_parts();
+    let (status_router, status_api) = route::status::api_router().split_for_parts();
+
+    let router = root_router.merge(status_router);
+    api.merge(status_api);
+
+    let (scalar, scalar_path) = route::scalar(api);
+    let router = router.merge(scalar);
+    (scalar_path, router)
 }

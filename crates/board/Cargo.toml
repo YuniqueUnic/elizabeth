@@ -1,6 +1,6 @@
 [package]
 name = "board"
-version.workspace = true  # 使用 workspace 版本
+version.workspace = true # 使用 workspace 版本
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -25,7 +25,6 @@ clap_complete = { version = "4", optional = true }
 
 tokio = { version = "1.47.1", features = ["full"] }
 axum = "0.8.6"
-axum-macros = "0.5.0"
 
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
