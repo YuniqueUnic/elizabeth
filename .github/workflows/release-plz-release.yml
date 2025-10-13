@@ -34,7 +34,7 @@ jobs:
 
       # 生成 GitHub App token，确保创建的 release 能触发 CD workflow
       - name: Generate GitHub token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v2
         id: generate-token
         with:
           app-id: ${{ secrets.APP_ID }}
