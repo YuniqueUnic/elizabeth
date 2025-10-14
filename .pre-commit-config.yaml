@@ -96,7 +96,7 @@ repos:
     hooks:
       - id: detect-secrets
         args: ["--baseline", ".secrets.baseline"]
-        exclude: .*\.lock$
+        exclude: .*\.lock$|.*\.sqlx/.*$
 
   # 防止提交 .env 文件
   - repo: local

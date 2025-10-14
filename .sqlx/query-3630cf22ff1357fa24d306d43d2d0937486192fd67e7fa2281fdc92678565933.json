@@ -1,0 +1,98 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT\n                id, name, password, status, max_size, current_size,\n                max_times_entered, current_times_entered, expire_at,\n                created_at, updated_at, allow_edit, allow_download, allow_preview\n            FROM rooms\n            WHERE name = ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "password",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "status",
+        "ordinal": 3,
+        "type_info": "Integer"
+      },
+      {
+        "name": "max_size",
+        "ordinal": 4,
+        "type_info": "Integer"
+      },
+      {
+        "name": "current_size",
+        "ordinal": 5,
+        "type_info": "Integer"
+      },
+      {
+        "name": "max_times_entered",
+        "ordinal": 6,
+        "type_info": "Integer"
+      },
+      {
+        "name": "current_times_entered",
+        "ordinal": 7,
+        "type_info": "Integer"
+      },
+      {
+        "name": "expire_at",
+        "ordinal": 8,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 9,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "updated_at",
+        "ordinal": 10,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "allow_edit",
+        "ordinal": 11,
+        "type_info": "Bool"
+      },
+      {
+        "name": "allow_download",
+        "ordinal": 12,
+        "type_info": "Bool"
+      },
+      {
+        "name": "allow_preview",
+        "ordinal": 13,
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "3630cf22ff1357fa24d306d43d2d0937486192fd67e7fa2281fdc92678565933"
+}
