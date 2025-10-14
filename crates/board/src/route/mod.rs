@@ -1,3 +1,4 @@
+pub mod room;
 pub mod status;
 
 use axum::Json;

@@ -18,7 +18,8 @@ pub fn api_router() -> OpenApiRouter {
     path = format!("{}/health", API_PREFIX),
     responses(
         (status = 200, description = "Service is running")
-    )
+    ),
+    tag = "status"
 )]
 pub async fn health() -> impl IntoResponse {
     HttpResponse::Ok()
@@ -36,7 +37,8 @@ pub struct Status {
     path = format!("{}/status", API_PREFIX),
     responses(
         (status = 200, description = "The status of service", body = ())
-    )
+    ),
+    tag = "status"
 )]
 pub async fn status() -> impl IntoResponse {
     let status = Status {
