@@ -3,8 +3,9 @@
 //! 测试 RoomRepository trait 的所有方法实现
 
 use anyhow::Result;
-use chrono::NaiveDateTime;
+use chrono::DateTime;
 use sqlx::SqlitePool;
+use std::sync::Arc;
 
 use crate::models::room::{Room, RoomStatus};
 use crate::repository::room_repository::{RoomRepository, SqliteRoomRepository};
@@ -14,21 +15,19 @@ async fn create_test_pool() -> Result<SqlitePool> {
     let pool = SqlitePool::connect(":memory:").await?;
 
     // 运行迁移
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await?;
+    sqlx::migrate!("./migrations").run(&pool).await?;
 
     Ok(pool)
 }
 
 /// 创建测试用的 Room 实例
 fn create_test_room(name: &str) -> Room {
-    let now = NaiveDateTime::from_timestamp_opt(1609459200, 0).unwrap(); // 2021-01-01 00:00:00
+    let now = DateTime::from_timestamp(1609459200, 0).unwrap().naive_utc(); // 2021-01-01 00:00:00
     Room {
         id: None,
         name: name.to_string(),
         password: Some("test_password".to_string()),
-        status: RoomStatus::Active as i64,
+        status: RoomStatus::Open as i64,
         max_size: 100,
         current_size: 0,
         max_times_entered: 1000,
@@ -44,12 +43,14 @@ fn create_test_room(name: &str) -> Room {
 
 #[cfg(test)]
 mod room_repository_tests {
+    use chrono::DateTime;
+
     use super::*;
 
     #[tokio::test]
     async fn test_room_exists() -> Result<()> {
         let pool = create_test_pool().await?;
-        let repository = SqliteRoomRepository::new(pool);
+        let repository = SqliteRoomRepository::new(Arc::new(pool));
 
         // 测试不存在的房间
         let exists = repository.exists("nonexistent_room").await?;
@@ -68,7 +69,7 @@ mod room_repository_tests {
     #[tokio::test]
     async fn test_create_room() -> Result<()> {
         let pool = create_test_pool().await?;
-        let repository = SqliteRoomRepository::new(pool);
+        let repository = SqliteRoomRepository::new(Arc::new(pool));
 
         let room = create_test_room("new_room");
         let created_room = repository.create(&room).await?;
@@ -84,7 +85,7 @@ mod room_repository_tests {
     #[tokio::test]
     async fn test_find_by_name() -> Result<()> {
         let pool = create_test_pool().await?;
-        let repository = SqliteRoomRepository::new(pool);
+        let repository = SqliteRoomRepository::new(Arc::new(pool));
 
         // 测试查找不存在的房间
         let found_room = repository.find_by_name("nonexistent").await?;
@@ -107,7 +108,7 @@ mod room_repository_tests {
     #[tokio::test]
     async fn test_find_by_id() -> Result<()> {
         let pool = create_test_pool().await?;
-        let repository = SqliteRoomRepository::new(pool);
+        let repository = SqliteRoomRepository::new(Arc::new(pool));
 
         // 创建房间
         let room = create_test_room("id_test");
@@ -132,7 +133,7 @@ mod room_repository_tests {
     #[tokio::test]
     async fn test_update_room() -> Result<()> {
         let pool = create_test_pool().await?;
-        let repository = SqliteRoomRepository::new(pool);
+        let repository = SqliteRoomRepository::new(Arc::new(pool));
 
         // 创建房间
         let mut room = create_test_room("update_test");
@@ -156,7 +157,7 @@ mod room_repository_tests {
     #[tokio::test]
     async fn test_delete_room() -> Result<()> {
         let pool = create_test_pool().await?;
-        let repository = SqliteRoomRepository::new(pool);
+        let repository = SqliteRoomRepository::new(Arc::new(pool));
 
         // 创建房间
         let room = create_test_room("delete_test");
@@ -184,7 +185,7 @@ mod room_repository_tests {
     #[tokio::test]
     async fn test_list_expired_rooms() -> Result<()> {
         let pool = create_test_pool().await?;
-        let repository = SqliteRoomRepository::new(pool);
+        let repository = SqliteRoomRepository::new(Arc::new(pool));
 
         // 创建未过期的房间
         let active_room = create_test_room("active_room");
@@ -193,7 +194,7 @@ mod room_repository_tests {
         // 创建已过期的房间
         let mut expired_room = create_test_room("expired_room");
         expired_room.expire_at = Some(
-            NaiveDateTime::from_timestamp_opt(1609459200, 0).unwrap() // 2021-01-01
+            DateTime::from_timestamp(1609459200, 0).unwrap().naive_utc(), // 2021-01-01
         );
         repository.create(&expired_room).await?;
 
@@ -210,7 +211,7 @@ mod room_repository_tests {
     #[tokio::test]
     async fn test_duplicate_room_creation() -> Result<()> {
         let pool = create_test_pool().await?;
-        let repository = SqliteRoomRepository::new(pool);
+        let repository = SqliteRoomRepository::new(Arc::new(pool));
 
         let room = create_test_room("duplicate_test");
 

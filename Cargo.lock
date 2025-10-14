@@ -306,6 +306,7 @@ dependencies = [
  "clap",
  "clap_complete",
  "configrs",
+ "http",
  "logrs",
  "serde",
  "serde_json",
@@ -314,6 +315,8 @@ dependencies = [
  "thiserror",
  "tokio",
  "toml",
+ "tower",
+ "tower-http",
  "tracing",
  "tracing-subscriber",
  "utoipa",
@@ -1369,7 +1372,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "07033963ba89ebaf1584d767badaa2e8fcec21aedea6b8c0346d487d49c28667"
 dependencies = [
  "cfg-if",
- "windows-targets 0.48.5",
+ "windows-targets 0.53.5",
 ]
 
 [[package]]
@@ -2745,6 +2748,20 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
+]
+
+[[package]]
+name = "tower-http"
+version = "0.6.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "adc82fd73de2a9722ac5da747f12383d2bfdb93591ee6c58486e0097890f05f2"
+dependencies = [
+ "bitflags",
+ "bytes",
+ "http",
+ "pin-project-lite",
+ "tower-layer",
+ "tower-service",
 ]
 
 [[package]]
