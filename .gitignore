@@ -13,3 +13,7 @@
 
 # prek 缓存（如果使用 PREK_HOME 本地缓存）
 .prek/
+
+*.db
+*.db-shm
+*.db-wal

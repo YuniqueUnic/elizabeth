@@ -47,16 +47,6 @@ repos:
         types: [rust]
         pass_filenames: false
 
-  # Rust 快速编译检查
-  - repo: local
-    hooks:
-      - id: cargo-check
-        name: cargo check
-        entry: cargo check --all-features
-        language: system
-        types: [rust]
-        pass_filenames: false
-
   # Rust clippy 代码质量检查
   - repo: local
     hooks:
@@ -66,6 +56,17 @@ repos:
         language: system
         types: [rust]
         pass_filenames: false
+
+  # Rust 快速编译检查 - 仅在 push 阶段运行
+  - repo: local
+    hooks:
+      - id: cargo-check
+        name: cargo check
+        entry: cargo check --all-features
+        language: system
+        types: [rust]
+        pass_filenames: false
+        stages: [push]
 
   # Rust 测试 - 仅在 push 阶段运行
   - repo: local
