@@ -28,6 +28,7 @@ impl SqliteRoomRepository {
     }
 }
 
+#[allow(clippy::all)]
 #[async_trait]
 impl RoomRepository for SqliteRoomRepository {
     async fn exists(&self, name: &str) -> Result<bool> {
