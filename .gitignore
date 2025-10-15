@@ -17,3 +17,4 @@
 *.db
 *.db-shm
 *.db-wal
+deno/main.ts

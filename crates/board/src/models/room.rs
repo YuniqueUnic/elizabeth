@@ -52,6 +52,7 @@ impl From<RoomStatus> for i64 {
 }
 
 /// 数据库 Room 模型，使用 FromRow 自动映射
+
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
 pub struct Room {
     pub id: Option<i64>,
