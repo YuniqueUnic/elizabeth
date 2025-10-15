@@ -60,7 +60,7 @@ pub struct DatabaseConfig {
 impl Default for DatabaseConfig {
     fn default() -> Self {
         Self {
-            url: "sqlite:./database.db".to_string(),
+            url: "sqlite:database.db".to_string(),
             max_connections: 20,
             min_connections: 5,
         }
