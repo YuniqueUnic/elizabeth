@@ -1,13 +1,10 @@
-mod cmd;
-mod db;
+pub mod cmd;
+pub mod db;
 mod handlers;
 mod init;
-mod models;
-mod repository;
-mod route;
-
-#[cfg(test)]
-mod tests;
+pub mod models;
+pub mod repository;
+pub mod route;
 
 use std::net::SocketAddr;
 use std::sync::Arc;

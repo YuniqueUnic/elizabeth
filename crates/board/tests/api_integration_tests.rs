@@ -7,13 +7,12 @@ use axum::{
     Router,
     body::Body,
     http::{Method, Request, StatusCode},
-    routing::{delete, get, post},
 };
 use sqlx::SqlitePool;
 use std::sync::Arc;
 use tower::util::ServiceExt;
 
-use crate::route::room::api_router;
+use board::route::room::api_router;
 
 /// 创建测试应用
 async fn create_test_app() -> Result<(Router, SqlitePool)> {
@@ -22,7 +21,7 @@ async fn create_test_app() -> Result<(Router, SqlitePool)> {
     // 运行迁移
     sqlx::migrate!("./migrations").run(&pool).await?;
 
-    let app = Router::new().nest("/api/v1/rooms", api_router(Arc::new(pool.clone())));
+    let app = Router::new().nest("/api/v1/rooms", api_router(Arc::new(pool.clone())).into());
 
     Ok((app, pool))
 }
@@ -61,7 +60,7 @@ mod api_integration_tests {
 
         // 第一次创建房间
         let request1 = Request::builder()
-            .method(post("/api/v1/rooms/duplicate_test"))
+            .method(Method::POST)
             .uri("/api/v1/rooms/duplicate_test")
             .header("content-type", "application/json")
             .body(Body::empty())?;
@@ -71,7 +70,7 @@ mod api_integration_tests {
 
         // 第二次创建同名房间应该失败
         let request2 = Request::builder()
-            .method(post("/api/v1/rooms/duplicate_test"))
+            .method(Method::POST)
             .uri("/api/v1/rooms/duplicate_test")
             .header("content-type", "application/json")
             .body(Body::empty())?;
@@ -98,7 +97,7 @@ mod api_integration_tests {
 
         // 测试空房间名
         let request = Request::builder()
-            .method(post("/api/v1/rooms/"))
+            .method(Method::POST)
             .uri("/api/v1/rooms/")
             .header("content-type", "application/json")
             .body(Body::empty())?;
@@ -115,7 +114,7 @@ mod api_integration_tests {
 
         // 先创建一个房间
         let create_request = Request::builder()
-            .method(post("/api/v1/rooms/find_test"))
+            .method(Method::POST)
             .uri("/api/v1/rooms/find_test")
             .header("content-type", "application/json")
             .body(Body::empty())?;
@@ -125,7 +124,7 @@ mod api_integration_tests {
 
         // 查找房间
         let find_request = Request::builder()
-            .method(get("/api/v1/rooms/find_test"))
+            .method(Method::GET)
             .uri("/api/v1/rooms/find_test")
             .header("content-type", "application/json")
             .body(Body::empty())?;
@@ -148,7 +147,7 @@ mod api_integration_tests {
 
         // 查找不存在的房间
         let request = Request::builder()
-            .method(get("/api/v1/rooms/nonexistent"))
+            .method(Method::GET)
             .uri("/api/v1/rooms/nonexistent")
             .header("content-type", "application/json")
             .body(Body::empty())?;
@@ -175,7 +174,7 @@ mod api_integration_tests {
 
         // 先创建一个房间
         let create_request = Request::builder()
-            .method(post("/api/v1/rooms/delete_test"))
+            .method(Method::POST)
             .uri("/api/v1/rooms/delete_test")
             .header("content-type", "application/json")
             .body(Body::empty())?;
@@ -185,7 +184,7 @@ mod api_integration_tests {
 
         // 删除房间
         let delete_request = Request::builder()
-            .method(delete("/api/v1/rooms/delete_test"))
+            .method(Method::DELETE)
             .uri("/api/v1/rooms/delete_test")
             .header("content-type", "application/json")
             .body(Body::empty())?;
@@ -205,7 +204,7 @@ mod api_integration_tests {
 
         // 验证房间已被删除
         let find_request = Request::builder()
-            .method(get("/api/v1/rooms/delete_test"))
+            .method(Method::GET)
             .uri("/api/v1/rooms/delete_test")
             .header("content-type", "application/json")
             .body(Body::empty())?;
@@ -222,7 +221,7 @@ mod api_integration_tests {
 
         // 删除不存在的房间
         let request = Request::builder()
-            .method(delete("/api/v1/rooms/nonexistent"))
+            .method(Method::DELETE)
             .uri("/api/v1/rooms/nonexistent")
             .header("content-type", "application/json")
             .body(Body::empty())?;
@@ -251,7 +250,7 @@ mod api_integration_tests {
 
         // 1. 创建房间
         let create_request = Request::builder()
-            .method(post(format!("/api/v1/rooms/{}", room_name)))
+            .method(Method::POST)
             .uri(format!("/api/v1/rooms/{}?password=secret123", room_name))
             .header("content-type", "application/json")
             .body(Body::empty())?;
@@ -265,7 +264,7 @@ mod api_integration_tests {
 
         // 2. 查找房间
         let find_request = Request::builder()
-            .method(get(format!("/api/v1/rooms/{}", room_name)))
+            .method(Method::GET)
             .uri(format!("/api/v1/rooms/{}", room_name))
             .header("content-type", "application/json")
             .body(Body::empty())?;
@@ -282,7 +281,7 @@ mod api_integration_tests {
 
         // 3. 删除房间
         let delete_request = Request::builder()
-            .method(delete(format!("/api/v1/rooms/{}", room_name)))
+            .method(Method::DELETE)
             .uri(format!("/api/v1/rooms/{}", room_name))
             .header("content-type", "application/json")
             .body(Body::empty())?;
@@ -292,7 +291,7 @@ mod api_integration_tests {
 
         // 4. 验证房间已删除
         let verify_request = Request::builder()
-            .method(get(format!("/api/v1/rooms/{}", room_name)))
+            .method(Method::GET)
             .uri(format!("/api/v1/rooms/{}", room_name))
             .header("content-type", "application/json")
             .body(Body::empty())?;
