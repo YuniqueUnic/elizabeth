@@ -15,6 +15,9 @@ pub struct AppConfig {
     #[default = "info"]
     #[merge(strategy = overwrite_not_empty_string)]
     pub log_level: String,
+    #[default = "sqlite:database.db"]
+    #[merge(strategy = overwrite_not_empty_string)]
+    pub db_url: String,
 }
 
 #[cfg(test)]
@@ -30,11 +33,13 @@ mod tests {
             addr: "128.0.0.1".to_string(),
             port: 0,
             log_level: "debug".to_string(),
+            db_url: "sqlite://test.db".to_string(),
         };
 
         left.merge(right);
         assert_eq!(left.addr, "128.0.0.1");
         assert_eq!(left.port, 0);
         assert_eq!(left.log_level, "debug");
+        assert_eq!(left.db_url, "sqlite://test.db");
     }
 }

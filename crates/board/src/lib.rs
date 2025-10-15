@@ -40,7 +40,7 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
     log_service::init(cfg);
 
     // 初始化数据库
-    let database_url = "sqlite:./app.db"; // 暂时使用默认值，后续可以从配置中读取
+    let database_url = &cfg.app.db_url;
     let db_pool = init_db(database_url).await?;
     run_migrations(&db_pool).await?;
 
