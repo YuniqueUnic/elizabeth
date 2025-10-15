@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use utoipa::ToSchema;
 
-use super::CustomDateTime;
+use super::NativeDateTimeWrapper;
 
 #[allow(unused)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
@@ -40,8 +40,8 @@ pub struct RoomContent {
     pub file_size: Option<i64>,
     pub file_path: Option<String>,
     pub mime_type: Option<String>,
-    pub created_at: CustomDateTime,
-    pub updated_at: CustomDateTime,
+    pub created_at: NativeDateTimeWrapper,
+    pub updated_at: NativeDateTimeWrapper,
 }
 
 #[allow(unused)]
@@ -52,7 +52,7 @@ pub struct RoomAccessLog {
     pub room_id: i64,
     pub ip_address: Option<String>,
     pub user_agent: Option<String>,
-    pub access_time: CustomDateTime,
+    pub access_time: NativeDateTimeWrapper,
     pub action: String,
     pub details: Option<String>,
 }

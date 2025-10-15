@@ -5,16 +5,16 @@ use utoipa::ToSchema;
 
 // 自定义 DateTime 类型，用于 OpenAPI 文档
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct CustomDateTime(String);
+pub struct NativeDateTimeWrapper(String);
 
-impl From<NaiveDateTime> for CustomDateTime {
+impl From<NaiveDateTime> for NativeDateTimeWrapper {
     fn from(dt: NaiveDateTime) -> Self {
-        CustomDateTime(dt.format("%Y-%m-%d %H:%M:%S").to_string())
+        NativeDateTimeWrapper(dt.format("%Y-%m-%d %H:%M:%S").to_string())
     }
 }
 
-impl From<CustomDateTime> for NaiveDateTime {
-    fn from(dt: CustomDateTime) -> Self {
+impl From<NativeDateTimeWrapper> for NaiveDateTime {
+    fn from(dt: NativeDateTimeWrapper) -> Self {
         NaiveDateTime::parse_from_str(&dt.0, "%Y-%m-%d %H:%M:%S").unwrap()
     }
 }
@@ -81,9 +81,9 @@ pub struct RoomResponse {
     pub current_size: i64,
     pub max_times_entered: i64,
     pub current_times_entered: i64,
-    pub expire_at: Option<CustomDateTime>,
-    pub created_at: CustomDateTime,
-    pub updated_at: CustomDateTime,
+    pub expire_at: Option<NativeDateTimeWrapper>,
+    pub created_at: NativeDateTimeWrapper,
+    pub updated_at: NativeDateTimeWrapper,
     pub allow_edit: bool,
     pub allow_download: bool,
     pub allow_preview: bool,
@@ -100,9 +100,9 @@ impl From<Room> for RoomResponse {
             current_size: room.current_size,
             max_times_entered: room.max_times_entered,
             current_times_entered: room.current_times_entered,
-            expire_at: room.expire_at.map(CustomDateTime::from),
-            created_at: CustomDateTime::from(room.created_at),
-            updated_at: CustomDateTime::from(room.updated_at),
+            expire_at: room.expire_at.map(NativeDateTimeWrapper::from),
+            created_at: NativeDateTimeWrapper::from(room.created_at),
+            updated_at: NativeDateTimeWrapper::from(room.updated_at),
             allow_edit: room.allow_edit,
             allow_download: room.allow_download,
             allow_preview: room.allow_preview,
