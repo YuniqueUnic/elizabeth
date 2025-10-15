@@ -7,7 +7,7 @@ use std::sync::Arc;
 use utoipa::ToSchema;
 
 use crate::db::DbPool;
-use crate::models::{Room, RoomResponse};
+use crate::models::Room;
 use crate::repository::{RoomRepository, SqliteRoomRepository};
 
 type HandlerResult<T> = Result<Json<T>, HttpResponse>;
@@ -26,7 +26,7 @@ pub struct CreateRoomParams {
         ("password" = Option<String>, Query, description = "房间密码")
     ),
     responses(
-        (status = 200, description = "房间创建成功", body = RoomResponse),
+        (status = 200, description = "房间创建成功", body = Room),
         (status = 400, description = "请求参数错误"),
         (status = 500, description = "服务器内部错误")
     ),
@@ -36,7 +36,7 @@ pub async fn create(
     Path(name): Path<String>,
     State(pool): State<Arc<DbPool>>,
     Query(params): Query<CreateRoomParams>,
-) -> HandlerResult<RoomResponse> {
+) -> HandlerResult<Room> {
     if name.is_empty() {
         return Err(HttpResponse::BadRequest().message("Invalid room name"));
     }
@@ -54,7 +54,7 @@ pub async fn create(
         HttpResponse::InternalServerError().message(format!("Failed to create room: {}", e))
     })?;
 
-    Ok(Json(RoomResponse::from(created_room)))
+    Ok(Json(created_room))
 }
 
 /// 查找房间
@@ -65,7 +65,7 @@ pub async fn create(
         ("name" = String, Path, description = "房间名称")
     ),
     responses(
-        (status = 200, description = "房间信息", body = RoomResponse),
+        (status = 200, description = "房间信息", body = Room),
         (status = 403, description = "房间无法进入"),
         (status = 500, description = "服务器内部错误")
     ),
@@ -74,7 +74,7 @@ pub async fn create(
 pub async fn find(
     Path(name): Path<String>,
     State(pool): State<Arc<DbPool>>,
-) -> HandlerResult<RoomResponse> {
+) -> HandlerResult<Room> {
     if name.is_empty() {
         return Err(HttpResponse::BadRequest().message("Invalid room name"));
     }
@@ -86,7 +86,7 @@ pub async fn find(
     })? {
         Some(room) => {
             if room.can_enter() {
-                Ok(Json(RoomResponse::from(room)))
+                Ok(Json(room))
             } else {
                 Err(HttpResponse::Forbidden().message("Room cannot be entered"))
             }
@@ -97,7 +97,7 @@ pub async fn find(
             let created_room = repository.create(&new_room).await.map_err(|e| {
                 HttpResponse::InternalServerError().message(format!("Failed to create room: {}", e))
             })?;
-            Ok(Json(RoomResponse::from(created_room)))
+            Ok(Json(created_room))
         }
     }
 }

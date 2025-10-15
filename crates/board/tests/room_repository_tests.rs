@@ -27,7 +27,7 @@ fn create_test_room(name: &str) -> Room {
         id: None,
         name: name.to_string(),
         password: Some("test_password".to_string()),
-        status: RoomStatus::Open as i64,
+        status: RoomStatus::Open,
         max_size: 100,
         current_size: 0,
         max_times_entered: 1000,
