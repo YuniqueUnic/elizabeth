@@ -36,7 +36,7 @@ serde_json = "1"
 anyhow = "1"
 thiserror = "2"
 
-utoipa = "5"
+utoipa = { version = "5", features = ["chrono"] }
 utoipa-scalar = { version = "0.3", features = ["axum"] }
 utoipa-axum = "0.2"
 
