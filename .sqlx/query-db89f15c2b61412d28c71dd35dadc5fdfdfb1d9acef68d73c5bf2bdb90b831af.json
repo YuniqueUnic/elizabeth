@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n            SELECT\n                id, name, password, status, max_size, current_size,\n                max_times_entered, current_times_entered, expire_at,\n                created_at, updated_at, allow_edit, allow_download, allow_preview\n            FROM rooms\n            WHERE name = ?\n            ",
+  "query": "\n            SELECT\n                id, name, password, status as \"status: RoomStatus\", max_size, current_size,\n                max_times_entered, current_times_entered, expire_at,\n                created_at, updated_at, allow_edit, allow_download, allow_preview\n            FROM rooms\n            WHERE id = ?\n            ",
   "describe": {
     "columns": [
       {
@@ -19,7 +19,7 @@
         "type_info": "Text"
       },
       {
-        "name": "status",
+        "name": "status: RoomStatus",
         "ordinal": 3,
         "type_info": "Integer"
       },
@@ -78,7 +78,7 @@
       "Right": 1
     },
     "nullable": [
-      true,
+      false,
       false,
       true,
       false,
@@ -94,5 +94,5 @@
       false
     ]
   },
-  "hash": "3630cf22ff1357fa24d306d43d2d0937486192fd67e7fa2281fdc92678565933"
+  "hash": "db89f15c2b61412d28c71dd35dadc5fdfdfb1d9acef68d73c5bf2bdb90b831af"
 }

@@ -4,7 +4,7 @@ use chrono::Utc;
 use std::sync::Arc;
 
 use crate::db::DbPool;
-use crate::models::Room;
+use crate::models::{Room, RoomStatus};
 
 #[allow(unused)]
 #[async_trait]
@@ -71,7 +71,7 @@ impl RoomRepository for SqliteRoomRepository {
             Room,
             r#"
             SELECT
-                id, name, password, status, max_size, current_size,
+                id, name, password, status as "status: RoomStatus", max_size, current_size,
                 max_times_entered, current_times_entered, expire_at,
                 created_at, updated_at, allow_edit, allow_download, allow_preview
             FROM rooms
@@ -90,7 +90,7 @@ impl RoomRepository for SqliteRoomRepository {
             Room,
             r#"
             SELECT
-                id, name, password, status, max_size, current_size,
+                id, name, password, status as "status: RoomStatus", max_size, current_size,
                 max_times_entered, current_times_entered, expire_at,
                 created_at, updated_at, allow_edit, allow_download, allow_preview
             FROM rooms
@@ -109,7 +109,7 @@ impl RoomRepository for SqliteRoomRepository {
             Room,
             r#"
             SELECT
-                id, name, password, status, max_size, current_size,
+                id, name, password, status as "status: RoomStatus", max_size, current_size,
                 max_times_entered, current_times_entered, expire_at,
                 created_at, updated_at, allow_edit, allow_download, allow_preview
             FROM rooms
@@ -155,7 +155,7 @@ impl RoomRepository for SqliteRoomRepository {
             Room,
             r#"
             SELECT
-                id, name, password, status, max_size, current_size,
+                id, name, password, status as "status: RoomStatus", max_size, current_size,
                 max_times_entered, current_times_entered, expire_at,
                 created_at, updated_at, allow_edit, allow_download, allow_preview
             FROM rooms
@@ -184,7 +184,7 @@ impl RoomRepository for SqliteRoomRepository {
             Room,
             r#"
             SELECT
-                id, name, password, status, max_size, current_size,
+                id, name, password, status as "status: RoomStatus", max_size, current_size,
                 max_times_entered, current_times_entered, expire_at,
                 created_at, updated_at, allow_edit, allow_download, allow_preview
             FROM rooms

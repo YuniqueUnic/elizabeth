@@ -19,46 +19,28 @@ impl From<NativeDateTimeWrapper> for NaiveDateTime {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema, Default, sqlx::Type,
+)] // 如果使用 sqlx
+#[sqlx(type_name = "INTEGER")]
+#[repr(i64)]
 pub enum RoomStatus {
     #[serde(rename = "open")]
     #[default]
-    Open,
+    Open = 0,
     #[serde(rename = "lock")]
-    Lock,
+    Lock = 1,
     #[serde(rename = "close")]
-    Close,
-}
-
-impl From<i64> for RoomStatus {
-    fn from(value: i64) -> Self {
-        match value {
-            0 => RoomStatus::Open,
-            1 => RoomStatus::Lock,
-            2 => RoomStatus::Close,
-            _ => RoomStatus::Open,
-        }
-    }
-}
-
-impl From<RoomStatus> for i64 {
-    fn from(status: RoomStatus) -> Self {
-        match status {
-            RoomStatus::Open => 0,
-            RoomStatus::Lock => 1,
-            RoomStatus::Close => 2,
-        }
-    }
+    Close = 2,
 }
 
 /// 数据库 Room 模型，使用 FromRow 自动映射
-
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
 pub struct Room {
     pub id: Option<i64>,
     pub name: String,
     pub password: Option<String>,
-    pub status: i64,
+    pub status: RoomStatus,
     pub max_size: i64,
     pub current_size: i64,
     pub max_times_entered: i64,
@@ -77,7 +59,7 @@ pub struct RoomResponse {
     pub id: Option<i64>,
     pub name: String,
     pub password: Option<String>,
-    pub status: i64,
+    pub status: RoomStatus,
     pub max_size: i64,
     pub current_size: i64,
     pub max_times_entered: i64,
@@ -118,7 +100,7 @@ impl Room {
             id: None,
             name,
             password,
-            status: i64::from(RoomStatus::default()),
+            status: RoomStatus::default(),
             max_size: 10 * 1024 * 1024, // 10MB
             current_size: 0,
             max_times_entered: 100,
@@ -132,8 +114,8 @@ impl Room {
         }
     }
 
-    pub fn status_enum(&self) -> RoomStatus {
-        RoomStatus::from(self.status)
+    pub fn status(&self) -> RoomStatus {
+        self.status
     }
 
     pub fn is_expired(&self) -> bool {
@@ -146,7 +128,7 @@ impl Room {
 
     pub fn can_enter(&self) -> bool {
         !self.is_expired()
-            && self.status_enum() != RoomStatus::Close
+            && self.status() != RoomStatus::Close
             && self.current_times_entered < self.max_times_entered
     }
 
