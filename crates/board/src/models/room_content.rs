@@ -1,8 +1,8 @@
+use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
+use serde_with::{DisplayFromStr, serde_as};
 use sqlx::FromRow;
 use utoipa::ToSchema;
-
-use super::NativeDateTimeWrapper;
 
 #[allow(unused)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
@@ -30,6 +30,7 @@ pub enum AccessAction {
 
 #[allow(unused)]
 /// 数据库 RoomContent 模型，使用 FromRow 自动映射
+#[serde_as]
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize, ToSchema)]
 pub struct RoomContent {
     pub id: Option<i64>,
@@ -40,19 +41,26 @@ pub struct RoomContent {
     pub file_size: Option<i64>,
     pub file_path: Option<String>,
     pub mime_type: Option<String>,
-    pub created_at: NativeDateTimeWrapper,
-    pub updated_at: NativeDateTimeWrapper,
+    #[serde_as(as = "DisplayFromStr")]
+    #[schema(value_type = String, format = DateTime)]
+    pub created_at: NaiveDateTime,
+    #[serde_as(as = "DisplayFromStr")]
+    #[schema(value_type = String, format = DateTime)]
+    pub updated_at: NaiveDateTime,
 }
 
 #[allow(unused)]
 /// 数据库 RoomAccessLog 模型，使用 FromRow 自动映射
+#[serde_as]
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize, ToSchema)]
 pub struct RoomAccessLog {
     pub id: Option<i64>,
     pub room_id: i64,
     pub ip_address: Option<String>,
     pub user_agent: Option<String>,
-    pub access_time: NativeDateTimeWrapper,
+    #[serde_as(as = "DisplayFromStr")]
+    #[schema(value_type = String, format = DateTime)]
+    pub access_time: NaiveDateTime,
     pub action: String,
     pub details: Option<String>,
 }
