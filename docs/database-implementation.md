@@ -163,3 +163,18 @@ CREATE TABLE IF NOT EXISTS room_access_logs (
 
 数据库模块的实现已经基本完成，主要功能已经实现。目前需要解决一些编译问题，然后就可以进行测试和部署。整个实现遵循了
 Rust 的最佳实践，包括所有权、借用检查和类型安全。
+
+---
+
+已在仓库根目录执行
+`DATABASE_URL="sqlite:./crates/board/database.db" cargo sqlx prepare --workspace`，成功生成
+.sqlx/ query-*.json 元数据，sqlx 宏不再报“unable to open database
+file”。问题原因是：cargo sqlx 进程工作目录在工作区根，因此 URL
+中的相对路径需指向 `crates/board/database.db`（或提供绝对路径），之前的
+sqlite:database.db 指向了不存在的根目录文件。后续 建议：
+
+- 在仓库根目录运行相关命令，或使用 .env 中的
+  DATABASE_URL=sqlite:./crates/board/database.db（无需手动覆盖）。
+- 如需重新准备，可重复上述命令；若希望使用其他路径，确保提前运行迁移并同步更新
+  DATABASE_URL。
+- .sqlx 文件夹应纳入版本控制，保证 CI/离线编译与本地一致。
