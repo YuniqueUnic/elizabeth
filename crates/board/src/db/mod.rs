@@ -1,10 +1,10 @@
 use anyhow::Result;
+use logrs::{error, info};
 use sqlx::{
     Pool, Sqlite,
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
 };
 use std::str::FromStr;
-use tracing::{error, info};
 
 /// 数据库连接池
 pub type DbPool = Pool<Sqlite>;

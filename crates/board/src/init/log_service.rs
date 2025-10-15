@@ -1,4 +1,4 @@
-use tracing::level_filters::LevelFilter;
+use logrs::LevelFilter;
 
 pub(crate) fn init(cfg: &configrs::Config) {
     // Initialize logger with appropriate level based on verbose count
@@ -12,6 +12,6 @@ pub(crate) fn init(cfg: &configrs::Config) {
     };
     let log_level = match_log_level(&cfg.app.log_level);
 
-    logrs::init_logger_with_level(log_level);
-    tracing::info!("Logger initialized with level: {:?}", log_level);
+    logrs::init_logger(log_level);
+    logrs::info!("Logger initialized with level: {:?}", log_level);
 }

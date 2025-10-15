@@ -1,15 +1,17 @@
 [package]
 name = "logrs"
-version.workspace = true  # 使用 workspace 版本
+version.workspace = true # 使用 workspace 版本
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [features]
-default = []
+default = ["logging"]
+logging = ["dep:log"]
 structured-log = ["tracing-subscriber/json"]
 disable-log = ["tracing/max_level_off"]
 
 [dependencies]
+log = { version = "0.4", optional = true }
 tracing = { version = "0.1" }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }

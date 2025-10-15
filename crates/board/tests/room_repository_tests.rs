@@ -7,8 +7,8 @@ use chrono::DateTime;
 use sqlx::SqlitePool;
 use std::sync::Arc;
 
-use crate::models::room::{Room, RoomStatus};
-use crate::repository::room_repository::{RoomRepository, SqliteRoomRepository};
+use board::models::room::{Room, RoomStatus};
+use board::repository::room_repository::{RoomRepository, SqliteRoomRepository};
 
 /// 创建测试数据库连接池
 async fn create_test_pool() -> Result<SqlitePool> {
