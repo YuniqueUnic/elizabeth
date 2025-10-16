@@ -6,15 +6,13 @@ use utoipa::ToSchema;
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema, Default, sqlx::Type,
 )] // 如果使用 sqlx
+#[serde(rename_all = "snake_case")]
 #[sqlx(type_name = "INTEGER")]
 #[repr(i64)]
 pub enum RoomStatus {
-    #[serde(rename = "open")]
     #[default]
     Open = 0,
-    #[serde(rename = "lock")]
     Lock = 1,
-    #[serde(rename = "close")]
     Close = 2,
 }
 
@@ -76,7 +74,6 @@ impl Room {
             && self.current_times_entered < self.max_times_entered
     }
 
-    #[allow(unused)]
     pub fn can_add_content(&self, content_size: i64) -> bool {
         self.allow_edit && self.current_size + content_size <= self.max_size
     }

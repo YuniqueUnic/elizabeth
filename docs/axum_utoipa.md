@@ -167,3 +167,28 @@ pub struct Room {
 
 **只需保留 `derive` 宏即可，让 chrono 和 utoipa 自动处理!**
 这样既简洁又符合标准。
+
+目前保持 NaiveDateTime 最稳妥；若确需
+DateTime<Utc>，需在提取/写入时手动转换或自定义 SQLx 类型，而不能依赖 SQLite
+自动提供时 区信息。
+
+- SQLite 列 DATETIME 实际返回无时区的 NaiveDateTime，SQLx 宏在 Room
+  结构体中读写这些列时，就只能匹配 NaiveDateTime，否则会触发之 前的
+  From<NaiveDateTime> 编译错误（见
+  crates/board/src/models/room.rs:1-78、crates/board/src/repository/room_repository.rs:40-
+  193）。SQLite 本身不会附带 Z 标记，因此也不会自动构造 DateTime<Utc>。
+- 将字段维持为 NaiveDateTime 能直接通过 SQLx 编译，同时插入/查询均以 UTC
+  约定解释；代码中在使用时再通 过 DateTime::<Utc>::from_naive_utc_and_offset()
+  转成 DateTime<Utc> 即可。例如：let created_at_utc =
+  DateTime::<Utc>::from_naive_utc_and_offset(room.created_at,
+  Utc);。这保持数据库兼容性，又能在业务层面获得 UTC 对象。
+- 若坚持结构体字段就是 DateTime<Utc>，有两种做法：
+  1. 在每个 query_as! 里显式声明列类型并手动转换，例如：created_at as
+     "created_at: NaiveDateTime" 然后 .map(|rec| Room { created_at:
+     DateTime::<Utc>::from_naive_utc_and_offset(rec.created_at, Utc), .. })；
+  2. 自定义 newtype 并为其实现 sqlx::Type/FromRow，内部持有 DateTime<Utc>，在
+     Decode/Encode 里完成与 NaiveDateTime 的互转。两者都
+     需要额外样板代码，而且仍离不开 NaiveDateTime 作为底层中间态。
+- 对服务器/应用而言，用 NaiveDateTime 存储、在进入业务逻辑时统一按 UTC 解释，是
+  SQLite 项目里最常见和安全的做法；DateTime<Utc> 更适
+  合在数据库层原生存储时区（如 PostgreSQL TIMESTAMPTZ）的场景。

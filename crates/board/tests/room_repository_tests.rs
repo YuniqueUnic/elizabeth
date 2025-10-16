@@ -43,8 +43,6 @@ fn create_test_room(name: &str) -> Room {
 
 #[cfg(test)]
 mod room_repository_tests {
-    use chrono::DateTime;
-
     use super::*;
 
     #[tokio::test]
@@ -193,9 +191,7 @@ mod room_repository_tests {
 
         // 创建已过期的房间
         let mut expired_room = create_test_room("expired_room");
-        expired_room.expire_at = Some(
-            DateTime::from_timestamp(1609459200, 0).unwrap().naive_utc(), // 2021-01-01
-        );
+        expired_room.expire_at = Some(DateTime::from_timestamp(1609459200, 0).unwrap().naive_utc()); // 2021-01-01
         repository.create(&expired_room).await?;
 
         // 获取过期房间列表
