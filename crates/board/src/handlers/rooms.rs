@@ -34,8 +34,8 @@ pub struct CreateRoomParams {
 )]
 pub async fn create(
     Path(name): Path<String>,
-    State(pool): State<Arc<DbPool>>,
     Query(params): Query<CreateRoomParams>,
+    State(pool): State<Arc<DbPool>>,
 ) -> HandlerResult<Room> {
     if name.is_empty() {
         return Err(HttpResponse::BadRequest().message("Invalid room name"));
