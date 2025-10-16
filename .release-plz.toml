@@ -39,7 +39,7 @@ trim = true
 
 # 只配置主包
 [[package]]
-name = "board"
+name = "elizabeth-board"
 changelog_path = "CHANGELOG.md"
 publish = false
 semver_check = true
@@ -47,3 +47,11 @@ git_release_enable = true   # 只有 board 创建 GitHub release
 git_tag_enable = true       # 只有 board 创建 git tag
 git_release_name = "elizabeth-board-v{{ version }}"
 git_tag_name = "v{{ version }}"
+
+[[package]]
+name = "elizabeth-configrs"
+release = false
+
+[[package]]
+name = "elizabeth-logrs"
+release = false

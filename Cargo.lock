@@ -264,42 +264,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "board"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "axum",
- "axum_responses",
- "chrono",
- "clap",
- "clap_complete",
- "configrs",
- "log",
- "logrs",
- "mime",
- "mime_guess",
- "multer",
- "sanitize-filename",
- "serde",
- "serde_json",
- "serde_with",
- "sha2",
- "shadow-rs",
- "sqlx",
- "tempfile",
- "thiserror",
- "tokio",
- "tokio-util",
- "toml",
- "tower",
- "utoipa",
- "utoipa-axum",
- "utoipa-scalar",
- "uuid",
-]
-
-[[package]]
 name = "bumpalo"
 version = "3.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -461,22 +425,6 @@ dependencies = [
  "toml",
  "winnow",
  "yaml-rust2",
-]
-
-[[package]]
-name = "configrs"
-version = "0.3.0"
-dependencies = [
- "config",
- "derive_more",
- "fs4",
- "merge",
- "serde",
- "serde_yaml",
- "smart-default",
- "tempfile",
- "thiserror",
- "tracing",
 ]
 
 [[package]]
@@ -739,6 +687,67 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "elizabeth-board"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "axum",
+ "axum_responses",
+ "chrono",
+ "clap",
+ "clap_complete",
+ "elizabeth-configrs",
+ "elizabeth-logrs",
+ "log",
+ "mime",
+ "mime_guess",
+ "multer",
+ "sanitize-filename",
+ "serde",
+ "serde_json",
+ "serde_with",
+ "sha2",
+ "shadow-rs",
+ "sqlx",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tokio-util",
+ "toml",
+ "tower",
+ "utoipa",
+ "utoipa-axum",
+ "utoipa-scalar",
+ "uuid",
+]
+
+[[package]]
+name = "elizabeth-configrs"
+version = "0.3.0"
+dependencies = [
+ "config",
+ "derive_more",
+ "fs4",
+ "merge",
+ "serde",
+ "serde_yaml",
+ "smart-default",
+ "tempfile",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
+name = "elizabeth-logrs"
+version = "0.3.0"
+dependencies = [
+ "log",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -1464,15 +1473,6 @@ name = "log"
 version = "0.4.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34080505efa8e45a4b816c349525ebe327ceaa8559756f0356cba97ef3bf7432"
-
-[[package]]
-name = "logrs"
-version = "0.3.0"
-dependencies = [
- "log",
- "tracing",
- "tracing-subscriber",
-]
 
 [[package]]
 name = "matchers"
