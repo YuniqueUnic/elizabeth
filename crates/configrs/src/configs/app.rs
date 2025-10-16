@@ -15,7 +15,7 @@ pub struct AppConfig {
     #[default = "info"]
     #[merge(strategy = overwrite_not_empty_string)]
     pub log_level: String,
-    #[default = "sqlite:database.db"]
+    #[default = "sqlite:app.db"]
     #[merge(strategy = overwrite_not_empty_string)]
     pub db_url: String,
 }

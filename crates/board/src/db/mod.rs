@@ -6,7 +6,7 @@ use sqlx::{
 };
 use std::str::FromStr;
 
-const DEFAULT_DB_URL: &str = "sqlite:database.db";
+const DEFAULT_DB_URL: &str = "sqlite:app.db";
 const MAX_CONN: u32 = 20;
 const MIN_CONN: u32 = 5;
 
