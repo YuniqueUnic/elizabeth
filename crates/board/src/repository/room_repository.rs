@@ -6,7 +6,6 @@ use std::sync::Arc;
 use crate::db::DbPool;
 use crate::models::{Room, RoomStatus};
 
-#[allow(unused)]
 #[async_trait]
 pub trait RoomRepository: Send + Sync {
     async fn exists(&self, name: &str) -> Result<bool>;
