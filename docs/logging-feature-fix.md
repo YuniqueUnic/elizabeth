@@ -61,15 +61,18 @@ sqlite3 database.db < migrations/004_add_indexes.sql
 
 ### 4. 设置环境变量并编译
 
+> **提示**：后续 `cargo` 命令需在工作区根目录（仓库根目录）执行，以便
+> `DATABASE_URL` 中的相对路径能够正确指向 `crates/board/database.db`。
+
 ```bash
-# 设置数据库 URL 并编译
-DATABASE_URL="sqlite:database.db" cargo build --features logging
+# 设置数据库 URL 并编译（在仓库根目录执行）
+DATABASE_URL="sqlite:./crates/board/database.db" cargo build --features logging
 ```
 
 ### 5. 生成 SQLx 查询缓存
 
 ```bash
-DATABASE_URL="sqlite:database.db" cargo sqlx prepare --workspace
+DATABASE_URL="sqlite:./crates/board/database.db" cargo sqlx prepare --workspace
 ```
 
 ## 修复结果
