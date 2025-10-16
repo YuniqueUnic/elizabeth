@@ -6,6 +6,10 @@ use sqlx::{
 };
 use std::str::FromStr;
 
+const DEFAULT_DB_URL: &str = "sqlite:database.db";
+const MAX_CONN: u32 = 20;
+const MIN_CONN: u32 = 5;
+
 /// 数据库连接池
 pub type DbPool = Pool<Sqlite>;
 
@@ -60,9 +64,9 @@ pub struct DatabaseConfig {
 impl Default for DatabaseConfig {
     fn default() -> Self {
         Self {
-            url: "sqlite:database.db".to_string(),
-            max_connections: 20,
-            min_connections: 5,
+            url: DEFAULT_DB_URL.to_string(),
+            max_connections: MAX_CONN,
+            min_connections: MIN_CONN,
         }
     }
 }
