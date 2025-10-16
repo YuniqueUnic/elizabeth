@@ -7,6 +7,41 @@ and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## Elizabeth Board - [0.3.0](https://github.com/YuniqueUnic/elizabeth/releases/tag/v0.3.0) - 2025-10-16
+
+
+### Added
+- _(board)_ refine room status enum and remove unused attributes
+- _(board)_ unify Room model for DB and API layers
+- _(board)_ update room status to use enum with sqlx type mapping
+- _(board)_ enable logging feature and fix related compilation issues
+- _(board)_ add health check endpoint
+- _(board)_ add axum_responses dependency
+
+### Fixed
+- _(board)_ rename default database file from 'database.db' to 'app.db'
+- _(board)_ update default database path and use config-provided URL
+- _(board)_ add sqlx query files for room operations
+- _(board)_ add OpenAPI documentation and scalar UI
+- _(board)_ add status endpoint
+
+### Other
+- _(workspace)_ rename packages to elizabeth-* and update references
+- _(db)_ extract database constants and update model enums
+- _(board)_ update dependencies and adjust versions
+- _(board)_ rename CustomDateTime to NativeDateTimeWapper
+- _(room)_ implement Room CRUD API with password protection and expiration
+- _(pre-commit)_ reorder and stage-specific rust checks
+- _(board)_ remove unused axum-macros dependency and update routing structure
+- _(prek)_ add pre-commit hooks configuration with Rust support
+- _(board)_ add health and status endpoints with OpenAPI integration
+- _(board)_ modularize routing and API documentation
+- _(workspace)_ centralize package metadata in workspace
+- _(release)_ add release binaries workflow and update release-plz config
+- _(deps)_ update convert_case and clap dependencies
+- _(board)_ structure the core application named borad.
+- _(project)_ initialize project configuration for Elizabeth
+- _(workspace)_ rename crate from elizabeth to board
 
 ## Elizabeth Board - [0.3.0](https://github.com/YuniqueUnic/elizabeth/compare/v0.2.0...v0.3.0) - 2025-10-12
 
