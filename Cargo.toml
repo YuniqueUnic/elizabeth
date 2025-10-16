@@ -11,5 +11,5 @@ resolver = "3"
 
 
 [workspace.dependencies]
-logrs = { path = "crates/logrs", features = ["logging"] }
-configrs = { path = "crates/configrs" }
+logrs = { package = "elizabeth-logrs", path = "crates/logrs", features = ["logging"] }
+configrs = { package = "elizabeth-configrs", path = "crates/configrs" }
