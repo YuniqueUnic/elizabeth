@@ -53,26 +53,26 @@ log = { version = "0.4" }  # 新增的直接依赖
 ```bash
 cd crates/board
 # 创建数据库并运行迁移
-sqlite3 database.db < migrations/001_create_rooms_table.sql
-sqlite3 database.db < migrations/002_create_room_contents_table.sql
-sqlite3 database.db < migrations/003_create_room_access_logs_table.sql
-sqlite3 database.db < migrations/004_add_indexes.sql
+sqlite3 app.db < migrations/001_create_rooms_table.sql
+sqlite3 app.db < migrations/002_create_room_contents_table.sql
+sqlite3 app.db < migrations/003_create_room_access_logs_table.sql
+sqlite3 app.db < migrations/004_add_indexes.sql
 ```
 
 ### 4. 设置环境变量并编译
 
 > **提示**：后续 `cargo` 命令需在工作区根目录（仓库根目录）执行，以便
-> `DATABASE_URL` 中的相对路径能够正确指向 `crates/board/database.db`。
+> `DATABASE_URL` 中的相对路径能够正确指向 `crates/board/app.db`。
 
 ```bash
 # 设置数据库 URL 并编译（在仓库根目录执行）
-DATABASE_URL="sqlite:./crates/board/database.db" cargo build --features logging
+DATABASE_URL="sqlite:./crates/board/app.db" cargo build --features logging
 ```
 
 ### 5. 生成 SQLx 查询缓存
 
 ```bash
-DATABASE_URL="sqlite:./crates/board/database.db" cargo sqlx prepare --workspace
+DATABASE_URL="sqlite:./crates/board/app.db" cargo sqlx prepare --workspace
 ```
 
 ## 修复结果
