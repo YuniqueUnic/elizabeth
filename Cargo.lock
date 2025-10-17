@@ -697,6 +697,7 @@ dependencies = [
  "async-trait",
  "axum",
  "axum_responses",
+ "bitflags",
  "chrono",
  "clap",
  "clap_complete",
