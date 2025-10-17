@@ -35,9 +35,7 @@ fn create_test_room(name: &str) -> Room {
         expire_at: None,
         created_at: now,
         updated_at: now,
-        allow_edit: true,
-        allow_download: true,
-        allow_preview: true,
+        permission: RoomPermission::new().with_all(), // 所有权限都允许
     }
 }
 
@@ -140,14 +138,14 @@ mod room_repository_tests {
         // 修改房间信息
         room.id = created_room.id;
         room.max_size = 200;
-        room.allow_edit = false;
+        room.permission = 0; // 移除所有权限
 
         let updated_room = repository.update(&room).await?;
 
         assert_eq!(updated_room.id, created_room.id);
         assert_eq!(updated_room.name, "update_test");
         assert_eq!(updated_room.max_size, 200);
-        assert!(!updated_room.allow_edit);
+        assert_eq!(updated_room.permission, 0);
 
         Ok(())
     }

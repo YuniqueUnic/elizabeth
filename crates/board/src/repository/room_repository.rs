@@ -45,8 +45,8 @@ impl RoomRepository for SqliteRoomRepository {
             INSERT INTO rooms (
                 name, password, status, max_size, current_size,
                 max_times_entered, current_times_entered, expire_at,
-                created_at, updated_at, allow_edit, allow_download, allow_preview
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                created_at, updated_at, permission
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
             room.name,
             room.password,
@@ -58,9 +58,7 @@ impl RoomRepository for SqliteRoomRepository {
             room.expire_at,
             now,
             now,
-            room.allow_edit,
-            room.allow_download,
-            room.allow_preview
+            room.permission,
         )
         .execute(&*self.pool)
         .await?;
@@ -72,7 +70,7 @@ impl RoomRepository for SqliteRoomRepository {
             SELECT
                 id, name, password, status as "status: RoomStatus", max_size, current_size,
                 max_times_entered, current_times_entered, expire_at,
-                created_at, updated_at, allow_edit, allow_download, allow_preview
+                created_at, updated_at, permission
             FROM rooms
             WHERE name = ?
             "#,
@@ -91,7 +89,7 @@ impl RoomRepository for SqliteRoomRepository {
             SELECT
                 id, name, password, status as "status: RoomStatus", max_size, current_size,
                 max_times_entered, current_times_entered, expire_at,
-                created_at, updated_at, allow_edit, allow_download, allow_preview
+                created_at, updated_at, permission
             FROM rooms
             WHERE name = ?
             "#,
@@ -110,7 +108,7 @@ impl RoomRepository for SqliteRoomRepository {
             SELECT
                 id, name, password, status as "status: RoomStatus", max_size, current_size,
                 max_times_entered, current_times_entered, expire_at,
-                created_at, updated_at, allow_edit, allow_download, allow_preview
+                created_at, updated_at, permission
             FROM rooms
             WHERE id = ?
             "#,
@@ -130,7 +128,7 @@ impl RoomRepository for SqliteRoomRepository {
             UPDATE rooms SET
                 password = ?, status = ?, max_size = ?, current_size = ?,
                 max_times_entered = ?, current_times_entered = ?, expire_at = ?,
-                updated_at = ?, allow_edit = ?, allow_download = ?, allow_preview = ?
+                updated_at = ?, permission = ?
             WHERE id = ?
             "#,
             room.password,
@@ -141,9 +139,7 @@ impl RoomRepository for SqliteRoomRepository {
             room.current_times_entered,
             room.expire_at,
             now,
-            room.allow_edit,
-            room.allow_download,
-            room.allow_preview,
+            room.permission,
             room.id
         )
         .execute(&*self.pool)
@@ -156,7 +152,7 @@ impl RoomRepository for SqliteRoomRepository {
             SELECT
                 id, name, password, status as "status: RoomStatus", max_size, current_size,
                 max_times_entered, current_times_entered, expire_at,
-                created_at, updated_at, allow_edit, allow_download, allow_preview
+                created_at, updated_at, permission
             FROM rooms
             WHERE id = ?
             "#,
@@ -185,7 +181,7 @@ impl RoomRepository for SqliteRoomRepository {
             SELECT
                 id, name, password, status as "status: RoomStatus", max_size, current_size,
                 max_times_entered, current_times_entered, expire_at,
-                created_at, updated_at, allow_edit, allow_download, allow_preview
+                created_at, updated_at, permission
             FROM rooms
             WHERE expire_at IS NOT NULL AND expire_at < ?
             "#,

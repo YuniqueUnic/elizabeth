@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n            SELECT\n                id, name, password, status as \"status: RoomStatus\", max_size, current_size,\n                max_times_entered, current_times_entered, expire_at,\n                created_at, updated_at, allow_edit, allow_download, allow_preview\n            FROM rooms\n            WHERE name = ?\n            ",
+  "query": "\n            SELECT\n                id, name, password, status as \"status: RoomStatus\", max_size, current_size,\n                max_times_entered, current_times_entered, expire_at,\n                created_at, updated_at, permission\n            FROM rooms\n            WHERE id = ?\n            ",
   "describe": {
     "columns": [
       {
@@ -59,40 +59,28 @@
         "type_info": "Datetime"
       },
       {
-        "name": "allow_edit",
+        "name": "permission",
         "ordinal": 11,
-        "type_info": "Bool"
-      },
-      {
-        "name": "allow_download",
-        "ordinal": 12,
-        "type_info": "Bool"
-      },
-      {
-        "name": "allow_preview",
-        "ordinal": 13,
-        "type_info": "Bool"
+        "type_info": "Integer"
       }
     ],
     "parameters": {
       "Right": 1
     },
     "nullable": [
-      true,
-      false,
-      true,
-      false,
-      false,
-      false,
       false,
       false,
       true,
       false,
       false,
+      false,
+      false,
+      false,
+      true,
       false,
       false,
       false
     ]
   },
-  "hash": "beacb762150628fcd4964612929ee226e6f30af47c0ac90f67b6e25aad79fe7d"
+  "hash": "410bc3d38993f746498984f54760f2df939dfde2e613193dd0e5a4aabfa9ef13"
 }

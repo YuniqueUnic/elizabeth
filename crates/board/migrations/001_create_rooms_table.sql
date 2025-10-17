@@ -11,9 +11,7 @@ CREATE TABLE IF NOT EXISTS rooms (
     expire_at DATETIME,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    allow_edit BOOLEAN NOT NULL DEFAULT TRUE,
-    allow_download BOOLEAN NOT NULL DEFAULT TRUE,
-    allow_preview BOOLEAN NOT NULL DEFAULT TRUE
+    permission INTEGER NOT NULL DEFAULT 1 -- 默认 (1): 允许删除 (8), 允许编辑 (4), 允许下载 (2), 允许预览 (1)
 );
 
 -- 创建触发器，自动更新 updated_at 字段

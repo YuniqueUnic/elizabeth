@@ -3,6 +3,15 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use utoipa::ToSchema;
 
+use crate::models::permission::RoomPermission;
+
+pub mod content;
+pub mod metric;
+pub mod permission;
+
+const MAX_TIMES_ENTER_ROOM: i64 = 100;
+const MAX_ROOM_CONTENT_SIZE: i64 = 10 * 1024 * 1024;
+
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema, Default, sqlx::Type,
 )] // 如果使用 sqlx
@@ -30,9 +39,7 @@ pub struct Room {
     pub expire_at: Option<NaiveDateTime>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
-    pub allow_edit: bool,
-    pub allow_download: bool,
-    pub allow_preview: bool,
+    pub permission: RoomPermission,
 }
 
 impl Room {
@@ -43,16 +50,14 @@ impl Room {
             name,
             password,
             status: RoomStatus::default(),
-            max_size: 10 * 1024 * 1024, // 10MB
+            max_size: MAX_ROOM_CONTENT_SIZE, // 10MB
             current_size: 0,
-            max_times_entered: 100,
+            max_times_entered: MAX_TIMES_ENTER_ROOM,
             current_times_entered: 0,
             expire_at: None,
             created_at: now,
             updated_at: now,
-            allow_edit: true,
-            allow_download: true,
-            allow_preview: true,
+            permission: RoomPermission::new(),
         }
     }
 
@@ -75,6 +80,6 @@ impl Room {
     }
 
     pub fn can_add_content(&self, content_size: i64) -> bool {
-        self.allow_edit && self.current_size + content_size <= self.max_size
+        self.permission.can_edit() && self.current_size + content_size <= self.max_size
     }
 }
