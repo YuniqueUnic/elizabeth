@@ -30,6 +30,8 @@ configrs = { workspace = true }
 
 shadow-rs = { version = "1", features = ["no_std"] }
 
+bitflags = { version = "2", features = ["serde"] }
+
 clap = { version = "4", features = ["derive", "env"] }
 clap_complete = { version = "4", optional = true }
 
