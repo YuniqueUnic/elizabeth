@@ -39,6 +39,12 @@ test: fmt
 verify: check test
     @echo "✅ 验证通过"
 
+# === 🧹 代码质量 (CI/CD) ===
+
+# 🧹 运行 pre-commit 检查
+prek: fmt clippy
+    @echo "🧹 pre-commit 检查..."
+    prek run -a
 
 # === 🗄️ 数据库操作 ===
 
@@ -175,6 +181,7 @@ clean-all: clean
 alias f := fmt            # 格式化代码
 alias c := check          # 编译检查
 alias t := test           # 运行测试
+alias p := prek           # 运行 pre-commit 检查
 alias m := migrate        # 执行数据库迁移
 alias d := dev            # 开发完整流程
 alias dq := dev-quick     # 快速检查
