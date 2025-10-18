@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n            SELECT\n                id, name, password, status as \"status: RoomStatus\", max_size, current_size,\n                max_times_entered, current_times_entered, expire_at,\n                created_at, updated_at, permission as \"permission: RoomPermission\"\n            FROM rooms\n            WHERE expire_at IS NOT NULL AND expire_at < ?\n            ",
+  "query": "\n            SELECT\n                id,\n                name,\n                password,\n                status as \"status: RoomStatus\",\n                max_size,\n                current_size,\n                max_times_entered,\n                current_times_entered,\n                expire_at,\n                created_at,\n                updated_at,\n                permission as \"permission: RoomPermission\"\n            FROM rooms\n            WHERE id = ?\n            ",
   "describe": {
     "columns": [
       {
@@ -68,7 +68,7 @@
       "Right": 1
     },
     "nullable": [
-      true,
+      false,
       false,
       true,
       false,
@@ -82,5 +82,5 @@
       false
     ]
   },
-  "hash": "0a7c18e080527bd72ef352409ced9be2f0c356d544f6e7bdb5e777a0a281e660"
+  "hash": "a9fb2f228c7c016a44b01390983007645db352ebb875ff7fb4426b6b90c43911"
 }

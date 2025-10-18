@@ -1,10 +1,10 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT COUNT(*) FROM rooms WHERE name = ?",
+  "query": "SELECT EXISTS(SELECT 1 FROM rooms WHERE name = ?)",
   "describe": {
     "columns": [
       {
-        "name": "COUNT(*)",
+        "name": "EXISTS(SELECT 1 FROM rooms WHERE name = ?)",
         "ordinal": 0,
         "type_info": "Integer"
       }
@@ -16,5 +16,5 @@
       false
     ]
   },
-  "hash": "1c1a46b40825271a4f934faf842fbe8162b19e02e3ffeed992187089e8ae4a4e"
+  "hash": "6288036184f83bfc4b306418492fad8ddf68bfe1abb4125f3beee5503224930e"
 }
