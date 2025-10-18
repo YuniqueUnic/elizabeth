@@ -37,7 +37,7 @@ bitflags! {
 
 impl Default for RoomPermission {
     fn default() -> Self {
-        RoomPermission::from_bits(1).expect("Room should have VIEW_ONLY permission at start")
+        RoomPermission::VIEW_ONLY
     }
 }
 
@@ -98,7 +98,7 @@ impl ToSchema for RoomPermission {}
 
 impl Type<Sqlite> for RoomPermission {
     fn type_info() -> SqliteTypeInfo {
-        <i64 as Type<Sqlite>>::type_info()
+        <u8 as Type<Sqlite>>::type_info()
     }
 }
 
@@ -107,21 +107,21 @@ impl Encode<'_, Sqlite> for RoomPermission {
         self,
         buf: &mut <Sqlite as sqlx::Database>::ArgumentBuffer<'_>,
     ) -> Result<IsNull, BoxDynError> {
-        <i64 as Encode<Sqlite>>::encode(self.bits() as i64, buf)
+        <u8 as Encode<Sqlite>>::encode(self.bits(), buf)
     }
 
     fn encode_by_ref(
         &self,
         buf: &mut <Sqlite as sqlx::Database>::ArgumentBuffer<'_>,
     ) -> Result<IsNull, BoxDynError> {
-        <i64 as Encode<Sqlite>>::encode(self.bits() as i64, buf)
+        <u8 as Encode<Sqlite>>::encode(self.bits(), buf)
     }
 }
 
 impl Decode<'_, Sqlite> for RoomPermission {
     fn decode(value: SqliteValueRef<'_>) -> Result<Self, BoxDynError> {
-        let raw = <i64 as Decode<Sqlite>>::decode(value)?;
-        RoomPermission::from_bits(raw as u8)
+        let raw = <u8 as Decode<Sqlite>>::decode(value)?;
+        RoomPermission::from_bits(raw)
             .ok_or_else(|| format!("invalid RoomPermission bits: {}", raw).into())
     }
 }
@@ -133,6 +133,7 @@ mod tests {
     #[test]
     fn test_room_permission() {
         let permission = RoomPermission::new().with_all();
+        println!("permission: {:?}", permission);
         assert!(permission.can_view());
         assert!(permission.can_edit());
         assert!(permission.can_share());
