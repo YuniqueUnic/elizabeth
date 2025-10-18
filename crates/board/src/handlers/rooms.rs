@@ -8,7 +8,7 @@ use utoipa::ToSchema;
 
 use crate::db::DbPool;
 use crate::models::Room;
-use crate::repository::{RoomRepository, SqliteRoomRepository};
+use crate::repository::{IRoomRepository, SqliteRoomRepository};
 
 type HandlerResult<T> = Result<Json<T>, HttpResponse>;
 

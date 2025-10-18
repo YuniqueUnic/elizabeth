@@ -33,7 +33,7 @@ check: fmt
 # 🧪 运行所有测试（含工作区）
 test: fmt
     @echo "🧪 运行测试..."
-    cargo test --workspace
+    cargo test --workspace -- --nocapture
 
 # ✅ 完整代码验证（check + test）
 verify: check test
