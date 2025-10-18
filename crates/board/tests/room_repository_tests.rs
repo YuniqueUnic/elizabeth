@@ -3,6 +3,7 @@
 //! 测试 RoomRepository trait 的所有方法实现
 
 use anyhow::Result;
+use board::models::permission::RoomPermission;
 use chrono::DateTime;
 use sqlx::SqlitePool;
 use std::sync::Arc;
@@ -138,14 +139,14 @@ mod room_repository_tests {
         // 修改房间信息
         room.id = created_room.id;
         room.max_size = 200;
-        room.permission = 0; // 移除所有权限
+        room.permission = RoomPermission::new(); // 移除所有权限
 
         let updated_room = repository.update(&room).await?;
 
         assert_eq!(updated_room.id, created_room.id);
         assert_eq!(updated_room.name, "update_test");
         assert_eq!(updated_room.max_size, 200);
-        assert_eq!(updated_room.permission, 0);
+        assert_eq!(updated_room.permission, RoomPermission::VIEW_ONLY);
 
         Ok(())
     }
