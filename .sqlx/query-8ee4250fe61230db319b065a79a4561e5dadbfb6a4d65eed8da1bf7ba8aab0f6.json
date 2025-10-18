@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            UPDATE rooms SET\n                password = ?, status = ?, max_size = ?, current_size = ?,\n            max_times_entered = ?, current_times_entered = ?, expire_at = ?,\n            updated_at = ?, permission = ?\n        WHERE id = ?\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 10
+    },
+    "nullable": []
+  },
+  "hash": "8ee4250fe61230db319b065a79a4561e5dadbfb6a4d65eed8da1bf7ba8aab0f6"
+}
