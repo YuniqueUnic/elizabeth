@@ -53,10 +53,10 @@ log = { version = "0.4" }  # 新增的直接依赖
 ```bash
 cd crates/board
 # 创建数据库并运行迁移
-sqlite3 app.db < migrations/001_create_rooms_table.sql
-sqlite3 app.db < migrations/002_create_room_contents_table.sql
-sqlite3 app.db < migrations/003_create_room_access_logs_table.sql
-sqlite3 app.db < migrations/004_add_indexes.sql
+sqlite3 crates/board/app.db < crates/board/migrations/001_create_rooms_table.sql
+sqlite3 crates/board/app.db < crates/board/migrations/002_create_room_contents_table.sql
+sqlite3 crates/board/app.db < crates/board/migrations/003_create_room_access_logs_table.sql
+sqlite3 crates/board/app.db < crates/board/migrations/004_add_indexes.sql
 ```
 
 ### 4. 设置环境变量并编译

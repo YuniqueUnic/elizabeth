@@ -4,7 +4,7 @@ use chrono::Utc;
 use std::sync::Arc;
 
 use crate::db::DbPool;
-use crate::models::{Room, RoomStatus};
+use crate::models::{Room, RoomStatus, permission::RoomPermission};
 
 #[async_trait]
 pub trait RoomRepository: Send + Sync {
@@ -70,7 +70,7 @@ impl RoomRepository for SqliteRoomRepository {
             SELECT
                 id, name, password, status as "status: RoomStatus", max_size, current_size,
                 max_times_entered, current_times_entered, expire_at,
-                created_at, updated_at, permission
+                created_at, updated_at, permission as "permission: RoomPermission"
             FROM rooms
             WHERE name = ?
             "#,
@@ -89,7 +89,7 @@ impl RoomRepository for SqliteRoomRepository {
             SELECT
                 id, name, password, status as "status: RoomStatus", max_size, current_size,
                 max_times_entered, current_times_entered, expire_at,
-                created_at, updated_at, permission
+                created_at, updated_at, permission as "permission: RoomPermission"
             FROM rooms
             WHERE name = ?
             "#,
@@ -108,7 +108,7 @@ impl RoomRepository for SqliteRoomRepository {
             SELECT
                 id, name, password, status as "status: RoomStatus", max_size, current_size,
                 max_times_entered, current_times_entered, expire_at,
-                created_at, updated_at, permission
+                created_at, updated_at, permission as "permission: RoomPermission"
             FROM rooms
             WHERE id = ?
             "#,
@@ -152,7 +152,7 @@ impl RoomRepository for SqliteRoomRepository {
             SELECT
                 id, name, password, status as "status: RoomStatus", max_size, current_size,
                 max_times_entered, current_times_entered, expire_at,
-                created_at, updated_at, permission
+                created_at, updated_at, permission as "permission: RoomPermission"
             FROM rooms
             WHERE id = ?
             "#,
@@ -181,7 +181,7 @@ impl RoomRepository for SqliteRoomRepository {
             SELECT
                 id, name, password, status as "status: RoomStatus", max_size, current_size,
                 max_times_entered, current_times_entered, expire_at,
-                created_at, updated_at, permission
+                created_at, updated_at, permission as "permission: RoomPermission"
             FROM rooms
             WHERE expire_at IS NOT NULL AND expire_at < ?
             "#,
