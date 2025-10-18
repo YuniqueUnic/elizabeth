@@ -1,6 +1,7 @@
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
-use chrono::Utc;
+use chrono::{NaiveDateTime, Utc};
+use sqlx::{Executor, Sqlite};
 use std::sync::Arc;
 
 use crate::db::DbPool;
@@ -15,6 +16,7 @@ pub trait IRoomRepository: Send + Sync {
     async fn update(&self, room: &Room) -> Result<Room>;
     async fn delete(&self, name: &str) -> Result<bool>;
     async fn list_expired(&self) -> Result<Vec<Room>>;
+    async fn delete_expired_before(&self, before: NaiveDateTime) -> Result<u64>;
 }
 
 pub struct SqliteRoomRepository {
@@ -25,22 +27,126 @@ impl SqliteRoomRepository {
     pub fn new(pool: Arc<DbPool>) -> Self {
         Self { pool }
     }
+
+    async fn fetch_room_optional_by_id<'e, E>(executor: E, id: i64) -> Result<Option<Room>>
+    where
+        E: Executor<'e, Database = Sqlite>,
+    {
+        let room = sqlx::query_as!(
+            Room,
+            r#"
+            SELECT
+                id,
+                name,
+                password,
+                status as "status: RoomStatus",
+                max_size,
+                current_size,
+                max_times_entered,
+                current_times_entered,
+                expire_at,
+                created_at,
+                updated_at,
+                permission as "permission: RoomPermission"
+            FROM rooms
+            WHERE id = ?
+            "#,
+            id
+        )
+        .fetch_optional(executor)
+        .await?;
+
+        Ok(room)
+    }
+
+    async fn fetch_room_optional_by_name<'e, E>(executor: E, name: &str) -> Result<Option<Room>>
+    where
+        E: Executor<'e, Database = Sqlite>,
+    {
+        let room = sqlx::query_as!(
+            Room,
+            r#"
+            SELECT
+                id,
+                name,
+                password,
+                status as "status: RoomStatus",
+                max_size,
+                current_size,
+                max_times_entered,
+                current_times_entered,
+                expire_at,
+                created_at,
+                updated_at,
+                permission as "permission: RoomPermission"
+            FROM rooms
+            WHERE name = ?
+            "#,
+            name
+        )
+        .fetch_optional(executor)
+        .await?;
+
+        Ok(room)
+    }
+
+    async fn fetch_room_by_id_or_err<'e, E>(executor: E, id: i64) -> Result<Room>
+    where
+        E: Executor<'e, Database = Sqlite>,
+    {
+        Self::fetch_room_optional_by_id(executor, id)
+            .await?
+            .ok_or_else(|| anyhow!("room not found for id {}", id))
+    }
+
+    async fn fetch_expired_rooms<'e, E>(executor: E, before: NaiveDateTime) -> Result<Vec<Room>>
+    where
+        E: Executor<'e, Database = Sqlite>,
+    {
+        let rooms = sqlx::query_as!(
+            Room,
+            r#"
+            SELECT
+                id,
+                name,
+                password,
+                status as "status: RoomStatus",
+                max_size,
+                current_size,
+                max_times_entered,
+                current_times_entered,
+                expire_at,
+                created_at,
+                updated_at,
+                permission as "permission: RoomPermission"
+            FROM rooms
+            WHERE expire_at IS NOT NULL AND expire_at < ?
+            "#,
+            before
+        )
+        .fetch_all(executor)
+        .await?;
+
+        Ok(rooms)
+    }
 }
 
 #[async_trait]
 impl IRoomRepository for SqliteRoomRepository {
     async fn exists(&self, name: &str) -> Result<bool> {
-        let count: i64 = sqlx::query_scalar!("SELECT COUNT(*) FROM rooms WHERE name = ?", name)
-            .fetch_one(&*self.pool)
-            .await?;
+        let exists: i64 =
+            sqlx::query_scalar!("SELECT EXISTS(SELECT 1 FROM rooms WHERE name = ?)", name)
+                .fetch_one(&*self.pool)
+                .await?;
 
-        Ok(count > 0)
+        Ok(exists != 0)
     }
 
     async fn create(&self, room: &Room) -> Result<Room> {
+        let mut tx = self.pool.begin().await?;
         let now = Utc::now().naive_utc();
 
-        sqlx::query!(
+        let insert_result = sqlx::query!(
             r#"
             INSERT INTO rooms (
                 name, password, status, max_size, current_size,
@@ -60,76 +166,38 @@ impl IRoomRepository for SqliteRoomRepository {
             now,
             room.permission,
         )
-        .execute(&*self.pool)
+        .execute(&mut *tx)
         .await?;
 
-        // 获取插入的记录
-        let created_room = sqlx::query_as!(
-            Room,
-            r#"
-            SELECT
-                id, name, password, status as "status: RoomStatus", max_size, current_size,
-                max_times_entered, current_times_entered, expire_at,
-                created_at, updated_at, permission as "permission: RoomPermission"
-            FROM rooms
-            WHERE name = ?
-            "#,
-            room.name
-        )
-        .fetch_one(&*self.pool)
-        .await?;
+        let room_id = insert_result.last_insert_rowid();
+        let created_room = Self::fetch_room_by_id_or_err(&mut *tx, room_id).await?;
 
+        tx.commit().await?;
         Ok(created_room)
     }
 
     async fn find_by_name(&self, name: &str) -> Result<Option<Room>> {
-        let room = sqlx::query_as!(
-            Room,
-            r#"
-            SELECT
-                id, name, password, status as "status: RoomStatus", max_size, current_size,
-                max_times_entered, current_times_entered, expire_at,
-                created_at, updated_at, permission as "permission: RoomPermission"
-            FROM rooms
-            WHERE name = ?
-            "#,
-            name
-        )
-        .fetch_optional(&*self.pool)
-        .await?;
-
-        Ok(room)
+        Self::fetch_room_optional_by_name(&*self.pool, name).await
     }
 
     async fn find_by_id(&self, id: i64) -> Result<Option<Room>> {
-        let room = sqlx::query_as!(
-            Room,
-            r#"
-            SELECT
-                id, name, password, status as "status: RoomStatus", max_size, current_size,
-                max_times_entered, current_times_entered, expire_at,
-                created_at, updated_at, permission as "permission: RoomPermission"
-            FROM rooms
-            WHERE id = ?
-            "#,
-            id
-        )
-        .fetch_optional(&*self.pool)
-        .await?;
-
-        Ok(room)
+        Self::fetch_room_optional_by_id(&*self.pool, id).await
     }
 
     async fn update(&self, room: &Room) -> Result<Room> {
+        let room_id = room
+            .id
+            .ok_or_else(|| anyhow!("room id is required for update"))?;
+        let mut tx = self.pool.begin().await?;
         let now = Utc::now().naive_utc();
 
         sqlx::query!(
             r#"
             UPDATE rooms SET
                 password = ?, status = ?, max_size = ?, current_size = ?,
-                max_times_entered = ?, current_times_entered = ?, expire_at = ?,
-                updated_at = ?, permission = ?
-            WHERE id = ?
+            max_times_entered = ?, current_times_entered = ?, expire_at = ?,
+            updated_at = ?, permission = ?
+        WHERE id = ?
             "#,
             room.password,
             room.status,
@@ -140,27 +208,14 @@ impl IRoomRepository for SqliteRoomRepository {
             room.expire_at,
             now,
             room.permission,
-            room.id
+            room_id
         )
-        .execute(&*self.pool)
+        .execute(&mut *tx)
         .await?;
 
-        // 查询更新后的记录
-        let updated_room = sqlx::query_as!(
-            Room,
-            r#"
-            SELECT
-                id, name, password, status as "status: RoomStatus", max_size, current_size,
-                max_times_entered, current_times_entered, expire_at,
-                created_at, updated_at, permission as "permission: RoomPermission"
-            FROM rooms
-            WHERE id = ?
-            "#,
-            room.id
-        )
-        .fetch_one(&*self.pool)
-        .await?;
+        let updated_room = Self::fetch_room_by_id_or_err(&mut *tx, room_id).await?;
 
+        tx.commit().await?;
         Ok(updated_room)
     }
 
@@ -175,21 +230,17 @@ impl IRoomRepository for SqliteRoomRepository {
     async fn list_expired(&self) -> Result<Vec<Room>> {
         let now = Utc::now().naive_utc();
 
-        let rooms = sqlx::query_as!(
-            Room,
-            r#"
-            SELECT
-                id, name, password, status as "status: RoomStatus", max_size, current_size,
-                max_times_entered, current_times_entered, expire_at,
-                created_at, updated_at, permission as "permission: RoomPermission"
-            FROM rooms
-            WHERE expire_at IS NOT NULL AND expire_at < ?
-            "#,
-            now
+        Self::fetch_expired_rooms(&*self.pool, now).await
+    }
+
+    async fn delete_expired_before(&self, before: NaiveDateTime) -> Result<u64> {
+        let result = sqlx::query!(
+            "DELETE FROM rooms WHERE expire_at IS NOT NULL AND expire_at < ?",
+            before
         )
-        .fetch_all(&*self.pool)
+        .execute(&*self.pool)
         .await?;
 
-        Ok(rooms)
+        Ok(result.rows_affected())
     }
 }
