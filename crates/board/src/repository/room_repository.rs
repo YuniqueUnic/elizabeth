@@ -7,7 +7,7 @@ use crate::db::DbPool;
 use crate::models::{Room, RoomStatus, permission::RoomPermission};
 
 #[async_trait]
-pub trait RoomRepository: Send + Sync {
+pub trait IRoomRepository: Send + Sync {
     async fn exists(&self, name: &str) -> Result<bool>;
     async fn create(&self, room: &Room) -> Result<Room>;
     async fn find_by_name(&self, name: &str) -> Result<Option<Room>>;
@@ -28,7 +28,7 @@ impl SqliteRoomRepository {
 }
 
 #[async_trait]
-impl RoomRepository for SqliteRoomRepository {
+impl IRoomRepository for SqliteRoomRepository {
     async fn exists(&self, name: &str) -> Result<bool> {
         let count: i64 = sqlx::query_scalar!("SELECT COUNT(*) FROM rooms WHERE name = ?", name)
             .fetch_one(&*self.pool)

@@ -12,7 +12,8 @@ pub enum AccessAction {
     Enter = 0,
     Exit = 1,
     CreateContent = 2,
-    DeleteContent = 3,
+    UpdateContent = 3,
+    DeleteContent = 4,
 }
 
 /// 数据库 RoomAccessLog 模型，使用 FromRow 自动映射

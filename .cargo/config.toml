@@ -1,0 +1,9 @@
+[target.'cfg(all())']
+rustflags = [
+    "-A",
+    "unused-variables",
+    "-A",
+    "dead-code",
+    "-A",
+    "unused-imports",
+] # Suppress warnings for all targets for development
