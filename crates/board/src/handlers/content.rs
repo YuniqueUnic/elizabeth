@@ -1,170 +1,458 @@
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+
 use axum::Json;
 use axum::body::Body;
-use axum::extract::{Path, Query, State};
-use axum::response::IntoResponse;
+use axum::extract::{Multipart, Path as AxumPath, Query, State};
+use axum::http::HeaderValue;
+use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
+use axum::response::Response;
 use axum_responses::http::HttpResponse;
-use serde::Deserialize;
-use std::sync::Arc;
+use chrono::NaiveDateTime;
+use futures::StreamExt;
+use serde::{Deserialize, Serialize};
+use tokio::fs;
+use tokio::io::AsyncWriteExt;
+use tokio_util::io::ReaderStream;
 use utoipa::ToSchema;
+use uuid::Uuid;
 
-use crate::db::DbPool;
-use crate::models::Room;
-use crate::repository::{IRoomContentRepository, SqliteRoomRepository};
+use crate::models::content::{ContentType, RoomContent};
+use crate::repository::{
+    IRoomContentRepository, IRoomRepository, SqliteRoomContentRepository, SqliteRoomRepository,
+};
+use crate::services::RoomTokenClaims;
+use crate::state::AppState;
 
-// 这里是构建创建 room 中 content 的 handler 的地方
-// 该过程需要有如下流程：
-// 1. 该请求必须拿到 room 签发的一个凭证 (如 jwt), 然后使用该凭证去发起该 room 的 content 的一系列操作
-//     1. 这个 jwt 只有在用户成功进入该 room 时才会签发，也就是如果该 room 有一个密码，那么只有用户成功进入该 room 才能获取到该凭证
-//     2. 该 jwt 的有效期应该小于该 room 的有效期
-//     3. 房间不存在时，jwt 也应该失效
-// 2. 用户发起的 content 相关请求需要带上该凭证，然后使用该凭证去发起该 room 的内容相关的操作
-// 3. 服务拿到用户的请求信息后，会先检查 jwt,
-//     1. 服务拿到用户的请求信息后，会先检查 jwt，并解析出该 jwt 所对应的房间信息 (权限。当前所占 size) 以及 新文件 size 等等信息。
-//     2. 如果这个 jwt 是有效的，有对应的 room, 那么就会开始检查 权限，检查允许的总 size <  当前 size + 新文件 size. 等等需要检查的内容。
-//     3. 如果检查通过，那么就会开始处理该请求 (比如获取文件列表，上传文件等等)，并返回结果。
-// 4. 用户得到服务端返回的结果
-// content handler 应该有这些方法/接口
-// 1. 获取某个房间下的文件列表
-// 2. 上传文件 (s) 到某个房间
-// 3. 删除某个房间下的某些文件
-// 4. 下载某个房间下的某些文件
-// room handler 也应该更新，增加一个签发凭证，验证凭证，删除凭证，获取凭证等等的常用方法/接口。
-// 我们的这个程序是没有用户的概念的，只有 room 的概念，能够进入房间的都是能够对房间进行处理的 (但是房间的权限是由最开始创建的人配置的权限。后续的人是没有该权限的)
-// 相关文件：
-// /Users/unic/dev/projs/rs/elizabeth/crates/board/src/handlers
-// /Users/unic/dev/projs/rs/elizabeth/crates/board/src/repository
-// 此外关于 sqlx, 当前项目的常用构建等等操作，请你参考 /Users/unic/dev/projs/rs/elizabeth/justfile
-// 请你最后实现和完成之后，参考 /Users/unic/dev/projs/rs/elizabeth/docs/great-blog/how-2-write-blog.md 写一篇博客，描述你的需求，分析，实现过程，痛点等等的技术性文章。
-// 输出到 /Users/unic/dev/projs/rs/elizabeth/docs 中
+use super::{TokenQuery, verify_room_token};
 
-// type HandlerResult<T> = Result<Json<T>, HttpResponse>;
+const STORAGE_ROOT: &str = "storage/rooms";
 
-// #[derive(Debug, Deserialize, ToSchema)]
-// pub struct CreateTextParams {
-//     jwt_token: Option<String>,
-// }
+type HandlerResult<T> = Result<Json<T>, HttpResponse>;
 
-// /// 创建房间
-// #[utoipa::path(
-//     post,
-//     path = "/api/v1/content/text/{name}",
-//     params(
-//         ("name" = String, Path, description = "房间名称"),
-//         ("jwt_token" = Option<String>, Query, description = "房间里的人的 jwt_token") // 应该使用 jwt 来替代，因为只有房间里的人 (拿到了 jwt) 才能更新内容
-//     ),
-//     responses(
-//         (status = 200, description = "房间创建成功", body = Room),
-//         (status = 400, description = "请求参数错误"),
-//         (status = 500, description = "服务器内部错误")
-//     ),
-//     tag = "rooms"
-// )]
-// pub async fn create(
-//     Path(name): Path<String>,
-//     Query(params): Query<CreateTextParams>,
-//     Body(text): Body<String>,
-//     State(pool): State<Arc<DbPool>>,
-// ) -> HandlerResult<Room> {
-//     if name.is_empty() {
-//         return Err(HttpResponse::BadRequest().message("Invalid room name"));
-//     }
+#[derive(Debug, Serialize, ToSchema)]
+pub struct RoomContentView {
+    pub id: i64,
+    pub content_type: ContentType,
+    pub file_name: Option<String>,
+    pub url: Option<String>,
+    pub size: Option<i64>,
+    pub mime_type: Option<String>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+}
 
-//     let repository = SqliteRoomRepository::new(pool.clone());
+impl From<RoomContent> for RoomContentView {
+    fn from(value: RoomContent) -> Self {
+        let file_name = value.path.as_ref().and_then(|path| {
+            Path::new(path)
+                .file_name()
+                .map(|s| s.to_string_lossy().to_string())
+        });
+        Self {
+            id: value.id.unwrap_or_default(),
+            content_type: value.content_type,
+            file_name,
+            url: value.url,
+            size: value.size,
+            mime_type: value.mime_type,
+            created_at: value.created_at,
+            updated_at: value.updated_at,
+        }
+    }
+}
 
-//     if repository.exists(&name).await.map_err(|e| {
-//         HttpResponse::InternalServerError().message(format!("Database error: {}", e))
-//     })? {
-//         return Err(HttpResponse::BadRequest().message("Room already exists"));
-//     }
+#[derive(Debug, Serialize, ToSchema)]
+pub struct UploadContentResponse {
+    pub uploaded: Vec<RoomContentView>,
+    pub current_size: i64,
+}
 
-//     let room = Room::new(name.clone(), params.password);
-//     let created_room = repository.create(&room).await.map_err(|e| {
-//         HttpResponse::InternalServerError().message(format!("Failed to create room: {}", e))
-//     })?;
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct DeleteContentRequest {
+    pub ids: Vec<i64>,
+}
 
-//     Ok(Json(created_room))
-// }
+#[derive(Debug, Serialize, ToSchema)]
+pub struct DeleteContentResponse {
+    pub deleted: Vec<i64>,
+    pub freed_size: i64,
+    pub current_size: i64,
+}
 
-// /// 查找房间
-// #[utoipa::path(
-//     get,
-//     path = "/api/v1/rooms/{name}",
-//     params(
-//         ("name" = String, Path, description = "房间名称")
-//     ),
-//     responses(
-//         (status = 200, description = "房间信息", body = Room),
-//         (status = 403, description = "房间无法进入"),
-//         (status = 500, description = "服务器内部错误")
-//     ),
-//     tag = "rooms"
-// )]
-// pub async fn find(
-//     Path(name): Path<String>,
-//     State(pool): State<Arc<DbPool>>,
-// ) -> HandlerResult<Room> {
-//     if name.is_empty() {
-//         return Err(HttpResponse::BadRequest().message("Invalid room name"));
-//     }
+#[utoipa::path(
+    get,
+    path = "/api/v1/rooms/{name}/contents",
+    params(
+        ("name" = String, Path, description = "房间名称"),
+        ("token" = String, Query, description = "有效的房间 token")
+    ),
+    responses(
+        (status = 200, description = "房间文件列表", body = [RoomContentView]),
+        (status = 401, description = "token 无效"),
+        (status = 404, description = "房间不存在")
+    ),
+    tag = "content"
+)]
+pub async fn list_contents(
+    AxumPath(name): AxumPath<String>,
+    Query(query): Query<TokenQuery>,
+    State(app_state): State<Arc<AppState>>,
+) -> HandlerResult<Vec<RoomContentView>> {
+    if name.is_empty() {
+        return Err(HttpResponse::BadRequest().message("Invalid room name"));
+    }
 
-//     let repository = SqliteRoomRepository::new(pool.clone());
+    let verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
+    let room_id = room_id_or_error(&verified.claims)?;
 
-//     match repository.find_by_name(&name).await.map_err(|e| {
-//         HttpResponse::InternalServerError().message(format!("Database error: {}", e))
-//     })? {
-//         Some(room) => {
-//             if room.can_enter() {
-//                 Ok(Json(room))
-//             } else {
-//                 Err(HttpResponse::Forbidden().message("Room cannot be entered"))
-//             }
-//         }
-//         None => {
-//             // 如果房间不存在，创建一个新的
-//             let new_room = Room::new(name, None);
-//             let created_room = repository.create(&new_room).await.map_err(|e| {
-//                 HttpResponse::InternalServerError().message(format!("Failed to create room: {}", e))
-//             })?;
-//             Ok(Json(created_room))
-//         }
-//     }
-// }
+    ensure_permission(
+        &verified.claims,
+        verified.room.permission.can_view(),
+        ContentPermission::View,
+    )?;
 
-// /// 删除房间
-// #[utoipa::path(
-//     delete,
-//     path = "/api/v1/rooms/{name}",
-//     params(
-//         ("name" = String, Path, description = "房间名称")
-//     ),
-//     responses(
-//         (status = 200, description = "房间删除成功"),
-//         (status = 404, description = "房间不存在"),
-//         (status = 500, description = "服务器内部错误")
-//     ),
-//     tag = "rooms"
-// )]
-// pub async fn delete(
-//     Path(name): Path<String>,
-//     State(pool): State<Arc<DbPool>>,
-// ) -> impl IntoResponse {
-//     if name.is_empty() {
-//         return HttpResponse::BadRequest()
-//             .message("Invalid room name")
-//             .into_response();
-//     }
+    let repository = SqliteRoomContentRepository::new(app_state.db_pool.clone());
+    let contents = repository.list_by_room(room_id).await.map_err(|e| {
+        HttpResponse::InternalServerError().message(format!("Failed to list contents: {e}"))
+    })?;
 
-//     let repository = SqliteRoomRepository::new(pool.clone());
+    Ok(Json(
+        contents.into_iter().map(RoomContentView::from).collect(),
+    ))
+}
 
-//     match repository.delete(&name).await.map_err(|e| {
-//         HttpResponse::InternalServerError().message(format!("Failed to delete room: {}", e))
-//     }) {
-//         Ok(true) => HttpResponse::Ok()
-//             .message("Room deleted successfully")
-//             .into_response(),
-//         Ok(false) => HttpResponse::NotFound()
-//             .message("Room not found")
-//             .into_response(),
-//         Err(e) => e.into_response(),
-//     }
-// }
+#[utoipa::path(
+    post,
+    path = "/api/v1/rooms/{name}/contents",
+    params(
+        ("name" = String, Path, description = "房间名称"),
+        ("token" = String, Query, description = "有效的房间 token")
+    ),
+    responses(
+        (status = 200, description = "上传成功", body = UploadContentResponse),
+        (status = 401, description = "token 无效"),
+        (status = 403, description = "无上传权限"),
+        (status = 404, description = "房间不存在"),
+        (status = 413, description = "超出房间容量限制")
+    ),
+    tag = "content"
+)]
+pub async fn upload_contents(
+    AxumPath(name): AxumPath<String>,
+    Query(query): Query<TokenQuery>,
+    State(app_state): State<Arc<AppState>>,
+    mut multipart: Multipart,
+) -> HandlerResult<UploadContentResponse> {
+    if name.is_empty() {
+        return Err(HttpResponse::BadRequest().message("Invalid room name"));
+    }
+
+    let mut verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
+    ensure_permission(
+        &verified.claims,
+        verified.room.permission.can_edit(),
+        ContentPermission::Edit,
+    )?;
+
+    let room_id = room_id_or_error(&verified.claims)?;
+    let storage_dir = ensure_room_storage(&verified.room.name)
+        .await
+        .map_err(|e| {
+            HttpResponse::InternalServerError()
+                .message(format!("Failed to prepare storage directory: {e}"))
+        })?;
+
+    let mut uploaded = Vec::new();
+    let mut added_size: i64 = 0;
+    let repository = SqliteRoomContentRepository::new(app_state.db_pool.clone());
+
+    while let Some(mut field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| HttpResponse::BadRequest().message(format!("Invalid multipart data: {e}")))?
+    {
+        let file_name = field
+            .file_name()
+            .map(|name| name.to_string())
+            .unwrap_or_else(|| "upload.bin".to_string());
+        let safe_file_name = sanitize_filename::sanitize(&file_name);
+        let unique_segment = Uuid::new_v4().to_string();
+        let file_path = storage_dir.join(format!("{unique_segment}_{safe_file_name}"));
+        let mut temp_file = fs::File::create(&file_path).await.map_err(|e| {
+            HttpResponse::InternalServerError().message(format!("Cannot create file: {e}"))
+        })?;
+
+        let mut size: i64 = 0;
+        while let Some(chunk) = field.next().await {
+            let chunk = chunk.map_err(|e| {
+                HttpResponse::BadRequest().message(format!("Read upload chunk failed: {e}"))
+            })?;
+            size += chunk.len() as i64;
+            temp_file.write_all(&chunk).await.map_err(|e| {
+                HttpResponse::InternalServerError().message(format!("Write file failed: {e}"))
+            })?;
+        }
+        temp_file.flush().await.map_err(|e| {
+            HttpResponse::InternalServerError().message(format!("Flush file failed: {e}"))
+        })?;
+
+        if verified.room.current_size + added_size + size > verified.room.max_size {
+            fs::remove_file(&file_path).await.ok();
+            return Err(HttpResponse::PayloadTooLarge().message("Room size limit exceeded"));
+        }
+
+        let mime = mime_guess::from_path(&file_path)
+            .first_raw()
+            .map(|m| m.to_string());
+
+        let now = chrono::Utc::now().naive_utc();
+        let mut content = RoomContent {
+            id: None,
+            room_id,
+            content_type: ContentType::File,
+            text: None,
+            url: None,
+            path: None,
+            size: None,
+            mime_type: None,
+            created_at: now,
+            updated_at: now,
+        };
+        content.set_path(
+            file_path.to_string_lossy().to_string(),
+            ContentType::File,
+            size,
+            mime.clone()
+                .unwrap_or_else(|| "application/octet-stream".to_string()),
+        );
+
+        let saved = repository.create(&content).await.map_err(|e| {
+            HttpResponse::InternalServerError().message(format!("Persist content failed: {e}"))
+        })?;
+
+        uploaded.push(RoomContentView::from(saved));
+        added_size += size;
+    }
+
+    if added_size > 0 {
+        verified.room.current_size += added_size;
+        let room_repo = SqliteRoomRepository::new(app_state.db_pool.clone());
+        verified.room = room_repo.update(&verified.room).await.map_err(|e| {
+            HttpResponse::InternalServerError().message(format!("Update room failed: {e}"))
+        })?;
+    }
+
+    Ok(Json(UploadContentResponse {
+        uploaded,
+        current_size: verified.room.current_size,
+    }))
+}
+
+#[utoipa::path(
+    delete,
+    path = "/api/v1/rooms/{name}/contents",
+    params(
+        ("name" = String, Path, description = "房间名称"),
+        ("token" = String, Query, description = "有效的房间 token")
+    ),
+    request_body = DeleteContentRequest,
+    responses(
+        (status = 200, description = "删除成功", body = DeleteContentResponse),
+        (status = 401, description = "token 无效"),
+        (status = 403, description = "无删除权限"),
+        (status = 404, description = "房间或文件不存在")
+    ),
+    tag = "content"
+)]
+pub async fn delete_contents(
+    AxumPath(name): AxumPath<String>,
+    Query(query): Query<TokenQuery>,
+    State(app_state): State<Arc<AppState>>,
+    Json(payload): Json<DeleteContentRequest>,
+) -> HandlerResult<DeleteContentResponse> {
+    if name.is_empty() {
+        return Err(HttpResponse::BadRequest().message("Invalid room name"));
+    }
+
+    if payload.ids.is_empty() {
+        return Err(HttpResponse::BadRequest().message("No content id provided"));
+    }
+
+    let mut verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
+    ensure_permission(
+        &verified.claims,
+        verified.room.permission.can_delete(),
+        ContentPermission::Delete,
+    )?;
+
+    let room_id = room_id_or_error(&verified.claims)?;
+    let repository = SqliteRoomContentRepository::new(app_state.db_pool.clone());
+    let existing_contents = repository
+        .list_by_room(room_id)
+        .await
+        .map_err(|e| HttpResponse::InternalServerError().message(format!("Query failed: {e}")))?;
+
+    let target_ids: HashSet<i64> = payload.ids.iter().copied().collect();
+    let contents: Vec<RoomContent> = existing_contents
+        .into_iter()
+        .filter(|content| {
+            content
+                .id
+                .map(|id| target_ids.contains(&id))
+                .unwrap_or(false)
+        })
+        .collect();
+
+    if contents.is_empty() {
+        return Err(HttpResponse::NotFound().message("Contents not found"));
+    }
+
+    let mut freed_size = 0;
+    for content in &contents {
+        if let Some(path) = &content.path {
+            fs::remove_file(path).await.ok();
+        }
+        freed_size += content.size.unwrap_or(0);
+    }
+
+    let ids: Vec<i64> = contents.iter().filter_map(|content| content.id).collect();
+
+    repository
+        .delete_by_ids(room_id, &ids)
+        .await
+        .map_err(|e| HttpResponse::InternalServerError().message(format!("Delete failed: {e}")))?;
+
+    if freed_size > 0 {
+        verified.room.current_size = (verified.room.current_size - freed_size).max(0);
+        let room_repo = SqliteRoomRepository::new(app_state.db_pool.clone());
+        verified.room = room_repo.update(&verified.room).await.map_err(|e| {
+            HttpResponse::InternalServerError().message(format!("Update room failed: {e}"))
+        })?;
+    }
+
+    Ok(Json(DeleteContentResponse {
+        deleted: ids,
+        freed_size,
+        current_size: verified.room.current_size,
+    }))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/rooms/{name}/contents/{content_id}",
+    params(
+        ("name" = String, Path, description = "房间名称"),
+        ("content_id" = i64, Path, description = "内容 id"),
+        ("token" = String, Query, description = "有效的房间 token")
+    ),
+    responses(
+        (status = 200, description = "文件内容"),
+        (status = 401, description = "token 无效"),
+        (status = 403, description = "无访问权限"),
+        (status = 404, description = "文件不存在")
+    ),
+    tag = "content"
+)]
+pub async fn download_content(
+    AxumPath((name, content_id)): AxumPath<(String, i64)>,
+    Query(query): Query<TokenQuery>,
+    State(app_state): State<Arc<AppState>>,
+) -> Result<Response, HttpResponse> {
+    if name.is_empty() {
+        return Err(HttpResponse::BadRequest().message("Invalid room name"));
+    }
+
+    let verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
+    ensure_permission(
+        &verified.claims,
+        verified.room.permission.can_view(),
+        ContentPermission::View,
+    )?;
+
+    let room_id = room_id_or_error(&verified.claims)?;
+    let repository = SqliteRoomContentRepository::new(app_state.db_pool.clone());
+    let content = repository
+        .find_by_id(content_id)
+        .await
+        .map_err(|e| HttpResponse::InternalServerError().message(format!("Query failed: {e}")))?
+        .ok_or_else(|| HttpResponse::NotFound().message("Content not found"))?;
+
+    if content.room_id != room_id {
+        return Err(HttpResponse::Forbidden().message("Content not in room"));
+    }
+
+    let path = content
+        .path
+        .ok_or_else(|| HttpResponse::NotFound().message("Content not stored on disk"))?;
+
+    let file = fs::File::open(&path)
+        .await
+        .map_err(|_| HttpResponse::NotFound().message("File missing on disk"))?;
+
+    let file_name = Path::new(&path)
+        .file_name()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| "download.bin".to_string());
+
+    let stream = ReaderStream::new(file);
+    let body = Body::from_stream(stream);
+    let mut response = Response::new(body);
+    let disposition = HeaderValue::from_str(&format!("attachment; filename=\"{file_name}\""))
+        .map_err(|_| {
+            HttpResponse::InternalServerError().message("Failed to build response headers")
+        })?;
+    response
+        .headers_mut()
+        .insert(CONTENT_DISPOSITION, disposition);
+
+    if let Some(mime) = content.mime_type
+        && let Ok(value) = HeaderValue::from_str(&mime)
+    {
+        response.headers_mut().insert(CONTENT_TYPE, value);
+    }
+
+    Ok(response)
+}
+
+#[derive(Clone, Copy)]
+enum ContentPermission {
+    View,
+    Edit,
+    Delete,
+}
+
+fn ensure_permission(
+    claims: &RoomTokenClaims,
+    room_allows: bool,
+    action: ContentPermission,
+) -> Result<(), HttpResponse> {
+    if !room_allows {
+        return Err(HttpResponse::Forbidden().message("Permission denied by room"));
+    }
+    let permission = claims.as_permission();
+    let token_allows = match action {
+        ContentPermission::View => permission.can_view(),
+        ContentPermission::Edit => permission.can_edit(),
+        ContentPermission::Delete => permission.can_delete(),
+    };
+    if !token_allows {
+        return Err(HttpResponse::Forbidden().message("Permission denied by token"));
+    }
+    Ok(())
+}
+
+async fn ensure_room_storage(room_name: &str) -> Result<PathBuf, std::io::Error> {
+    let safe = sanitize_filename::sanitize(room_name);
+    let dir = PathBuf::from(STORAGE_ROOT).join(safe);
+    fs::create_dir_all(&dir).await?;
+    Ok(dir)
+}
+
+fn room_id_or_error(claims: &RoomTokenClaims) -> Result<i64, HttpResponse> {
+    if claims.room_id <= 0 {
+        return Err(HttpResponse::InternalServerError().message("Room id missing in claims"));
+    }
+    Ok(claims.room_id)
+}
