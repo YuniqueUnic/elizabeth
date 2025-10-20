@@ -57,6 +57,7 @@ fn merge_config_with_cli_args(
     merge_cli_arg!(cfg.app.port, args.port);
     merge_cli_arg!(cfg.app.addr, args.listen_addr.clone());
     merge_cli_arg!(cfg.app.log_level, args.verbose, match_log_level);
+    merge_cli_arg!(cfg.app.jwt_secret, args.jwt_secret.clone());
 
     cfg_mgr.save(&cfg)?;
 

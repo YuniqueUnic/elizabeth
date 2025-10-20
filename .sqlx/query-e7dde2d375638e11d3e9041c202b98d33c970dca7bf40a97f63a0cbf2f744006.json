@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            INSERT INTO room_tokens (\n                room_id, jti, expires_at, revoked_at, created_at\n            ) VALUES (?, ?, ?, ?, ?)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "e7dde2d375638e11d3e9041c202b98d33c970dca7bf40a97f63a0cbf2f744006"
+}

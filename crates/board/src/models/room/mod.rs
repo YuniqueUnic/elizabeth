@@ -8,6 +8,9 @@ use crate::models::permission::RoomPermission;
 pub mod content;
 pub mod metric;
 pub mod permission;
+pub mod token;
+
+pub use token::RoomToken;
 
 const MAX_TIMES_ENTER_ROOM: i64 = 100;
 const MAX_ROOM_CONTENT_SIZE: i64 = 10 * 1024 * 1024;
@@ -57,7 +60,7 @@ impl Room {
             expire_at: None,
             created_at: now,
             updated_at: now,
-            permission: RoomPermission::new(),
+            permission: RoomPermission::new().with_all(),
         }
     }
 

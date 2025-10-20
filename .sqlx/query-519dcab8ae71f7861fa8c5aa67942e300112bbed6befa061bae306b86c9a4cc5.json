@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            INSERT INTO room_contents\n                (room_id, content_type, text, url, path, size, mime_type, created_at, updated_at)\n            VALUES\n                (?, ?, ?, ?, ?, ?, ?, ?, ?)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 9
+    },
+    "nullable": []
+  },
+  "hash": "519dcab8ae71f7861fa8c5aa67942e300112bbed6befa061bae306b86c9a4cc5"
+}

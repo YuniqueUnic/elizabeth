@@ -5,6 +5,8 @@ mod init;
 pub mod models;
 pub mod repository;
 pub mod route;
+pub mod services;
+pub mod state;
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -15,6 +17,7 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::db::{init_db, run_migrations};
 use crate::init::{cfg_service, const_service, log_service};
+use crate::state::AppState;
 use configrs::Config;
 
 shadow!(build);
@@ -43,11 +46,13 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
     let database_url = &cfg.app.db_url;
     let db_pool = init_db(database_url).await?;
     run_migrations(&db_pool).await?;
+    let db_pool = Arc::new(db_pool);
+    let app_state = Arc::new(AppState::new(db_pool.clone(), cfg.app.jwt_secret.clone()));
 
     let addr: SocketAddr = format!("{}:{}", cfg.app.addr, cfg.app.port).parse()?;
     let listener = tokio::net::TcpListener::bind(addr).await?;
 
-    let (scalar_path, router) = build_api_router(Arc::new(db_pool));
+    let (scalar_path, router) = build_api_router(app_state);
 
     println!("Server listening on http://{addr}");
     println!("Scalar listening on http://{addr}{}", &scalar_path);
@@ -57,12 +62,12 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
         .map_err(anyhow::Error::new)
 }
 
-fn build_api_router(db_pool: Arc<crate::db::DbPool>) -> (String, axum::Router) {
+fn build_api_router(app_state: Arc<AppState>) -> (String, axum::Router) {
     let (root_router, mut api) = OpenApiRouter::new()
         .routes(routes!(route::openapi))
         .split_for_parts();
     let (status_router, status_api) = route::status::api_router().split_for_parts();
-    let (room_router, room_api) = route::room::api_router(db_pool).split_for_parts();
+    let (room_router, room_api) = route::room::api_router(app_state).split_for_parts();
 
     let router = root_router.merge(status_router).merge(room_router);
     api.merge(status_api);

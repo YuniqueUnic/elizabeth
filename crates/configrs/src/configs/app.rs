@@ -18,6 +18,9 @@ pub struct AppConfig {
     #[default = "sqlite:app.db"]
     #[merge(strategy = overwrite_not_empty_string)]
     pub db_url: String,
+    #[default = "secret"]
+    #[merge(strategy = overwrite_not_empty_string)]
+    pub jwt_secret: String,
 }
 
 #[cfg(test)]
@@ -34,6 +37,7 @@ mod tests {
             port: 0,
             log_level: "debug".to_string(),
             db_url: "sqlite://test.db".to_string(),
+            jwt_secret: "foobar".into(), // pragma: allowlist secret
         };
 
         left.merge(right);
@@ -41,5 +45,6 @@ mod tests {
         assert_eq!(left.port, 0);
         assert_eq!(left.log_level, "debug");
         assert_eq!(left.db_url, "sqlite://test.db");
+        assert_eq!(left.jwt_secret, "foobar");
     }
 }

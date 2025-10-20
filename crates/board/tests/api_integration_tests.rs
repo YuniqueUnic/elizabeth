@@ -13,6 +13,7 @@ use std::sync::Arc;
 use tower::util::ServiceExt;
 
 use board::route::room::api_router;
+use board::state::AppState;
 
 /// 创建测试应用
 async fn create_test_app() -> Result<(Router, SqlitePool)> {
@@ -21,7 +22,9 @@ async fn create_test_app() -> Result<(Router, SqlitePool)> {
     // 运行迁移
     sqlx::migrate!("./migrations").run(&pool).await?;
 
-    let app = api_router(Arc::new(pool.clone())).into();
+    let pool_arc = Arc::new(pool.clone());
+    let app_state = Arc::new(AppState::new(pool_arc, "test-secret"));
+    let app = api_router(app_state).into();
 
     Ok((app, pool))
 }
@@ -182,7 +185,15 @@ async fn test_delete_room_api() -> Result<()> {
         .body(Body::empty())?;
 
     let delete_response = app.clone().oneshot(delete_request).await?;
-    assert_eq!(delete_response.status(), StatusCode::OK);
+    let delete_status = delete_response.status();
+    if delete_status != StatusCode::OK {
+        let body = axum::body::to_bytes(delete_response.into_body(), usize::MAX).await?;
+        panic!(
+            "delete failed status {} body {}",
+            delete_status,
+            String::from_utf8_lossy(&body)
+        );
+    }
 
     let body = axum::body::to_bytes(delete_response.into_body(), usize::MAX).await?;
     let response_json: serde_json::Value = serde_json::from_slice(&body)?;
@@ -290,6 +301,128 @@ async fn test_complete_crud_workflow() -> Result<()> {
 
     let verify_response = app.clone().oneshot(verify_request).await?;
     assert_eq!(verify_response.status(), StatusCode::OK);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_room_token_and_content_flow() -> Result<()> {
+    let (app, _pool) = create_test_app().await?;
+
+    // 创建房间
+    let create_request = Request::builder()
+        .method(Method::POST)
+        .uri("/api/v1/rooms/content_room?password=secret")
+        .header("content-type", "application/json")
+        .body(Body::empty())?;
+    let create_response = app.clone().oneshot(create_request).await?;
+    assert_eq!(create_response.status(), StatusCode::OK);
+
+    // 签发 token
+    let issue_payload = serde_json::json!({ "password": "secret" });
+    let issue_request = Request::builder()
+        .method(Method::POST)
+        .uri("/api/v1/rooms/content_room/tokens")
+        .header("content-type", "application/json")
+        .body(Body::from(issue_payload.to_string()))?;
+    let issue_response = app.clone().oneshot(issue_request).await?;
+    assert_eq!(issue_response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(issue_response.into_body(), usize::MAX).await?;
+    let token_json: serde_json::Value = serde_json::from_slice(&body)?;
+    let token = token_json["token"]
+        .as_str()
+        .expect("token string")
+        .to_string();
+
+    // 校验 token
+    let validate_payload = serde_json::json!({ "token": token });
+    let validate_request = Request::builder()
+        .method(Method::POST)
+        .uri("/api/v1/rooms/content_room/tokens/validate")
+        .header("content-type", "application/json")
+        .body(Body::from(validate_payload.to_string()))?;
+    let validate_response = app.clone().oneshot(validate_request).await?;
+    assert_eq!(validate_response.status(), StatusCode::OK);
+
+    // 上传文件
+    let boundary = "----elizabeth-test-boundary";
+    let file_body = format!(
+        "--{boundary}\r\n\
+         Content-Disposition: form-data; name=\"file\"; filename=\"hello.txt\"\r\n\
+         Content-Type: text/plain\r\n\r\n\
+         hello world\r\n\
+         --{boundary}--\r\n"
+    );
+    let upload_request = Request::builder()
+        .method(Method::POST)
+        .uri(format!(
+            "/api/v1/rooms/content_room/contents?token={}",
+            token
+        ))
+        .header(
+            "content-type",
+            format!("multipart/form-data; boundary={boundary}"),
+        )
+        .body(Body::from(file_body))?;
+    let upload_response = app.clone().oneshot(upload_request).await?;
+    assert_eq!(upload_response.status(), StatusCode::OK);
+
+    // 列出文件
+    let list_request = Request::builder()
+        .method(Method::GET)
+        .uri(format!(
+            "/api/v1/rooms/content_room/contents?token={}",
+            token
+        ))
+        .header("content-type", "application/json")
+        .body(Body::empty())?;
+    let list_response = app.clone().oneshot(list_request).await?;
+    assert_eq!(list_response.status(), StatusCode::OK);
+    let list_body = axum::body::to_bytes(list_response.into_body(), usize::MAX).await?;
+    let list_json: serde_json::Value = serde_json::from_slice(&list_body)?;
+    let items = list_json.as_array().expect("content list");
+    assert!(!items.is_empty());
+    let content_id = items[0]["id"].as_i64().expect("content id");
+
+    // 下载文件
+    let download_request = Request::builder()
+        .method(Method::GET)
+        .uri(format!(
+            "/api/v1/rooms/content_room/contents/{}?token={}",
+            content_id, token
+        ))
+        .body(Body::empty())?;
+    let download_response = app.clone().oneshot(download_request).await?;
+    let download_status = download_response.status();
+    if download_status != StatusCode::OK {
+        let body = axum::body::to_bytes(download_response.into_body(), usize::MAX).await?;
+        panic!(
+            "download failed status {} body {}",
+            download_status,
+            String::from_utf8_lossy(&body)
+        );
+    }
+
+    // 删除文件
+    let delete_payload = serde_json::json!({ "ids": [content_id] });
+    let delete_request = Request::builder()
+        .method(Method::DELETE)
+        .uri(format!(
+            "/api/v1/rooms/content_room/contents?token={}",
+            token
+        ))
+        .header("content-type", "application/json")
+        .body(Body::from(delete_payload.to_string()))?;
+    let delete_response = app.clone().oneshot(delete_request).await?;
+    let delete_status = delete_response.status();
+    if delete_status != StatusCode::OK {
+        let body = axum::body::to_bytes(delete_response.into_body(), usize::MAX).await?;
+        panic!(
+            "delete failed status {} body {}",
+            delete_status,
+            String::from_utf8_lossy(&body)
+        );
+    }
 
     Ok(())
 }
