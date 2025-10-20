@@ -1,7 +1,7 @@
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use chrono::Utc;
-use sqlx::{Executor, Sqlite};
+use sqlx::{Executor, QueryBuilder, Sqlite};
 use std::sync::Arc;
 
 use crate::{
@@ -15,6 +15,9 @@ pub trait IRoomContentRepository: Send + Sync {
     async fn create(&self, room_content: &RoomContent) -> Result<RoomContent>;
     async fn find_by_id(&self, content_id: i64) -> Result<Option<RoomContent>>;
     async fn update(&self, room_content: &RoomContent) -> Result<RoomContent>;
+    async fn list_by_room(&self, room_id: i64) -> Result<Vec<RoomContent>>;
+    async fn delete_by_ids(&self, room_id: i64, content_ids: &[i64]) -> Result<u64>;
+    async fn total_size_by_room(&self, room_id: i64) -> Result<i64>;
     async fn delete(&self, room_name: &str) -> Result<bool>;
 }
 
@@ -147,6 +150,65 @@ impl IRoomContentRepository for SqliteRoomContentRepository {
 
         tx.commit().await?;
         Ok(updated_room_content)
+    }
+
+    async fn list_by_room(&self, room_id: i64) -> Result<Vec<RoomContent>> {
+        let contents = sqlx::query_as!(
+            RoomContent,
+            r#"
+            SELECT
+                id,
+                room_id,
+                content_type as "content_type: ContentType",
+                text,
+                url,
+                path,
+                size,
+                mime_type,
+                created_at,
+                updated_at
+            FROM room_contents
+            WHERE room_id = ?
+            ORDER BY created_at DESC
+            "#,
+            room_id
+        )
+        .fetch_all(&*self.pool)
+        .await?;
+
+        Ok(contents)
+    }
+
+    async fn delete_by_ids(&self, room_id: i64, content_ids: &[i64]) -> Result<u64> {
+        if content_ids.is_empty() {
+            return Ok(0);
+        }
+
+        let mut query_builder =
+            QueryBuilder::<Sqlite>::new("DELETE FROM room_contents WHERE room_id = ");
+        query_builder.push_bind(room_id);
+        query_builder.push(" AND id IN (");
+        {
+            let mut separated = query_builder.separated(", ");
+            for id in content_ids {
+                separated.push_bind(id);
+            }
+        }
+        query_builder.push(")");
+
+        let result = query_builder.build().execute(&*self.pool).await?;
+        Ok(result.rows_affected())
+    }
+
+    async fn total_size_by_room(&self, room_id: i64) -> Result<i64> {
+        let total: i64 = sqlx::query_scalar!(
+            "SELECT COALESCE(SUM(size), 0) FROM room_contents WHERE room_id = ?",
+            room_id
+        )
+        .fetch_one(&*self.pool)
+        .await?;
+
+        Ok(total)
     }
 
     async fn delete(&self, room_name: &str) -> Result<bool> {
