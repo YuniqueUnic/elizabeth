@@ -54,10 +54,11 @@ fn merge_config_with_cli_args(
         res.to_string()
     };
 
-    merge_cli_arg!(cfg.app.port, args.port);
-    merge_cli_arg!(cfg.app.addr, args.listen_addr.clone());
-    merge_cli_arg!(cfg.app.log_level, args.verbose, match_log_level);
-    merge_cli_arg!(cfg.app.jwt_secret, args.jwt_secret.clone());
+    merge_cli_arg!(cfg.app.server.port, args.port);
+    merge_cli_arg!(cfg.app.server.addr, args.listen_addr.clone());
+    merge_cli_arg!(cfg.app.logging.level, args.verbose, match_log_level);
+    merge_cli_arg!(cfg.app.jwt.secret, args.jwt_secret.clone());
+    merge_cli_arg!(cfg.app.database.url, args.db_url.clone());
 
     cfg_mgr.save(&cfg)?;
 

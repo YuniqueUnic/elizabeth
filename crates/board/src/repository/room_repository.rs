@@ -168,6 +168,21 @@ impl SqliteRoomRepository {
 
         Ok(rooms)
     }
+
+    async fn purge_if_expired(&self, room: Room) -> Result<Option<Room>> {
+        if room.is_expired() {
+            if let Some(id) = room.id {
+                sqlx::query("DELETE FROM rooms WHERE id = ?")
+                    .bind(id)
+                    .execute(&*self.pool)
+                    .await?;
+                logrs::info!("Deleted expired room {}", room.slug);
+            }
+            Ok(None)
+        } else {
+            Ok(Some(room))
+        }
+    }
 }
 
 #[async_trait]
@@ -213,19 +228,36 @@ impl IRoomRepository for SqliteRoomRepository {
         let created_room = Self::fetch_room_by_id_or_err(&mut *tx, room_id).await?;
 
         tx.commit().await?;
-        Ok(created_room)
+        self.purge_if_expired(created_room)
+            .await?
+            .ok_or_else(|| anyhow!("created room expired immediately"))
     }
 
     async fn find_by_name(&self, name: &str) -> Result<Option<Room>> {
-        Self::fetch_room_optional_by_name(&*self.pool, name).await
+        let room = Self::fetch_room_optional_by_name(&*self.pool, name).await?;
+        if let Some(room) = room {
+            self.purge_if_expired(room).await
+        } else {
+            Ok(None)
+        }
     }
 
     async fn find_by_display_name(&self, name: &str) -> Result<Option<Room>> {
-        Self::fetch_room_optional_by_display_name(&*self.pool, name).await
+        let room = Self::fetch_room_optional_by_display_name(&*self.pool, name).await?;
+        if let Some(room) = room {
+            self.purge_if_expired(room).await
+        } else {
+            Ok(None)
+        }
     }
 
     async fn find_by_id(&self, id: i64) -> Result<Option<Room>> {
-        Self::fetch_room_optional_by_id(&*self.pool, id).await
+        let room = Self::fetch_room_optional_by_id(&*self.pool, id).await?;
+        if let Some(room) = room {
+            self.purge_if_expired(room).await
+        } else {
+            Ok(None)
+        }
     }
 
     async fn update(&self, room: &Room) -> Result<Room> {
@@ -261,7 +293,9 @@ impl IRoomRepository for SqliteRoomRepository {
         let updated_room = Self::fetch_room_by_id_or_err(&mut *tx, room_id).await?;
 
         tx.commit().await?;
-        Ok(updated_room)
+        self.purge_if_expired(updated_room)
+            .await?
+            .ok_or_else(|| anyhow!("updated room expired unexpectedly"))
     }
 
     async fn delete(&self, name: &str) -> Result<bool> {

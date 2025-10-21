@@ -184,16 +184,22 @@ async fn test_delete_room() -> Result<()> {
 #[tokio::test]
 async fn test_list_expired_rooms() -> Result<()> {
     let pool = create_test_pool().await?;
-    let repository = SqliteRoomRepository::new(Arc::new(pool));
+    let pool = Arc::new(pool);
+    let repository = SqliteRoomRepository::new(pool.clone());
 
     // 创建未过期的房间
     let active_room = create_test_room("active_room");
     repository.create(&active_room).await?;
 
     // 创建已过期的房间
-    let mut expired_room = create_test_room("expired_room");
-    expired_room.expire_at = Some(DateTime::from_timestamp(1609459200, 0).unwrap().naive_utc()); // 2021-01-01
-    repository.create(&expired_room).await?;
+    let expired_room = create_test_room("expired_room");
+    let created_expired = repository.create(&expired_room).await?;
+    let past = DateTime::from_timestamp(1609459200, 0).unwrap().naive_utc(); // 2021-01-01
+    sqlx::query("UPDATE rooms SET expire_at = ? WHERE id = ?")
+        .bind(past)
+        .bind(created_expired.id.unwrap())
+        .execute(&*pool)
+        .await?;
 
     // 获取过期房间列表
     let expired_rooms = repository.list_expired().await?;
@@ -201,6 +207,39 @@ async fn test_list_expired_rooms() -> Result<()> {
     // 应该只包含过期房间
     assert_eq!(expired_rooms.len(), 1);
     assert_eq!(expired_rooms[0].name, "expired_room");
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_expired_room_is_purged_on_access() -> Result<()> {
+    let pool = create_test_pool().await?;
+    let pool = Arc::new(pool);
+    let repository = SqliteRoomRepository::new(pool.clone());
+
+    // 创建房间
+    let room = create_test_room("purge_test");
+    let created_room = repository.create(&room).await?;
+    let room_id = created_room.id.unwrap();
+
+    // 设置过期时间为过去
+    let past = DateTime::from_timestamp(946684800, 0).unwrap().naive_utc(); // 2000-01-01
+    sqlx::query("UPDATE rooms SET expire_at = ? WHERE id = ?")
+        .bind(past)
+        .bind(room_id)
+        .execute(&*pool)
+        .await?;
+
+    // 第一次访问应触发清理
+    let result = repository.find_by_name("purge_test").await?;
+    assert!(
+        result.is_none(),
+        "Expired room should be purged and inaccessible"
+    );
+
+    // 确认数据库中已删除
+    let exists = repository.exists("purge_test").await?;
+    assert!(!exists, "Expired room should be deleted from storage");
 
     Ok(())
 }
