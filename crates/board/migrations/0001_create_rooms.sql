@@ -1,0 +1,25 @@
+-- 0001_create_rooms.sql
+-- 核心房间表
+
+CREATE TABLE IF NOT EXISTS rooms (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    slug TEXT NOT NULL DEFAULT '',
+    password TEXT,
+    status INTEGER NOT NULL DEFAULT 0,
+    max_size INTEGER NOT NULL DEFAULT 10485760,
+    current_size INTEGER NOT NULL DEFAULT 0,
+    max_times_entered INTEGER NOT NULL DEFAULT 100,
+    current_times_entered INTEGER NOT NULL DEFAULT 0,
+    expire_at DATETIME,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    permission INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TRIGGER IF NOT EXISTS trg_rooms_updated_at
+AFTER UPDATE ON rooms
+FOR EACH ROW
+BEGIN
+    UPDATE rooms SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+END;
