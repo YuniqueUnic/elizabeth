@@ -12,6 +12,7 @@ pub trait IRoomRepository: Send + Sync {
     async fn exists(&self, name: &str) -> Result<bool>;
     async fn create(&self, room: &Room) -> Result<Room>;
     async fn find_by_name(&self, name: &str) -> Result<Option<Room>>;
+    async fn find_by_display_name(&self, name: &str) -> Result<Option<Room>>;
     async fn find_by_id(&self, id: i64) -> Result<Option<Room>>;
     async fn update(&self, room: &Room) -> Result<Room>;
     async fn delete(&self, name: &str) -> Result<bool>;
@@ -38,6 +39,7 @@ impl SqliteRoomRepository {
             SELECT
                 id,
                 name,
+                slug,
                 password,
                 status as "status: RoomStatus",
                 max_size,
@@ -69,6 +71,42 @@ impl SqliteRoomRepository {
             SELECT
                 id,
                 name,
+                slug,
+                password,
+                status as "status: RoomStatus",
+                max_size,
+                current_size,
+                max_times_entered,
+                current_times_entered,
+                expire_at,
+                created_at,
+                updated_at,
+                permission as "permission: RoomPermission"
+            FROM rooms
+            WHERE slug = ?
+            "#,
+            name
+        )
+        .fetch_optional(executor)
+        .await?;
+
+        Ok(room)
+    }
+
+    async fn fetch_room_optional_by_display_name<'e, E>(
+        executor: E,
+        name: &str,
+    ) -> Result<Option<Room>>
+    where
+        E: Executor<'e, Database = Sqlite>,
+    {
+        let room = sqlx::query_as!(
+            Room,
+            r#"
+            SELECT
+                id,
+                name,
+                slug,
                 password,
                 status as "status: RoomStatus",
                 max_size,
@@ -109,6 +147,7 @@ impl SqliteRoomRepository {
             SELECT
                 id,
                 name,
+                slug,
                 password,
                 status as "status: RoomStatus",
                 max_size,
@@ -135,7 +174,7 @@ impl SqliteRoomRepository {
 impl IRoomRepository for SqliteRoomRepository {
     async fn exists(&self, name: &str) -> Result<bool> {
         let exists: i64 =
-            sqlx::query_scalar!("SELECT EXISTS(SELECT 1 FROM rooms WHERE name = ?)", name)
+            sqlx::query_scalar!("SELECT EXISTS(SELECT 1 FROM rooms WHERE slug = ?)", name)
                 .fetch_one(&*self.pool)
                 .await?;
 
@@ -149,12 +188,13 @@ impl IRoomRepository for SqliteRoomRepository {
         let insert_result = sqlx::query!(
             r#"
             INSERT INTO rooms (
-                name, password, status, max_size, current_size,
+                name, slug, password, status, max_size, current_size,
                 max_times_entered, current_times_entered, expire_at,
                 created_at, updated_at, permission
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
             room.name,
+            room.slug,
             room.password,
             room.status,
             room.max_size,
@@ -180,6 +220,10 @@ impl IRoomRepository for SqliteRoomRepository {
         Self::fetch_room_optional_by_name(&*self.pool, name).await
     }
 
+    async fn find_by_display_name(&self, name: &str) -> Result<Option<Room>> {
+        Self::fetch_room_optional_by_display_name(&*self.pool, name).await
+    }
+
     async fn find_by_id(&self, id: i64) -> Result<Option<Room>> {
         Self::fetch_room_optional_by_id(&*self.pool, id).await
     }
@@ -196,7 +240,7 @@ impl IRoomRepository for SqliteRoomRepository {
             UPDATE rooms SET
                 password = ?, status = ?, max_size = ?, current_size = ?,
             max_times_entered = ?, current_times_entered = ?, expire_at = ?,
-            updated_at = ?, permission = ?
+            updated_at = ?, permission = ?, slug = ?
         WHERE id = ?
             "#,
             room.password,
@@ -208,6 +252,7 @@ impl IRoomRepository for SqliteRoomRepository {
             room.expire_at,
             now,
             room.permission,
+            room.slug,
             room_id
         )
         .execute(&mut *tx)
@@ -220,7 +265,7 @@ impl IRoomRepository for SqliteRoomRepository {
     }
 
     async fn delete(&self, name: &str) -> Result<bool> {
-        let result = sqlx::query!("DELETE FROM rooms WHERE name = ?", name)
+        let result = sqlx::query!("DELETE FROM rooms WHERE slug = ?", name)
             .execute(&*self.pool)
             .await?;
 

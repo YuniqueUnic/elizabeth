@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            UPDATE room_upload_reservations\n            SET consumed_at = ?, file_manifest = ?, reserved_size = ?\n            WHERE id = ?\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "6eb330000168ca876ebb9e243bf124946a94f23973da8c4cd2af527ca1c30ee5"
+}

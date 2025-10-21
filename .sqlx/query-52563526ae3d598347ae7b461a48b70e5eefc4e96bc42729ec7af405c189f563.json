@@ -1,10 +1,10 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT EXISTS(SELECT 1 FROM rooms WHERE name = ?)",
+  "query": "SELECT EXISTS(SELECT 1 FROM rooms WHERE slug = ?)",
   "describe": {
     "columns": [
       {
-        "name": "EXISTS(SELECT 1 FROM rooms WHERE name = ?)",
+        "name": "EXISTS(SELECT 1 FROM rooms WHERE slug = ?)",
         "ordinal": 0,
         "type_info": "Integer"
       }
@@ -16,5 +16,5 @@
       false
     ]
   },
-  "hash": "6288036184f83bfc4b306418492fad8ddf68bfe1abb4125f3beee5503224930e"
+  "hash": "52563526ae3d598347ae7b461a48b70e5eefc4e96bc42729ec7af405c189f563"
 }

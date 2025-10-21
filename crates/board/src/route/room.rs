@@ -10,6 +10,10 @@ pub fn api_router(app_state: Arc<AppState>) -> utoipa_axum::router::OpenApiRoute
         .route("/api/v1/rooms/{name}", axum_post(create))
         .route("/api/v1/rooms/{name}", axum_get(find))
         .route("/api/v1/rooms/{name}", axum_delete(delete))
+        .route(
+            "/api/v1/rooms/{name}/permissions",
+            axum_post(update_permissions),
+        )
         .route("/api/v1/rooms/{name}/tokens", axum_post(issue_token))
         .route("/api/v1/rooms/{name}/tokens", axum_get(list_tokens))
         .route(
@@ -21,6 +25,10 @@ pub fn api_router(app_state: Arc<AppState>) -> utoipa_axum::router::OpenApiRoute
             axum_delete(revoke_token),
         )
         .route("/api/v1/rooms/{name}/contents", axum_get(list_contents))
+        .route(
+            "/api/v1/rooms/{name}/contents/prepare",
+            axum_post(prepare_upload),
+        )
         .route("/api/v1/rooms/{name}/contents", axum_post(upload_contents))
         .route(
             "/api/v1/rooms/{name}/contents",
