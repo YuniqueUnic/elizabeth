@@ -48,8 +48,7 @@ pub struct UploadFileDescriptor {
 }
 ```
 
-**数据库映射**：对应
-`crates/board/migrations/002_create_room_contents_table.sql` 中的
+**数据库映射**：对应 `crates/board/migrations/001_initial_schema.sql` 中的
 `room_contents` 表。
 
 ## 3. 不变式 & 验证逻辑（业务规则）
@@ -82,7 +81,7 @@ CREATE TABLE IF NOT EXISTS room_contents (
 );
 ```
 
-**上传预留表**（`crates/board/migrations/006_create_room_upload_reservations_table.sql`）：
+**上传预留表**（`crates/board/migrations/001_initial_schema.sql`）：
 
 ```sql
 CREATE TABLE IF NOT EXISTS room_upload_reservations (
@@ -344,8 +343,7 @@ let (reservation, updated_room) = reservation_repo
 
 **数据库迁移**：
 
-- 内容表：`crates/board/migrations/002_create_room_contents_table.sql`
-- 上传预留表：`crates/board/migrations/006_create_room_upload_reservations_table.sql`
+- 内容表和上传预留表：`crates/board/migrations/001_initial_schema.sql`
 
 **测试文件路径**：
 

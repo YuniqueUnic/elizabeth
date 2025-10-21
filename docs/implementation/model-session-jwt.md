@@ -38,8 +38,8 @@ pub struct RoomTokenClaims {
 }
 ```
 
-**数据库映射**：对应 `crates/board/migrations/005_create_room_tokens_table.sql`
-中的 `room_tokens` 表。
+**数据库映射**：对应 `crates/board/migrations/001_initial_schema.sql` 中的
+`room_tokens` 表。
 
 ## 3. 不变式 & 验证逻辑（业务规则）
 
@@ -311,7 +311,7 @@ pub fn is_active(&self) -> bool {
 - 令牌服务：`crates/board/src/services/token.rs`
 - 令牌处理器：`crates/board/src/handlers/token.rs`
 - 令牌仓储：`crates/board/src/repository/room_token_repository.rs`
-- 数据库迁移：`crates/board/migrations/005_create_room_tokens_table.sql`
+- 数据库迁移：`crates/board/migrations/001_initial_schema.sql`
 
 **测试文件路径**：
 
