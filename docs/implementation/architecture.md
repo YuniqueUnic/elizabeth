@@ -87,6 +87,10 @@ Elizabeth 系统的核心设计理念是 **"Room" 而不是
 | 文件存储   | 本地文件系统      | 上传文件的物理存储           | `crates/board/storage/`      |
 | 数据库迁移 | SQLx Migrate      | 数据库结构版本管理           | `crates/board/migrations/`   |
 
+**当前迁移结构**：
+
+- `001_initial_schema.sql` - 初始数据库架构（合并所有表、索引和触发器）
+
 ### 认证授权组件
 
 | 组件     | 技术栈            | 职责                 | 核心文件位置                                 |

@@ -200,6 +200,7 @@ pub async fn find(
     responses(
         (status = 200, description = "房间删除成功"),
         (status = 404, description = "房间不存在"),
+        (status = 410, description = "房间已过期"),
         (status = 500, description = "服务器内部错误")
     ),
     tag = "rooms"
@@ -216,6 +217,29 @@ pub async fn delete(
 
     let repository = SqliteRoomRepository::new(app_state.db_pool.clone());
 
+    // 首先检查房间是否存在和过期
+    match repository.find_by_name(&name).await {
+        Ok(Some(room)) => {
+            // 检查房间是否过期
+            if room.is_expired() {
+                return HttpResponse::Gone()
+                    .message("Room has expired")
+                    .into_response();
+            }
+        }
+        Ok(None) => {
+            return HttpResponse::NotFound()
+                .message("Room not found")
+                .into_response();
+        }
+        Err(e) => {
+            return HttpResponse::InternalServerError()
+                .message(format!("Database error: {}", e))
+                .into_response();
+        }
+    }
+
+    // 房间存在且未过期，执行删除
     match repository.delete(&name).await.map_err(|e| {
         HttpResponse::InternalServerError().message(format!("Failed to delete room: {}", e))
     }) {

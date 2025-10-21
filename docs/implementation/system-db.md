@@ -217,8 +217,33 @@ pub async fn run_migrations(pool: &DbPool) -> Result<()>
 ### 迁移管理
 
 - **自动迁移**: 系统启动时自动执行 `sqlx::migrate!("./migrations")`
-- **版本控制**: 通过迁移文件名管理版本，如 `001_create_rooms_table.sql`
+- **版本控制**: 通过迁移文件名管理版本，当前使用单一初始架构文件
 - **回滚支持**: 当前实现不支持自动回滚，需要手动处理
+
+#### 迁移文件结构
+
+项目已合并为单一初始架构迁移文件：
+
+- [`001_initial_schema.sql`](crates/board/migrations/001_initial_schema.sql) -
+  初始数据库架构
+  - 包含所有表结构创建
+  - 包含所有索引创建
+  - 包含所有触发器创建
+  - 按照依赖关系正确排序：rooms → room_contents → room_tokens →
+    room_upload_reservations → room_access_logs → 索引 → 触发器
+
+#### 迁移历史
+
+原多个迁移文件已合并为单一文件：
+
+- ~~0001_create_rooms.sql~~ → 合并到 001_initial_schema.sql
+- ~~0002_create_room_contents.sql~~ → 合并到 001_initial_schema.sql
+- ~~0003_create_room_access_logs.sql~~ → 合并到 001_initial_schema.sql
+- ~~0004_create_room_tokens.sql~~ → 合并到 001_initial_schema.sql
+- ~~0005_create_room_upload_reservations.sql~~ → 合并到 001_initial_schema.sql
+- ~~9999_create_indexes.sql~~ → 合并到 001_initial_schema.sql
+
+这种合并方式适合开发阶段，可以从零开始构建数据库。
 
 ### 查询模式
 
@@ -371,20 +396,19 @@ pub struct DatabaseConfig {
 
 ### 迁移文件列表
 
-- [`001_create_rooms_table.sql`](crates/board/migrations/001_create_rooms_table.sql) -
-  创建房间表
-- [`002_create_room_contents_table.sql`](crates/board/migrations/002_create_room_contents_table.sql) -
-  创建内容表
-- [`003_create_room_access_logs_table.sql`](crates/board/migrations/003_create_room_access_logs_table.sql) -
-  创建访问日志表
-- [`004_add_indexes.sql`](crates/board/migrations/004_add_indexes.sql) -
-  添加索引
-- [`005_create_room_tokens_table.sql`](crates/board/migrations/005_create_room_tokens_table.sql) -
-  创建令牌表
-- [`006_create_room_upload_reservations_table.sql`](crates/board/migrations/006_create_room_upload_reservations_table.sql) -
-  创建上传预留表
-- [`007_add_room_slug.sql`](crates/board/migrations/007_add_room_slug.sql) -
-  添加房间 slug 字段
+- [`001_initial_schema.sql`](crates/board/migrations/001_initial_schema.sql) -
+  初始数据库架构（合并所有表、索引和触发器）
+
+#### 历史迁移文件（已合并）
+
+以下文件已合并到 `001_initial_schema.sql` 中：
+
+- ~~0001_create_rooms.sql~~ - 创建房间表
+- ~~0002_create_room_contents.sql~~ - 创建内容表
+- ~~0003_create_room_access_logs.sql~~ - 创建访问日志表
+- ~~0004_create_room_tokens.sql~~ - 创建令牌表
+- ~~0005_create_room_upload_reservations.sql~~ - 创建上传预留表
+- ~~9999_create_indexes.sql~~ - 添加索引
 
 ### 依赖配置
 

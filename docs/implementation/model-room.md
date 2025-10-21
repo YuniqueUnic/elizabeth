@@ -34,7 +34,7 @@ pub struct Room {
 - `Lock = 1`：锁定状态，不允许新进入
 - `Close = 2`：关闭状态，完全不可访问
 
-**数据库映射**：对应 `crates/board/migrations/001_create_rooms_table.sql` 中的
+**数据库映射**：对应 `crates/board/migrations/001_initial_schema.sql` 中的
 `rooms` 表。
 
 ## 3. 不变式 & 验证逻辑（业务规则）
@@ -44,6 +44,7 @@ pub struct Room {
 - **访问次数限制**：进入房间次数不能超过 `max_times_entered`（默认 100 次）
 - **过期控制**：如果设置了 `expire_at`，超过该时间后房间不可进入
 - **状态管理**：只有 `Open` 状态且未过期且未超限的房间才能进入
+- **全局过期检查**：所有房间相关操作都会检查房间是否过期，过期房间将被视为不存在
 - **权限继承**：新创建的房间默认具有全部权限（`RoomPermission::new().with_all()`）
 - **密码验证**：如果设置了密码，进入时必须提供正确密码
 
@@ -92,7 +93,8 @@ CREATE TABLE IF NOT EXISTS rooms (
 
 - `DELETE /api/v1/rooms/{name}` - 删除房间
   - 输出：成功消息
-  - 错误：404（房间不存在）、500（服务器错误）
+  - 错误：404（房间不存在）、410（房间已过期）、500（服务器错误）
+  - 过期检查：删除前会检查房间是否过期，过期房间无法删除
 
 - `POST /api/v1/rooms/{name}/tokens` - 签发访问令牌
   - 输入：`IssueTokenRequest { password: Option<String>, token: Option<String> }`
@@ -162,7 +164,19 @@ pub fn new(name: String, password: Option<String>) -> Self {
 }
 ```
 
-**房间进入验证逻辑**（`crates/board/src/models/room/mod.rs:83`）：
+**房间过期检查逻辑**（`crates/board/src/models/room/mod.rs:75`）：
+
+```rust
+pub fn is_expired(&self) -> bool {
+    if let Some(expire_at) = self.expire_at {
+        Utc::now().naive_utc() > expire_at
+    } else {
+        false
+    }
+}
+```
+
+**房间进入验证逻辑**（`crates/board/src/models/room/mod.rs:91`）：
 
 ```rust
 pub fn can_enter(&self) -> bool {
@@ -172,7 +186,7 @@ pub fn can_enter(&self) -> bool {
 }
 ```
 
-**内容添加验证逻辑**（`crates/board/src/models/room/mod.rs:89`）：
+**内容添加验证逻辑**（`crates/board/src/models/room/mod.rs:97`）：
 
 ```rust
 pub fn can_add_content(&self, content_size: i64) -> bool {
@@ -191,6 +205,8 @@ pub fn can_add_content(&self, content_size: i64) -> bool {
   - 容量限制达到上限时的行为
   - 进入次数达到上限时的行为
   - 房间过期前后的访问控制
+  - 房间过期后所有操作的拒绝行为
+  - 过期房间删除操作的错误处理
 
 - **并发测试**：
   - 多个用户同时进入房间
@@ -212,7 +228,6 @@ pub fn can_add_content(&self, content_size: i64) -> bool {
 **P1 优先级**：
 
 - **Slug 冲突处理**：当房间名称与已有 slug 冲突时，需要更智能的冲突解决策略
-- **房间生命周期管理**：缺少自动清理过期房间的后台任务
 
 **P2 优先级**：
 
@@ -225,7 +240,7 @@ pub fn can_add_content(&self, content_size: i64) -> bool {
 
 - 主模型：`crates/board/src/models/room/mod.rs`
 - 权限模型：`crates/board/src/models/room/permission.rs`
-- 数据库迁移：`crates/board/migrations/001_create_rooms_table.sql`
+- 数据库迁移：`crates/board/migrations/001_initial_schema.sql`
 - 房间处理器：`crates/board/src/handlers/rooms.rs`
 - 房间仓储：`crates/board/src/repository/room_repository.rs`
 
