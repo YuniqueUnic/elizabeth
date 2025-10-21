@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT\n                id as \"id: Option<i64>\",\n                room_id,\n                token_jti,\n                file_manifest,\n                reserved_size,\n                reserved_at,\n                expires_at,\n                consumed_at,\n                created_at,\n                updated_at\n            FROM room_upload_reservations\n            WHERE id = ? AND room_id = ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: Option<i64>",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "room_id",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "token_jti",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "file_manifest",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "reserved_size",
+        "ordinal": 4,
+        "type_info": "Integer"
+      },
+      {
+        "name": "reserved_at",
+        "ordinal": 5,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "expires_at",
+        "ordinal": 6,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "consumed_at",
+        "ordinal": 7,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 8,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "updated_at",
+        "ordinal": 9,
+        "type_info": "Datetime"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "5bfd57795c014b227395fe57cc955b9c35bf0964ef52350bd8a0eb4c3fbbf8e3"
+}

@@ -344,6 +344,30 @@ async fn test_room_token_and_content_flow() -> Result<()> {
     let validate_response = app.clone().oneshot(validate_request).await?;
     assert_eq!(validate_response.status(), StatusCode::OK);
 
+    // 上传前预检
+    let prepare_payload = serde_json::json!({
+        "files": [{
+            "name": "hello.txt",
+            "size": 11,
+            "mime": "text/plain"
+        }]
+    });
+    let prepare_request = Request::builder()
+        .method(Method::POST)
+        .uri(format!(
+            "/api/v1/rooms/content_room/contents/prepare?token={}",
+            token
+        ))
+        .header("content-type", "application/json")
+        .body(Body::from(prepare_payload.to_string()))?;
+    let prepare_response = app.clone().oneshot(prepare_request).await?;
+    assert_eq!(prepare_response.status(), StatusCode::OK);
+    let prepare_body = axum::body::to_bytes(prepare_response.into_body(), usize::MAX).await?;
+    let prepare_json: serde_json::Value = serde_json::from_slice(&prepare_body)?;
+    let reservation_id = prepare_json["reservation_id"]
+        .as_i64()
+        .expect("reservation id");
+
     // 上传文件
     let boundary = "----elizabeth-test-boundary";
     let file_body = format!(
@@ -356,8 +380,8 @@ async fn test_room_token_and_content_flow() -> Result<()> {
     let upload_request = Request::builder()
         .method(Method::POST)
         .uri(format!(
-            "/api/v1/rooms/content_room/contents?token={}",
-            token
+            "/api/v1/rooms/content_room/contents?token={}&reservation_id={}",
+            token, reservation_id
         ))
         .header(
             "content-type",
@@ -423,6 +447,121 @@ async fn test_room_token_and_content_flow() -> Result<()> {
             String::from_utf8_lossy(&body)
         );
     }
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_update_room_permissions_share_toggle() -> Result<()> {
+    let (app, _pool) = create_test_app().await?;
+
+    let create_request = Request::builder()
+        .method(Method::GET)
+        .uri("/api/v1/rooms/private_room")
+        .body(Body::empty())?;
+    let create_response = app.clone().oneshot(create_request).await?;
+    assert_eq!(create_response.status(), StatusCode::OK);
+
+    let issue_request = Request::builder()
+        .method(Method::POST)
+        .uri("/api/v1/rooms/private_room/tokens")
+        .header("content-type", "application/json")
+        .body(Body::from("{}"))?;
+    let issue_response = app.clone().oneshot(issue_request).await?;
+    assert_eq!(issue_response.status(), StatusCode::OK);
+    let issue_body = axum::body::to_bytes(issue_response.into_body(), usize::MAX).await?;
+    let issue_json: serde_json::Value = serde_json::from_slice(&issue_body)?;
+    let token = issue_json["token"].as_str().unwrap().to_string();
+
+    let permission_payload = serde_json::json!({
+        "edit": true,
+        "share": false,
+        "delete": false
+    });
+    let permission_request = Request::builder()
+        .method(Method::POST)
+        .uri(format!(
+            "/api/v1/rooms/private_room/permissions?token={}",
+            token
+        ))
+        .header("content-type", "application/json")
+        .body(Body::from(permission_payload.to_string()))?;
+    let permission_response = app.clone().oneshot(permission_request).await?;
+    assert_eq!(permission_response.status(), StatusCode::OK);
+    let permission_body = axum::body::to_bytes(permission_response.into_body(), usize::MAX).await?;
+    let permission_json: serde_json::Value = serde_json::from_slice(&permission_body)?;
+    let new_slug = permission_json["slug"].as_str().expect("slug present");
+    assert_ne!(new_slug, "private_room");
+
+    let private_request = Request::builder()
+        .method(Method::GET)
+        .uri(format!("/api/v1/rooms/{new_slug}"))
+        .body(Body::empty())?;
+    let private_response = app.clone().oneshot(private_request).await?;
+    assert_eq!(private_response.status(), StatusCode::OK);
+
+    let original_request = Request::builder()
+        .method(Method::GET)
+        .uri("/api/v1/rooms/private_room")
+        .body(Body::empty())?;
+    let original_response = app.clone().oneshot(original_request).await?;
+    assert_eq!(original_response.status(), StatusCode::FORBIDDEN);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_token_refresh_revokes_old_token() -> Result<()> {
+    let (app, _pool) = create_test_app().await?;
+
+    let create_request = Request::builder()
+        .method(Method::GET)
+        .uri("/api/v1/rooms/refresh_room")
+        .body(Body::empty())?;
+    let create_response = app.clone().oneshot(create_request).await?;
+    assert_eq!(create_response.status(), StatusCode::OK);
+
+    let issue_request = Request::builder()
+        .method(Method::POST)
+        .uri("/api/v1/rooms/refresh_room/tokens")
+        .header("content-type", "application/json")
+        .body(Body::from("{}"))?;
+    let issue_response = app.clone().oneshot(issue_request).await?;
+    assert_eq!(issue_response.status(), StatusCode::OK);
+    let issue_body = axum::body::to_bytes(issue_response.into_body(), usize::MAX).await?;
+    let issue_json: serde_json::Value = serde_json::from_slice(&issue_body)?;
+    let token1 = issue_json["token"].as_str().unwrap().to_string();
+
+    let refresh_payload = serde_json::json!({ "token": token1 });
+    let refresh_request = Request::builder()
+        .method(Method::POST)
+        .uri("/api/v1/rooms/refresh_room/tokens")
+        .header("content-type", "application/json")
+        .body(Body::from(refresh_payload.to_string()))?;
+    let refresh_response = app.clone().oneshot(refresh_request).await?;
+    assert_eq!(refresh_response.status(), StatusCode::OK);
+    let refresh_body = axum::body::to_bytes(refresh_response.into_body(), usize::MAX).await?;
+    let refresh_json: serde_json::Value = serde_json::from_slice(&refresh_body)?;
+    let token2 = refresh_json["token"].as_str().unwrap().to_string();
+    assert_ne!(token1, token2);
+
+    let validate_new_payload = serde_json::json!({ "token": token2 });
+    let validate_new_request = Request::builder()
+        .method(Method::POST)
+        .uri("/api/v1/rooms/refresh_room/tokens/validate")
+        .header("content-type", "application/json")
+        .body(Body::from(validate_new_payload.to_string()))?;
+    let validate_new_response = app.clone().oneshot(validate_new_request).await?;
+    assert_eq!(validate_new_response.status(), StatusCode::OK);
+
+    let validate_old_payload = serde_json::json!({ "token": token1 });
+    let validate_old_request = Request::builder()
+        .method(Method::POST)
+        .uri("/api/v1/rooms/refresh_room/tokens/validate")
+        .header("content-type", "application/json")
+        .body(Body::from(validate_old_payload.to_string()))?;
+    let validate_old_response = app.clone().oneshot(validate_old_request).await?;
+    assert_eq!(validate_old_response.status(), StatusCode::UNAUTHORIZED);
 
     Ok(())
 }

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            INSERT INTO room_upload_reservations\n                (room_id, token_jti, file_manifest, reserved_size, reserved_at, expires_at)\n            VALUES (?, ?, ?, ?, ?, ?)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "5876f42bfa22170c7909ba940058c38ad2e02bf6cb575ca6dcb2c7f3b1de93fc"
+}

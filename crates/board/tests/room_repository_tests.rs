@@ -27,6 +27,7 @@ fn create_test_room(name: &str) -> Room {
     Room {
         id: None,
         name: name.to_string(),
+        slug: name.to_string(),
         password: Some("test_password".to_string()),
         status: RoomStatus::Open,
         max_size: 100,
@@ -70,6 +71,7 @@ async fn test_create_room() -> Result<()> {
     // 验证创建的房间有 ID
     assert!(created_room.id.is_some(), "创建的房间应该有 ID");
     assert_eq!(created_room.name, "new_room");
+    assert_eq!(created_room.slug, "new_room");
     assert_eq!(created_room.password, Some("test_password".to_string()));
 
     Ok(())
@@ -94,6 +96,7 @@ async fn test_find_by_name() -> Result<()> {
     let found_room = found_room.unwrap();
     assert_eq!(found_room.id, created_room.id);
     assert_eq!(found_room.name, "find_test");
+    assert_eq!(found_room.slug, "find_test");
 
     Ok(())
 }
@@ -115,6 +118,7 @@ async fn test_find_by_id() -> Result<()> {
     let found_room = found_room.unwrap();
     assert_eq!(found_room.id, Some(room_id));
     assert_eq!(found_room.name, "id_test");
+    assert_eq!(found_room.slug, "id_test");
 
     // 测试查找不存在的 ID
     let not_found = repository.find_by_id(99999).await?;
@@ -134,6 +138,7 @@ async fn test_update_room() -> Result<()> {
 
     // 修改房间信息
     room.id = created_room.id;
+    room.slug = created_room.slug.clone();
     room.max_size = 200;
     room.permission = RoomPermission::new(); // 移除所有权限
 
@@ -141,6 +146,7 @@ async fn test_update_room() -> Result<()> {
 
     assert_eq!(updated_room.id, created_room.id);
     assert_eq!(updated_room.name, "update_test");
+    assert_eq!(updated_room.slug, created_room.slug);
     assert_eq!(updated_room.max_size, 200);
     assert_eq!(updated_room.permission, RoomPermission::VIEW_ONLY);
 

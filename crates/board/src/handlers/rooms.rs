@@ -6,9 +6,10 @@ use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use utoipa::ToSchema;
+use uuid::Uuid;
 
 use super::verify_room_token;
-use crate::models::{Room, RoomToken};
+use crate::models::{Room, RoomToken, permission::RoomPermission};
 use crate::repository::{
     IRoomRepository, IRoomTokenRepository, SqliteRoomRepository, SqliteRoomTokenRepository,
 };
@@ -50,6 +51,16 @@ pub struct ValidateTokenResponse {
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct TokenQuery {
     pub token: String,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct UpdateRoomPermissionRequest {
+    #[serde(default)]
+    pub edit: bool,
+    #[serde(default)]
+    pub share: bool,
+    #[serde(default)]
+    pub delete: bool,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -151,7 +162,18 @@ pub async fn find(
             }
         }
         None => {
-            // 如果房间不存在，创建一个新的
+            // 如果房间不存在，判断是否存在同名但不同 slug 的房间
+            if repository
+                .find_by_display_name(&name)
+                .await
+                .map_err(|e| {
+                    HttpResponse::InternalServerError().message(format!("Database error: {e}"))
+                })?
+                .is_some()
+            {
+                return Err(HttpResponse::Forbidden().message("Room cannot be accessed"));
+            }
+
             let new_room = Room::new(name, None);
             let created_room = repository.create(&new_room).await.map_err(|e| {
                 HttpResponse::InternalServerError().message(format!("Failed to create room: {}", e))
@@ -225,9 +247,11 @@ pub async fn issue_token(
         return Err(HttpResponse::BadRequest().message("Invalid room name"));
     }
 
-    let (room, _existing_claims) = if let Some(token) = payload.token.as_deref() {
+    let mut previous_jti = None;
+    let room = if let Some(token) = payload.token.as_deref() {
         let verified = verify_room_token(app_state.clone(), &name, token).await?;
-        (verified.room, Some(verified.claims))
+        previous_jti = Some(verified.record.jti.clone());
+        verified.room
     } else {
         let repository = SqliteRoomRepository::new(app_state.db_pool.clone());
         let Some(room) = repository.find_by_name(&name).await.map_err(|e| {
@@ -243,7 +267,7 @@ pub async fn issue_token(
             return Err(HttpResponse::Forbidden().message("Invalid room password"));
         }
 
-        (room, None)
+        room
     };
 
     if !room.can_enter() {
@@ -260,6 +284,12 @@ pub async fn issue_token(
     token_repo.create(&record).await.map_err(|e| {
         HttpResponse::InternalServerError().message(format!("Failed to persist token: {e}"))
     })?;
+
+    if let Some(jti) = previous_jti {
+        token_repo.revoke(&jti).await.map_err(|e| {
+            HttpResponse::InternalServerError().message(format!("Failed to revoke old token: {e}"))
+        })?;
+    }
 
     Ok(Json(IssueTokenResponse {
         token,
@@ -297,6 +327,87 @@ pub async fn validate_token(
     Ok(Json(ValidateTokenResponse {
         claims: verified.claims,
     }))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/rooms/{name}/permissions",
+    params(
+        ("name" = String, Path, description = "房间 slug"),
+        ("token" = String, Query, description = "有效的房间 token")
+    ),
+    request_body = UpdateRoomPermissionRequest,
+    responses(
+        (status = 200, description = "权限更新成功", body = Room),
+        (status = 400, description = "请求参数错误"),
+        (status = 401, description = "token 无效或已撤销"),
+        (status = 403, description = "无更新权限"),
+        (status = 404, description = "房间不存在")
+    ),
+    tag = "rooms"
+)]
+pub async fn update_permissions(
+    Path(name): Path<String>,
+    Query(query): Query<TokenQuery>,
+    State(app_state): State<Arc<AppState>>,
+    Json(payload): Json<UpdateRoomPermissionRequest>,
+) -> HandlerResult<Room> {
+    if name.is_empty() {
+        return Err(HttpResponse::BadRequest().message("Invalid room name"));
+    }
+
+    let verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
+    let token_perm = verified.claims.as_permission();
+    if !token_perm.can_delete() {
+        return Err(HttpResponse::Forbidden().message("Permission denied by token"));
+    }
+
+    let mut new_permission = RoomPermission::VIEW_ONLY;
+    if payload.edit {
+        new_permission = new_permission.with_edit();
+    }
+    if payload.share {
+        new_permission = new_permission.with_share();
+    }
+    if payload.delete {
+        new_permission = new_permission.with_delete();
+    }
+
+    let repo = SqliteRoomRepository::new(app_state.db_pool.clone());
+    let mut room = verified.room;
+    let was_shareable = room.permission.can_share();
+    room.permission = new_permission;
+
+    if payload.share {
+        let desired_slug = room.name.clone();
+        if desired_slug != room.slug {
+            let exists = repo.exists(&desired_slug).await.map_err(|e| {
+                HttpResponse::InternalServerError().message(format!("Database error: {e}"))
+            })?;
+            if exists {
+                return Err(HttpResponse::BadRequest().message("Slug already in use"));
+            }
+            room.slug = desired_slug;
+        }
+    } else if was_shareable || room.slug == room.name {
+        // 生成私有 slug，避免冲突
+        loop {
+            let candidate = format!("{}_{}", room.name, Uuid::new_v4());
+            let exists = repo.exists(&candidate).await.map_err(|e| {
+                HttpResponse::InternalServerError().message(format!("Database error: {e}"))
+            })?;
+            if !exists {
+                room.slug = candidate;
+                break;
+            }
+        }
+    }
+
+    let updated_room = repo.update(&room).await.map_err(|e| {
+        HttpResponse::InternalServerError().message(format!("Failed to update room: {e}"))
+    })?;
+
+    Ok(Json(updated_room))
 }
 
 /// 获取房间凭证列表
