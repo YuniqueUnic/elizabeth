@@ -47,6 +47,37 @@ multipart
 - 房间状态必须为 Open 且未过期
 - 文件存储路径使用 UUID 前缀避免冲突
 
+### TTL 时间配置
+
+**预留 TTL 常量定义**（`crates/board/src/handlers/content.rs:36`）：
+
+```rust
+const UPLOAD_RESERVATION_TTL_SECONDS: i64 = 10;
+```
+
+**TTL 使用说明**：
+
+- **预留有效期**：上传预留记录在创建后 10 秒内有效
+- **自动清理**：系统会在 TTL 到期后自动清理未消费的预留记录
+- **任务调度**：使用 `tokio::spawn` 创建异步清理任务，在 TTL 时间后执行
+- **过期检查**：在上传时验证预留记录是否已过期
+
+**TTL 计时逻辑**：
+
+```rust
+// 设置自动清理任务（第 186-189 行）
+tokio::spawn(async move {
+    sleep(StdDuration::from_secs(UPLOAD_RESERVATION_TTL_SECONDS as u64)).await;
+    repo.release_if_pending(reservation_id).await;
+});
+```
+
+**TTL 设计考虑**：
+
+- 10 秒的 TTL 为客户端预留了足够的上传准备时间
+- 自动清理机制防止预留记录长期占用系统资源
+- 异步清理确保不影响主线程性能
+
 ### 验证逻辑
 
 - 文件大小必须大于 0

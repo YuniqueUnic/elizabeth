@@ -211,7 +211,7 @@ impl RoomContent {
 
 ```rust
 pub fn set_text(&mut self, text: String) {
-    let size = text.len() as i64; // TODO: 需要更好的实际磁盘使用量计算方式
+    let size = text.len() as i64; // 当前使用字符串长度作为大小计算
     self.text = Some(text);
     self.updated_at = Utc::now().naive_utc();
     self.mime_type = Some("text/plain".to_string());
@@ -236,6 +236,33 @@ pub fn set_path(
     self.size = Some(size);
 }
 ```
+
+**URL 内容设置**（`crates/board/src/models/room/content.rs:78`）：
+
+```rust
+pub fn set_url(&mut self, url: String, mime_type: Option<String>) {
+    let size = url.len() as i64; // 当前使用 URL 字符串长度作为大小计算
+    self.url = Some(url);
+    self.content_type = ContentType::Url;
+    self.updated_at = Utc::now().naive_utc();
+    self.mime_type = mime_type;
+    self.size = Some(size);
+}
+```
+
+**文件大小计算方法说明**：
+
+当前系统中不同内容类型的大小计算方法如下：
+
+1. **文本内容 (Text)**：使用 `text.len()` 计算字符串长度（字节数）
+2. **文件内容 (File/Image)**：使用传入的实际文件大小（字节）
+3. **URL 内容 (Url)**：使用 `url.len()` 计算 URL 字符串长度（字节数）
+
+**计算精度说明**：
+
+- 文本和 URL 内容的大小计算基于字符串长度，未考虑实际编码开销
+- 文件内容的大小基于实际文件大小，较为准确
+- 所有大小值都以字节为单位存储为 `i64` 类型
 
 **上传预留逻辑**（`crates/board/src/handlers/content.rs:217`）：
 
