@@ -88,7 +88,7 @@ impl RoomTokenService {
         let claims = RoomTokenClaims {
             sub: format!("room:{}", room.id.unwrap_or_default()),
             room_id: room.id.ok_or_else(|| anyhow!("room id missing"))?,
-            room_name: room.name.clone(),
+            room_name: room.slug.clone(),
             permission: room.permission.bits(),
             max_size: room.max_size,
             exp: exp.timestamp(),

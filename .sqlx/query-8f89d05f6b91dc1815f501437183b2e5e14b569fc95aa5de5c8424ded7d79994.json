@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "DELETE FROM rooms WHERE name = ?",
+  "query": "DELETE FROM rooms WHERE slug = ?",
   "describe": {
     "columns": [],
     "parameters": {
@@ -8,5 +8,5 @@
     },
     "nullable": []
   },
-  "hash": "287df9bfb4a7efd8e9bff89f4441a7d27a7737cedf2390bc4db831d4d96549c5"
+  "hash": "8f89d05f6b91dc1815f501437183b2e5e14b569fc95aa5de5c8424ded7d79994"
 }

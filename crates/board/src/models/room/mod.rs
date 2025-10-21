@@ -9,8 +9,10 @@ pub mod content;
 pub mod metric;
 pub mod permission;
 pub mod token;
+pub mod upload_reservation;
 
 pub use token::RoomToken;
+pub use upload_reservation::{RoomUploadReservation, UploadFileDescriptor};
 
 const MAX_TIMES_ENTER_ROOM: i64 = 100;
 const MAX_ROOM_CONTENT_SIZE: i64 = 10 * 1024 * 1024;
@@ -33,6 +35,7 @@ pub enum RoomStatus {
 pub struct Room {
     pub id: Option<i64>,
     pub name: String,
+    pub slug: String,
     pub password: Option<String>,
     pub status: RoomStatus,
     pub max_size: i64,
@@ -50,6 +53,7 @@ impl Room {
         let now = Utc::now().naive_utc();
         Self {
             id: None,
+            slug: name.clone(),
             name,
             password,
             status: RoomStatus::default(),

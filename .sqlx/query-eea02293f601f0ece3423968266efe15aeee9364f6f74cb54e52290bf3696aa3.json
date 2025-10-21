@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n            SELECT\n                id,\n                name,\n                password,\n                status as \"status: RoomStatus\",\n                max_size,\n                current_size,\n                max_times_entered,\n                current_times_entered,\n                expire_at,\n                created_at,\n                updated_at,\n                permission as \"permission: RoomPermission\"\n            FROM rooms\n            WHERE name = ?\n            ",
+  "query": "\n            SELECT\n                id,\n                name,\n                slug,\n                password,\n                status as \"status: RoomStatus\",\n                max_size,\n                current_size,\n                max_times_entered,\n                current_times_entered,\n                expire_at,\n                created_at,\n                updated_at,\n                permission as \"permission: RoomPermission\"\n            FROM rooms\n            WHERE expire_at IS NOT NULL AND expire_at < ?\n            ",
   "describe": {
     "columns": [
       {
@@ -14,53 +14,58 @@
         "type_info": "Text"
       },
       {
-        "name": "password",
+        "name": "slug",
         "ordinal": 2,
         "type_info": "Text"
       },
       {
-        "name": "status: RoomStatus",
+        "name": "password",
         "ordinal": 3,
-        "type_info": "Integer"
+        "type_info": "Text"
       },
       {
-        "name": "max_size",
+        "name": "status: RoomStatus",
         "ordinal": 4,
         "type_info": "Integer"
       },
       {
-        "name": "current_size",
+        "name": "max_size",
         "ordinal": 5,
         "type_info": "Integer"
       },
       {
-        "name": "max_times_entered",
+        "name": "current_size",
         "ordinal": 6,
         "type_info": "Integer"
       },
       {
-        "name": "current_times_entered",
+        "name": "max_times_entered",
         "ordinal": 7,
         "type_info": "Integer"
       },
       {
-        "name": "expire_at",
+        "name": "current_times_entered",
         "ordinal": 8,
-        "type_info": "Datetime"
+        "type_info": "Integer"
       },
       {
-        "name": "created_at",
+        "name": "expire_at",
         "ordinal": 9,
         "type_info": "Datetime"
       },
       {
-        "name": "updated_at",
+        "name": "created_at",
         "ordinal": 10,
         "type_info": "Datetime"
       },
       {
-        "name": "permission: RoomPermission",
+        "name": "updated_at",
         "ordinal": 11,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "permission: RoomPermission",
+        "ordinal": 12,
         "type_info": "Integer"
       }
     ],
@@ -69,6 +74,7 @@
     },
     "nullable": [
       true,
+      false,
       false,
       true,
       false,
@@ -82,5 +88,5 @@
       false
     ]
   },
-  "hash": "5e70ef5e64b8eaa172d41fab6720ad143a359b569e3f8fcfb97a19b6e4639e31"
+  "hash": "eea02293f601f0ece3423968266efe15aeee9364f6f74cb54e52290bf3696aa3"
 }
