@@ -831,7 +831,7 @@ release_always = true  # 在每次推送到 main 分支时都发布，确保标�
 
 ### 相关文档
 
-详细修复过程请参考：[GitHub Actions 修复文档](./github-actions-fix.md)
+详细修复过程请参考：[GitHub Actions 修复文档](../github-actions-fix.md)
 
 ---
 

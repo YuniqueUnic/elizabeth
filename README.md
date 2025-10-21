@@ -279,7 +279,7 @@ git commit -m "feat(api)!: change user endpoint response format"
 ```
 
 详细的发布系统配置和使用方法请参考
-[`docs/release-plz.md`](./docs/release-plz.md)。
+[`docs/release-plz.md`](./docs/great-blog/release-plz.md)。
 
 ## 开发指南
 
@@ -349,8 +349,9 @@ git commit -m "feat(api)!: change user endpoint response format"
 
 ### 工具文档
 
-- [`docs/release-plz.md`](./docs/release-plz.md) - 发布系统详细文档
-- [`docs/github-actions.md`](./docs/github-actions.md) - GitHub Actions 配置文档
+- [`docs/release-plz.md`](./docs/great-blog/release-plz.md) - 发布系统详细文档
+- [`docs/github-actions.md`](./docs/great-blog/github-actions.md) - GitHub
+  Actions 配置文档
 - [`CHANGELOG.md`](./CHANGELOG.md) - 项目变更日志
 - [`docs/Tasks.md`](./docs/Tasks.md) - 项目任务跟踪
 
