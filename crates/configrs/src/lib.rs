@@ -1,7 +1,10 @@
 use std::{fs::OpenOptions, path::PathBuf};
 
 use config::{FileFormat, FileSourceFile, builder::DefaultState};
-pub use configs::AppConfig;
+pub use configs::{
+    AppConfig, DatabaseConfig, JwtConfig, LoggingConfig, RoomConfig, ServerConfig, StorageConfig,
+    UploadConfig,
+};
 pub use error::{ConfigError, Result};
 use merge::Merge;
 
@@ -257,8 +260,10 @@ mod tests {
         );
         let config = Config {
             app: AppConfig {
-                addr: "128.0.0.1".to_string(),
-                port: 0,
+                server: ServerConfig {
+                    addr: "128.0.0.1".to_string(),
+                    port: 0,
+                },
                 ..Default::default()
             },
         };
@@ -267,45 +272,49 @@ mod tests {
         // Create a new ConfigManager instance to reload the configuration from file
         let new_config_manager = ConfigManager::new();
         let loaded_config: Config = new_config_manager.source().unwrap();
-        assert_eq!(loaded_config.app.addr, "128.0.0.1");
-        assert_eq!(loaded_config.app.port, 0);
+        assert_eq!(loaded_config.app.server.addr, "128.0.0.1");
+        assert_eq!(loaded_config.app.server.port, 0);
         let loaded_config_from_file: Config = new_config_manager.load().unwrap();
-        assert_eq!(loaded_config_from_file.app.addr, "128.0.0.1");
-        assert_eq!(loaded_config_from_file.app.port, 0);
+        assert_eq!(loaded_config_from_file.app.server.addr, "128.0.0.1");
+        assert_eq!(loaded_config_from_file.app.server.port, 0);
     }
 
     #[test]
     fn test_merge() {
         let mut config = Config::default();
-        assert_eq!(config.app.addr, "127.0.0.1");
-        assert_eq!(config.app.port, 4092);
+        assert_eq!(config.app.server.addr, "127.0.0.1");
+        assert_eq!(config.app.server.port, 4092);
         let config_2 = Config {
             app: AppConfig {
-                addr: "128.0.0.1".to_string(),
-                port: 0,
+                server: ServerConfig {
+                    addr: "128.0.0.1".to_string(),
+                    port: 0,
+                },
                 ..Default::default()
             },
         };
         config.merge(config_2);
-        assert_eq!(config.app.addr, "128.0.0.1");
-        assert_eq!(config.app.port, 0);
+        assert_eq!(config.app.server.addr, "128.0.0.1");
+        assert_eq!(config.app.server.port, 0);
     }
 
     #[test]
     fn test_nest_merge_strategy() {
         let mut config = Config::default();
-        assert_eq!(config.app.addr, "127.0.0.1");
-        assert_eq!(config.app.port, 4092);
+        assert_eq!(config.app.server.addr, "127.0.0.1");
+        assert_eq!(config.app.server.port, 4092);
         let config_2 = Config {
             app: AppConfig {
-                addr: "".to_string(),
-                port: 0,
+                server: ServerConfig {
+                    addr: "".to_string(),
+                    port: 0,
+                },
                 ..Default::default()
             },
         };
         config.merge(config_2);
-        assert_eq!(config.app.addr, "127.0.0.1");
-        assert_eq!(config.app.port, 0);
+        assert_eq!(config.app.server.addr, "127.0.0.1");
+        assert_eq!(config.app.server.port, 0);
     }
 
     #[test]
@@ -350,8 +359,8 @@ mod tests {
 
         // Test that environment variables properly override file settings
         unsafe {
-            std::env::set_var("ELIZABETH__APP__ADDR", "192.168.1.1");
-            std::env::set_var("ELIZABETH__APP__PORT", "8080");
+            std::env::set_var("ELIZABETH__APP__SERVER__ADDR", "192.168.1.1");
+            std::env::set_var("ELIZABETH__APP__SERVER__PORT", "8080");
         }
 
         // Create ConfigManager after setting environment variables
@@ -360,8 +369,8 @@ mod tests {
 
         // Clean up environment variables
         unsafe {
-            std::env::remove_var("ELIZABETH__APP__ADDR");
-            std::env::remove_var("ELIZABETH__APP__PORT");
+            std::env::remove_var("ELIZABETH__APP__SERVER__ADDR");
+            std::env::remove_var("ELIZABETH__APP__SERVER__PORT");
         }
 
         match config {
@@ -369,10 +378,10 @@ mod tests {
                 // Environment variables should override defaults
                 println!(
                     "Loaded config: addr={}, port={}",
-                    cfg.app.addr, cfg.app.port
+                    cfg.app.server.addr, cfg.app.server.port
                 );
-                assert_eq!(cfg.app.addr, "192.168.1.1");
-                assert_eq!(cfg.app.port, 8080);
+                assert_eq!(cfg.app.server.addr, "192.168.1.1");
+                assert_eq!(cfg.app.server.port, 8080);
             }
             Err(e) => {
                 println!("Config load failed: {:?}", e);

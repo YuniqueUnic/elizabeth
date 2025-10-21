@@ -14,8 +14,8 @@ pub mod upload_reservation;
 pub use token::RoomToken;
 pub use upload_reservation::{RoomUploadReservation, UploadFileDescriptor};
 
-const MAX_TIMES_ENTER_ROOM: i64 = 100;
-const MAX_ROOM_CONTENT_SIZE: i64 = 10 * 1024 * 1024;
+pub const DEFAULT_MAX_TIMES_ENTER_ROOM: i64 = 100;
+pub const DEFAULT_MAX_ROOM_CONTENT_SIZE: i64 = 10 * 1024 * 1024;
 
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema, Default, sqlx::Type,
@@ -57,9 +57,9 @@ impl Room {
             name,
             password,
             status: RoomStatus::default(),
-            max_size: MAX_ROOM_CONTENT_SIZE, // 10MB
+            max_size: DEFAULT_MAX_ROOM_CONTENT_SIZE, // 10MB
             current_size: 0,
-            max_times_entered: MAX_TIMES_ENTER_ROOM,
+            max_times_entered: DEFAULT_MAX_TIMES_ENTER_ROOM,
             current_times_entered: 0,
             expire_at: None,
             created_at: now,

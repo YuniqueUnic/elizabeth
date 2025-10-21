@@ -10,7 +10,7 @@ pub(crate) fn init(cfg: &configrs::Config) {
         "trace" => LevelFilter::TRACE,
         _ => LevelFilter::OFF,
     };
-    let log_level = match_log_level(&cfg.app.log_level);
+    let log_level = match_log_level(&cfg.app.logging.level);
 
     logrs::init_logger(log_level);
     logrs::info!("Logger initialized with level: {:?}", log_level);

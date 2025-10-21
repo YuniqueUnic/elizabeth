@@ -6,26 +6,28 @@ use sqlx::{
 };
 use std::str::FromStr;
 
-const DEFAULT_DB_URL: &str = "sqlite:app.db";
-const MAX_CONN: u32 = 20;
-const MIN_CONN: u32 = 5;
+pub const DEFAULT_DB_URL: &str = "sqlite:app.db";
+pub const DEFAULT_MAX_CONNECTIONS: u32 = 20;
+pub const DEFAULT_MIN_CONNECTIONS: u32 = 5;
 
 /// 数据库连接池
 pub type DbPool = Pool<Sqlite>;
 
 /// 初始化数据库连接池
-pub async fn init_db(database_url: &str) -> Result<DbPool> {
-    info!("初始化数据库连接池：{}", database_url);
+pub async fn init_db(settings: &DbPoolSettings) -> Result<DbPool> {
+    info!("初始化数据库连接池：{}", settings.url);
 
-    let connect_options = SqliteConnectOptions::from_str(database_url)?
+    let connect_options = SqliteConnectOptions::from_str(&settings.url)?
         .create_if_missing(true)
         .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
         .synchronous(sqlx::sqlite::SqliteSynchronous::Normal)
         .busy_timeout(std::time::Duration::from_secs(30));
 
+    let (max_connections, min_connections) = settings.resolve_connection_limits();
+
     let pool = SqlitePoolOptions::new()
-        .max_connections(20)
-        .min_connections(5)
+        .max_connections(max_connections)
+        .min_connections(min_connections)
         .acquire_timeout(std::time::Duration::from_secs(30))
         .idle_timeout(std::time::Duration::from_secs(600))
         .max_lifetime(std::time::Duration::from_secs(1800))
@@ -55,24 +57,24 @@ pub async fn run_migrations(pool: &DbPool) -> Result<()> {
 #[allow(unused)]
 /// 数据库连接配置
 #[derive(Debug, Clone)]
-pub struct DatabaseConfig {
+pub struct DbPoolSettings {
     pub url: String,
-    pub max_connections: u32,
-    pub min_connections: u32,
+    pub max_connections: Option<u32>,
+    pub min_connections: Option<u32>,
 }
 
-impl Default for DatabaseConfig {
+impl Default for DbPoolSettings {
     fn default() -> Self {
         Self {
             url: DEFAULT_DB_URL.to_string(),
-            max_connections: MAX_CONN,
-            min_connections: MIN_CONN,
+            max_connections: Some(DEFAULT_MAX_CONNECTIONS),
+            min_connections: Some(DEFAULT_MIN_CONNECTIONS),
         }
     }
 }
 
 #[allow(unused)]
-impl DatabaseConfig {
+impl DbPoolSettings {
     pub fn new(url: impl Into<String>) -> Self {
         Self {
             url: url.into(),
@@ -80,18 +82,34 @@ impl DatabaseConfig {
         }
     }
 
-    pub fn with_max_connections(mut self, max_connections: u32) -> Self {
-        self.max_connections = max_connections;
+    pub fn with_max_connections(mut self, max_connections: impl Into<Option<u32>>) -> Self {
+        self.max_connections = max_connections.into();
         self
     }
 
-    pub fn with_min_connections(mut self, min_connections: u32) -> Self {
-        self.min_connections = min_connections;
+    pub fn with_min_connections(mut self, min_connections: impl Into<Option<u32>>) -> Self {
+        self.min_connections = min_connections.into();
         self
+    }
+
+    pub fn resolve_connection_limits(&self) -> (u32, u32) {
+        let max = self
+            .max_connections
+            .unwrap_or(DEFAULT_MAX_CONNECTIONS)
+            .max(1);
+        let desired_min = self.min_connections.unwrap_or(DEFAULT_MIN_CONNECTIONS);
+        let min = desired_min.min(max);
+        if desired_min > max {
+            info!(
+                "数据库连接池最小连接数 {} 大于最大连接数 {}，已自动调整为 {}",
+                desired_min, max, min
+            );
+        }
+        (max, min)
     }
 
     pub async fn create_pool(&self) -> Result<DbPool> {
-        init_db(&self.url).await
+        init_db(self).await
     }
 }
 
@@ -101,14 +119,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_db_init() {
-        let config = DatabaseConfig::new("sqlite::memory:");
+        let config = DbPoolSettings::new("sqlite::memory:");
         let pool = config.create_pool().await;
         assert!(pool.is_ok());
     }
 
     #[tokio::test]
     async fn test_migrations() {
-        let config = DatabaseConfig::new("sqlite::memory:");
+        let config = DbPoolSettings::new("sqlite::memory:");
         let pool = config.create_pool().await.unwrap();
         let result = run_migrations(&pool).await;
         assert!(result.is_ok());
