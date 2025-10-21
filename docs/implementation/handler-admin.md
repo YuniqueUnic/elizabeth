@@ -134,6 +134,15 @@ CREATE TABLE IF NOT EXISTS rooms (
 - 响应：更新后的房间信息
 - 错误码：400（参数错误）、401（令牌无效）、403（权限不足）
 
+### 令牌管理相关端点
+
+虽然令牌管理主要由令牌处理器负责，但房间管理处理器也涉及以下令牌相关端点：
+
+- **POST** `/api/v1/rooms/{name}/tokens` - 签发房间访问令牌
+- **GET** `/api/v1/rooms/{name}/tokens` - 获取房间令牌列表
+- **POST** `/api/v1/rooms/{name}/tokens/validate` - 验证令牌
+- **DELETE** `/api/v1/rooms/{name}/tokens/{jti}` - 撤销指定令牌
+
 ### 请求示例
 
 ```json

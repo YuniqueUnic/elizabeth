@@ -218,34 +218,47 @@ pub async fn verify_room_token(
     room_name: &str,
     token_str: &str,
 ) -> Result<VerifiedRoomToken, HttpResponse> {
-    // 解码 JWT
+    // 1. 解码和验证 JWT 签名
     let claims = app_state
         .token_service
         .decode(token_str)
         .map_err(|_| HttpResponse::Unauthorized().message("Token is invalid or expired"))?;
 
-    // 验证房间匹配
+    // 2. 验证令牌与房间的匹配性
     if claims.room_name != room_name {
         return Err(HttpResponse::Unauthorized().message("Token not issued for this room"));
     }
 
-    // 验证房间存在和状态
+    // 3. 验证房间存在性和基本状态
     let room_repo = SqliteRoomRepository::new(app_state.db_pool.clone());
     let room = room_repo.find_by_name(room_name).await?
         .ok_or_else(|| HttpResponse::NotFound().message("Room not found"))?;
 
+    // 4. 验证房间 ID 匹配
     if room.id != Some(claims.room_id) {
         return Err(HttpResponse::Unauthorized().message("Token room mismatch"));
     }
+
+    // 5. 验证房间过期状态（房间时间过期检查）
     if room.is_expired() {
         return Err(HttpResponse::Unauthorized().message("Room expired"));
     }
 
-    // 验证令牌未被撤销
+    // 6. 验证房间可进入状态（包括房间状态、进入次数限制等）
+    // 注意：这个检查在 room.can_enter() 中包含：
+    // - 房间未过期（is_expired）
+    // - 房间状态不为 Close
+    // - 当前进入次数未超过最大限制
+    if !room.can_enter() {
+        return Err(HttpResponse::Unauthorized().message("Room cannot be entered"));
+    }
+
+    // 7. 验证令牌数据库记录存在性
     let token_repo = SqliteRoomTokenRepository::new(app_state.db_pool.clone());
     let record = token_repo.find_by_jti(&claims.jti).await?
         .ok_or_else(|| HttpResponse::Unauthorized().message("Token revoked or not found"))?;
 
+    // 8. 验证令牌活跃状态（未被撤销且未过期）
     if !record.is_active() {
         return Err(HttpResponse::Unauthorized().message("Token revoked or expired"));
     }
@@ -257,6 +270,24 @@ pub async fn verify_room_token(
     })
 }
 ```
+
+**房间状态验证详细说明**：
+
+在令牌验证过程中，房间状态验证包含以下几个关键检查：
+
+1. **房间存在性验证**：确保房间在数据库中存在
+2. **房间 ID 匹配验证**：确保令牌中的房间 ID 与实际房间 ID 一致
+3. **房间过期时间验证**：通过 `room.is_expired()` 检查房间是否已过期
+4. **房间可进入状态验证**：通过 `room.can_enter()` 进行综合状态检查：
+   - 房间状态不为 `RoomStatus::Close`
+   - 当前进入次数 (`current_times_entered`) 未超过最大限制 (`max_times_entered`)
+   - 房间未过期（双重保险检查）
+
+**验证顺序的重要性**：
+
+- 先验证 JWT 签名和基本匹配性，快速拒绝无效请求
+- 然后验证房间状态，避免为不可用的房间进行数据库查询
+- 最后验证令牌数据库记录，确保令牌未被撤销
 
 ## 7. 关键代码片段
 

@@ -57,11 +57,11 @@ pub struct RoomTokenClaims {
 
 ```sql
 CREATE TABLE IF NOT EXISTS room_tokens (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,  -- 主键，自增 ID，对应 RoomToken.id 字段
     room_id INTEGER NOT NULL,
-    jti TEXT NOT NULL UNIQUE,        -- JWT 唯一标识
-    expires_at DATETIME NOT NULL,    -- 过期时间
-    revoked_at DATETIME,             -- 撤销时间
+    jti TEXT NOT NULL UNIQUE,              -- JWT 唯一标识
+    expires_at DATETIME NOT NULL,          -- 过期时间
+    revoked_at DATETIME,                   -- 撤销时间
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (room_id) REFERENCES rooms (id) ON DELETE CASCADE
 );

@@ -38,7 +38,10 @@ pub struct RoomPermission: u8 {
 
 ## 3. 不变式 & 验证逻辑（业务规则）
 
-- **最小权限原则**：所有房间默认至少具有 `VIEW_ONLY` 权限
+- **房间创建权限**：新创建的房间默认具有所有权限（`VIEW_ONLY | EDITABLE | SHARE | DELETE`），通过
+  `RoomPermission::new().with_all()` 设置
+- **权限默认值**：`RoomPermission::default()` 返回
+  `VIEW_ONLY`，但房间创建时使用的是 `with_all()` 方法
 - **权限继承**：JWT 中的权限在签发时从房间的 `permission` 字段复制，不会动态变化
 - **权限组合**：权限可以任意组合，但某些操作可能需要多个权限同时满足
 - **权限验证顺序**：先验证房间级别权限，再验证 JWT 中的权限
