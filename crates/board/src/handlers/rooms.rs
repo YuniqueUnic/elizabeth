@@ -14,9 +14,14 @@ use crate::repository::{
     IRoomRepository, IRoomTokenRepository, SqliteRoomRepository, SqliteRoomTokenRepository,
 };
 use crate::services::RoomTokenClaims;
-use crate::state::AppState;
+use crate::state::{AppState, RoomDefaults};
 
 type HandlerResult<T> = Result<Json<T>, HttpResponse>;
+
+fn apply_room_defaults(room: &mut Room, defaults: &RoomDefaults) {
+    room.max_size = defaults.max_size;
+    room.max_times_entered = defaults.max_times_entered;
+}
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateRoomParams {
@@ -119,7 +124,8 @@ pub async fn create(
         return Err(HttpResponse::BadRequest().message("Room already exists"));
     }
 
-    let room = Room::new(name.clone(), params.password);
+    let mut room = Room::new(name.clone(), params.password);
+    apply_room_defaults(&mut room, &app_state.room_defaults);
     let created_room = repository.create(&room).await.map_err(|e| {
         HttpResponse::InternalServerError().message(format!("Failed to create room: {}", e))
     })?;
@@ -174,7 +180,8 @@ pub async fn find(
                 return Err(HttpResponse::Forbidden().message("Room cannot be accessed"));
             }
 
-            let new_room = Room::new(name, None);
+            let mut new_room = Room::new(name.clone(), None);
+            apply_room_defaults(&mut new_room, &app_state.room_defaults);
             let created_room = repository.create(&new_room).await.map_err(|e| {
                 HttpResponse::InternalServerError().message(format!("Failed to create room: {}", e))
             })?;

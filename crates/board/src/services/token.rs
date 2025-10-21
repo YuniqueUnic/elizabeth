@@ -47,15 +47,33 @@ pub struct RoomTokenService {
 
 impl RoomTokenService {
     pub fn new(secret: Arc<String>) -> Self {
-        Self::with_ttl(secret, Duration::minutes(DEFAULT_TOKEN_TTL_MINUTES))
+        Self::with_options(
+            secret,
+            Duration::minutes(DEFAULT_TOKEN_TTL_MINUTES),
+            DEFAULT_LEEWAY_SECONDS,
+        )
     }
 
     pub fn with_ttl(secret: Arc<String>, ttl: Duration) -> Self {
+        Self::with_options(secret, ttl, DEFAULT_LEEWAY_SECONDS)
+    }
+
+    pub fn with_options(secret: Arc<String>, ttl: Duration, leeway_seconds: i64) -> Self {
+        let ttl = if ttl.num_seconds() < MINIMUM_EXP_DELTA_SECONDS {
+            Duration::seconds(MINIMUM_EXP_DELTA_SECONDS + 1)
+        } else {
+            ttl
+        };
         Self {
             secret,
             ttl,
-            leeway: DEFAULT_LEEWAY_SECONDS,
+            leeway: leeway_seconds.max(0),
         }
+    }
+
+    pub fn with_config(secret: Arc<String>, ttl_seconds: i64, leeway_seconds: i64) -> Self {
+        let ttl_seconds = ttl_seconds.max(MINIMUM_EXP_DELTA_SECONDS + 1);
+        Self::with_options(secret, Duration::seconds(ttl_seconds), leeway_seconds)
     }
 
     pub fn issue(&self, room: &Room) -> Result<(String, RoomTokenClaims)> {

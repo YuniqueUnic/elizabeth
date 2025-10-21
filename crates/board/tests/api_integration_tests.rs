@@ -8,12 +8,18 @@ use axum::{
     body::Body,
     http::{Method, Request, StatusCode},
 };
+use chrono::Duration;
 use sqlx::SqlitePool;
 use std::sync::Arc;
 use tower::util::ServiceExt;
+use uuid::Uuid;
 
+use board::models::room::{DEFAULT_MAX_ROOM_CONTENT_SIZE, DEFAULT_MAX_TIMES_ENTER_ROOM};
 use board::route::room::api_router;
-use board::state::AppState;
+use board::services::RoomTokenService;
+use board::state::{AppState, RoomDefaults};
+
+const TEST_UPLOAD_RESERVATION_TTL_SECONDS: i64 = 10;
 
 /// 创建测试应用
 async fn create_test_app() -> Result<(Router, SqlitePool)> {
@@ -23,7 +29,20 @@ async fn create_test_app() -> Result<(Router, SqlitePool)> {
     sqlx::migrate!("./migrations").run(&pool).await?;
 
     let pool_arc = Arc::new(pool.clone());
-    let app_state = Arc::new(AppState::new(pool_arc, "test-secret"));
+    let token_service =
+        RoomTokenService::with_config(Arc::new("test-secret".to_string()), 30 * 60, 5);
+    let storage_root =
+        std::env::temp_dir().join(format!("elizabeth-board-tests-{}", Uuid::new_v4()));
+    let app_state = Arc::new(AppState::new(
+        pool_arc,
+        storage_root,
+        Duration::seconds(TEST_UPLOAD_RESERVATION_TTL_SECONDS),
+        RoomDefaults {
+            max_size: DEFAULT_MAX_ROOM_CONTENT_SIZE,
+            max_times_entered: DEFAULT_MAX_TIMES_ENTER_ROOM,
+        },
+        token_service,
+    ));
     let app = api_router(app_state).into();
 
     Ok((app, pool))

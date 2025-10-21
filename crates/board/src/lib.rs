@@ -9,15 +9,20 @@ pub mod services;
 pub mod state;
 
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::sync::Arc;
+
+use chrono::Duration;
 
 use clap::Parser;
 use shadow_rs::shadow;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::db::{init_db, run_migrations};
+use crate::db::{DbPoolSettings, init_db, run_migrations};
+use crate::handlers::content::{DEFAULT_STORAGE_ROOT, DEFAULT_UPLOAD_RESERVATION_TTL_SECONDS};
 use crate::init::{cfg_service, const_service, log_service};
-use crate::state::AppState;
+use crate::services::RoomTokenService;
+use crate::state::{AppState, RoomDefaults};
 use configrs::Config;
 
 shadow!(build);
@@ -43,13 +48,44 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
     log_service::init(cfg);
 
     // 初始化数据库
-    let database_url = &cfg.app.db_url;
-    let db_pool = init_db(database_url).await?;
+    let db_settings = DbPoolSettings::new(cfg.app.database.url.clone())
+        .with_max_connections(cfg.app.database.max_connections)
+        .with_min_connections(cfg.app.database.min_connections);
+    let db_pool = init_db(&db_settings).await?;
     run_migrations(&db_pool).await?;
     let db_pool = Arc::new(db_pool);
-    let app_state = Arc::new(AppState::new(db_pool.clone(), cfg.app.jwt_secret.clone()));
 
-    let addr: SocketAddr = format!("{}:{}", cfg.app.addr, cfg.app.port).parse()?;
+    let token_service = RoomTokenService::with_config(
+        Arc::new(cfg.app.jwt.secret.clone()),
+        cfg.app.jwt.ttl_seconds,
+        cfg.app.jwt.leeway_seconds,
+    );
+
+    let room_defaults = RoomDefaults {
+        max_size: cfg.app.room.max_size,
+        max_times_entered: cfg.app.room.max_times_entered,
+    };
+
+    let upload_ttl_seconds = if cfg.app.upload.reservation_ttl_seconds <= 0 {
+        DEFAULT_UPLOAD_RESERVATION_TTL_SECONDS
+    } else {
+        cfg.app.upload.reservation_ttl_seconds
+    };
+    let storage_root = if cfg.app.storage.root.trim().is_empty() {
+        PathBuf::from(DEFAULT_STORAGE_ROOT)
+    } else {
+        PathBuf::from(&cfg.app.storage.root)
+    };
+
+    let app_state = Arc::new(AppState::new(
+        db_pool.clone(),
+        storage_root,
+        Duration::seconds(upload_ttl_seconds),
+        room_defaults,
+        token_service,
+    ));
+
+    let addr: SocketAddr = format!("{}:{}", cfg.app.server.addr, cfg.app.server.port).parse()?;
     let listener = tokio::net::TcpListener::bind(addr).await?;
 
     let (scalar_path, router) = build_api_router(app_state);

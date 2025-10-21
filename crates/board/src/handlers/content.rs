@@ -10,7 +10,7 @@ use axum::http::HeaderValue;
 use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
 use axum::response::Response;
 use axum_responses::http::HttpResponse;
-use chrono::{Duration as ChronoDuration, NaiveDateTime};
+use chrono::NaiveDateTime;
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use tokio::fs;
@@ -33,8 +33,8 @@ use crate::state::AppState;
 
 use super::{TokenQuery, verify_room_token};
 
-const STORAGE_ROOT: &str = "storage/rooms";
-const UPLOAD_RESERVATION_TTL_SECONDS: i64 = 10;
+pub const DEFAULT_STORAGE_ROOT: &str = "storage/rooms";
+pub const DEFAULT_UPLOAD_RESERVATION_TTL_SECONDS: i64 = 10;
 
 type HandlerResult<T> = Result<Json<T>, HttpResponse>;
 
@@ -212,7 +212,7 @@ pub async fn prepare_upload(
     })?;
 
     let reservation_repo = SqliteRoomUploadReservationRepository::new(app_state.db_pool.clone());
-    let ttl = ChronoDuration::seconds(UPLOAD_RESERVATION_TTL_SECONDS);
+    let ttl = app_state.upload_reservation_ttl;
 
     let (reservation, updated_room) = reservation_repo
         .reserve_upload(
@@ -239,11 +239,9 @@ pub async fn prepare_upload(
     verified.room = updated_room.clone();
 
     let db_pool = app_state.db_pool.clone();
+    let cleanup_delay_seconds = ttl.num_seconds().max(1) as u64;
     tokio::spawn(async move {
-        sleep(StdDuration::from_secs(
-            UPLOAD_RESERVATION_TTL_SECONDS as u64,
-        ))
-        .await;
+        sleep(StdDuration::from_secs(cleanup_delay_seconds)).await;
         let repo = SqliteRoomUploadReservationRepository::new(db_pool);
         if let Err(err) = repo.release_if_pending(reservation_id).await {
             log::warn!(
@@ -346,7 +344,7 @@ pub async fn upload_contents(
         }
     }
 
-    let storage_dir = ensure_room_storage(&verified.room.slug)
+    let storage_dir = ensure_room_storage(app_state.storage_root.as_ref(), &verified.room.slug)
         .await
         .map_err(|e| {
             HttpResponse::InternalServerError()
@@ -722,9 +720,9 @@ fn ensure_permission(
     Ok(())
 }
 
-async fn ensure_room_storage(room_name: &str) -> Result<PathBuf, std::io::Error> {
+async fn ensure_room_storage(base_dir: &Path, room_name: &str) -> Result<PathBuf, std::io::Error> {
     let safe = sanitize_filename::sanitize(room_name);
-    let dir = PathBuf::from(STORAGE_ROOT).join(safe);
+    let dir = base_dir.join(safe);
     fs::create_dir_all(&dir).await?;
     Ok(dir)
 }
