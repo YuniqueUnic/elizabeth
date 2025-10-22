@@ -211,6 +211,7 @@ impl RoomContent {
 ```rust
 pub fn set_text(&mut self, text: String) {
     let size = text.len() as i64; // 当前使用字符串长度作为大小计算
+                                    // ⚠️ 精度警告：未考虑实际编码开销，对于非 ASCII 字符可能不准确
     self.text = Some(text);
     self.updated_at = Utc::now().naive_utc();
     self.mime_type = Some("text/plain".to_string());
@@ -241,6 +242,7 @@ pub fn set_path(
 ```rust
 pub fn set_url(&mut self, url: String, mime_type: Option<String>) {
     let size = url.len() as i64; // 当前使用 URL 字符串长度作为大小计算
+                                 // ⚠️ 精度警告：未考虑实际编码开销，对于非 ASCII 字符可能不准确
     self.url = Some(url);
     self.content_type = ContentType::Url;
     self.updated_at = Utc::now().naive_utc();
@@ -316,7 +318,15 @@ let (reservation, updated_room) = reservation_repo
 
 **P0 优先级**：
 
-- **容量计算精度**：文本内容使用 `text.len()` 计算大小，未考虑实际编码开销
+- **容量计算精度**：文本和 URL 内容大小计算存在精度问题
+  - **问题描述**：文本内容使用 `text.len()` 计算大小，URL 内容使用 `url.len()`
+    计算大小，未考虑实际编码开销
+  - **精度影响**：对于包含非 ASCII
+    字符（如中文、日文、表情符号等）的内容，实际存储大小可能远大于计算值
+  - **潜在风险**：可能导致房间容量限制不准确，允许上传超过限制的内容或过早拒绝合法内容
+  - **建议解决方案**：使用 `text.as_bytes().len()` 计算实际字节数，或使用
+    `text.encode_utf8().len()` 确保编码一致性
+  - **实施建议**：在下一个版本中修复容量计算逻辑，并提供数据迁移脚本处理现有数据
 - **文件存储安全**：缺少文件内容的安全扫描和病毒检测
 
 **P1 优先级**：
