@@ -54,7 +54,7 @@ impl RoomContent {
     }
 
     pub fn set_text(&mut self, text: String) {
-        let size = text.len() as i64; // TODO: need a better way to calculate the actual disk usage of the content
+        let size = string_storage_size(&text);
         self.text = Some(text);
         self.updated_at = Utc::now().naive_utc();
         self.mime_type = Some("text/plain".to_string());
@@ -76,7 +76,7 @@ impl RoomContent {
     }
 
     pub fn set_url(&mut self, url: String, mime_type: Option<String>) {
-        let size = url.len() as i64; // TODO: need a better way to calculate the actual disk usage of the content
+        let size = string_storage_size(&url);
         self.url = Some(url);
         self.content_type = ContentType::Url;
         self.updated_at = Utc::now().naive_utc();
@@ -123,4 +123,44 @@ mod tests {
         println!("{:#?}", content);
         Ok(())
     }
+
+    #[test]
+    fn set_text_records_utf8_byte_size() {
+        let now = Utc::now().naive_utc();
+        let mut content = RoomContent::builder()
+            .id(1)
+            .room_id(1)
+            .content_type(ContentType::Text)
+            .now(now)
+            .build();
+
+        content.set_text("你好世界".to_string());
+
+        // "你好世界" 占用 12 个字节（每个汉字 3 个字节）
+        assert_eq!(content.size, Some(12));
+    }
+
+    #[test]
+    fn set_url_records_utf8_byte_size() {
+        let now = Utc::now().naive_utc();
+        let mut content = RoomContent::builder()
+            .id(1)
+            .room_id(1)
+            .content_type(ContentType::Url)
+            .now(now)
+            .build();
+
+        content.set_url(
+            "https://例子。测试/路径".to_string(),
+            Some("text/html".to_string()),
+        );
+
+        // 计算 UTF-8 字节长度
+        let expected = "https://例子。测试/路径".as_bytes().len() as i64;
+        assert_eq!(content.size, Some(expected));
+    }
+}
+
+fn string_storage_size(value: &str) -> i64 {
+    value.len() as i64
 }
