@@ -49,10 +49,10 @@ multipart
 
 ### TTL 时间配置
 
-**预留 TTL 常量定义**（`crates/board/src/handlers/content.rs:36`）：
+**预留 TTL 常量定义**（`crates/board/src/handlers/content.rs:37`）：
 
 ```rust
-const UPLOAD_RESERVATION_TTL_SECONDS: i64 = 10;
+pub const DEFAULT_UPLOAD_RESERVATION_TTL_SECONDS: i64 = 10;
 ```
 
 **TTL 使用说明**：
@@ -67,7 +67,7 @@ const UPLOAD_RESERVATION_TTL_SECONDS: i64 = 10;
 ```rust
 // 设置自动清理任务（第 186-189 行）
 tokio::spawn(async move {
-    sleep(StdDuration::from_secs(UPLOAD_RESERVATION_TTL_SECONDS as u64)).await;
+    sleep(StdDuration::from_secs(DEFAULT_UPLOAD_RESERVATION_TTL_SECONDS as u64)).await;
     repo.release_if_pending(reservation_id).await;
 });
 ```
@@ -215,7 +215,7 @@ pub async fn prepare_upload(
 
     // 设置自动清理任务
     tokio::spawn(async move {
-        sleep(StdDuration::from_secs(UPLOAD_RESERVATION_TTL_SECONDS as u64)).await;
+        sleep(StdDuration::from_secs(DEFAULT_UPLOAD_RESERVATION_TTL_SECONDS as u64)).await;
         repo.release_if_pending(reservation_id).await;
     });
 }

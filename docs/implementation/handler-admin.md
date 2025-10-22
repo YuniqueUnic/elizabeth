@@ -123,10 +123,16 @@ CREATE TABLE IF NOT EXISTS rooms (
 ### 删除房间
 
 - **DELETE** `/api/v1/rooms/{name}`
-- 请求参数：房间名称
+- 请求参数：房间名称、管理员 token
 - 响应：删除结果
-- 错误码：404（房间不存在）、410（房间已过期）、500（服务器错误）
-- **安全警告**：当前实现缺乏权限验证，任何知道房间名称的用户都可以删除房间。这是一个已知的安全问题，需要在后续版本中修复。
+- 错误码：404（房间不存在）、401（令牌无效）、403（权限不足）、410（房间已过期）、500（服务器错误）
+- **权限验证**：当前实现已包含完整的权限验证，只有具有删除权限的用户才能删除房间
+- **验证流程**：
+  1. 验证房间存在性和过期状态
+  2. 验证 JWT 令牌有效性和权限
+  3. 检查令牌中的删除权限 (`can_delete()`)
+  4. 确保令牌未被撤销且未过期
+  5. 执行房间删除操作
 - 过期检查：删除前会检查房间是否过期，过期房间无法删除
 
 ### 更新房间权限
@@ -273,6 +279,88 @@ pub async fn find(
             })?;
             Ok(Json(created_room))
         }
+    }
+}
+```
+
+### 删除房间 (crates/board/src/handlers/rooms.rs:192)
+
+```rust
+/// 删除房间
+#[utoipa::path(
+    delete,
+    path = "/api/v1/rooms/{name}",
+    params(
+        ("name" = String, Path, description = "房间名称"),
+        ("token" = String, Query, description = "管理员访问令牌，需具备删除权限")
+    ),
+    responses(
+        (status = 200, description = "房间删除成功"),
+        (status = 404, description = "房间不存在"),
+        (status = 410, description = "房间已过期"),
+        (status = 500, description = "服务器内部错误")
+    ),
+    tag = "rooms"
+)]
+pub async fn delete(
+    Path(name): Path<String>,
+    Query(query): Query<TokenQuery>,
+    State(app_state): State<Arc<AppState>>,
+) -> impl IntoResponse {
+    if name.is_empty() {
+        return HttpResponse::BadRequest()
+            .message("Invalid room name")
+            .into_response();
+    }
+
+    let repository = SqliteRoomRepository::new(app_state.db_pool.clone());
+
+    // 首先检查房间是否存在和过期
+    match repository.find_by_name(&name).await {
+        Ok(Some(room)) => {
+            // 检查房间是否过期
+            if room.is_expired() {
+                return HttpResponse::Gone()
+                    .message("Room has expired")
+                    .into_response();
+            }
+        }
+        Ok(None) => {
+            return HttpResponse::NotFound()
+                .message("Room not found")
+                .into_response();
+        }
+        Err(e) => {
+            return HttpResponse::InternalServerError()
+                .message(format!("Database error: {}", e))
+                .into_response();
+        }
+    }
+
+    // 验证令牌和权限
+    let verified = match verify_room_token(app_state.clone(), &name, &query.token).await {
+        Ok(verified) => verified,
+        Err(err) => return err.into_response(),
+    };
+
+    // 检查删除权限
+    if !verified.claims.as_permission().can_delete() {
+        return HttpResponse::Forbidden()
+            .message("Permission denied by token")
+            .into_response();
+    }
+
+    // 房间存在且未过期，执行删除
+    match repository.delete(&name).await.map_err(|e| {
+        HttpResponse::InternalServerError().message(format!("Failed to delete room: {}", e))
+    }) {
+        Ok(true) => HttpResponse::Ok()
+            .message("Room deleted successfully")
+            .into_response(),
+        Ok(false) => HttpResponse::NotFound()
+            .message("Room not found")
+            .into_response(),
+        Err(e) => e.into_response(),
     }
 }
 ```
