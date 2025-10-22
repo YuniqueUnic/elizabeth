@@ -79,15 +79,13 @@ impl RefreshTokenService {
         let refresh_token_plain = Uuid::new_v4().to_string();
 
         // 3. 创建刷新令牌声明
-        let refresh_claims = RoomTokenClaims::new_refresh_token(
-            room_id,
-            room.slug.clone(),
-            room.permission.bits(),
-            room.max_size,
-            refresh_exp.timestamp(),
-            now.timestamp(),
-            refresh_jti.clone(),
-        );
+        let refresh_claims = RoomTokenClaims::refresh_token_builder(room_id, room.slug.clone())
+            .permission(room.permission.bits())
+            .max_size(room.max_size)
+            .exp(refresh_exp.timestamp())
+            .iat(now.timestamp())
+            .jti(refresh_jti.clone())
+            .build_refresh_token();
 
         // 4. 签发刷新令牌（复用基础服务的编码逻辑）
         let refresh_token_signed = self.base_service.encode_claims(&refresh_claims)?;
@@ -172,27 +170,29 @@ impl RefreshTokenService {
         let new_refresh_token = Uuid::new_v4().to_string();
 
         // 9. 创建新的访问令牌声明
-        let new_access_claims = RoomTokenClaims::new_access_token(
+        let new_access_claims = RoomTokenClaims::access_token_builder(
             refresh_claims.room_id,
             refresh_claims.room_name.clone(),
-            refresh_claims.permission,
-            refresh_claims.max_size,
-            access_exp.timestamp(),
-            now.timestamp(),
-            new_access_jti.clone(),
-            Some(new_refresh_jti.clone()),
-        );
+        )
+        .permission(refresh_claims.permission)
+        .max_size(refresh_claims.max_size)
+        .exp(access_exp.timestamp())
+        .iat(now.timestamp())
+        .jti(new_access_jti.clone())
+        .refresh_jti(Some(new_refresh_jti.clone()))
+        .build_access_token();
 
         // 10. 创建新的刷新令牌声明
-        let new_refresh_claims = RoomTokenClaims::new_refresh_token(
+        let new_refresh_claims = RoomTokenClaims::refresh_token_builder(
             refresh_claims.room_id,
             refresh_claims.room_name.clone(),
-            refresh_claims.permission,
-            refresh_claims.max_size,
-            refresh_exp.timestamp(),
-            now.timestamp(),
-            new_refresh_jti.clone(),
-        );
+        )
+        .permission(refresh_claims.permission)
+        .max_size(refresh_claims.max_size)
+        .exp(refresh_exp.timestamp())
+        .iat(now.timestamp())
+        .jti(new_refresh_jti.clone())
+        .build_refresh_token();
 
         // 11. 签发新令牌
         let new_access_token = jsonwebtoken::encode(
