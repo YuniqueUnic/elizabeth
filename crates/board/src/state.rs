@@ -3,7 +3,7 @@ use std::{path::PathBuf, sync::Arc};
 use chrono::Duration;
 
 use crate::db::DbPool;
-use crate::services::RoomTokenService;
+use crate::services::{RoomTokenService, refresh_token_service::RefreshTokenService};
 
 #[derive(Clone, Debug)]
 pub struct RoomDefaults {
@@ -15,6 +15,7 @@ pub struct RoomDefaults {
 pub struct AppState {
     pub db_pool: Arc<DbPool>,
     pub token_service: RoomTokenService,
+    pub refresh_token_service: RefreshTokenService,
     pub storage_root: Arc<PathBuf>,
     pub upload_reservation_ttl: Duration,
     pub room_defaults: RoomDefaults,
@@ -28,10 +29,12 @@ impl AppState {
         upload_reservation_ttl: Duration,
         room_defaults: RoomDefaults,
         token_service: RoomTokenService,
+        refresh_token_service: RefreshTokenService,
     ) -> Self {
         Self {
             db_pool,
             token_service,
+            refresh_token_service,
             storage_root: Arc::new(storage_root.into()),
             upload_reservation_ttl,
             room_defaults,

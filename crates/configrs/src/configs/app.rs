@@ -61,6 +61,19 @@ pub struct JwtConfig {
     #[default(5)]
     #[merge(strategy = overwrite)]
     pub leeway_seconds: i64,
+    // 刷新令牌相关配置
+    #[default(7 * 24 * 60 * 60)] // 7 天（秒）
+    #[merge(strategy = overwrite)]
+    pub refresh_ttl_seconds: i64,
+    #[default(10)]
+    #[merge(strategy = overwrite)]
+    pub max_refresh_count: i64,
+    #[default(24 * 60 * 60)] // 24 小时（秒）
+    #[merge(strategy = overwrite)]
+    pub cleanup_interval_seconds: i64,
+    #[default(true)]
+    #[merge(strategy = overwrite)]
+    pub enable_refresh_token_rotation: bool,
 }
 
 #[derive(Merge, Debug, Clone, SmartDefault, serde::Deserialize, serde::Serialize)]
@@ -105,6 +118,10 @@ mod tests {
         assert_eq!(cfg.database.min_connections, Some(5));
         assert_eq!(cfg.jwt.secret, "secret");
         assert_eq!(cfg.jwt.ttl_seconds, 30 * 60);
+        assert_eq!(cfg.jwt.refresh_ttl_seconds, 7 * 24 * 60 * 60);
+        assert_eq!(cfg.jwt.max_refresh_count, 10);
+        assert_eq!(cfg.jwt.cleanup_interval_seconds, 24 * 60 * 60);
+        assert_eq!(cfg.jwt.enable_refresh_token_rotation, true);
         assert_eq!(cfg.storage.root, "storage/rooms");
         assert_eq!(cfg.room.max_size, 10 * 1024 * 1024);
         assert_eq!(cfg.room.max_times_entered, 100);
@@ -131,6 +148,7 @@ mod tests {
                 secret: "foobar".into(), // pragma: allowlist secret
                 ttl_seconds: 120,
                 leeway_seconds: 2,
+                ..Default::default()
             },
             storage: StorageConfig {
                 root: "/tmp/storage".into(),

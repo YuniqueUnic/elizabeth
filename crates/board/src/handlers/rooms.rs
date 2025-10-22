@@ -34,6 +34,9 @@ pub struct IssueTokenRequest {
     pub password: Option<String>,
     /// 已有的房间 token，可用于在无需密码的情况下续签
     pub token: Option<String>,
+    /// 是否请求刷新令牌对
+    #[serde(default)]
+    pub with_refresh_token: bool,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -41,6 +44,12 @@ pub struct IssueTokenResponse {
     pub token: String,
     pub claims: RoomTokenClaims,
     pub expires_at: NaiveDateTime,
+    /// 刷新令牌（仅在请求时返回）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refresh_token: Option<String>,
+    /// 刷新令牌过期时间（仅在请求时返回）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refresh_token_expires_at: Option<NaiveDateTime>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -335,10 +344,31 @@ pub async fn issue_token(
         })?;
     }
 
+    // 如果请求了刷新令牌，签发令牌对
+    let (refresh_token, refresh_expires_at) = if payload.with_refresh_token {
+        let refresh_response = app_state
+            .refresh_token_service
+            .issue_token_pair(&room)
+            .await
+            .map_err(|e| {
+                HttpResponse::InternalServerError()
+                    .message(format!("Failed to issue refresh token: {e}"))
+            })?;
+
+        (
+            Some(refresh_response.refresh_token),
+            Some(refresh_response.refresh_token_expires_at),
+        )
+    } else {
+        (None, None)
+    };
+
     Ok(Json(IssueTokenResponse {
         token,
         expires_at: claims.expires_at(),
         claims,
+        refresh_token,
+        refresh_token_expires_at: refresh_expires_at,
     }))
 }
 
