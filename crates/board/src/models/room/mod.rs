@@ -8,9 +8,14 @@ use crate::models::permission::RoomPermission;
 pub mod content;
 pub mod metric;
 pub mod permission;
+pub mod refresh_token;
 pub mod token;
 pub mod upload_reservation;
 
+pub use refresh_token::{
+    CreateRefreshTokenRequest, RefreshTokenRequest, RefreshTokenResponse, RoomRefreshToken,
+    TokenBlacklistEntry,
+};
 pub use token::RoomToken;
 pub use upload_reservation::{RoomUploadReservation, UploadFileDescriptor};
 

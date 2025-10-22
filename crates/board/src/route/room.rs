@@ -1,6 +1,12 @@
 use std::sync::Arc;
 
-use crate::handlers::*;
+use crate::handlers::{
+    content::{delete_contents, download_content, list_contents, prepare_upload, upload_contents},
+    rooms::{
+        create, delete, find, issue_token, list_tokens, revoke_token as revoke_room_token,
+        update_permissions, validate_token,
+    },
+};
 use crate::state::AppState;
 use axum::routing::{delete as axum_delete, get as axum_get, post as axum_post};
 
@@ -22,7 +28,7 @@ pub fn api_router(app_state: Arc<AppState>) -> utoipa_axum::router::OpenApiRoute
         )
         .route(
             "/api/v1/rooms/{name}/tokens/{jti}",
-            axum_delete(revoke_token),
+            axum_delete(revoke_room_token),
         )
         .route("/api/v1/rooms/{name}/contents", axum_get(list_contents))
         .route(
