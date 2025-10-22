@@ -17,6 +17,7 @@ pub struct Room {
     pub slug: String,                 // 房间访问标识，可用于 URL
     pub password: Option<String>,     // 房间密码（明文存储）
                                             // ⚠️ 安全警告：当前版本使用明文存储密码，存在安全风险。建议在生产环境中使用 bcrypt 或 argon2 进行哈希存储。
+                                            // 当前实现：密码直接以 Option<String> 形式存储在数据库中，未进行任何哈希处理。
     pub status: RoomStatus,           // 房间状态：Open=0, Lock=1, Close=2
     pub max_size: i64,               // 最大容量限制（字节），默认 10MB
     pub current_size: i64,           // 当前已用容量（字节）

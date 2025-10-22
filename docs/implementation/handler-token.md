@@ -231,7 +231,10 @@ pub async fn verify_room_token(
 
     // 3. 验证房间存在性和基本状态
     let room_repo = SqliteRoomRepository::new(app_state.db_pool.clone());
-    let room = room_repo.find_by_name(room_name).await?
+    let room = room_repo
+        .find_by_name(room_name)
+        .await
+        .map_err(|e| HttpResponse::InternalServerError().message(format!("Database error: {e}")))?
         .ok_or_else(|| HttpResponse::NotFound().message("Room not found"))?;
 
     // 4. 验证房间 ID 匹配
@@ -255,7 +258,10 @@ pub async fn verify_room_token(
 
     // 7. 验证令牌数据库记录存在性
     let token_repo = SqliteRoomTokenRepository::new(app_state.db_pool.clone());
-    let record = token_repo.find_by_jti(&claims.jti).await?
+    let record = token_repo
+        .find_by_jti(&claims.jti)
+        .await
+        .map_err(|e| HttpResponse::InternalServerError().message(format!("Database error: {e}")))?
         .ok_or_else(|| HttpResponse::Unauthorized().message("Token revoked or not found"))?;
 
     // 8. 验证令牌活跃状态（未被撤销且未过期）
