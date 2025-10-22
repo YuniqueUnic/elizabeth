@@ -49,6 +49,19 @@ pub struct RoomTokenClaims {
     pub refresh_jti: Option<String>,
 }
 
+/// 令牌构建器
+#[derive(Debug, Clone)]
+pub struct RoomTokenClaimsBuilder {
+    room_id: i64,
+    room_name: String,
+    permission: u8,
+    max_size: i64,
+    exp: i64,
+    iat: i64,
+    jti: String,
+    refresh_jti: Option<String>,
+}
+
 impl RoomTokenClaims {
     pub fn as_permission(&self) -> RoomPermission {
         RoomPermission::from_bits(self.permission).unwrap_or_default()
@@ -93,51 +106,103 @@ impl RoomTokenClaims {
         now - self.iat
     }
 
-    #[allow(clippy::too_many_arguments)]
-    /// 创建访问令牌声明
-    pub fn new_access_token(
-        room_id: i64,
-        room_name: String,
-        permission: u8,
-        max_size: i64,
-        exp: i64,
-        iat: i64,
-        jti: String,
-        refresh_jti: Option<String>,
-    ) -> Self {
-        Self {
-            sub: format!("room:{}", room_id),
+    /// 创建访问令牌构建器
+    pub fn access_token_builder(room_id: i64, room_name: String) -> RoomTokenClaimsBuilder {
+        let now = Utc::now();
+        let jti = Uuid::new_v4().to_string();
+        RoomTokenClaimsBuilder {
             room_id,
             room_name,
-            permission,
-            max_size,
-            exp,
-            iat,
+            permission: 0,
+            max_size: 0,
+            exp: now.timestamp(),
+            iat: now.timestamp(),
             jti,
-            token_type: TokenType::Access,
-            refresh_jti,
+            refresh_jti: None,
         }
     }
 
-    /// 创建刷新令牌声明
-    pub fn new_refresh_token(
-        room_id: i64,
-        room_name: String,
-        permission: u8,
-        max_size: i64,
-        exp: i64,
-        iat: i64,
-        jti: String,
-    ) -> Self {
-        Self {
-            sub: format!("room:{}", room_id),
+    /// 创建刷新令牌构建器
+    pub fn refresh_token_builder(room_id: i64, room_name: String) -> RoomTokenClaimsBuilder {
+        let now = Utc::now();
+        let jti = Uuid::new_v4().to_string();
+        RoomTokenClaimsBuilder {
             room_id,
             room_name,
-            permission,
-            max_size,
-            exp,
-            iat,
+            permission: 0,
+            max_size: 0,
+            exp: now.timestamp(),
+            iat: now.timestamp(),
             jti,
+            refresh_jti: None,
+        }
+    }
+}
+
+impl RoomTokenClaimsBuilder {
+    /// 设置权限
+    pub fn permission(mut self, permission: u8) -> Self {
+        self.permission = permission;
+        self
+    }
+
+    /// 设置最大大小
+    pub fn max_size(mut self, max_size: i64) -> Self {
+        self.max_size = max_size;
+        self
+    }
+
+    /// 设置过期时间
+    pub fn exp(mut self, exp: i64) -> Self {
+        self.exp = exp;
+        self
+    }
+
+    /// 设置签发时间
+    pub fn iat(mut self, iat: i64) -> Self {
+        self.iat = iat;
+        self
+    }
+
+    /// 设置 JTI
+    pub fn jti(mut self, jti: String) -> Self {
+        self.jti = jti;
+        self
+    }
+
+    /// 设置关联的刷新令牌 JTI
+    pub fn refresh_jti(mut self, refresh_jti: Option<String>) -> Self {
+        self.refresh_jti = refresh_jti;
+        self
+    }
+
+    /// 构建访问令牌
+    pub fn build_access_token(self) -> RoomTokenClaims {
+        RoomTokenClaims {
+            sub: format!("room:{}", self.room_id),
+            room_id: self.room_id,
+            room_name: self.room_name,
+            permission: self.permission,
+            max_size: self.max_size,
+            exp: self.exp,
+            iat: self.iat,
+            jti: self.jti,
+            token_type: TokenType::Access,
+            refresh_jti: self.refresh_jti,
+        }
+    }
+
+    /// 构建刷新令牌
+    pub fn build_refresh_token(self) -> RoomTokenClaims {
+        RoomTokenClaims {
+            sub: format!("room:{}", self.room_id),
+            room_id: self.room_id,
+            room_name: self.room_name,
+            permission: self.permission,
+            max_size: self.max_size,
+            exp: self.exp,
+            iat: self.iat,
+            jti: self.jti,
             token_type: TokenType::Refresh,
             refresh_jti: None,
         }
@@ -208,17 +273,16 @@ impl RoomTokenService {
             ));
         }
 
-        let jti = Uuid::new_v4().to_string();
-        let claims = RoomTokenClaims::new_access_token(
+        let claims = RoomTokenClaims::access_token_builder(
             room.id.ok_or_else(|| anyhow!("room id missing"))?,
             room.slug.clone(),
-            room.permission.bits(),
-            room.max_size,
-            exp.timestamp(),
-            now.timestamp(),
-            jti.clone(),
-            None, // 初始签发的访问令牌没有关联的刷新令牌
-        );
+        )
+        .permission(room.permission.bits())
+        .max_size(room.max_size)
+        .exp(exp.timestamp())
+        .iat(now.timestamp())
+        .refresh_jti(None) // 初始签发的访问令牌没有关联的刷新令牌
+        .build_access_token();
 
         let token = jsonwebtoken::encode(
             &Header::new(Algorithm::HS256),
