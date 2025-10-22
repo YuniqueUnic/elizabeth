@@ -195,7 +195,8 @@ pub async fn find(
     delete,
     path = "/api/v1/rooms/{name}",
     params(
-        ("name" = String, Path, description = "房间名称")
+        ("name" = String, Path, description = "房间名称"),
+        ("token" = String, Query, description = "管理员访问令牌，需具备删除权限")
     ),
     responses(
         (status = 200, description = "房间删除成功"),
@@ -207,6 +208,7 @@ pub async fn find(
 )]
 pub async fn delete(
     Path(name): Path<String>,
+    Query(query): Query<TokenQuery>,
     State(app_state): State<Arc<AppState>>,
 ) -> impl IntoResponse {
     if name.is_empty() {
@@ -237,6 +239,17 @@ pub async fn delete(
                 .message(format!("Database error: {}", e))
                 .into_response();
         }
+    }
+
+    let verified = match verify_room_token(app_state.clone(), &name, &query.token).await {
+        Ok(verified) => verified,
+        Err(err) => return err.into_response(),
+    };
+
+    if !verified.claims.as_permission().can_delete() {
+        return HttpResponse::Forbidden()
+            .message("Permission denied by token")
+            .into_response();
     }
 
     // 房间存在且未过期，执行删除
