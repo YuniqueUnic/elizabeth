@@ -42,6 +42,9 @@ pub async fn verify_room_token(
     if room.is_expired() {
         return Err(HttpResponse::Unauthorized().message("Room expired"));
     }
+    if !room.can_enter() {
+        return Err(HttpResponse::Unauthorized().message("Room cannot be entered"));
+    }
 
     let token_repo = SqliteRoomTokenRepository::new(app_state.db_pool.clone());
     let record = token_repo
