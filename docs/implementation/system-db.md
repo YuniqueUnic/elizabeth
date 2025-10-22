@@ -207,8 +207,8 @@ let connect_options = SqliteConnectOptions::from_str(database_url)?
 ### 数据库初始化 API
 
 ```rust
-// 初始化数据库连接池 ([`crates/board/src/db/mod.rs:17`](crates/board/src/db/mod.rs:17))
-pub async fn init_db(database_url: &str) -> Result<DbPool>
+// 初始化数据库连接池 ([`crates/board/src/db/mod.rs:15`](crates/board/src/db/mod.rs:15))
+pub async fn init_db(settings: &DbPoolSettings) -> Result<DbPool>
 
 // 运行数据库迁移 ([`crates/board/src/db/mod.rs:40`](crates/board/src/db/mod.rs:40))
 pub async fn run_migrations(pool: &DbPool) -> Result<()>
@@ -288,19 +288,21 @@ JWT 令牌的 JTI (JWT ID) 存储在 `room_tokens` 表中，用于：
 ### 数据库初始化
 
 ```rust
-// 数据库连接池初始化 ([`crates/board/src/db/mod.rs:17`](crates/board/src/db/mod.rs:17))
-pub async fn init_db(database_url: &str) -> Result<DbPool> {
-    info!("初始化数据库连接池：{}", database_url);
+// 数据库连接池初始化 ([`crates/board/src/db/mod.rs:15`](crates/board/src/db/mod.rs:15))
+pub async fn init_db(settings: &DbPoolSettings) -> Result<DbPool> {
+    info!("初始化数据库连接池：{}", settings.url);
 
-    let connect_options = SqliteConnectOptions::from_str(database_url)?
+    let connect_options = SqliteConnectOptions::from_str(&settings.url)?
         .create_if_missing(true)
         .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
         .synchronous(sqlx::sqlite::SqliteSynchronous::Normal)
         .busy_timeout(std::time::Duration::from_secs(30));
 
+    let (max_connections, min_connections) = settings.resolve_connection_limits();
+
     let pool = SqlitePoolOptions::new()
-        .max_connections(20)
-        .min_connections(5)
+        .max_connections(max_connections)
+        .min_connections(min_connections)
         .acquire_timeout(std::time::Duration::from_secs(30))
         .idle_timeout(std::time::Duration::from_secs(600))
         .max_lifetime(std::time::Duration::from_secs(1800))

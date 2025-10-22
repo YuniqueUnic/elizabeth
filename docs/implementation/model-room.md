@@ -16,6 +16,7 @@ pub struct Room {
     pub name: String,                 // 房间显示名称，唯一
     pub slug: String,                 // 房间访问标识，可用于 URL
     pub password: Option<String>,     // 房间密码（明文存储）
+                                            // ⚠️ 安全警告：当前版本使用明文存储密码，存在安全风险。建议在生产环境中使用 bcrypt 或 argon2 进行哈希存储。
     pub status: RoomStatus,           // 房间状态：Open=0, Lock=1, Close=2
     pub max_size: i64,               // 最大容量限制（字节），默认 10MB
     pub current_size: i64,           // 当前已用容量（字节）
@@ -40,8 +41,10 @@ pub struct Room {
 ## 3. 不变式 & 验证逻辑（业务规则）
 
 - **房间唯一性**：房间名称（`name`）在系统中必须唯一，通过数据库 UNIQUE 约束保证
-- **容量限制**：房间总内容大小不能超过 `max_size`（默认 10MB）
-- **访问次数限制**：进入房间次数不能超过 `max_times_entered`（默认 100 次）
+- **容量限制**：房间总内容大小不能超过 `max_size`（默认
+  `DEFAULT_MAX_ROOM_CONTENT_SIZE` = 10MB）
+- **访问次数限制**：进入房间次数不能超过 `max_times_entered`（默认
+  `DEFAULT_MAX_TIMES_ENTER_ROOM` = 100 次）
 - **过期控制**：如果设置了 `expire_at`，超过该时间后房间不可进入
 - **状态管理**：只有 `Open` 状态且未过期且未超限的房间才能进入
 - **全局过期检查**：所有房间相关操作都会检查房间是否过期，过期房间将被视为不存在
@@ -152,9 +155,9 @@ pub fn new(name: String, password: Option<String>) -> Self {
         name,
         password,
         status: RoomStatus::default(),
-        max_size: MAX_ROOM_CONTENT_SIZE, // 10MB
+        max_size: DEFAULT_MAX_ROOM_CONTENT_SIZE, // 10MB
         current_size: 0,
-        max_times_entered: MAX_TIMES_ENTER_ROOM,
+        max_times_entered: DEFAULT_MAX_TIMES_ENTER_ROOM,
         current_times_entered: 0,
         expire_at: None,
         created_at: now,
@@ -222,7 +225,11 @@ pub fn can_add_content(&self, content_size: i64) -> bool {
 
 **P0 优先级**：
 
-- **密码存储安全**：当前密码以明文存储，应使用 bcrypt 或 argon2 进行哈希存储
+- **密码存储安全**：当前密码以明文存储，存在严重安全风险
+  - **问题描述**：房间密码直接以明文形式存储在数据库中，任何能访问数据库的人都能看到原始密码
+  - **安全影响**：违反了安全最佳实践，可能导致密码泄露和未授权访问
+  - **建议解决方案**：使用 bcrypt 或 argon2 进行哈希存储，增加盐值和迭代次数
+  - **实施建议**：在下一个版本中实现密码哈希，并提供迁移脚本处理现有数据
 - **容量计算精度**：文本内容的容量计算使用 `text.len()`，未考虑实际编码开销
 
 **P1 优先级**：
