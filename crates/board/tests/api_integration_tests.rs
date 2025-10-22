@@ -15,8 +15,11 @@ use tower::util::ServiceExt;
 use uuid::Uuid;
 
 use board::models::room::{DEFAULT_MAX_ROOM_CONTENT_SIZE, DEFAULT_MAX_TIMES_ENTER_ROOM};
+use board::repository::room_refresh_token_repository::{
+    SqliteRoomRefreshTokenRepository, SqliteTokenBlacklistRepository,
+};
 use board::route::room::api_router;
-use board::services::RoomTokenService;
+use board::services::{RoomTokenService, refresh_token_service::RefreshTokenService};
 use board::state::{AppState, RoomDefaults};
 
 const TEST_UPLOAD_RESERVATION_TTL_SECONDS: i64 = 10;
@@ -33,6 +36,13 @@ async fn create_test_app() -> Result<(Router, SqlitePool)> {
         RoomTokenService::with_config(Arc::new("test-secret".to_string()), 30 * 60, 5);
     let storage_root =
         std::env::temp_dir().join(format!("elizabeth-board-tests-{}", Uuid::new_v4()));
+
+    // 创建刷新令牌服务
+    let refresh_repo = Arc::new(SqliteRoomRefreshTokenRepository::new(pool_arc.clone()));
+    let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(pool_arc.clone()));
+    let refresh_service =
+        RefreshTokenService::with_defaults(token_service.clone(), refresh_repo, blacklist_repo);
+
     let app_state = Arc::new(AppState::new(
         pool_arc,
         storage_root,
@@ -42,6 +52,7 @@ async fn create_test_app() -> Result<(Router, SqlitePool)> {
             max_times_entered: DEFAULT_MAX_TIMES_ENTER_ROOM,
         },
         token_service,
+        refresh_service,
     ));
     let app = api_router(app_state).into();
 

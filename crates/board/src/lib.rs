@@ -21,7 +21,10 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 use crate::db::{DbPoolSettings, init_db, run_migrations};
 use crate::handlers::content::{DEFAULT_STORAGE_ROOT, DEFAULT_UPLOAD_RESERVATION_TTL_SECONDS};
 use crate::init::{cfg_service, const_service, log_service};
-use crate::services::RoomTokenService;
+use crate::repository::room_refresh_token_repository::{
+    SqliteRoomRefreshTokenRepository, SqliteTokenBlacklistRepository,
+};
+use crate::services::{RoomTokenService, refresh_token_service::RefreshTokenService};
 use crate::state::{AppState, RoomDefaults};
 use configrs::Config;
 
@@ -61,6 +64,17 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
         cfg.app.jwt.leeway_seconds,
     );
 
+    // 创建刷新令牌仓库
+    let refresh_token_repo = Arc::new(SqliteRoomRefreshTokenRepository::new(db_pool.clone()));
+    let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(db_pool.clone()));
+
+    // 创建刷新令牌服务
+    let refresh_token_service = RefreshTokenService::with_defaults(
+        token_service.clone(),
+        refresh_token_repo,
+        blacklist_repo,
+    );
+
     let room_defaults = RoomDefaults {
         max_size: cfg.app.room.max_size,
         max_times_entered: cfg.app.room.max_times_entered,
@@ -83,6 +97,7 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
         Duration::seconds(upload_ttl_seconds),
         room_defaults,
         token_service,
+        refresh_token_service,
     ));
 
     let addr: SocketAddr = format!("{}:{}", cfg.app.server.addr, cfg.app.server.port).parse()?;
@@ -103,11 +118,16 @@ fn build_api_router(app_state: Arc<AppState>) -> (String, axum::Router) {
         .routes(routes!(route::openapi))
         .split_for_parts();
     let (status_router, status_api) = route::status::api_router().split_for_parts();
-    let (room_router, room_api) = route::room::api_router(app_state).split_for_parts();
+    let (room_router, room_api) = route::room::api_router(app_state.clone()).split_for_parts();
+    let (auth_router, auth_api) = route::auth::auth_router(app_state).split_for_parts();
 
-    let router = root_router.merge(status_router).merge(room_router);
+    let router = root_router
+        .merge(status_router)
+        .merge(room_router)
+        .merge(auth_router);
     api.merge(status_api);
     api.merge(room_api);
+    api.merge(auth_api);
 
     let (scalar, scalar_path) = route::scalar(api);
     let router = router.merge(scalar);
