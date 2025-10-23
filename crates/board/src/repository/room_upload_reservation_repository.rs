@@ -6,7 +6,9 @@ use chrono::{Duration, NaiveDateTime, Utc};
 use sqlx::{Executor, Sqlite, Transaction};
 
 use crate::db::DbPool;
-use crate::models::{Room, RoomStatus, RoomUploadReservation, permission::RoomPermission};
+use crate::models::{
+    Room, RoomStatus, RoomUploadReservation, UploadStatus, permission::RoomPermission,
+};
 
 #[async_trait]
 pub trait IRoomUploadReservationRepository: Send + Sync {
@@ -195,7 +197,13 @@ impl IRoomUploadReservationRepository for SqliteRoomUploadReservationRepository 
                 expires_at,
                 consumed_at,
                 created_at,
-                updated_at
+                updated_at,
+                chunked_upload,
+                total_chunks,
+                uploaded_chunks,
+                file_hash,
+                chunk_size,
+                upload_status as "upload_status: UploadStatus"
             FROM room_upload_reservations
             WHERE id = ?
             "#,
@@ -238,7 +246,13 @@ impl IRoomUploadReservationRepository for SqliteRoomUploadReservationRepository 
                 expires_at,
                 consumed_at,
                 created_at,
-                updated_at
+                updated_at,
+                chunked_upload,
+                total_chunks,
+                uploaded_chunks,
+                file_hash,
+                chunk_size,
+                upload_status as "upload_status: UploadStatus"
             FROM room_upload_reservations
             WHERE id = ? AND room_id = ?
             "#,
@@ -407,7 +421,13 @@ impl IRoomUploadReservationRepository for SqliteRoomUploadReservationRepository 
                 expires_at,
                 consumed_at,
                 created_at,
-                updated_at
+                updated_at,
+                chunked_upload,
+                total_chunks,
+                uploaded_chunks,
+                file_hash,
+                chunk_size,
+                upload_status as "upload_status: UploadStatus"
             FROM room_upload_reservations
             WHERE id = ?
             "#,
