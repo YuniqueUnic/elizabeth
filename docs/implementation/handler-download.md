@@ -359,3 +359,4 @@ fn ensure_permission(
 - [权限模型文档](model-permissions.md)
 - [上传处理器文档](handler-upload.md)
 - [令牌处理器文档](handler-token.md)
+- [刷新令牌处理器文档](handler-refresh-token.md)

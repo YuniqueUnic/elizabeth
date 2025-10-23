@@ -329,3 +329,4 @@ pub async fn upload_contents(
 - [房间模型文档](model-room.md)
 - [权限模型文档](model-permissions.md)
 - [令牌处理器文档](handler-token.md)
+- [刷新令牌处理器文档](handler-refresh-token.md)

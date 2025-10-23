@@ -497,5 +497,6 @@ pub async fn update_permissions(
 
 - [权限模型文档](model-permissions.md)
 - [令牌处理器文档](handler-token.md)
+- [刷新令牌处理器文档](handler-refresh-token.md)
 - [上传处理器文档](handler-upload.md)
 - [下载处理器文档](handler-download.md)
