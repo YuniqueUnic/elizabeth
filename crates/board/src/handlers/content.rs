@@ -499,6 +499,8 @@ pub async fn upload_contents(
             name: temp.name.clone(),
             size: temp.size,
             mime: temp.mime.clone(),
+            chunk_size: None, // 普通上传不支持分块
+            file_hash: None,  // 普通上传不提供文件哈希
         })
         .collect();
     let actual_manifest_json = serde_json::to_string(&actual_manifest).map_err(|e| {

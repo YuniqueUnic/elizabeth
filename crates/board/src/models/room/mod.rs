@@ -5,6 +5,7 @@ use utoipa::ToSchema;
 
 use crate::models::permission::RoomPermission;
 
+pub mod chunk_upload;
 pub mod content;
 pub mod metric;
 pub mod permission;
@@ -12,12 +13,17 @@ pub mod refresh_token;
 pub mod token;
 pub mod upload_reservation;
 
+pub use chunk_upload::{
+    ChunkStatus, ChunkStatusInfo, ChunkUploadRequest, ChunkUploadResponse,
+    ChunkedUploadStatusResponse, FileMergeRequest, FileMergeResponse, MergedFileInfo,
+    RoomChunkUpload,
+};
 pub use refresh_token::{
     CreateRefreshTokenRequest, RefreshTokenRequest, RefreshTokenResponse, RoomRefreshToken,
     TokenBlacklistEntry,
 };
 pub use token::RoomToken;
-pub use upload_reservation::{RoomUploadReservation, UploadFileDescriptor};
+pub use upload_reservation::{RoomUploadReservation, UploadFileDescriptor, UploadStatus};
 
 pub const DEFAULT_MAX_TIMES_ENTER_ROOM: i64 = 100;
 pub const DEFAULT_MAX_ROOM_CONTENT_SIZE: i64 = 10 * 1024 * 1024;
