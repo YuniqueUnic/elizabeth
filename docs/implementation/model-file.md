@@ -114,46 +114,122 @@ CREATE TABLE IF NOT EXISTS room_upload_reservations (
   - 查询参数：`token: String`
   - 输出：`Vec<RoomContentView>`
   - 要求：预览权限
+  - 实际路由：`crates/board/src/route/room.rs:25`
+  - 处理函数：`crates/board/src/handlers/content.rs:list_contents`
 
 - `POST /api/v1/rooms/{name}/contents/prepare` - 预留上传空间
   - 查询参数：`token: String`
   - 输入：`UploadPreparationRequest { files: Vec<UploadFileDescriptor> }`
   - 输出：`UploadPreparationResponse { reservation_id: i64, reserved_size: i64, ... }`
   - 要求：编辑权限
+  - 实际路由：`crates/board/src/route/room.rs:21`
+  - 处理函数：`crates/board/src/handlers/content.rs:prepare_upload`
 
 - `POST /api/v1/rooms/{name}/contents` - 上传文件内容
   - 查询参数：`token: String, reservation_id: i64`
   - 输入：`multipart/form-data` 文件数据
   - 输出：`UploadContentResponse { uploaded: Vec<RoomContentView>, current_size: i64 }`
   - 要求：编辑权限
+  - 实际路由：`crates/board/src/route/room.rs:23`
+  - 处理函数：`crates/board/src/handlers/content.rs:upload_contents`
 
 - `DELETE /api/v1/rooms/{name}/contents` - 删除房间内容
   - 查询参数：`token: String`
   - 输入：`DeleteContentRequest { ids: Vec<i64> }`
   - 输出：`DeleteContentResponse { deleted: Vec<i64>, freed_size: i64, current_size: i64 }`
   - 要求：删除权限
+  - 实际路由：`crates/board/src/route/room.rs:26`
+  - 处理函数：`crates/board/src/handlers/content.rs:delete_contents`
 
 - `GET /api/v1/rooms/{name}/contents/{content_id}` - 下载文件内容
   - 查询参数：`token: String`
   - 输出：文件流响应
   - 要求：预览权限
+  - 实际路由：`crates/board/src/route/room.rs:29`
+  - 处理函数：`crates/board/src/handlers/content.rs:download_content`
+
+**数据结构定义**（基于实际代码实现）：
+
+```rust
+// 上传文件描述符
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct UploadFileDescriptor {
+    pub name: String,           // 文件名
+    pub size: i64,            // 文件大小
+    pub mime: Option<String>,  // MIME 类型
+}
+
+// 上传准备请求
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct UploadPreparationRequest {
+    pub files: Vec<UploadFileDescriptor>,
+}
+
+// 上传准备响应
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct UploadPreparationResponse {
+    pub reservation_id: i64,
+    pub reserved_size: i64,
+    pub expires_at: String,  // ISO 8601 格式
+    pub current_size: i64,
+    pub remaining_size: i64,
+    pub max_size: i64,
+}
+
+// 上传内容响应
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct UploadContentResponse {
+    pub uploaded: Vec<RoomContentView>,
+    pub current_size: i64,
+}
+
+// 删除内容请求
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct DeleteContentRequest {
+    pub ids: Vec<i64>,
+}
+
+// 删除内容响应
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct DeleteContentResponse {
+    pub deleted: Vec<i64>,
+    pub freed_size: i64,
+    pub current_size: i64,
+}
+
+// 房间内容视图（用于 API 响应）
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct RoomContentView {
+    pub id: i64,
+    pub room_id: i64,
+    pub content_type: ContentType,
+    pub text: Option<String>,
+    pub url: Option<String>,
+    pub path: Option<String>,
+    pub size: Option<i64>,
+    pub mime_type: Option<String>,
+    pub created_at: String,  // ISO 8601 格式
+    pub updated_at: String,  // ISO 8601 格式
+}
+```
 
 **请求/响应示例**：
 
-```json
-// 预留上传空间请求
-POST /api/v1/rooms/myroom/contents/prepare?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-{
-  "files": [
-    {
-      "name": "document.pdf",
-      "size": 1024000,
-      "mime": "application/pdf"
-    }
-  ]
-}
+```bash
+# 1. 预留上传空间
+curl -X POST "http://localhost:8080/api/v1/rooms/myroom/contents/prepare?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "files": [
+      {
+        "name": "document.pdf",
+        "size": 1024000,
+        "mime": "application/pdf"
+      }
+    ]
+  }'
 
-// 响应
+# 响应
 {
   "reservation_id": 123,
   "reserved_size": 1024000,
@@ -161,6 +237,103 @@ POST /api/v1/rooms/myroom/contents/prepare?token=eyJhbGciOiJIUzI1NiIsInR5cCI6Ikp
   "current_size": 512000,
   "remaining_size": 9502720,
   "max_size": 10485760
+}
+
+# 2. 上传文件
+curl -X POST "http://localhost:8080/api/v1/rooms/myroom/contents?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...&reservation_id=123" \
+  -F "file=@document.pdf"
+
+# 响应
+{
+  "uploaded": [
+    {
+      "id": 456,
+      "room_id": 789,
+      "content_type": "file",
+      "text": null,
+      "url": null,
+      "path": "storage/rooms/789/uuid-document.pdf",
+      "size": 1024000,
+      "mime_type": "application/pdf",
+      "created_at": "2024-01-01T00:05:00",
+      "updated_at": "2024-01-01T00:05:00"
+    }
+  ],
+  "current_size": 1536000
+}
+
+# 3. 获取房间内容列表
+curl -X GET "http://localhost:8080/api/v1/rooms/myroom/contents?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+# 响应
+[
+  {
+    "id": 456,
+    "room_id": 789,
+    "content_type": "file",
+    "text": null,
+    "url": null,
+    "path": "storage/rooms/789/uuid-document.pdf",
+    "size": 1024000,
+    "mime_type": "application/pdf",
+    "created_at": "2024-01-01T00:05:00",
+    "updated_at": "2024-01-01T00:05:00"
+  },
+  {
+    "id": 457,
+    "room_id": 789,
+    "content_type": "text",
+    "text": "Hello, World!",
+    "url": null,
+    "path": null,
+    "size": 13,
+    "mime_type": "text/plain",
+    "created_at": "2024-01-01T00:06:00",
+    "updated_at": "2024-01-01T00:06:00"
+  }
+]
+
+# 4. 下载文件
+curl -X GET "http://localhost:8080/api/v1/rooms/myroom/contents/456?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -o downloaded_document.pdf
+
+# 5. 删除内容
+curl -X DELETE "http://localhost:8080/api/v1/rooms/myroom/contents?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ids": [456]
+  }'
+
+# 响应
+{
+  "deleted": [456],
+  "freed_size": 1024000,
+  "current_size": 13
+}
+```
+
+**错误响应示例**：
+
+```json
+// 容量超限错误
+{
+  "error": "Room size limit exceeded",
+  "code": 413,
+  "message": "The uploaded file would exceed the room's maximum size limit"
+}
+
+// 权限不足错误
+{
+  "error": "Permission denied",
+  "code": 403,
+  "message": "You don't have EDITABLE permission for this room"
+}
+
+// 预留过期错误
+{
+  "error": "Reservation expired",
+  "code": 410,
+  "message": "The upload reservation has expired"
 }
 ```
 
