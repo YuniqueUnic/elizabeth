@@ -10,12 +10,14 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
 use tokio::fs;
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use uuid::Uuid;
 
 use crate::{
     models::room::{
-        chunk_upload::{ChunkStatus, RoomChunkUpload},
+        chunk_upload::{
+            ChunkStatus, FileMergeRequest, FileMergeResponse, MergedFileInfo, RoomChunkUpload,
+        },
         upload_reservation::{
             ChunkedUploadPreparationRequest, RoomUploadReservation, UploadFileDescriptor,
             UploadStatus,
@@ -682,4 +684,285 @@ pub async fn get_upload_status(
     };
 
     Ok(Json(response))
+}
+
+/// 完成文件合并
+#[utoipa::path(
+    post,
+    path = "/api/v1/rooms/{name}/uploads/chunks/complete",
+    params(
+        ("name" = String, Path, description = "房间名称")
+    ),
+    request_body = FileMergeRequest,
+    responses(
+        (status = 200, description = "文件合并成功", body = FileMergeResponse),
+        (status = 400, description = "请求参数错误"),
+        (status = 403, description = "权限不足"),
+        (status = 404, description = "房间不存在或预留记录不存在"),
+        (status = 409, description = "文件合并冲突或状态不正确"),
+        (status = 500, description = "服务器内部错误")
+    ),
+    tag = "chunked-upload"
+)]
+pub async fn complete_file_merge(
+    Path(room_name): Path<String>,
+    State(app_state): State<Arc<AppState>>,
+    Json(payload): Json<FileMergeRequest>,
+) -> HandlerResult<FileMergeResponse> {
+    // 验证房间名称
+    if room_name.is_empty() {
+        return Err(HttpResponse::BadRequest().message("房间名称不能为空"));
+    }
+
+    // 查找房间
+    let room_repository = SqliteRoomRepository::new(app_state.db_pool.clone());
+    let room = room_repository
+        .find_by_name(&room_name)
+        .await
+        .map_err(|e| {
+            HttpResponse::InternalServerError().message(format!("数据库查询错误：{}", e))
+        })?;
+
+    let room = room.ok_or_else(|| HttpResponse::NotFound().message("房间不存在"))?;
+
+    // 查找预留记录
+    let reservation_repository =
+        SqliteRoomUploadReservationRepository::new(app_state.db_pool.clone());
+    let reservation = reservation_repository
+        .fetch_by_id(payload.reservation_id)
+        .await
+        .map_err(|e| {
+            HttpResponse::InternalServerError().message(format!("查询预留记录失败：{}", e))
+        })?;
+
+    let reservation =
+        reservation.ok_or_else(|| HttpResponse::NotFound().message("预留记录不存在"))?;
+
+    // 验证预留记录是否属于指定房间
+    if reservation.room_id != room.id.expect("房间 ID 不能为空") {
+        return Err(HttpResponse::Forbidden().message("预留记录不属于指定房间"));
+    }
+
+    // 验证预留记录是否为分块上传
+    if reservation.chunked_upload != Some(true) {
+        return Err(HttpResponse::BadRequest().message("非分块上传预留记录"));
+    }
+
+    // 验证预留记录是否已过期
+    if reservation.expires_at < Utc::now().naive_utc() {
+        return Err(HttpResponse::Forbidden().message("预留记录已过期"));
+    }
+
+    // 验证预留记录状态
+    if reservation.upload_status == Some(UploadStatus::Completed) {
+        return Err(HttpResponse::Conflict().message("文件已完成合并"));
+    }
+
+    if reservation.upload_status == Some(UploadStatus::Failed) {
+        return Err(HttpResponse::Conflict().message("上传已失败，无法合并"));
+    }
+
+    // 查询所有分块记录
+    let chunk_repository = SqliteRoomChunkUploadRepository::new(app_state.db_pool.clone());
+    let chunks = chunk_repository
+        .find_by_reservation_id(payload.reservation_id)
+        .await
+        .map_err(|e| {
+            HttpResponse::InternalServerError().message(format!("查询分块记录失败：{}", e))
+        })?;
+
+    // 验证所有分块是否已上传
+    let total_chunks = reservation.total_chunks.unwrap_or(0);
+    if total_chunks == 0 {
+        return Err(HttpResponse::BadRequest().message("总分块数为 0"));
+    }
+
+    if chunks.len() != total_chunks as usize {
+        return Err(HttpResponse::BadRequest().message(format!(
+            "分块未全部上传，已上传：{}，总分块：{}",
+            chunks.len(),
+            total_chunks
+        )));
+    }
+
+    // 验证所有分块状态
+    for chunk in &chunks {
+        if !chunk.is_uploaded() {
+            return Err(
+                HttpResponse::BadRequest().message(format!("分块{}未上传完成", chunk.chunk_index))
+            );
+        }
+    }
+
+    // 按分块索引排序
+    let mut sorted_chunks = chunks;
+    sorted_chunks.sort_by_key(|chunk| chunk.chunk_index);
+
+    // 创建临时目录和合并文件
+    let temp_dir = format!("/tmp/elizabeth/chunks/{}/", payload.reservation_id);
+    let final_file_path = format!("{}/merged_file", temp_dir);
+
+    // 执行文件合并
+    match merge_chunks(&sorted_chunks, &final_file_path).await {
+        Ok(_) => {
+            // 验证合并后文件的哈希
+            match verify_file_hash(&final_file_path, &payload.final_hash).await {
+                Ok(true) => {
+                    // 移动文件到最终存储位置
+                    let storage_dir =
+                        format!("storage/rooms/{}/", room.id.expect("房间 ID 不能为空"));
+                    fs::create_dir_all(&storage_dir).await.map_err(|e| {
+                        HttpResponse::InternalServerError()
+                            .message(format!("创建存储目录失败：{}", e))
+                    })?;
+
+                    // 从文件清单中获取文件名
+                    let file_manifest: Vec<UploadFileDescriptor> =
+                        serde_json::from_str(&reservation.file_manifest).map_err(|e| {
+                            HttpResponse::InternalServerError()
+                                .message(format!("解析文件清单失败：{}", e))
+                        })?;
+
+                    if file_manifest.is_empty() {
+                        return Err(HttpResponse::InternalServerError().message("文件清单为空"));
+                    }
+
+                    let file_name = &file_manifest[0].name;
+                    let final_storage_path = format!("{}{}", storage_dir, file_name);
+
+                    // 移动合并后的文件到最终位置
+                    fs::rename(&final_file_path, &final_storage_path)
+                        .await
+                        .map_err(|e| {
+                            HttpResponse::InternalServerError()
+                                .message(format!("移动文件失败：{}", e))
+                        })?;
+
+                    // 更新预留记录状态为已完成
+                    reservation_repository
+                        .update_upload_status(payload.reservation_id, UploadStatus::Completed)
+                        .await
+                        .map_err(|e| {
+                            HttpResponse::InternalServerError()
+                                .message(format!("更新上传状态失败：{}", e))
+                        })?;
+
+                    // 设置预留记录为已消费
+                    reservation_repository
+                        .consume_upload(payload.reservation_id)
+                        .await
+                        .map_err(|e| {
+                            HttpResponse::InternalServerError()
+                                .message(format!("消费预留记录失败：{}", e))
+                        })?;
+
+                    // 清理临时分块文件
+                    if let Err(e) = fs::remove_dir_all(&temp_dir).await {
+                        logrs::error!("清理临时文件失败：{}", e);
+                    }
+
+                    // 构建响应
+                    let file_info = MergedFileInfo {
+                        name: file_name.clone(),
+                        size: file_manifest[0].size,
+                        hash: payload.final_hash.clone(),
+                        path: final_storage_path,
+                    };
+
+                    let response = FileMergeResponse {
+                        reservation_id: payload.reservation_id,
+                        upload_status: UploadStatus::Completed.to_string(),
+                        file_info,
+                    };
+
+                    Ok(Json(response))
+                }
+                Ok(false) => {
+                    // 哈希验证失败
+                    // 清理合并文件
+                    let _ = fs::remove_file(&final_file_path).await;
+
+                    // 更新预留记录状态为失败
+                    let _ = reservation_repository
+                        .update_upload_status(payload.reservation_id, UploadStatus::Failed)
+                        .await;
+
+                    Err(HttpResponse::BadRequest().message("文件哈希验证失败"))
+                }
+                Err(e) => {
+                    // 哈希验证错误
+                    // 清理合并文件
+                    let _ = fs::remove_file(&final_file_path).await;
+
+                    // 更新预留记录状态为失败
+                    let _ = reservation_repository
+                        .update_upload_status(payload.reservation_id, UploadStatus::Failed)
+                        .await;
+
+                    Err(HttpResponse::InternalServerError()
+                        .message(format!("文件哈希验证失败：{}", e)))
+                }
+            }
+        }
+        Err(e) => {
+            // 文件合并失败
+            // 更新预留记录状态为失败
+            let _ = reservation_repository
+                .update_upload_status(payload.reservation_id, UploadStatus::Failed)
+                .await;
+
+            Err(HttpResponse::InternalServerError().message(format!("文件合并失败：{}", e)))
+        }
+    }
+}
+
+/// 合并分块文件
+async fn merge_chunks(
+    chunks: &[RoomChunkUpload],
+    output_path: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    use tokio::fs::File;
+    use tokio::io::AsyncWriteExt;
+
+    let mut output_file = File::create(output_path).await?;
+
+    for chunk in chunks {
+        let chunk_path = format!(
+            "/tmp/elizabeth/chunks/{}/chunk_{}",
+            chunk.reservation_id, chunk.chunk_index
+        );
+        let mut chunk_file = File::open(&chunk_path).await?;
+
+        let mut buffer = vec![0u8; chunk.chunk_size as usize];
+        chunk_file.read_exact(&mut buffer).await?;
+
+        output_file.write_all(&buffer).await?;
+    }
+
+    output_file.flush().await?;
+    Ok(())
+}
+
+/// 验证文件哈希
+async fn verify_file_hash(
+    file_path: &str,
+    expected_hash: &str,
+) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+    use tokio::fs::File;
+    use tokio::io::AsyncReadExt;
+
+    let mut file = File::open(file_path).await?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0; 8192];
+
+    loop {
+        let bytes_read = file.read(&mut buffer).await?;
+        if bytes_read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..bytes_read]);
+    }
+
+    let calculated_hash = hex::encode(hasher.finalize());
+    Ok(calculated_hash == expected_hash)
 }

@@ -4,7 +4,7 @@ use sqlx::{FromRow, Type};
 use utoipa::ToSchema;
 
 /// 上传状态枚举
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, ToSchema, PartialEq)]
 #[sqlx(type_name = "text")]
 #[derive(Default)]
 pub enum UploadStatus {
