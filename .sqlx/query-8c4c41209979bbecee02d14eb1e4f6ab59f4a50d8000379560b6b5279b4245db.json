@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            INSERT INTO token_blacklist (jti, expires_at, created_at)\n            VALUES (?, ?, ?)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "8c4c41209979bbecee02d14eb1e4f6ab59f4a50d8000379560b6b5279b4245db"
+}
