@@ -56,5 +56,9 @@ pub fn api_router(app_state: Arc<AppState>) -> utoipa_axum::router::OpenApiRoute
             "/api/v1/rooms/{name}/uploads/chunks/status",
             axum_get(crate::handlers::get_upload_status),
         )
+        .route(
+            "/api/v1/rooms/{name}/uploads/chunks/complete",
+            axum_post(crate::handlers::complete_file_merge),
+        )
         .with_state(app_state)
 }

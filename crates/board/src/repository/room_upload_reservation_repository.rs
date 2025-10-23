@@ -45,6 +45,10 @@ pub trait IRoomUploadReservationRepository: Send + Sync {
 
     async fn update_uploaded_chunks(&self, reservation_id: i64, uploaded_chunks: i64)
     -> Result<()>;
+
+    async fn update_upload_status(&self, reservation_id: i64, status: UploadStatus) -> Result<()>;
+
+    async fn consume_upload(&self, reservation_id: i64) -> Result<()>;
 }
 
 pub struct SqliteRoomUploadReservationRepository {
@@ -528,6 +532,39 @@ impl IRoomUploadReservationRepository for SqliteRoomUploadReservationRepository 
             WHERE id = ?
             "#,
             uploaded_chunks,
+            reservation_id
+        )
+        .execute(&*self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    async fn update_upload_status(&self, reservation_id: i64, status: UploadStatus) -> Result<()> {
+        sqlx::query!(
+            r#"
+            UPDATE room_upload_reservations
+            SET upload_status = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            "#,
+            status,
+            reservation_id
+        )
+        .execute(&*self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    async fn consume_upload(&self, reservation_id: i64) -> Result<()> {
+        let now = Utc::now().naive_utc();
+        sqlx::query!(
+            r#"
+            UPDATE room_upload_reservations
+            SET consumed_at = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            "#,
+            now,
             reservation_id
         )
         .execute(&*self.pool)
