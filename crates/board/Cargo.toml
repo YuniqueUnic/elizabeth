@@ -38,8 +38,8 @@ clap = { version = "4", features = ["derive", "env"] }
 clap_complete = { version = "4", optional = true }
 
 tokio = { version = "1", features = ["full"] }
-axum = { version = "0.8.6", features = ["multipart"] }
-axum_responses = "0.4.4"
+axum = { version = "0.8", features = ["multipart"] }
+axum_responses = "0.4"
 
 serde = { version = "1", features = ["derive"] }
 serde_with = { version = "3", features = ["chrono"] }
