@@ -44,5 +44,17 @@ pub fn api_router(app_state: Arc<AppState>) -> utoipa_axum::router::OpenApiRoute
             "/api/v1/rooms/{name}/contents/{content_id}",
             axum_get(download_content),
         )
+        .route(
+            "/api/v1/rooms/{name}/uploads/chunks/prepare",
+            axum_post(crate::handlers::prepare_chunked_upload),
+        )
+        .route(
+            "/api/v1/rooms/{name}/uploads/chunks",
+            axum_post(crate::handlers::upload_chunk),
+        )
+        .route(
+            "/api/v1/rooms/{name}/uploads/chunks/status",
+            axum_get(crate::handlers::get_upload_status),
+        )
         .with_state(app_state)
 }

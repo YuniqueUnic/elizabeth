@@ -31,8 +31,8 @@ impl std::fmt::Display for ChunkStatus {
 pub struct RoomChunkUpload {
     pub id: Option<i64>,
     pub reservation_id: i64,        // 关联的预留 ID
-    pub chunk_index: i32,           // 分块索引（从 0 开始）
-    pub chunk_size: i32,            // 分块大小
+    pub chunk_index: i64,           // 分块索引（从 0 开始）
+    pub chunk_size: i64,            // 分块大小
     pub chunk_hash: Option<String>, // 分块哈希值
     pub upload_status: ChunkStatus, // 分块状态
     pub created_at: NaiveDateTime,
@@ -42,24 +42,24 @@ pub struct RoomChunkUpload {
 /// 分块上传请求
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ChunkUploadRequest {
-    pub chunk_index: i32,
+    pub chunk_index: i64,
     pub chunk_hash: String,
 }
 
 /// 分块上传响应
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ChunkUploadResponse {
-    pub chunk_index: i32,
+    pub chunk_index: i64,
     pub upload_status: ChunkStatus,
-    pub uploaded_chunks: i32,
-    pub total_chunks: i32,
+    pub uploaded_chunks: i64,
+    pub total_chunks: i64,
     pub upload_progress: f64,
 }
 
 /// 分块状态信息
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ChunkStatusInfo {
-    pub chunk_index: i32,
+    pub chunk_index: i64,
     pub status: ChunkStatus,
     pub chunk_hash: Option<String>,
     pub created_at: NaiveDateTime,
@@ -71,8 +71,8 @@ pub struct ChunkStatusInfo {
 pub struct ChunkedUploadStatusResponse {
     pub reservation_id: i64,
     pub upload_status: String,
-    pub total_chunks: i32,
-    pub uploaded_chunks: i32,
+    pub total_chunks: i64,
+    pub uploaded_chunks: i64,
     pub upload_progress: f64,
     pub chunk_status: Vec<ChunkStatusInfo>,
 }
@@ -105,8 +105,8 @@ impl RoomChunkUpload {
     /// 创建新的分块上传记录
     pub fn new(
         reservation_id: i64,
-        chunk_index: i32,
-        chunk_size: i32,
+        chunk_index: i64,
+        chunk_size: i64,
         chunk_hash: Option<String>,
     ) -> Self {
         let now = chrono::Utc::now().naive_utc();
