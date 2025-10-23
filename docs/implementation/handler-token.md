@@ -41,7 +41,7 @@
 - ValidateTokenRequest: 令牌验证请求
 - ValidateTokenResponse: 令牌验证响应（声明信息）
 
-> 数据库表：`room_tokens`（迁移文件：`crates/board/migrations/005_create_room_tokens_table.sql`）
+> 数据库表：`room_tokens`（迁移文件：`crates/board/migrations/001_initial_schema.sql`）
 
 ## 3. 不变式 & 验证逻辑
 
@@ -450,8 +450,10 @@ pub async fn revoke_token(
 
 ### P0 优先级
 
-- **令牌刷新机制**：当前缺乏自动令牌刷新，建议实现滑动窗口刷新机制
-- **令牌黑名单**：撤销的令牌仅标记为撤销，建议实现全局黑名单机制
+- ~~**令牌刷新机制**：当前缺乏自动令牌刷新，建议实现滑动窗口刷新机制~~ ✅
+  **已实现**：通过 `RefreshTokenService` 和 `room_refresh_tokens` 表实现
+- ~~**令牌黑名单**：撤销的令牌仅标记为撤销，建议实现全局黑名单机制~~ ✅
+  **已实现**：通过 `token_blacklist` 表实现全局黑名单
 
 ### P1 优先级
 
@@ -474,7 +476,7 @@ pub async fn revoke_token(
 
 ### 数据库相关
 
-- 迁移文件：`crates/board/migrations/005_create_room_tokens_table.sql`
+- 迁移文件：`crates/board/migrations/001_initial_schema.sql`
 - 仓库实现：`crates/board/src/repository/room_token_repository.rs`
 
 ### 测试文件
