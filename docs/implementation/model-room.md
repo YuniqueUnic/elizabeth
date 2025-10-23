@@ -87,26 +87,139 @@ CREATE TABLE IF NOT EXISTS rooms (
 **核心端点列表**：
 
 - `POST /api/v1/rooms/{name}` - 创建房间
-  - 输入：`CreateRoomParams { password: Option<String> }`
+  - 查询参数：`password: Option<String>`
   - 输出：完整的 Room 对象
   - 错误：400（参数错误）、500（服务器错误）
+  - 实际路由：`crates/board/src/route/room.rs:14`
+  - 处理函数：`crates/board/src/handlers/rooms.rs:create`
 
 - `GET /api/v1/rooms/{name}` - 查找房间
   - 输出：Room 对象（如果可进入）
   - 错误：403（房间不可进入）、500（服务器错误）
+  - 实际路由：`crates/board/src/route/room.rs:15`
+  - 处理函数：`crates/board/src/handlers/rooms.rs:find`
 
 - `DELETE /api/v1/rooms/{name}` - 删除房间
+  - 查询参数：`token: String`
   - 输出：成功消息
   - 错误：404（房间不存在）、410（房间已过期）、500（服务器错误）
   - 过期检查：删除前会检查房间是否过期，过期房间无法删除
+  - 实际路由：`crates/board/src/route/room.rs:16`
+  - 处理函数：`crates/board/src/handlers/rooms.rs:delete`
 
 - `POST /api/v1/rooms/{name}/tokens` - 签发访问令牌
-  - 输入：`IssueTokenRequest { password: Option<String>, token: Option<String> }`
-  - 输出：`IssueTokenResponse { token: String, claims: RoomTokenClaims, expires_at: NaiveDateTime }`
+  - 输入：`CreateTokenRequest { password: Option<String>, edit: bool, share: bool, delete: bool, max_times_enter_room: Option<i32>, ttl_seconds: Option<i64> }`
+  - 输出：`CreateTokenResponse { token: String, jti: String, permission: u8, expires_at: String }`
+  - 实际路由：`crates/board/src/route/room.rs:18`
+  - 处理函数：`crates/board/src/handlers/rooms.rs:issue_token`
+
+- `GET /api/v1/rooms/{name}/tokens` - 列出房间令牌
+  - 查询参数：`token: String`
+  - 输出：`ListTokensResponse { tokens: Vec<TokenInfo> }`
+  - 实际路由：`crates/board/src/route/room.rs:19`
+  - 处理函数：`crates/board/src/handlers/rooms.rs:list_tokens`
+
+- `POST /api/v1/rooms/{name}/tokens/validate` - 验证令牌
+  - 输入：`ValidateTokenRequest { token: String }`
+  - 输出：`ValidateTokenResponse { valid: bool, room_id: i64, room_name: String, permission: u8, can_view: bool, can_edit: bool, can_share: bool, can_delete: bool, expires_at: Option<String> }`
+  - 实际路由：`crates/board/src/route/room.rs:21`
+  - 处理函数：`crates/board/src/handlers/rooms.rs:validate_token`
+
+- `DELETE /api/v1/rooms/{name}/tokens/{jti}` - 撤销令牌
+  - 查询参数：`token: String`
+  - 输出：成功消息
+  - 实际路由：`crates/board/src/route/room.rs:24`
+  - 处理函数：`crates/board/src/handlers/rooms.rs:revoke_token`
 
 - `POST /api/v1/rooms/{name}/permissions` - 更新房间权限
+  - 查询参数：`token: String`
   - 输入：`UpdateRoomPermissionRequest { edit: bool, share: bool, delete: bool }`
   - 输出：更新后的 Room 对象
+  - 实际路由：`crates/board/src/route/room.rs:19`
+  - 处理函数：`crates/board/src/handlers/rooms.rs:update_permissions`
+
+**数据结构定义**（基于实际代码实现）：
+
+```rust
+// 创建房间请求（通过查询参数传递密码）
+// POST /api/v1/rooms/{name}?password=secret123
+
+// 房间响应结构
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct RoomResponse {
+    pub id: i64,
+    pub name: String,
+    pub slug: String,
+    pub password: Option<String>,
+    pub status: i32,  // RoomStatus 枚举值
+    pub max_size: i64,
+    pub current_size: i64,
+    pub max_times_entered: i64,
+    pub current_times_entered: i64,
+    pub expire_at: Option<String>,  // ISO 8601 格式
+    pub created_at: String,  // ISO 8601 格式
+    pub updated_at: String,  // ISO 8601 格式
+    pub permission: u8,  // RoomPermission 位标志
+}
+
+// 创建令牌请求
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct CreateTokenRequest {
+    pub password: Option<String>,
+    pub edit: bool,
+    pub share: bool,
+    pub delete: bool,
+    pub max_times_enter_room: Option<i32>,
+    pub ttl_seconds: Option<i64>,
+}
+
+// 创建令牌响应
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct CreateTokenResponse {
+    pub token: String,
+    pub jti: String,
+    pub permission: u8,
+    pub expires_at: String,  // ISO 8601 格式
+}
+
+// 令牌信息
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct TokenInfo {
+    pub jti: String,
+    pub permission: u8,
+    pub max_times_enter_room: i32,
+    pub current_times_entered: i32,
+    pub created_at: String,
+    pub expires_at: String,
+    pub consumed_at: Option<String>,
+}
+
+// 列出令牌响应
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct ListTokensResponse {
+    pub tokens: Vec<TokenInfo>,
+}
+
+// 验证令牌请求
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct ValidateTokenRequest {
+    pub token: String,
+}
+
+// 验证令牌响应
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct ValidateTokenResponse {
+    pub valid: bool,
+    pub room_id: i64,
+    pub room_name: String,
+    pub permission: u8,
+    pub can_view: bool,
+    pub can_edit: bool,
+    pub can_share: bool,
+    pub can_delete: bool,
+    pub expires_at: Option<String>,
+}
+```
 
 **请求/响应示例**：
 

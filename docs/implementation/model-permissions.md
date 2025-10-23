@@ -94,9 +94,57 @@ impl Decode<'_, Sqlite> for RoomPermission {
 **权限相关端点**：
 
 - `POST /api/v1/rooms/{name}/permissions` - 更新房间权限
+  - 查询参数：`token: String`
   - 输入：`UpdateRoomPermissionRequest { edit: bool, share: bool, delete: bool }`
   - 输出：更新后的 Room 对象
   - 要求：需要具有删除权限的 JWT
+  - 实际路由：`crates/board/src/route/room.rs:19`
+  - 处理函数：`crates/board/src/handlers/rooms.rs:update_permissions`
+
+**数据结构定义**（基于实际代码实现）：
+
+```rust
+// 更新房间权限请求
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct UpdateRoomPermissionRequest {
+    pub edit: bool,
+    pub share: bool,
+    pub delete: bool,
+}
+
+// 权限验证响应
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct PermissionValidationResponse {
+    pub valid: bool,
+    pub room_id: i64,
+    pub room_name: String,
+    pub permission: u8,
+    pub can_view: bool,
+    pub can_edit: bool,
+    pub can_share: bool,
+    pub can_delete: bool,
+    pub expires_at: Option<String>,  // ISO 8601 格式
+}
+
+// 令牌创建请求中的权限部分
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct CreateTokenRequest {
+    pub edit: bool,
+    pub share: bool,
+    pub delete: bool,
+    pub max_times_enter_room: Option<i32>,
+    pub ttl_seconds: Option<i64>,
+}
+
+// 令牌创建响应
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct CreateTokenResponse {
+    pub token: String,
+    pub jti: String,
+    pub permission: u8,
+    pub expires_at: String,  // ISO 8601 格式
+}
+```
 
 **权限验证流程**：
 
@@ -106,20 +154,115 @@ impl Decode<'_, Sqlite> for RoomPermission {
 
 **请求/响应示例**：
 
-```json
-// 更新权限请求
-POST /api/v1/rooms/myroom/permissions?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-{
-  "edit": true,
-  "share": false,
-  "delete": false
-}
+```bash
+# 1. 更新房间权限
+curl -X POST "http://localhost:8080/api/v1/rooms/myroom/permissions?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "edit": true,
+    "share": false,
+    "delete": false
+  }'
 
-// 响应
+# 响应
 {
   "id": 1,
   "name": "myroom",
-  "permission": 3  // VIEW_ONLY | EDITABLE
+  "permission": 3,
+  "max_size": 10485760,
+  "current_size": 0,
+  "status": "active",
+  "created_at": "2024-01-01T00:00:00",
+  "updated_at": "2024-01-01T00:05:00"
+}
+
+# 2. 创建具有特定权限的房间令牌
+curl -X POST "http://localhost:8080/api/v1/rooms/myroom/tokens" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "edit": true,
+    "share": true,
+    "delete": false,
+    "max_times_enter_room": 10,
+    "ttl_seconds": 3600
+  }'
+
+# 响应
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "jti": "550e8400-e29b-41d4-a716-446655440000",
+  "permission": 7,
+  "expires_at": "2024-01-01T01:00:00"
+}
+
+# 3. 验证令牌权限
+curl -X POST "http://localhost:8080/api/v1/rooms/myroom/tokens/validate" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  }'
+
+# 响应
+{
+  "valid": true,
+  "room_id": 1,
+  "room_name": "myroom",
+  "permission": 7,
+  "can_view": true,
+  "can_edit": true,
+  "can_share": true,
+  "can_delete": false,
+  "expires_at": "2024-01-01T01:00:00"
+}
+```
+
+**权限位值示例**：
+
+```json
+// 不同权限组合的数值表示
+{
+  "permission_examples": {
+    "view_only": 1,
+    "editable": 3,
+    "shareable": 5,
+    "deletable": 9,
+    "full_access": 15,
+    "custom": 6
+  },
+  "bit_masks": {
+    "VIEW_ONLY": "0001",
+    "EDITABLE": "0010",
+    "SHARE": "0100",
+    "DELETE": "1000"
+  }
+}
+```
+
+**错误响应示例**：
+
+```json
+// 权限不足错误
+{
+  "error": "Permission denied",
+  "code": 403,
+  "message": "You don't have DELETE permission for this room",
+  "required_permission": "DELETE",
+  "current_permission": 7
+}
+
+// 令牌过期错误
+{
+  "error": "Token expired",
+  "code": 401,
+  "message": "The provided token has expired",
+  "expired_at": "2024-01-01T01:00:00"
+}
+
+// 无效权限值错误
+{
+  "error": "Invalid permission value",
+  "code": 400,
+  "message": "Permission value must be between 0 and 15"
 }
 ```
 
