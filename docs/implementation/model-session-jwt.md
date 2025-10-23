@@ -5,8 +5,9 @@
 Session/JWT 模型是 Elizabeth 系统的身份验证和会话管理核心，采用无状态的
 JWT（JSON Web
 Token）机制。系统没有传统的用户注册登录，而是通过房间访问令牌来管理会话。每个成功进入房间的用户都会获得一个短期有效的
-JWT，该令牌包含了用户在房间内的权限信息。主要交互方包括房间处理器（`crates/board/src/handlers/rooms.rs`）、内容处理器（`crates/board/src/handlers/content.rs`）和
-token 服务（`crates/board/src/services/token.rs`）。
+JWT，该令牌包含了用户在房间内的权限信息。系统还支持刷新令牌机制，允许用户在访问令牌过期后自动获取新的令牌，提升用户体验。主要交互方包括房间处理器（`crates/board/src/handlers/rooms.rs`）、内容处理器（`crates/board/src/handlers/content.rs`）、
+token
+服务（`crates/board/src/services/token.rs`）和刷新令牌服务（`crates/board/src/services/refresh_token_service.rs`）。
 
 ## 2. 数据模型（字段 & 类型 & 解释）
 
@@ -39,7 +40,42 @@ pub struct RoomTokenClaims {
 ```
 
 **数据库映射**：对应 `crates/board/migrations/001_initial_schema.sql` 中的
-`room_tokens` 表。
+`room_tokens` 表，以及 `crates/board/migrations/002_refresh_tokens.sql` 中的
+`room_refresh_tokens` 和 `token_blacklist` 表。
+
+**RoomRefreshToken
+结构体**（`crates/board/src/models/room/refresh_token.rs:6`）：
+
+```rust
+/// 房间刷新令牌数据模型
+/// 用于存储和管理 JWT 刷新令牌的信息
+#[derive(Debug, Clone, FromRow, Serialize, Deserialize, ToSchema)]
+pub struct RoomRefreshToken {
+    pub id: Option<i64>,                    // 主键 ID
+    pub room_id: i64,                       // 关联的房间 ID
+    pub access_token_jti: String,           // 关联的访问令牌 JTI
+    pub token_hash: String,                 // 刷新令牌的 SHA-256 哈希值（不存储明文）
+    pub expires_at: NaiveDateTime,          // 刷新令牌过期时间
+    pub created_at: NaiveDateTime,          // 创建时间
+    pub last_used_at: Option<NaiveDateTime>, // 最后使用时间
+    pub is_revoked: bool,                   // 是否已撤销
+}
+```
+
+**TokenBlacklistEntry
+结构体**（`crates/board/src/models/room/refresh_token.rs:75`）：
+
+```rust
+/// 令牌黑名单条目
+/// 用于存储被撤销的令牌 JTI，防止重用
+#[derive(Debug, Clone, FromRow, Serialize, Deserialize, ToSchema)]
+pub struct TokenBlacklistEntry {
+    pub id: Option<i64>,           // 主键 ID
+    pub jti: String,               // 被撤销的令牌 JTI
+    pub expires_at: NaiveDateTime,  // 令牌原过期时间
+    pub created_at: NaiveDateTime,  // 创建时间
+}
+```
 
 ## 3. 不变式 & 验证逻辑（业务规则）
 
@@ -50,12 +86,17 @@ pub struct RoomTokenClaims {
 - **撤销机制**：令牌可以通过设置 `revoked_at` 字段来主动撤销
 - **过期验证**：系统同时检查 JWT 的 `exp` 字段和数据库中的
   `expires_at`、`revoked_at` 字段
+- **刷新令牌轮换**：每次成功刷新后，旧的刷新令牌自动失效
+- **黑名单机制**：撤销的访问令牌 JTI 被加入黑名单，防止重用
+- **安全存储**：刷新令牌以 SHA-256 哈希形式存储，不存储明文
+- **令牌关联**：刷新令牌必须关联到有效的访问令牌 JTI
 
 ## 4. 持久化 & 索引（实现细节）
 
 **数据库表结构**：
 
 ```sql
+-- 访问令牌表
 CREATE TABLE IF NOT EXISTS room_tokens (
     id INTEGER PRIMARY KEY AUTOINCREMENT,  -- 主键，自增 ID，对应 RoomToken.id 字段
     room_id INTEGER NOT NULL,
@@ -66,20 +107,48 @@ CREATE TABLE IF NOT EXISTS room_tokens (
     FOREIGN KEY (room_id) REFERENCES rooms (id) ON DELETE CASCADE
 );
 
+-- 刷新令牌表
+CREATE TABLE IF NOT EXISTS room_refresh_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    room_id INTEGER NOT NULL,
+    access_token_jti TEXT NOT NULL,
+    token_hash TEXT NOT NULL UNIQUE,       -- SHA-256 哈希值
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_used_at DATETIME,
+    is_revoked BOOLEAN NOT NULL DEFAULT FALSE,
+    FOREIGN KEY (room_id) REFERENCES rooms (id) ON DELETE CASCADE
+);
+
+-- 令牌黑名单表
+CREATE TABLE IF NOT EXISTS token_blacklist (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    jti TEXT NOT NULL UNIQUE,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 索引优化查询性能
 CREATE INDEX IF NOT EXISTS idx_room_tokens_room_id ON room_tokens(room_id);
 CREATE INDEX IF NOT EXISTS idx_room_tokens_expires_at ON room_tokens(expires_at);
+CREATE INDEX IF NOT EXISTS idx_room_refresh_tokens_room_id ON room_refresh_tokens(room_id);
+CREATE INDEX IF NOT EXISTS idx_room_refresh_tokens_access_jti ON room_refresh_tokens(access_token_jti);
+CREATE INDEX IF NOT EXISTS idx_room_refresh_tokens_token_hash ON room_refresh_tokens(token_hash);
+CREATE INDEX IF NOT EXISTS idx_room_refresh_tokens_expires_at ON room_refresh_tokens(expires_at);
+CREATE INDEX IF NOT EXISTS idx_token_blacklist_jti ON token_blacklist(jti);
+CREATE INDEX IF NOT EXISTS idx_token_blacklist_expires_at ON token_blacklist(expires_at);
 ```
 
 **索引和约束**：
 
 - 主键：`id`（自增）
-- 唯一约束：`jti` 字段
+- 唯一约束：`jti`、`token_hash` 字段
 - 外键约束：`room_id` 关联到 `rooms.id`，级联删除
-- 性能索引：`room_id` 和 `expires_at` 字段
+- 性能索引：`room_id`、`expires_at`、`access_token_jti`、`token_hash` 字段
 
 **ORM 使用**：使用 SQLx 的 `FromRow` trait 进行自动映射，通过
-`SqliteRoomTokenRepository` 进行数据库操作。
+`SqliteRoomTokenRepository` 和 `SqliteRoomRefreshTokenRepository`
+进行数据库操作。
 
 ## 5. API/Handlers（对外行为）
 
@@ -104,6 +173,21 @@ CREATE INDEX IF NOT EXISTS idx_room_tokens_expires_at ON room_tokens(expires_at)
   - 路径参数：`jti: String`（要撤销的令牌 ID）
   - 查询参数：`token: String`（任一有效房间令牌）
   - 输出：`RevokeTokenResponse { revoked: bool }`
+
+- `POST /api/v1/auth/refresh` - 刷新访问令牌
+  - 输入：`RefreshTokenRequest { refresh_token: String }`
+  - 输出：`RefreshTokenResponse { access_token: String, refresh_token: String, expires_at: String, refresh_expires_at: String }`
+  - 功能：使用刷新令牌获取新的访问令牌和刷新令牌对
+
+- `POST /api/v1/auth/logout` - 撤销刷新令牌
+  - 输入：`LogoutRequest { refresh_token: String }`
+  - 输出：`HttpResponse`（状态码 200 表示成功）
+  - 功能：撤销指定的刷新令牌，将其加入黑名单
+
+- `POST /api/v1/auth/cleanup` - 清理过期令牌
+  - 输入：无（需要管理员权限）
+  - 输出：`CleanupResponse { cleaned_count: i64, success: bool }`
+  - 功能：清理过期的刷新令牌和黑名单条目
 
 **请求/响应示例**：
 
@@ -131,6 +215,22 @@ POST /api/v1/rooms/myroom/tokens
 }
 ```
 
+```json
+// 刷新令牌请求
+POST /api/v1/auth/refresh
+{
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+
+// 响应
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "expires_at": "2024-01-01T01:30:00",
+  "refresh_expires_at": "2024-01-02T01:00:00"
+}
+```
+
 ## 6. JWT 与权限（如何生成/校验）
 
 **JWT 生成流程**：
@@ -144,8 +244,17 @@ POST /api/v1/rooms/myroom/tokens
 
 1. **签名验证**：验证 JWT 签名的有效性
 2. **时间检查**：检查 `exp` 字段是否过期（允许 5 秒时钟偏移）
-3. **数据库验证**：查询 `room_tokens` 表确认令牌未被撤销且未过期
-4. **房间状态**：验证关联房间仍然可进入（未过期、未关闭、未超限）
+3. **黑名单检查**：查询 `token_blacklist` 表确认令牌 JTI 未被列入黑名单
+4. **数据库验证**：查询 `room_tokens` 表确认令牌未被撤销且未过期
+5. **房间状态**：验证关联房间仍然可进入（未过期、未关闭、未超限）
+
+**刷新令牌验证流程**：
+
+1. **哈希验证**：验证刷新令牌的 SHA-256 哈希值
+2. **有效性检查**：确认刷新令牌未过期、未被撤销
+3. **关联验证**：验证刷新令牌关联的访问令牌 JTI 仍然有效
+4. **房间状态**：验证关联房间仍然可进入
+5. **令牌轮换**：生成新的访问令牌和刷新令牌对，撤销旧的令牌
 
 **权限验证**：
 
@@ -290,32 +399,40 @@ pub fn is_active(&self) -> bool {
 
 **P0 优先级**：
 
-- **令牌刷新机制**：当前只支持重新签发，缺少优雅的令牌刷新机制
-- **撤销性能优化**：大量令牌时，撤销查询可能成为性能瓶颈
+- **无**：令牌刷新机制已实现，基本功能完善
 
 **P1 优先级**：
 
 - **令牌黑名单缓存**：将被撤销的令牌缓存到内存中，减少数据库查询
 - **审计日志增强**：记录令牌签发、使用、撤销的详细审计信息
+- **批量操作支持**：支持批量撤销多个刷新令牌
 
 **P2 优先级**：
 
 - **令牌分级管理**：支持不同有效期和权限级别的令牌类型
-- **批量操作支持**：支持批量撤销房间所有令牌
+- **设备管理**：支持多设备登录和设备管理
+- **刷新限制**：添加刷新频率限制，防止滥用
 
 ## 10. 关联文档 / 代码位置
 
 **源码路径**：
 
 - 令牌模型：`crates/board/src/models/room/token.rs`
+- 刷新令牌模型：`crates/board/src/models/room/refresh_token.rs`
 - 令牌服务：`crates/board/src/services/token.rs`
+- 刷新令牌服务：`crates/board/src/services/refresh_token_service.rs`
 - 令牌处理器：`crates/board/src/handlers/token.rs`
+- 刷新令牌处理器：`crates/board/src/handlers/refresh_token.rs`
 - 令牌仓储：`crates/board/src/repository/room_token_repository.rs`
+- 刷新令牌仓储：`crates/board/src/repository/room_refresh_token_repository.rs`
 - 数据库迁移：`crates/board/migrations/001_initial_schema.sql`
+- 刷新令牌迁移：`crates/board/migrations/002_refresh_tokens.sql`
 
 **测试文件路径**：
 
 - 单元测试：`crates/board/src/services/token.rs` 中的 `#[cfg(test)]` 块
+- 刷新令牌测试：`crates/board/src/handlers/refresh_token.rs` 中的 `#[cfg(test)]`
+  块
 - 集成测试：`crates/board/tests/api_integration_tests.rs`
 
 **关联文档**：
@@ -323,3 +440,5 @@ pub fn is_active(&self) -> bool {
 - [model-room.md](./model-room.md) - 房间模型详细说明
 - [model-permissions.md](./model-permissions.md) - 权限系统详细说明
 - [model-file.md](./model-file.md) - 文件内容管理
+- [handler-refresh-token.md](./handler-refresh-token.md) -
+  刷新令牌处理器详细说明

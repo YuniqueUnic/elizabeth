@@ -89,15 +89,20 @@ Elizabeth 系统的核心设计理念是 **"Room" 而不是
 
 **当前迁移结构**：
 
-- `001_initial_schema.sql` - 初始数据库架构（合并所有表、索引和触发器）
+- `001_initial_schema.sql` -
+  初始数据库架构（包含基础表：rooms、room_contents、room_tokens、room_upload_reservations、room_access_logs）
+- `002_refresh_tokens.sql` -
+  刷新令牌机制（新增表：room_refresh_tokens、token_blacklist）
 
 ### 认证授权组件
 
-| 组件     | 技术栈            | 职责                 | 核心文件位置                                 |
-| -------- | ----------------- | -------------------- | -------------------------------------------- |
-| JWT 认证 | jsonwebtoken 10.0 | 令牌生成、验证、撤销 | `crates/board/src/services/token.rs`         |
-| 权限系统 | bitflags          | 细粒度权限控制       | `crates/board/src/models/room/permission.rs` |
-| 令牌管理 | RoomToken         | 访问令牌生命周期管理 | `crates/board/src/models/room/token.rs`      |
+| 组件         | 技术栈            | 职责                     | 核心文件位置                                                   |
+| ------------ | ----------------- | ------------------------ | -------------------------------------------------------------- |
+| JWT 认证     | jsonwebtoken 10.0 | 令牌生成、验证、撤销     | `crates/board/src/services/token.rs`                           |
+| 权限系统     | bitflags          | 细粒度权限控制           | `crates/board/src/models/room/permission.rs`                   |
+| 令牌管理     | RoomToken         | 访问令牌生命周期管理     | `crates/board/src/models/room/token.rs`                        |
+| 刷新令牌服务 | RefreshToken      | 刷新令牌生成、验证、管理 | `crates/board/src/services/refresh_token_service.rs`           |
+| 令牌黑名单   | TokenBlacklist    | 撤销令牌管理             | `crates/board/src/repository/room_refresh_token_repository.rs` |
 
 ### 外部依赖
 
@@ -535,5 +540,5 @@ export ELIZABETH_STORAGE_PATH=/data/storage
 
 ---
 
-**文档最后更新时间**：2025-10-21 **文档作者**：Elizabeth 开发团队
-**文档版本**：v1.0.0
+**文档最后更新时间**：2025-10-23 **文档作者**：Elizabeth 开发团队
+**文档版本**：v2.0.0
