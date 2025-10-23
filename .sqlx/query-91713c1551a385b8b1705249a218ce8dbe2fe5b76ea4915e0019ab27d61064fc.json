@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT\n                id,\n                room_id,\n                access_token_jti,\n                token_hash,\n                expires_at,\n                created_at,\n                last_used_at,\n                is_revoked\n            FROM room_refresh_tokens\n            WHERE id = ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "room_id",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "access_token_jti",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "token_hash",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "expires_at",
+        "ordinal": 4,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 5,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "last_used_at",
+        "ordinal": 6,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "is_revoked",
+        "ordinal": 7,
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "91713c1551a385b8b1705249a218ce8dbe2fe5b76ea4915e0019ab27d61064fc"
+}
