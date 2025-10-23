@@ -35,6 +35,16 @@ pub trait IRoomUploadReservationRepository: Send + Sync {
     async fn release_if_pending(&self, reservation_id: i64) -> Result<Option<Room>>;
 
     async fn fetch_by_id(&self, reservation_id: i64) -> Result<Option<RoomUploadReservation>>;
+
+    async fn find_by_token(&self, token_jti: &str) -> Result<Option<RoomUploadReservation>>;
+
+    async fn find_by_reservation_id(
+        &self,
+        reservation_id: &str,
+    ) -> Result<Option<RoomUploadReservation>>;
+
+    async fn update_uploaded_chunks(&self, reservation_id: i64, uploaded_chunks: i64)
+    -> Result<()>;
 }
 
 pub struct SqliteRoomUploadReservationRepository {
@@ -437,5 +447,92 @@ impl IRoomUploadReservationRepository for SqliteRoomUploadReservationRepository 
         .await?;
 
         Ok(record)
+    }
+
+    async fn find_by_token(&self, token_jti: &str) -> Result<Option<RoomUploadReservation>> {
+        let record = sqlx::query_as!(
+            RoomUploadReservation,
+            r#"
+            SELECT
+                id,
+                room_id,
+                token_jti,
+                file_manifest,
+                reserved_size,
+                reserved_at,
+                expires_at,
+                consumed_at,
+                created_at,
+                updated_at,
+                chunked_upload,
+                total_chunks,
+                uploaded_chunks,
+                file_hash,
+                chunk_size,
+                upload_status as "upload_status: UploadStatus"
+            FROM room_upload_reservations
+            WHERE token_jti = ?
+            "#,
+            token_jti
+        )
+        .fetch_optional(&*self.pool)
+        .await?;
+
+        Ok(record)
+    }
+
+    async fn find_by_reservation_id(
+        &self,
+        reservation_id: &str,
+    ) -> Result<Option<RoomUploadReservation>> {
+        let record = sqlx::query_as!(
+            RoomUploadReservation,
+            r#"
+            SELECT
+                id as "id: Option<i64>",
+                room_id,
+                token_jti,
+                file_manifest,
+                reserved_size,
+                reserved_at,
+                expires_at,
+                consumed_at,
+                created_at,
+                updated_at,
+                chunked_upload,
+                total_chunks,
+                uploaded_chunks,
+                file_hash,
+                chunk_size,
+                upload_status as "upload_status: UploadStatus"
+            FROM room_upload_reservations
+            WHERE id = ?
+            "#,
+            reservation_id
+        )
+        .fetch_optional(&*self.pool)
+        .await?;
+
+        Ok(record)
+    }
+
+    async fn update_uploaded_chunks(
+        &self,
+        reservation_id: i64,
+        uploaded_chunks: i64,
+    ) -> Result<()> {
+        sqlx::query!(
+            r#"
+            UPDATE room_upload_reservations
+            SET uploaded_chunks = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            "#,
+            uploaded_chunks,
+            reservation_id
+        )
+        .execute(&*self.pool)
+        .await?;
+
+        Ok(())
     }
 }

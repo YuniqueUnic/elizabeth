@@ -732,6 +732,7 @@ dependencies = [
  "elizabeth-configrs",
  "elizabeth-logrs",
  "futures",
+ "hex",
  "jsonwebtoken",
  "log",
  "mime",
