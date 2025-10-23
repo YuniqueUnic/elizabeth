@@ -155,39 +155,106 @@ CREATE INDEX IF NOT EXISTS idx_token_blacklist_expires_at ON token_blacklist(exp
 **核心端点列表**：
 
 - `POST /api/v1/rooms/{name}/tokens` - 签发房间访问令牌
-  - 输入：`IssueTokenRequest { password: Option<String>, token: Option<String> }`
-  - 输出：`IssueTokenResponse { token: String, claims: RoomTokenClaims, expires_at: NaiveDateTime }`
-  - 功能：验证密码或续签现有令牌，返回新的 JWT
+  - 输入：`CreateTokenRequest { password: Option<String>, edit: bool, share: bool, delete: bool, max_times_enter_room: Option<i32>, ttl_seconds: Option<i64> }`
+  - 输出：`CreateTokenResponse { token: String, jti: String, permission: u8, expires_at: String }`
+  - 功能：验证密码并创建新的 JWT
+  - 实际路由：`crates/board/src/route/room.rs:18`
+  - 处理函数：`crates/board/src/handlers/rooms.rs:issue_token`
 
-- `POST /api/v1/rooms/{name}/tokens/validate` - 校验令牌
+- `GET /api/v1/rooms/{name}/tokens` - 列出房间令牌
+  - 查询参数：`token: String`
+  - 输出：`ListTokensResponse { tokens: Vec<TokenInfo> }`
+  - 实际路由：`crates/board/src/route/room.rs:19`
+  - 处理函数：`crates/board/src/handlers/rooms.rs:list_tokens`
+
+- `POST /api/v1/rooms/{name}/tokens/validate` - 验证令牌
   - 输入：`ValidateTokenRequest { token: String }`
-  - 输出：`ValidateTokenResponse { claims: RoomTokenClaims }`
-  - 功能：验证 JWT 有效性并返回权限信息
+  - 输出：`ValidateTokenResponse { valid: bool, room_id: i64, room_name: String, permission: u8, can_view: bool, can_edit: bool, can_share: bool, can_delete: bool, expires_at: Option<String> }`
+  - 实际路由：`crates/board/src/route/room.rs:21`
+  - 处理函数：`crates/board/src/handlers/rooms.rs:validate_token`
 
-- `GET /api/v1/rooms/{name}/tokens` - 获取房间令牌列表
-  - 查询参数：`token: String`（任一有效房间令牌）
-  - 输出：`Vec<RoomTokenView>`
-  - 功能：列出房间的所有令牌状态
-
-- `DELETE /api/v1/rooms/{name}/tokens/{jti}` - 撤销指定令牌
-  - 路径参数：`jti: String`（要撤销的令牌 ID）
-  - 查询参数：`token: String`（任一有效房间令牌）
-  - 输出：`RevokeTokenResponse { revoked: bool }`
+- `DELETE /api/v1/rooms/{name}/tokens/{jti}` - 撤销令牌
+  - 查询参数：`token: String`
+  - 输出：成功消息
+  - 实际路由：`crates/board/src/route/room.rs:24`
+  - 处理函数：`crates/board/src/handlers/rooms.rs:revoke_token`
 
 - `POST /api/v1/auth/refresh` - 刷新访问令牌
   - 输入：`RefreshTokenRequest { refresh_token: String }`
   - 输出：`RefreshTokenResponse { access_token: String, refresh_token: String, expires_at: String, refresh_expires_at: String }`
-  - 功能：使用刷新令牌获取新的访问令牌和刷新令牌对
+  - 实际路由：`crates/board/src/route/auth.rs`
+  - 处理函数：`crates/board/src/handlers/refresh_token.rs:refresh`
 
 - `POST /api/v1/auth/logout` - 撤销刷新令牌
   - 输入：`LogoutRequest { refresh_token: String }`
-  - 输出：`HttpResponse`（状态码 200 表示成功）
-  - 功能：撤销指定的刷新令牌，将其加入黑名单
+  - 输出：成功消息
+  - 实际路由：`crates/board/src/route/auth.rs`
+  - 处理函数：`crates/board/src/handlers/refresh_token.rs:logout`
 
-- `POST /api/v1/auth/cleanup` - 清理过期令牌
-  - 输入：无（需要管理员权限）
-  - 输出：`CleanupResponse { cleaned_count: i64, success: bool }`
-  - 功能：清理过期的刷新令牌和黑名单条目
+**数据结构定义**（基于实际代码实现）：
+
+```rust
+// 创建令牌请求
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct CreateTokenRequest {
+    pub password: Option<String>,
+    pub edit: bool,
+    pub share: bool,
+    pub delete: bool,
+    pub max_times_enter_room: Option<i32>,
+    pub ttl_seconds: Option<i64>,
+}
+
+// 创建令牌响应
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct CreateTokenResponse {
+    pub token: String,
+    pub jti: String,
+    pub permission: u8,
+    pub expires_at: String,  // ISO 8601 格式
+}
+
+// 验证令牌请求
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct ValidateTokenRequest {
+    pub token: String,
+}
+
+// 验证令牌响应
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct ValidateTokenResponse {
+    pub valid: bool,
+    pub room_id: i64,
+    pub room_name: String,
+    pub permission: u8,
+    pub can_view: bool,
+    pub can_edit: bool,
+    pub can_share: bool,
+    pub can_delete: bool,
+    pub expires_at: Option<String>,
+}
+
+// 刷新令牌请求
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct RefreshTokenRequest {
+    pub refresh_token: String,
+}
+
+// 刷新令牌响应
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct RefreshTokenResponse {
+    pub access_token: String,
+    pub refresh_token: String,
+    pub expires_at: String,
+    pub refresh_expires_at: String,
+}
+
+// 登出请求
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct LogoutRequest {
+    pub refresh_token: String,
+}
+```
 
 **请求/响应示例**：
 
