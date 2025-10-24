@@ -8,22 +8,26 @@ Elizabeth 是一个基于 Rust
 ### 核心特性
 
 - 🚀 **高性能**: 基于 Rust 的高性能文件处理
-- 🔒 **安全性**: 内存安全和数据加密
+- 🔒 **安全性**: 内存安全和数据加密，JWT 令牌认证
 - 📁 **多格式支持**: 文本、图片、代码片段等多种文件类型
 - 🌐 **Web 界面**: 现代化的用户界面
-- ☁️ **云存储**: 集成 Cloudflare R2 等 S3 兼容存储
+- ☁️ **本地存储**: 支持本地文件系统存储
 - 🏠 **Room 系统**: 支持密码保护的房间系统，实现安全的内容分享
+- 📦 **分块上传**: 支持大文件的分块上传和断点续传
+- 🔐 **权限管理**: 细粒度的房间权限控制（查看、编辑、分享、删除）
 
 ### 技术栈
 
 - **后端技术**:
-  - Rust 1.90+: 核心编程语言
-  - Axum 0.8.6: 异步 Web 框架
-  - SQLx 0.8: 异步 SQL 工具包，支持编译时查询检查
+  - Rust: 核心编程语言
+  - Axum: 异步 Web 框架
+  - SQLx: 异步 SQL 工具包，支持编译时查询检查
   - SQLite: 轻量级数据库
   - Tokio: 异步运行时
   - Serde: 序列化/反序列化
   - Utoipa: OpenAPI 文档生成
+  - UUID: 唯一标识符生成
+  - SHA256: 文件哈希计算
 
 - **架构模式**:
   - Repository 模式：数据访问层抽象
@@ -48,29 +52,45 @@ Elizabeth 采用基于 JWT (JSON Web Token) 的无状态认证机制：
 3. **权限嵌入**: JWT 令牌中嵌入权限信息，减少实时数据库查询
 4. **刷新令牌**: 支持令牌刷新机制，延长访问时间
 
+### 认证流程
+
+1. **创建/访问房间**: 用户通过房间名称访问或创建房间
+2. **密码验证**: 如果房间设置了密码，需要提供正确密码
+3. **获取令牌**: 验证通过后获得 JWT 访问令牌（可选择获取刷新令牌）
+4. **API 调用**: 在后续 API 请求中通过查询参数 `token` 传递访问令牌
+5. **令牌续期**: 访问令牌过期前可使用刷新令牌获取新的访问令牌
+
+### 令牌使用方式
+
+- **访问令牌**: 通过查询参数 `token` 传递，例如
+  `/api/v1/rooms/myroom/contents?token=your_access_token`
+- **刷新令牌**: 通过请求体传递给 `/api/v1/auth/refresh` 端点
+- **令牌撤销**: 通过 `/api/v1/auth/logout` 或
+  `/api/v1/rooms/{name}/tokens/{jti}` 撤销令牌
+
 ### 通用格式
 
 - **请求格式**: JSON
 - **响应格式**: JSON
 - **字符编码**: UTF-8
 - **时间格式**: ISO 8601 (RFC 3339)
-- **错误处理**: 统一的错误响应格式
+- **错误处理**: HTTP 状态码 + 消息字符串格式
 
 ### 状态码说明
 
-| 状态码 | 含义                   | 描述             |
-| ------ | ---------------------- | ---------------- |
-| 200    | OK                     | 请求成功         |
-| 400    | Bad Request            | 请求参数错误     |
-| 401    | Unauthorized           | 认证失败         |
-| 403    | Forbidden              | 权限不足         |
-| 404    | Not Found              | 资源不存在       |
-| 409    | Conflict               | 资源冲突         |
-| 410    | Gone                   | 资源已过期       |
-| 413    | Payload Too Large      | 文件过大         |
-| 415    | Unsupported Media Type | 不支持的文件类型 |
-| 500    | Internal Server Error  | 服务器内部错误   |
-| 507    | Insufficient Storage   | 存储空间不足     |
+| 状态码 | 含义                   | 描述                                                     |
+| ------ | ---------------------- | -------------------------------------------------------- |
+| 200    | OK                     | 请求成功                                                 |
+| 400    | Bad Request            | 请求参数错误，如参数格式不正确、缺少必需参数等           |
+| 401    | Unauthorized           | 认证失败，如令牌无效、密码错误、令牌过期等               |
+| 403    | Forbidden              | 权限不足，如令牌权限不够、房间不可进入、资源不属于房间等 |
+| 404    | Not Found              | 资源不存在，如房间、文件、预留记录不存在等               |
+| 409    | Conflict               | 资源冲突，如分块已存在、文件合并状态不正确等             |
+| 410    | Gone                   | 资源已过期，如房间已过期                                 |
+| 413    | Payload Too Large      | 文件过大，超出房间容量限制                               |
+| 415    | Unsupported Media Type | 不支持的文件类型                                         |
+| 500    | Internal Server Error  | 服务器内部错误，如数据库错误、文件系统错误等             |
+| 507    | Insufficient Storage   | 存储空间不足                                             |
 
 ## API 接口详情
 
@@ -176,12 +196,12 @@ curl -X GET "https://your-domain.com/api/v1/rooms/myroom"
 - **路径参数**:
   - `name` (string, 必需): 房间名称
 - **查询参数**:
-  - `token` (string, 必需): 管理员访问令牌，需具备删除权限
+  - `token` (string, 必需): 有效的房间令牌，需具备删除权限
 
 **请求示例**:
 
 ```bash
-curl -X DELETE "https://your-domain.com/api/v1/rooms/myroom?token=your_admin_token"
+curl -X DELETE "https://your-domain.com/api/v1/rooms/myroom?token=your_access_token"
 ```
 
 **响应格式**:
@@ -195,9 +215,11 @@ curl -X DELETE "https://your-domain.com/api/v1/rooms/myroom?token=your_admin_tok
 **状态码**:
 
 - 200: 删除成功
+- 400: 房间名称无效
+- 401: 令牌无效或权限不足
+- 403: 权限不足
 - 404: 房间不存在
 - 410: 房间已过期
-- 401: 令牌无效或权限不足
 - 500: 服务器内部错误
 
 ### 2. 认证和权限 API
@@ -676,8 +698,6 @@ curl -X GET "https://your-domain.com/api/v1/rooms/myroom/contents/1?token=your_a
 - **URL**: `/api/v1/rooms/{name}/uploads/chunks/prepare`
 - **路径参数**:
   - `name` (string, 必需): 房间名称
-- **查询参数**:
-  - `token` (string, 必需): 有效的房间令牌，需具备编辑权限
 - **请求体**:
 
 ```json
@@ -687,20 +707,39 @@ curl -X GET "https://your-domain.com/api/v1/rooms/myroom/contents/1?token=your_a
       "name": "large_video.mp4",
       "size": 104857600,
       "mime": "video/mp4",
-      "chunk_size": 1048576
+      "chunk_size": 1048576,
+      "file_hash": "sha256_hash_of_file"
     }
   ]
 }
 ```
 
+**请求参数说明**:
+
+- `files` (array, 必需): 要上传的文件列表
+  - `name` (string): 文件名
+  - `size` (integer): 文件大小（字节）
+  - `mime` (string, 可选): MIME 类型
+  - `chunk_size` (integer, 可选): 分块大小，默认 1MB
+  - `file_hash` (string, 可选): 文件 SHA256 哈希值
+
 **响应格式**:
 
 ```json
 {
-  "reservation_id": 12345,
-  "upload_id": "upload_123",
-  "chunk_size": 1048576,
-  "expires_at": "2023-01-01T13:10:00Z"
+  "reservation_id": "550e8400-e29b-41d4-a716-446655440000",
+  "upload_token": "upload_token_string",
+  "expires_at": "2023-01-01T13:10:00Z",
+  "files": [
+    {
+      "name": "large_video.mp4",
+      "size": 104857600,
+      "mime": "video/mp4",
+      "chunk_size": 1048576,
+      "total_chunks": 100,
+      "file_hash": "sha256_hash_of_file"
+    }
+  ]
 }
 ```
 
@@ -724,19 +763,33 @@ curl -X GET "https://your-domain.com/api/v1/rooms/myroom/contents/1?token=your_a
 - **URL**: `/api/v1/rooms/{name}/uploads/chunks`
 - **路径参数**:
   - `name` (string, 必需): 房间名称
-- **查询参数**:
-  - `token` (string, 必需): 有效的房间令牌，需具备编辑权限
-  - `upload_id` (string, 必需): 分块上传 ID
-  - `chunk_index` (number, 必需): 分块索引
-  - `chunk_hash` (string, 必需): 分块哈希值
-- **请求体**: 分块数据
+- **请求体**: multipart/form-data
+  - `upload_token` (string, 必需): 上传令牌（从预留响应中获得）
+  - `chunk_index` (integer, 必需): 分块索引（从 0 开始）
+  - `chunk_size` (integer, 必需): 分块大小
+  - `chunk_hash` (string, 可选): 分块 SHA256 哈希值
+  - `chunk_data` (binary, 必需): 分块二进制数据
+
+**请求示例**:
+
+```bash
+curl -X POST "https://your-domain.com/api/v1/rooms/myroom/uploads/chunks" \
+  -F "upload_token=upload_token_string" \
+  -F "chunk_index=0" \
+  -F "chunk_size=1048576" \
+  -F "chunk_hash=sha256_hash_of_chunk" \
+  -F "chunk_data=@chunk_0.bin"
+```
 
 **响应格式**:
 
 ```json
 {
-  "uploaded": true,
-  "chunk_index": 1
+  "chunk_index": 0,
+  "chunk_size": 1048576,
+  "chunk_hash": "sha256_hash_of_chunk",
+  "upload_status": "Uploaded",
+  "uploaded_at": "2023-01-01T12:30:00Z"
 }
 ```
 
@@ -759,19 +812,40 @@ curl -X GET "https://your-domain.com/api/v1/rooms/myroom/contents/1?token=your_a
 - **URL**: `/api/v1/rooms/{name}/uploads/chunks/status`
 - **路径参数**:
   - `name` (string, 必需): 房间名称
-- **查询参数**:
-  - `token` (string, 必需): 有效的房间令牌，需具备编辑权限
-  - `upload_id` (string, 必需): 分块上传 ID
+- **查询参数** (二选一):
+  - `upload_token` (string, 可选): 上传令牌
+  - `reservation_id` (string, 可选): 预留 ID
+
+**请求示例**:
+
+```bash
+curl -X GET "https://your-domain.com/api/v1/rooms/myroom/uploads/chunks/status?upload_token=upload_token_string"
+```
 
 **响应格式**:
 
 ```json
 {
-  "upload_id": "upload_123",
-  "status": "uploading",
-  "progress": 0.65,
-  "uploaded_chunks": [0, 1, 2],
-  "total_chunks": 10
+  "reservation_id": "550e8400-e29b-41d4-a716-446655440000",
+  "upload_token": "upload_token_string",
+  "upload_status": "Uploading",
+  "total_chunks": 100,
+  "uploaded_chunks": 65,
+  "progress_percentage": 65.0,
+  "expires_at": "2023-01-01T13:10:00Z",
+  "chunk_details": [
+    {
+      "chunk_index": 0,
+      "chunk_size": 1048576,
+      "chunk_hash": "sha256_hash_of_chunk",
+      "upload_status": "Uploaded",
+      "uploaded_at": "2023-01-01T12:30:00Z"
+    }
+  ],
+  "reserved_size": 104857600,
+  "uploaded_size": 68157440,
+  "is_expired": false,
+  "remaining_seconds": 2400
 }
 ```
 
@@ -793,31 +867,31 @@ curl -X GET "https://your-domain.com/api/v1/rooms/myroom/contents/1?token=your_a
 - **URL**: `/api/v1/rooms/{name}/uploads/chunks/complete`
 - **路径参数**:
   - `name` (string, 必需): 房间名称
-- **查询参数**:
-  - `token` (string, 必需): 有效的房间令牌，需具备编辑权限
-  - `upload_id` (string, 必需): 分块上传 ID
-
-**请求体**:
+- **请求体**:
 
 ```json
 {
-  "manifest": "文件清单 JSON"
+  "reservation_id": 12345,
+  "final_hash": "sha256_hash_of_complete_file"
 }
 ```
+
+**请求参数说明**:
+
+- `reservation_id` (integer, 必需): 预留 ID
+- `final_hash` (string, 必需): 完整文件的 SHA256 哈希值，用于验证文件完整性
 
 **响应格式**:
 
 ```json
 {
-  "merged_file": {
-    "id": 123,
-    "content_type": 0,
-    "file_name": "large_video.mp4",
-    "url": null,
+  "reservation_id": 12345,
+  "upload_status": "Completed",
+  "file_info": {
+    "name": "large_video.mp4",
     "size": 104857600,
-    "mime_type": "video/mp4",
-    "created_at": "2023-01-01T14:30:00Z",
-    "updated_at": "2023-01-01T14:30:00Z"
+    "hash": "sha256_hash_of_complete_file",
+    "path": "storage/rooms/123/large_video.mp4"
   }
 }
 ```
@@ -927,16 +1001,19 @@ curl -X GET "https://your-domain.com/api/v1/rooms/myroom/contents/1?token=your_a
 
 ```json
 {
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 }
 ```
+
+**请求参数说明**:
+
+- `access_token` (string, 必需): 要撤销的访问令牌
 
 **响应格式**:
 
 ```json
 {
-  "success": true,
-  "message": "Successfully logged out"
+  "message": "Token revoked successfully"
 }
 ```
 
@@ -945,6 +1022,34 @@ curl -X GET "https://your-domain.com/api/v1/rooms/myroom/contents/1?token=your_a
 - 200: 登出成功
 - 400: 请求参数错误
 - 401: 无效的令牌
+- 500: 服务器内部错误
+
+#### 6.3 清理过期令牌 (仅限管理员)
+
+**接口描述**: 清理过期的令牌和预留记录
+
+**请求信息**:
+
+- **方法**: DELETE
+- **URL**: `/api/v1/auth/cleanup`
+
+**响应格式**:
+
+```json
+{
+  "cleaned_records": 15,
+  "message": "Cleanup completed successfully"
+}
+```
+
+**响应参数说明**:
+
+- `cleaned_records` (integer): 清理的记录数量
+- `message` (string): 操作结果消息
+
+**状态码**:
+
+- 200: 清理成功
 - 500: 服务器内部错误
 
 ## 权限机制详解
@@ -998,28 +1103,19 @@ Elizabeth 使用位标志来表示房间权限：
 
 ### 错误响应格式
 
-所有错误响应都采用统一格式：
+Elizabeth API 使用 HTTP 状态码和简单消息字符串进行错误响应，而不是 JSON
+格式。大部分错误直接返回带有消息的 HTTP 响应。
 
-```json
-{
-  "error": "错误描述",
-  "details": "详细错误信息",
-  "code": "ERROR_CODE"
-}
-```
+**示例错误响应**:
 
-### 常见错误码
-
-| 错误码 | HTTP 状态 | 描述 | 解决方法 |
-|--------|----------|------|------|--------| | ROOM_NOT_FOUND | 404 | 房间不存在
-| 检查房间名称是否正确 | | ROOM_EXPIRED | 410 | 房间已过期 | 联系房间创建者续期
-| | ROOM_FULL | 403 | 房间已满员 | 等待进入次数重置 | | INVALID_PASSWORD | 401 |
-密码错误 | 联系房间创建者获取正确密码 | | PERMISSION_DENIED | 403 | 权限不足 |
-检查 JWT 令牌权限范围 | | TOKEN_EXPIRED | 401 | 令牌已过期 | 重新获取访问令牌 |
-| TOKEN_REVOKED | 401 | 令牌已撤销 | 重新获取访问令牌 | | STORAGE_FULL | 507 |
-存储空间不足 | 联系管理员清理存储 | | FILE_TOO_LARGE | 413 | 文件过大 |
-检查房间文件大小限制 | | UNSUPPORTED_MEDIA_TYPE | 415 | 不支持的文件类型 |
-检查文件格式是否支持 |
+- `400 Bad Request`: `"Invalid room name"`
+- `401 Unauthorized`: `"Invalid or expired refresh token"`
+- `403 Forbidden`: `"Permission denied by token"`
+- `404 Not Found`: `"Room not found"`
+- `409 Conflict`: `"Chunk already exists"`
+- `410 Gone`: `"Room has expired"`
+- `413 Payload Too Large`: `"Room size limit exceeded"`
+- `500 Internal Server Error`: `"Database error: connection failed"`
 
 ## 使用示例和最佳实践
 
@@ -1050,20 +1146,41 @@ curl -X POST "https://your-domain.com/api/v1/rooms/myroom/contents?token=YOUR_AC
 
 ```bash
 # 1. 预留分块上传
-curl -X POST "https://your-domain.com/api/v1/rooms/myroom/uploads/chunks/prepare?token=YOUR_ACCESS_TOKEN" \
+curl -X POST "https://your-domain.com/api/v1/rooms/myroom/uploads/chunks/prepare" \
   -H "Content-Type: application/json" \
-  -d '{"files": [{"name": "large_video.mp4", "size": 104857600, "mime": "video/mp4", "chunk_size": 1048576}]}'
+  -d '{
+    "files": [
+      {
+        "name": "large_video.mp4",
+        "size": 104857600,
+        "mime": "video/mp4",
+        "chunk_size": 1048576,
+        "file_hash": "sha256_hash_of_complete_file"
+      }
+    ]
+  }'
 
+# 响应会包含 reservation_id 和 upload_token
 # 2. 上传分块（循环）
-for i in {0..9}; do
-  curl -X POST "https://your-domain.com/api/v1/rooms/myroom/uploads/chunks?token=YOUR_ACCESS_TOKEN&upload_id=upload_123&chunk_index=$i&chunk_hash=hash_$i" \
-    --data-binary "@chunk_$i.bin"
+for i in {0..99}; do
+  curl -X POST "https://your-domain.com/api/v1/rooms/myroom/uploads/chunks" \
+    -F "upload_token=upload_token_from_step1" \
+    -F "chunk_index=$i" \
+    -F "chunk_size=1048576" \
+    -F "chunk_hash=sha256_hash_of_chunk_$i" \
+    -F "chunk_data=@chunk_$i.bin"
 done
 
-# 3. 完成合并
-curl -X POST "https://your-domain.com/api/v1/rooms/myroom/uploads/chunks/complete?token=YOUR_ACCESS_TOKEN&upload_id=upload_123" \
+# 3. 查询上传状态
+curl -X GET "https://your-domain.com/api/v1/rooms/myroom/uploads/chunks/status?upload_token=upload_token_from_step1"
+
+# 4. 完成文件合并
+curl -X POST "https://your-domain.com/api/v1/rooms/myroom/uploads/chunks/complete" \
   -H "Content-Type: application/json" \
-  -d '{"manifest": "上传完成的文件清单"}'
+  -d '{
+    "reservation_id": 12345,
+    "final_hash": "sha256_hash_of_complete_file"
+  }'
 ```
 
 ### 最佳实践
@@ -1111,10 +1228,52 @@ curl -X POST "https://your-domain.com/api/v1/rooms/myroom/uploads/chunks/complet
 
 启动服务后，可以通过以下地址访问自动生成的 API 文档：
 
-- **Swagger UI**: `https://your-domain.com/swagger-ui/`
-- **OpenAPI JSON**: `https://your-domain.com/api-docs/openapi.json`
+- **Scalar UI**: `https://your-domain.com/api/v1/scalar`
+- **OpenAPI JSON**: `https://your-domain.com/api/v1/openapi.json`
 
 这些文档提供了完整的 API 规范、交互式测试界面和代码生成功能。
+
+### API 端点总览
+
+#### 房间管理
+
+- `POST /api/v1/rooms/{name}` - 创建房间
+- `GET /api/v1/rooms/{name}` - 查询房间信息
+- `DELETE /api/v1/rooms/{name}` - 删除房间
+
+#### 认证和权限
+
+- `POST /api/v1/rooms/{name}/tokens` - 获取访问令牌
+- `POST /api/v1/rooms/{name}/tokens/validate` - 验证令牌
+- `GET /api/v1/rooms/{name}/tokens` - 获取令牌列表
+- `DELETE /api/v1/rooms/{name}/tokens/{jti}` - 撤销令牌
+- `POST /api/v1/rooms/{name}/permissions` - 更新房间权限
+
+#### 内容管理
+
+- `GET /api/v1/rooms/{name}/contents` - 获取内容列表
+- `POST /api/v1/rooms/{name}/contents/prepare` - 预留上传空间
+- `POST /api/v1/rooms/{name}/contents` - 上传文件
+- `GET /api/v1/rooms/{name}/contents/{content_id}` - 下载文件
+- `DELETE /api/v1/rooms/{name}/contents` - 删除内容
+
+#### 分块上传
+
+- `POST /api/v1/rooms/{name}/uploads/chunks/prepare` - 预留分块上传
+- `POST /api/v1/rooms/{name}/uploads/chunks` - 上传分块
+- `GET /api/v1/rooms/{name}/uploads/chunks/status` - 查询上传状态
+- `POST /api/v1/rooms/{name}/uploads/chunks/complete` - 完成文件合并
+
+#### 系统状态
+
+- `GET /api/v1/health` - 健康检查
+- `GET /api/v1/status` - 系统状态
+
+#### 认证管理
+
+- `POST /api/v1/auth/refresh` - 刷新访问令牌
+- `POST /api/v1/auth/logout` - 登出
+- `DELETE /api/v1/auth/cleanup` - 清理过期令牌
 
 ---
 
