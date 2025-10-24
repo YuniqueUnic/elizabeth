@@ -44,7 +44,7 @@ pub enum ContentType {
 }
 ```
 
-> 数据库表：`room_contents`（迁移文件：`crates/board/migrations/002_create_room_contents_table.sql`）
+> 数据库表：`room_contents`（迁移文件：`crates/board/migrations/001_initial_schema.sql`）
 
 ## 3. 不变式 & 验证逻辑
 
@@ -113,6 +113,13 @@ CREATE TABLE IF NOT EXISTS room_contents (
 - 响应：文件流或内容数据
 - 错误码：401（令牌无效）、403（权限不足）、404（内容不存在）
 
+### 删除房间内容
+
+- **DELETE** `/api/v1/rooms/{name}/contents`
+- 请求参数：房间名称、token、内容 ID 列表
+- 响应：删除操作结果
+- 错误码：401（令牌无效）、403（权限不足）、404（内容不存在）
+
 ### 请求示例
 
 ```bash
@@ -121,6 +128,11 @@ GET /api/v1/rooms/myroom/contents?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
 # 下载文件
 GET /api/v1/rooms/myroom/contents/123?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+# 删除内容
+DELETE /api/v1/rooms/myroom/contents?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+Content-Type: application/json
+{"content_ids": [123, 124, 125]}
 ```
 
 ### 响应示例
@@ -144,6 +156,13 @@ GET /api/v1/rooms/myroom/contents/123?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9
 Content-Type: application/pdf
 Content-Disposition: attachment; filename="document.pdf"
 [文件二进制数据...]
+
+// 删除响应
+{
+  "deleted_count": 3,
+  "failed_count": 0,
+  "errors": []
+}
 ```
 
 ## 6. JWT 与权限
@@ -267,6 +286,52 @@ pub async fn download_content(
 }
 ```
 
+### 删除内容 (crates/board/src/handlers/content.rs:550)
+
+```rust
+pub async fn delete_contents(
+    AxumPath(name): AxumPath<String>,
+    Query(query): Query<TokenQuery>,
+    State(app_state): State<Arc<AppState>>,
+    Json(payload): Json<DeleteContentRequest>,
+) -> HandlerResult<DeleteContentResponse> {
+    // 验证令牌和权限
+    let verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
+    ensure_permission(
+        &verified.claims,
+        verified.room.permission.can_delete(),
+        ContentPermission::Delete,
+    )?;
+
+    let room_id = room_id_or_error(&verified.claims)?;
+    let repository = SqliteRoomContentRepository::new(app_state.db_pool.clone());
+
+    let mut deleted_count = 0;
+    let mut failed_count = 0;
+    let mut errors = Vec::new();
+
+    for content_id in payload.content_ids {
+        match repository.delete_by_id_and_room(content_id, room_id).await {
+            Ok(true) => deleted_count += 1,
+            Ok(false) => {
+                failed_count += 1;
+                errors.push(format!("Content {} not found or not in room", content_id));
+            },
+            Err(e) => {
+                failed_count += 1;
+                errors.push(format!("Failed to delete content {}: {}", content_id, e));
+            }
+        }
+    }
+
+    Ok(Json(DeleteContentResponse {
+        deleted_count,
+        failed_count,
+        errors,
+    }))
+}
+```
+
 ### 权限验证函数 (crates/board/src/handlers/content.rs:698)
 
 ```rust
@@ -300,6 +365,7 @@ fn ensure_permission(
 - 测试文件路径验证和安全检查
 - 测试 HTTP 响应头设置
 - 测试错误处理和边界条件
+- 测试删除操作的权限检查
 
 ### 集成测试建议
 
@@ -308,6 +374,7 @@ fn ensure_permission(
 - 大文件下载性能测试
 - 并发下载场景测试
 - 文件不存在的情况处理
+- 删除操作的完整流程测试
 
 ### 边界条件测试
 
@@ -316,23 +383,29 @@ fn ensure_permission(
 - 房间被关闭的情况
 - 磁盘文件损坏的情况
 - 网络中断恢复测试
+- 权限不足的删除操作测试
 
-## 9. 已知问题 / TODO / 改进建议
+## 9. 已实现功能
 
-### P0 优先级
+### 已完成功能
 
-- **访问日志记录**：当前缺乏详细的下载访问日志，建议添加访问记录用于审计
-- **下载速度限制**：缺乏单个用户或房间的下载速率限制，可能被滥用
+- ✅ 多内容类型支持（Text、Image、File、Url）
+- ✅ 流式文件下载
+- ✅ 严格的权限验证
+- ✅ 跨房间访问防护
+- ✅ 内容列表查询
+- ✅ 内容删除功能
+- ✅ 正确的 HTTP 响应头设置
+- ✅ 错误处理和边界条件检查
 
-### P1 优先级
+### 计划中功能
 
-- **断点续传支持**：大文件下载失败后需要重新开始，建议支持 HTTP Range 请求
-- **内容缓存机制**：频繁下载的文件缺乏缓存，建议添加内存或磁盘缓存
-
-### P2 优先级
-
-- **下载统计功能**：缺乏下载次数统计和热门内容分析
-- **内容预览功能**：对于图片和文本，建议提供缩略图或预览功能
+- 🔄 访问日志记录
+- 🔄 下载速度限制
+- 🔄 断点续传支持（HTTP Range）
+- 🔄 内容缓存机制
+- 🔄 下载统计功能
+- 🔄 内容预览功能
 
 ## 10. 关联文档 / 代码位置
 
@@ -345,7 +418,7 @@ fn ensure_permission(
 
 ### 数据库相关
 
-- 迁移文件：`crates/board/migrations/002_create_room_contents_table.sql`
+- 迁移文件：`crates/board/migrations/001_initial_schema.sql`
 - 存储触发器：自动更新 `updated_at` 字段
 
 ### 测试文件

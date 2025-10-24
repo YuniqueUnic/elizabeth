@@ -98,7 +98,58 @@ CREATE TABLE IF NOT EXISTS room_upload_reservations (
     consumed_at DATETIME,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- 分块上传相关字段（版本 3.0.0 新增）
+    chunked_upload BOOLEAN DEFAULT FALSE,
+    total_chunks INTEGER,
+    uploaded_chunks INTEGER DEFAULT 0,
+    file_hash TEXT,
+    chunk_size INTEGER,
+    upload_status TEXT DEFAULT 'pending',
     FOREIGN KEY (room_id) REFERENCES rooms (id) ON DELETE CASCADE
+);
+```
+
+#### room_refresh_tokens 表 - 刷新令牌（版本 2.0.0 新增）
+
+```sql
+CREATE TABLE IF NOT EXISTS room_refresh_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    room_id INTEGER NOT NULL,
+    access_token_jti TEXT NOT NULL,
+    token_hash TEXT NOT NULL UNIQUE,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_used_at DATETIME,
+    is_revoked BOOLEAN NOT NULL DEFAULT FALSE,
+    FOREIGN KEY (room_id) REFERENCES rooms (id) ON DELETE CASCADE
+);
+```
+
+#### token_blacklist 表 - 令牌黑名单（版本 2.0.0 新增）
+
+```sql
+CREATE TABLE IF NOT EXISTS token_blacklist (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    jti TEXT NOT NULL UNIQUE,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+#### room_chunk_uploads 表 - 分块上传（版本 3.0.0 新增）
+
+```sql
+CREATE TABLE IF NOT EXISTS room_chunk_uploads (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reservation_id INTEGER NOT NULL,
+    chunk_index INTEGER NOT NULL,
+    chunk_size INTEGER NOT NULL,
+    chunk_hash TEXT,
+    upload_status TEXT NOT NULL DEFAULT 'pending',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (reservation_id) REFERENCES room_upload_reservations (id) ON DELETE CASCADE,
+    UNIQUE(reservation_id, chunk_index)
 );
 ```
 
@@ -175,6 +226,25 @@ CREATE INDEX IF NOT EXISTS idx_room_tokens_expires_at ON room_tokens(expires_at)
 CREATE INDEX IF NOT EXISTS idx_room_upload_reservations_room_id ON room_upload_reservations(room_id);
 CREATE INDEX IF NOT EXISTS idx_room_upload_reservations_token_jti ON room_upload_reservations(token_jti);
 CREATE INDEX IF NOT EXISTS idx_room_upload_reservations_expires_at ON room_upload_reservations(expires_at);
+-- 分块上传相关索引（版本 3.0.0 新增）
+CREATE INDEX IF NOT EXISTS idx_room_upload_reservations_chunked_upload ON room_upload_reservations(chunked_upload);
+CREATE INDEX IF NOT EXISTS idx_room_upload_reservations_upload_status ON room_upload_reservations(upload_status);
+
+-- 刷新令牌索引（版本 2.0.0 新增）
+CREATE INDEX IF NOT EXISTS idx_room_refresh_tokens_room_id ON room_refresh_tokens(room_id);
+CREATE INDEX IF NOT EXISTS idx_room_refresh_tokens_access_jti ON room_refresh_tokens(access_token_jti);
+CREATE INDEX IF NOT EXISTS idx_room_refresh_tokens_token_hash ON room_refresh_tokens(token_hash);
+CREATE INDEX IF NOT EXISTS idx_room_refresh_tokens_expires_at ON room_refresh_tokens(expires_at);
+
+-- 令牌黑名单索引（版本 2.0.0 新增）
+CREATE INDEX IF NOT EXISTS idx_token_blacklist_jti ON token_blacklist(jti);
+CREATE INDEX IF NOT EXISTS idx_token_blacklist_expires_at ON token_blacklist(expires_at);
+
+-- 分块上传索引（版本 3.0.0 新增）
+CREATE INDEX IF NOT EXISTS idx_room_chunk_uploads_reservation_id ON room_chunk_uploads(reservation_id);
+CREATE INDEX IF NOT EXISTS idx_room_chunk_uploads_status ON room_chunk_uploads(upload_status);
+CREATE INDEX IF NOT EXISTS idx_room_chunk_uploads_chunk_index ON room_chunk_uploads(chunk_index);
+CREATE INDEX IF NOT EXISTS idx_room_chunk_uploads_reservation_status ON room_chunk_uploads(reservation_id, upload_status);
 ```
 
 ### 连接池配置
@@ -190,6 +260,43 @@ let pool = SqlitePoolOptions::new()
     .connect_with(connect_options)
     .await?;
 ```
+
+### 数据库视图（版本 3.0.0 新增）
+
+#### 分块上传状态视图
+
+```sql
+-- 分块上传状态视图
+CREATE VIEW IF NOT EXISTS v_chunked_upload_status AS
+SELECT
+    rur.id as reservation_id,
+    rur.room_id,
+    rur.chunked_upload,
+    rur.total_chunks,
+    rur.uploaded_chunks,
+    rur.file_hash,
+    rur.chunk_size,
+    rur.upload_status,
+    rur.expires_at,
+    CASE
+        WHEN rur.total_chunks IS NULL THEN 0.0
+        WHEN rur.total_chunks = 0 THEN 0.0
+        ELSE CAST(rur.uploaded_chunks AS REAL) / rur.total_chunks * 100
+    END as upload_progress,
+    COUNT(rcu.id) as total_uploaded_chunks,
+    COUNT(CASE WHEN rcu.upload_status = 'uploaded' THEN 1 END) as verified_chunks
+FROM room_upload_reservations rur
+LEFT JOIN room_chunk_uploads rcu ON rur.id = rcu.reservation_id
+WHERE rur.chunked_upload = TRUE
+GROUP BY rur.id;
+```
+
+该视图提供了分块上传的实时状态信息，包括：
+
+- 预留基本信息
+- 上传进度百分比
+- 已验证的分块数量
+- 预留过期状态
 
 ### WAL 模式配置
 
@@ -222,28 +329,47 @@ pub async fn run_migrations(pool: &DbPool) -> Result<()>
 
 #### 迁移文件结构
 
-项目已合并为单一初始架构迁移文件：
+项目当前使用多个迁移文件，按版本顺序执行：
 
 - [`001_initial_schema.sql`](crates/board/migrations/001_initial_schema.sql) -
-  初始数据库架构
-  - 包含所有表结构创建
+  初始数据库架构（版本 1.0.0）
+  - 包含基础表结构创建：rooms、room_contents、room_tokens、room_upload_reservations、room_access_logs
   - 包含所有索引创建
   - 包含所有触发器创建
   - 按照依赖关系正确排序：rooms → room_contents → room_tokens →
     room_upload_reservations → room_access_logs → 索引 → 触发器
 
+- [`002_refresh_tokens.sql`](crates/board/migrations/002_refresh_tokens.sql) -
+  刷新令牌机制（版本 2.0.0）
+  - 新增表：room_refresh_tokens、token_blacklist
+  - 添加相关索引
+  - 支持令牌刷新和黑名单机制
+
+- [`003_chunked_upload.sql`](crates/board/migrations/003_chunked_upload.sql) -
+  分块上传功能（版本 3.0.0）
+  - 扩展 room_upload_reservations 表，添加分块上传相关字段
+  - 新增表：room_chunk_uploads
+  - 创建分块上传状态视图
+  - 添加性能优化索引
+
 #### 迁移历史
 
-原多个迁移文件已合并为单一文件：
+项目采用递增式迁移策略：
 
-- ~~0001_create_rooms.sql~~ → 合并到 001_initial_schema.sql
-- ~~0002_create_room_contents.sql~~ → 合并到 001_initial_schema.sql
-- ~~0003_create_room_access_logs.sql~~ → 合并到 001_initial_schema.sql
-- ~~0004_create_room_tokens.sql~~ → 合并到 001_initial_schema.sql
-- ~~0005_create_room_upload_reservations.sql~~ → 合并到 001_initial_schema.sql
-- ~~9999_create_indexes.sql~~ → 合并到 001_initial_schema.sql
+1. **版本 1.0.0**（2024-10-21）：初始数据库架构
+   - 创建核心表结构
+   - 建立基础索引和触发器
 
-这种合并方式适合开发阶段，可以从零开始构建数据库。
+2. **版本 2.0.0**（2025-10-22）：刷新令牌支持
+   - 添加刷新令牌机制
+   - 实现令牌黑名单功能
+
+3. **版本 3.0.0**（2025-10-23）：分块上传功能
+   - 支持大文件分块上传
+   - 实现断点续传功能
+   - 添加上传进度跟踪
+
+这种递增式迁移方式适合生产环境，支持数据库版本升级和回滚。
 
 ### 查询模式
 

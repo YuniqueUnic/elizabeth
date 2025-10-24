@@ -5,7 +5,7 @@
 ### 一句话描述
 
 Elizabeth 是一个基于 Rust
-的现代化文件分享系统，采用房间为中心的设计理念，提供加密、限时、限量、限次的安全文件共享服务。
+的现代化文件分享系统，采用房间为中心的设计理念，提供安全、临时的文件共享服务。
 
 ### 高层架构图
 
@@ -17,7 +17,7 @@ graph TB
         C[API 客户端]
     end
 
-    subgraph "API 网关层"
+    subgraph "API 层"
         D[Axum Web 服务器]
         E[JWT 认证中间件]
         F[OpenAPI 文档]
@@ -27,17 +27,21 @@ graph TB
         G[房间管理 Handler]
         H[内容管理 Handler]
         I[令牌管理 Handler]
+        J[分块上传 Handler]
+        K[刷新令牌 Handler]
     end
 
     subgraph "数据访问层"
-        J[Room Repository]
-        K[Content Repository]
-        L[Token Repository]
+        L[Room Repository]
+        M[Content Repository]
+        N[Token Repository]
+        O[Chunk Upload Repository]
+        P[Refresh Token Repository]
     end
 
     subgraph "数据存储层"
-        M[SQLite 数据库]
-        N[文件系统存储]
+        Q[SQLite 数据库]
+        R[文件系统存储]
     end
 
     A --> D
@@ -47,13 +51,20 @@ graph TB
     E --> G
     E --> H
     E --> I
-    G --> J
-    H --> K
-    I --> L
-    J --> M
-    K --> M
-    L --> M
-    H --> N
+    E --> J
+    E --> K
+    G --> L
+    H --> M
+    I --> N
+    J --> O
+    K --> P
+    L --> Q
+    M --> Q
+    N --> Q
+    O --> Q
+    P --> Q
+    H --> R
+    J --> R
 ```
 
 ### 核心设计理念
@@ -65,7 +76,7 @@ Elizabeth 系统的核心设计理念是 **"Room" 而不是
 2. **房间即身份 (Room as Identity)**：通过进入房间实现身份验证，简化权限管理
 3. **临时性与可控性**：房间支持过期时间、进入次数限制、文件大小限制
 4. **权限嵌入机制**：JWT Token 中嵌入权限信息，减少实时数据库查询
-5. **安全优先**：全链路加密支持，包括传输安全和存储安全
+5. **分块上传支持**：支持大文件分块上传和断点续传
 
 ## 2. 组件清单
 
@@ -91,8 +102,9 @@ Elizabeth 系统的核心设计理念是 **"Room" 而不是
 
 - `001_initial_schema.sql` -
   初始数据库架构（包含基础表：rooms、room_contents、room_tokens、room_upload_reservations、room_access_logs）
-- `002_refresh_tokens.sql` -
-  刷新令牌机制（新增表：room_refresh_tokens、token_blacklist）
+- `002_refresh_tokens.sql` - 刷新令牌机制（新增表：room_refresh_tokens）
+- `003_chunked_upload.sql` - 分块上传功能（扩展 room_upload_reservations
+  表，新增 room_chunk_uploads 表）
 
 ### 认证授权组件
 
@@ -106,20 +118,21 @@ Elizabeth 系统的核心设计理念是 **"Room" 而不是
 
 ### 外部依赖
 
-| 依赖         | 版本  | 用途                            |
-| ------------ | ----- | ------------------------------- |
-| axum         | 0.8.6 | 异步 Web 框架                   |
-| sqlx         | 0.8   | 异步 SQL 工具包，编译时查询检查 |
-| jsonwebtoken | 10.0  | JWT 令牌处理                    |
-| utoipa       | 5     | OpenAPI 文档生成                |
-| tokio        | 1.0   | 异步运行时                      |
-| chrono       | 0.4   | 时间处理                        |
-| serde        | 1     | 序列化/反序列化                 |
-| bitflags     | 2     | 位标志权限系统                  |
+| 依赖              | 版本  | 用途                            |
+| ----------------- | ----- | ------------------------------- |
+| axum              | 0.8.6 | 异步 Web 框架                   |
+| sqlx              | 0.8   | 异步 SQL 工具包，编译时查询检查 |
+| jsonwebtoken      | 10.0  | JWT 令牌处理                    |
+| utoipa            | 5     | OpenAPI 文档生成                |
+| tokio             | 1.0   | 异步运行时                      |
+| chrono            | 0.4   | 时间处理                        |
+| serde             | 1     | 序列化/反序列化                 |
+| bitflags          | 2     | 位标志权限系统                  |
+| sanitize-filename | 0.5   | 文件名安全过滤                  |
 
 ## 3. 数据流
 
-### 上传流程
+### 普通上传流程
 
 ```mermaid
 sequenceDiagram
@@ -129,19 +142,75 @@ sequenceDiagram
     participant DB as 数据库
     participant FS as 文件系统
 
-    C->>H: POST /rooms/{name}/contents
+    C->>H: POST /rooms/{name}/contents/prepare
     H->>H: 验证 JWT 权限
     H->>R: 检查房间容量限制
     R->>DB: 查询房间当前大小
     DB-->>R: 返回房间信息
     R-->>H: 权限检查通过
+    H->>R: 创建上传预留
+    R->>DB: 插入 room_upload_reservations 记录
+    DB-->>R: 确认插入成功
+    R-->>H: 返回预留信息
+    H-->>C: 返回预留 ID
+
+    C->>H: POST /rooms/{name}/contents
+    H->>H: 验证预留记录
     H->>FS: 保存文件到存储
     FS-->>H: 返回文件路径
     H->>R: 创建内容记录
     R->>DB: 插入 room_contents 记录
     DB-->>R: 确认插入成功
+    R->>DB: 更新预留状态为已消费
+    DB-->>R: 确认更新成功
     R-->>H: 返回内容信息
     H-->>C: 返回上传结果
+```
+
+### 分块上传流程
+
+```mermaid
+sequenceDiagram
+    participant C as 客户端
+    participant H as Handler
+    participant R as Repository
+    participant DB as 数据库
+    participant FS as 文件系统
+
+    C->>H: POST /rooms/{name}/uploads/chunks/prepare
+    H->>H: 验证 JWT 权限
+    H->>R: 创建分块上传预留
+    R->>DB: 插入 room_upload_reservations 记录（chunked_upload=true）
+    DB-->>R: 确认插入成功
+    R-->>H: 返回预留信息
+    H-->>C: 返回预留 ID 和分块信息
+
+    loop 分块上传
+        C->>H: POST /rooms/{name}/uploads/chunks
+        H->>H: 验证预留记录
+        H->>FS: 保存分块文件
+        FS-->>H: 返回分块路径
+        H->>R: 创建分块记录
+        R->>DB: 插入 room_chunk_uploads 记录
+        DB-->>R: 确认插入成功
+        H-->>C: 返回分块上传成功
+    end
+
+    C->>H: GET /rooms/{name}/uploads/chunks/status
+    H->>R: 查询上传进度
+    R->>DB: 查询 room_chunk_uploads 状态
+    DB-->>R: 返回进度信息
+    R-->>H: 返回进度数据
+    H-->>C: 返回上传进度
+
+    C->>H: POST /rooms/{name}/uploads/chunks/complete
+    H->>H: 验证所有分块已上传
+    H->>FS: 合并分块文件
+    FS-->>H: 返回合并后文件路径
+    H->>R: 创建内容记录
+    R->>DB: 插入 room_contents 记录
+    DB-->>R: 确认插入成功
+    H-->>C: 返回上传完成
 ```
 
 ### 下载流程
@@ -243,7 +312,8 @@ stateDiagram-v2
    - 生产环境考虑使用 SQLCipher
 
 2. **文件存储加密**：
-   - 支持文件内容加密存储（可选功能）
+   - 当前版本：明文存储
+   - 计划改进：支持文件内容加密存储（可选功能）
    - 使用 AES-256-GCM 算法
    - 密钥与房间关联，房间删除时密钥销毁
 
@@ -262,8 +332,8 @@ stateDiagram-v2
 ### JWT 签名验证
 
 1. **签名算法**：
-   - 使用 RS256 或 ES256 算法
-   - 密钥长度至少 2048 位
+   - 使用 HS256 算法（当前实现）
+   - 密钥长度至少 32 字符
    - 支持密钥轮换机制
 
 2. **令牌验证**：
@@ -296,7 +366,7 @@ sequenceDiagram
     participant STORAGE as 存储服务
     participant DB as 数据库
 
-    U->>API: 上传文件请求 + JWT
+    U->>API: 预留上传请求 + JWT
     API->>AUTH: 验证 JWT 令牌
     AUTH->>DB: 查询令牌状态
     DB-->>AUTH: 令牌有效
@@ -305,13 +375,75 @@ sequenceDiagram
     ROOM->>DB: 查询房间配置
     DB-->>ROOM: 房间权限信息
     ROOM-->>API: 权限验证通过
+    API->>ROOM: 创建上传预留
+    ROOM->>DB: 插入预留记录
+    DB-->>ROOM: 预留创建成功
+    ROOM-->>API: 预留信息
+    API-->>U: 预留成功响应
+
+    U->>API: 上传文件请求 + 预留 ID
+    API->>ROOM: 验证预留记录
+    ROOM->>DB: 查询预留状态
+    DB-->>ROOM: 预留有效
+    ROOM-->>API: 预留验证通过
     API->>STORAGE: 保存文件
     STORAGE-->>API: 文件保存成功
     API->>ROOM: 创建内容记录
     ROOM->>DB: 插入内容记录
-    DB-->>ROOM: 记录创建成功
+    ROOM->>DB: 更新预留状态
+    DB-->>ROOM: 操作成功
     ROOM-->>API: 内容信息
     API-->>U: 上传成功响应
+```
+
+### 分块上传时序
+
+```mermaid
+sequenceDiagram
+    participant U as 用户
+    participant API as API 网关
+    participant AUTH as 认证服务
+    participant CHUNK as 分块上传服务
+    participant STORAGE as 存储服务
+    participant DB as 数据库
+
+    U->>API: 准备分块上传 + JWT
+    API->>AUTH: 验证 JWT 令牌
+    AUTH-->>API: 认证成功
+    API->>CHUNK: 创建分块预留
+    CHUNK->>DB: 插入分块预留记录
+    DB-->>CHUNK: 预留创建成功
+    CHUNK-->>API: 预留信息
+    API-->>U: 预留成功响应
+
+    loop 上传分块
+        U->>API: 上传分块 + 预留 ID
+        API->>CHUNK: 处理分块上传
+        CHUNK->>STORAGE: 保存分块文件
+        STORAGE-->>CHUNK: 分块保存成功
+        CHUNK->>DB: 插入分块记录
+        DB-->>CHUNK: 分块记录创建成功
+        CHUNK-->>API: 分块上传成功
+        API-->>U: 分块上传响应
+    end
+
+    U->>API: 查询上传进度 + 预留 ID
+    API->>CHUNK: 查询分块状态
+    CHUNK->>DB: 查询分块进度
+    DB-->>CHUNK: 进度信息
+    CHUNK-->>API: 进度数据
+    API-->>U: 进度响应
+
+    U->>API: 完成文件合并 + 预留 ID
+    API->>CHUNK: 验证所有分块
+    CHUNK->>DB: 查询分块完整性
+    DB-->>CHUNK: 分块完整
+    CHUNK->>STORAGE: 合并分块文件
+    STORAGE-->>CHUNK: 文件合并成功
+    CHUNK->>DB: 创建内容记录
+    DB-->>CHUNK: 记录创建成功
+    CHUNK-->>API: 合并完成
+    API-->>U: 上传完成响应
 ```
 
 ### 文件下载时序
@@ -382,7 +514,7 @@ sequenceDiagram
 1. **环境准备**：
    ```bash
    # 安装 Rust 1.90+
-   curl --proto '=https://sh.rustup.rs' -sSf | sh
+   curl --proto '=https' sh.rustup.rs -sSf | sh
 
    # 克隆项目
    git clone https://github.com/your-username/elizabeth.git
@@ -496,6 +628,9 @@ export ELIZABETH_STORAGE_PATH=/data/storage
 | `STORAGE_FULL`           | 507       | 存储空间不足     | 联系管理员清理存储         |
 | `FILE_TOO_LARGE`         | 413       | 文件过大         | 检查房间文件大小限制       |
 | `UNSUPPORTED_MEDIA_TYPE` | 415       | 不支持的媒体类型 | 检查文件格式是否支持       |
+| `RESERVATION_NOT_FOUND`  | 400       | 预留记录不存在   | 重新创建上传预留           |
+| `RESERVATION_EXPIRED`    | 400       | 预留已过期       | 重新创建上传预留           |
+| `CHUNK_UPLOAD_FAILED`    | 400       | 分块上传失败     | 检查分块数据和预留 ID      |
 
 ### 性能监控指标
 
@@ -513,6 +648,7 @@ export ELIZABETH_STORAGE_PATH=/data/storage
    - 房间创建成功率 > 99%
    - 文件上传成功率 > 98%
    - JWT 令牌验证成功率 > 99.9%
+   - 分块上传成功率 > 95%
 
 ### 故障排查工具
 
@@ -538,7 +674,62 @@ export ELIZABETH_STORAGE_PATH=/data/storage
    tail -f /var/log/elizabeth/error.log | grep ERROR
    ```
 
+5. **分块上传状态检查**：
+   ```bash
+   # 查询分块上传状态
+   sqlite3 elizabeth.db "SELECT * FROM v_chunked_upload_status;"
+   ```
+
+## 9. API 端点总览
+
+### 房间管理 API
+
+- `POST /api/v1/rooms/{name}` - 创建房间
+- `GET /api/v1/rooms/{name}` - 获取房间信息
+- `DELETE /api/v1/rooms/{name}` - 删除房间
+- `POST /api/v1/rooms/{name}/permissions` - 更新房间权限
+
+### 令牌管理 API
+
+- `POST /api/v1/rooms/{name}/tokens` - 颁发房间访问令牌
+- `GET /api/v1/rooms/{name}/tokens` - 列出房间令牌
+- `POST /api/v1/rooms/{name}/tokens/validate` - 验证令牌
+- `DELETE /api/v1/rooms/{name}/tokens/{jti}` - 撤销令牌
+
+### 认证 API
+
+- `POST /api/v1/auth/refresh` - 刷新访问令牌
+- `POST /api/v1/auth/logout` - 登出（撤销令牌）
+- `DELETE /api/v1/auth/cleanup` - 清理过期令牌
+
+### 内容管理 API
+
+- `GET /api/v1/rooms/{name}/contents` - 列出房间内容
+- `POST /api/v1/rooms/{name}/contents/prepare` - 预留上传空间
+- `POST /api/v1/rooms/{name}/contents` - 上传文件
+- `DELETE /api/v1/rooms/{name}/contents` - 删除内容
+- `GET /api/v1/rooms/{name}/contents/{content_id}` - 下载文件
+
+### 分块上传 API
+
+- `POST /api/v1/rooms/{name}/uploads/chunks/prepare` - 准备分块上传
+- `POST /api/v1/rooms/{name}/uploads/chunks` - 上传分块
+- `GET /api/v1/rooms/{name}/uploads/chunks/status` - 查询上传状态
+- `POST /api/v1/rooms/{name}/uploads/chunks/complete` - 完成文件合并
+
+### 认证 API
+
+- `POST /api/v1/auth/refresh` - 刷新访问令牌
+- `POST /api/v1/auth/logout` - 登出（撤销令牌）
+- `DELETE /api/v1/auth/cleanup` - 清理过期令牌
+
+### 系统 API
+
+- `GET /api/v1/status` - 系统状态检查
+- `GET /api/v1/openapi.json` - OpenAPI 规范
+- `GET /api/v1/scalar` - API 文档界面
+
 ---
 
 **文档最后更新时间**：2025-10-23 **文档作者**：Elizabeth 开发团队
-**文档版本**：v2.0.0
+**文档版本**：v3.0.0
