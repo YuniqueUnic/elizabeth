@@ -21,6 +21,23 @@ multipart
 - consumed_at: Option<NaiveDateTime> — 消费时间
 - created_at: NaiveDateTime — 创建时间
 - updated_at: NaiveDateTime — 更新时间
+- chunked_upload: Boolean — 是否为分块上传（默认 false）
+- total_chunks: Option<i32> — 总分块数（分块上传时使用）
+- uploaded_chunks: i32 — 已上传分块数（默认 0）
+- file_hash: Option<String> — 文件哈希值
+- chunk_size: Option<i32> — 分块大小
+- upload_status: String — 上传状态（默认 'pending'）
+
+### 分块上传模型 (RoomChunkUpload)
+
+- id: i64 — 主键，分块记录的唯一标识
+- reservation_id: i64 — 关联的预留记录 ID
+- chunk_index: i32 — 分块索引
+- chunk_size: i32 — 分块大小
+- chunk_hash: Option<String> — 分块哈希值
+- upload_status: String — 上传状态（默认 'pending'）
+- created_at: NaiveDateTime — 创建时间
+- updated_at: NaiveDateTime — 更新时间
 
 ### 文件描述符 (UploadFileDescriptor)
 
@@ -32,8 +49,11 @@ multipart
 
 - UploadPreparationResponse: 包含预留 ID、预留大小、过期时间等信息
 - UploadContentResponse: 包含上传成功的文件列表和当前房间大小
+- ChunkUploadPreparationResponse: 包含分块上传预留信息
+- ChunkUploadStatusResponse: 包含分块上传进度信息
 
-> 数据库表：`room_upload_reservations`（迁移文件：`crates/board/migrations/006_create_room_upload_reservations_table.sql`）
+> 数据库表：`room_upload_reservations`（迁移文件：`crates/board/migrations/001_initial_schema.sql`）
+> 数据库表：`room_chunk_uploads`（迁移文件：`crates/board/migrations/003_chunked_upload.sql`）
 
 ## 3. 不变式 & 验证逻辑
 
@@ -46,6 +66,8 @@ multipart
 - 实际上传的文件必须与预留清单完全匹配（文件名、大小）
 - 房间状态必须为 Open 且未过期
 - 文件存储路径使用 UUID 前缀避免冲突
+- 分块上传时，所有分块必须按顺序上传完成
+- 分块上传完成后，系统自动合并文件
 
 ### TTL 时间配置
 
@@ -84,12 +106,15 @@ tokio::spawn(async move {
 - 总文件大小不能超过房间剩余容量
 - 文件名经过安全过滤，防止路径遍历攻击
 - MIME 类型通过文件扩展名自动检测
+- 分块上传时验证分块索引和大小
+- 分块哈希验证确保数据完整性
 
 ## 4. 持久化 & 索引
 
 ### 数据库表结构
 
 ```sql
+-- room_upload_reservations 表
 CREATE TABLE IF NOT EXISTS room_upload_reservations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     room_id INTEGER NOT NULL,
@@ -101,21 +126,81 @@ CREATE TABLE IF NOT EXISTS room_upload_reservations (
     consumed_at DATETIME,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    chunked_upload BOOLEAN DEFAULT FALSE,
+    total_chunks INTEGER,
+    uploaded_chunks INTEGER DEFAULT 0,
+    file_hash TEXT,
+    chunk_size INTEGER,
+    upload_status TEXT DEFAULT 'pending',
     FOREIGN KEY (room_id) REFERENCES rooms (id) ON DELETE CASCADE
+);
+
+-- room_chunk_uploads 表
+CREATE TABLE IF NOT EXISTS room_chunk_uploads (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reservation_id INTEGER NOT NULL,
+    chunk_index INTEGER NOT NULL,
+    chunk_size INTEGER NOT NULL,
+    chunk_hash TEXT,
+    upload_status TEXT NOT NULL DEFAULT 'pending',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (reservation_id) REFERENCES room_upload_reservations (id) ON DELETE CASCADE,
+    UNIQUE(reservation_id, chunk_index)
 );
 ```
 
 ### 索引设计
 
+**room_upload_reservations 索引**：
+
 - `idx_room_upload_reservations_room_id`: 优化按房间查询预留记录
 - `idx_room_upload_reservations_token_jti`: 优化按令牌 JTI 查询
 - `idx_room_upload_reservations_expires_at`: 优化过期预留的清理
+- `idx_room_upload_reservations_chunked_upload`: 优化分块上传查询
+- `idx_room_upload_reservations_upload_status`: 优化按状态查询
+
+**room_chunk_uploads 索引**：
+
+- `idx_room_chunk_uploads_reservation_id`: 优化按预留查询分块
+- `idx_room_chunk_uploads_status`: 优化按状态查询分块
+- `idx_room_chunk_uploads_chunk_index`: 优化按索引查询分块
+- `idx_room_chunk_uploads_reservation_status`: 优化复合查询
 
 ### 文件存储
 
 - 存储根目录：`storage/rooms/{room_slug}/`
 - 文件命名：`{uuid}_{sanitized_filename}`
+- 分块文件命名：`{uuid}_chunk_{index}`
 - 使用 `sanitize_filename` crate 确保文件名安全
+
+### 视图定义
+
+```sql
+-- 分块上传状态视图
+CREATE VIEW IF NOT EXISTS v_chunked_upload_status AS
+SELECT
+    rur.id as reservation_id,
+    rur.room_id,
+    rur.chunked_upload,
+    rur.total_chunks,
+    rur.uploaded_chunks,
+    rur.file_hash,
+    rur.chunk_size,
+    rur.upload_status,
+    rur.expires_at,
+    CASE
+        WHEN rur.total_chunks IS NULL THEN 0.0
+        WHEN rur.total_chunks = 0 THEN 0.0
+        ELSE CAST(rur.uploaded_chunks AS REAL) / rur.total_chunks * 100
+    END as upload_progress,
+    COUNT(rcu.id) as total_uploaded_chunks,
+    COUNT(CASE WHEN rcu.upload_status = 'uploaded' THEN 1 END) as verified_chunks
+FROM room_upload_reservations rur
+LEFT JOIN room_chunk_uploads rcu ON rur.id = rcu.reservation_id
+WHERE rur.chunked_upload = TRUE
+GROUP BY rur.id;
+```
 
 ## 5. API/Handlers
 
@@ -132,6 +217,34 @@ CREATE TABLE IF NOT EXISTS room_upload_reservations (
 - 请求参数：房间名称、token、reservation_id、multipart 文件数据
 - 响应：上传成功的文件列表、更新后的房间大小
 - 错误码：400（预留无效）、401（令牌无效）、403（权限不足）
+
+### 准备分块上传
+
+- **POST** `/api/v1/rooms/{name}/uploads/chunks/prepare`
+- 请求参数：房间名称、token、文件信息（大小、分块大小）
+- 响应：预留 ID、总分块数、分块大小
+- 错误码：400（参数错误）、401（令牌无效）、403（权限不足）、413（容量超限）
+
+### 上传分块
+
+- **POST** `/api/v1/rooms/{name}/uploads/chunks`
+- 请求参数：房间名称、token、reservation_id、chunk_index、分块数据
+- 响应：分块上传成功确认
+- 错误码：400（分块无效）、401（令牌无效）、403（权限不足）
+
+### 查询上传状态
+
+- **GET** `/api/v1/rooms/{name}/uploads/chunks/status`
+- 请求参数：房间名称、token、reservation_id
+- 响应：上传进度、已上传分块数、总分块数
+- 错误码：400（预留无效）、401（令牌无效）
+
+### 完成文件合并
+
+- **POST** `/api/v1/rooms/{name}/uploads/chunks/complete`
+- 请求参数：房间名称、token、reservation_id
+- 响应：合并完成确认、文件信息
+- 错误码：400（分块不完整）、401（令牌无效）、403（权限不足）
 
 ### 请求示例
 
@@ -156,6 +269,31 @@ POST /api/v1/rooms/myroom/contents/prepare?token=eyJhbGciOiJIUzI1NiIsInR5cCI6Ikp
   "current_size": 512000,
   "remaining_size": 9488000,
   "max_size": 10485760
+}
+
+// 分块上传准备请求
+POST /api/v1/rooms/myroom/uploads/chunks/prepare?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+{
+  "file_size": 10485760,
+  "chunk_size": 1048576,
+  "file_name": "large_file.zip"
+}
+
+// 分块上传准备响应
+{
+  "reservation_id": 456,
+  "total_chunks": 10,
+  "chunk_size": 1048576,
+  "expires_at": "2023-12-01T10:00:00"
+}
+
+// 上传状态查询响应
+{
+  "reservation_id": 456,
+  "upload_progress": 60.0,
+  "uploaded_chunks": 6,
+  "total_chunks": 10,
+  "upload_status": "uploading"
 }
 ```
 
@@ -262,6 +400,93 @@ pub async fn upload_contents(
 }
 ```
 
+### 准备分块上传 (crates/board/src/handlers/chunked_upload.rs:45)
+
+```rust
+pub async fn prepare_chunked_upload(
+    AxumPath(name): AxumPath<String>,
+    Query(query): Query<TokenQuery>,
+    State(app_state): State<Arc<AppState>>,
+    Json(payload): Json<ChunkedUploadPreparationRequest>,
+) -> HandlerResult<ChunkedUploadPreparationResponse> {
+    // 验证令牌和权限
+    let verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
+    ensure_permission(&verified.claims, verified.room.permission.can_edit(), ContentPermission::Edit)?;
+
+    // 计算分块信息
+    let total_chunks = (payload.file_size + payload.chunk_size - 1) / payload.chunk_size;
+
+    // 创建分块上传预留
+    let reservation = reservation_repo.create_chunked_reservation(
+        &verified.room,
+        &verified.claims.jti,
+        payload.file_size,
+        payload.chunk_size,
+        total_chunks,
+        &payload.file_name,
+    ).await?;
+
+    ChunkedUploadPreparationResponse {
+        reservation_id: reservation.id,
+        total_chunks,
+        chunk_size: payload.chunk_size,
+        expires_at: reservation.expires_at,
+    }
+}
+```
+
+### 上传分块 (crates/board/src/handlers/chunked_upload.rs:89)
+
+```rust
+pub async fn upload_chunk(
+    AxumPath(name): AxumPath<String>,
+    Query(query): Query<ChunkUploadQuery>,
+    State(app_state): State<Arc<AppState>>,
+    mut multipart: Multipart,
+) -> HandlerResult<ChunkUploadResponse> {
+    // 验证预留记录
+    let reservation = reservation_repo.fetch_by_id(query.reservation_id).await?
+        .ok_or_else(|| HttpResponse::BadRequest().message("Reservation not found"))?;
+
+    // 验证分块索引
+    if query.chunk_index < 0 || query.chunk_index >= reservation.total_chunks.unwrap_or(0) {
+        return Err(HttpResponse::BadRequest().message("Invalid chunk index"));
+    }
+
+    // 处理分块数据
+    while let Some(mut field) = multipart.next_field().await? {
+        let chunk_data = field.bytes().await?;
+
+        // 验证分块大小
+        if chunk_data.len() != reservation.chunk_size.unwrap_or(0) as usize {
+            // 最后一个分块可能小于标准分块大小
+            if query.chunk_index != reservation.total_chunks.unwrap_or(0) - 1 {
+                return Err(HttpResponse::BadRequest().message("Invalid chunk size"));
+            }
+        }
+
+        // 保存分块文件
+        let chunk_path = storage_dir.join(format!("chunk_{}_{}", reservation.id, query.chunk_index));
+        tokio::fs::write(&chunk_path, &chunk_data).await?;
+
+        // 创建分块记录
+        chunk_repo.create_chunk_record(
+            reservation.id,
+            query.chunk_index,
+            chunk_data.len() as i32,
+            Some(calculate_hash(&chunk_data)),
+        ).await?;
+
+        break;
+    }
+
+    ChunkUploadResponse {
+        chunk_index: query.chunk_index,
+        uploaded: true,
+    }
+}
+```
+
 ## 8. 测试要点
 
 ### 单元测试建议
@@ -271,10 +496,14 @@ pub async fn upload_contents(
 - 测试预留过期机制
 - 测试权限验证逻辑
 - 测试文件名安全过滤
+- 测试分块上传逻辑
+- 测试分块合并逻辑
+- 测试上传进度计算
 
 ### 集成测试建议
 
 - 完整的上传流程：预留 → 上传 → 验证
+- 分块上传流程：准备 → 分块上传 → 状态查询 → 合并
 - 并发上传场景测试
 - 房间容量限制测试
 - 网络中断恢复测试
@@ -286,38 +515,49 @@ pub async fn upload_contents(
 - 房间容量刚好满足的情况
 - 文件名包含特殊字符的情况
 - multipart 数据格式异常的情况
+- 分块上传中部分分块失败的情况
+- 分块索引重复或缺失的情况
 
-## 9. 已知问题 / TODO / 改进建议
+## 9. 已实现功能
 
-### P0 优先级
+### 已完成功能
 
-- **文件上传进度跟踪**：当前实现无法提供上传进度反馈，建议添加 WebSocket 或 SSE
-  机制
-- **断点续传支持**：大文件上传失败后需要重新开始，建议实现分块上传和断点续传
+- ✅ 两阶段上传机制（预留 + 上传）
+- ✅ 文件大小和容量限制验证
+- ✅ JWT 权限验证
+- ✅ 文件名安全过滤
+- ✅ 分块上传支持
+- ✅ 分块上传进度跟踪
+- ✅ 自动文件合并
+- ✅ 预留记录自动清理
+- ✅ 分块哈希验证
+- ✅ 上传状态查询
 
-### P1 优先级
+### 计划中功能
 
-- **病毒扫描集成**：上传文件缺乏安全扫描，建议集成 ClamAV 或类似工具
-- **文件类型验证增强**：当前仅依赖 MIME 类型检测，建议添加文件头验证
-
-### P2 优先级
-
-- **上传速度限制**：缺乏单个用户或房间的上传速率限制
-- **存储压缩**：对于文本类文件，建议实现自动压缩以节省存储空间
+- 🔄 文件上传进度实时推送（WebSocket/SSE）
+- 🔄 病毒扫描集成
+- 🔄 文件类型验证增强
+- 🔄 上传速度限制
+- 🔄 存储压缩
 
 ## 10. 关联文档 / 代码位置
 
 ### 源码路径
 
-- 处理器实现：`crates/board/src/handlers/content.rs:172-530`
+- 普通上传处理器实现：`crates/board/src/handlers/content.rs:172-530`
+- 分块上传处理器实现：`crates/board/src/handlers/chunked_upload.rs`
 - 路由定义：`crates/board/src/route/room.rs:28-35`
 - 数据模型：`crates/board/src/models/room/upload_reservation.rs`
+- 分块模型：`crates/board/src/models/room/chunk_upload.rs`
 - 权限验证：`crates/board/src/handlers/content.rs:698-723`
 
 ### 数据库相关
 
-- 迁移文件：`crates/board/migrations/006_create_room_upload_reservations_table.sql`
-- 内容表：`crates/board/migrations/002_create_room_contents_table.sql`
+- 迁移文件：`crates/board/migrations/001_initial_schema.sql`
+- 刷新令牌迁移：`crates/board/migrations/002_refresh_tokens.sql`
+- 分块上传迁移：`crates/board/migrations/003_chunked_upload.sql`
+- 内容表：`crates/board/migrations/001_initial_schema.sql`
 
 ### 测试文件
 
@@ -330,3 +570,5 @@ pub async fn upload_contents(
 - [权限模型文档](model-permissions.md)
 - [令牌处理器文档](handler-token.md)
 - [刷新令牌处理器文档](handler-refresh-token.md)
+- [分块上传设计文档](chunked-upload-design.md)
+- [分块上传 API 文档](chunked-upload-api.md)
