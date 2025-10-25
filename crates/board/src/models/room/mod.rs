@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use utoipa::ToSchema;
 
+use crate::constants::room::{DEFAULT_MAX_ROOM_CONTENT_SIZE, DEFAULT_MAX_TIMES_ENTER_ROOM};
 use crate::models::permission::RoomPermission;
 
 pub mod chunk_upload;
@@ -23,9 +24,6 @@ pub use refresh_token::{
 };
 pub use token::RoomToken;
 pub use upload_reservation::{RoomUploadReservation, UploadFileDescriptor, UploadStatus};
-
-pub const DEFAULT_MAX_TIMES_ENTER_ROOM: i64 = 100;
-pub const DEFAULT_MAX_ROOM_CONTENT_SIZE: i64 = 10 * 1024 * 1024;
 
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema, Default, sqlx::Type,

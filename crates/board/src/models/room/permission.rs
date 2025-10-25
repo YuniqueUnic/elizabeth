@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 use bitflags::bitflags;
 use serde::{Deserialize, Serialize};
 use sqlx::{

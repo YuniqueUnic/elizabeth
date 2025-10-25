@@ -135,7 +135,7 @@ pub async fn prepare_chunked_upload(
     // 生成预留 ID 和上传令牌
     let reservation_id = Uuid::new_v4().to_string();
     let upload_token = Uuid::new_v4().to_string();
-    let expires_at = Utc::now().naive_utc() + app_state.upload_reservation_ttl;
+    let expires_at = Utc::now().naive_utc() + app_state.upload_reservation_ttl();
 
     // 计算总预留大小
     let total_reserved_size: i64 = payload.files.iter().map(|f| f.size).sum();
@@ -195,7 +195,7 @@ pub async fn prepare_chunked_upload(
             &upload_token,
             &file_manifest,
             total_reserved_size,
-            app_state.upload_reservation_ttl,
+            app_state.upload_reservation_ttl(),
         )
         .await
         .map_err(|e| {

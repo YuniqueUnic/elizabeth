@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::models::{RefreshTokenRequest, RefreshTokenResponse};
+use crate::repository::room_repository::IRoomRepository;
 use crate::services::refresh_token_service::RefreshTokenService;
 use crate::state::AppState;
 
@@ -29,7 +30,7 @@ pub async fn refresh_token(
     State(app_state): State<Arc<AppState>>,
     Json(request): Json<RefreshTokenRequest>,
 ) -> Result<Json<RefreshTokenResponse>, HttpResponse> {
-    let refresh_service = &app_state.refresh_token_service;
+    let refresh_service = app_state.refresh_token_service();
 
     let response = refresh_service
         .refresh_access_token(&request.refresh_token)
@@ -61,11 +62,11 @@ pub async fn revoke_token(
     State(app_state): State<Arc<AppState>>,
     Json(request): Json<LogoutRequest>,
 ) -> Result<HttpResponse, HttpResponse> {
-    let refresh_service = &app_state.refresh_token_service;
+    let refresh_service = app_state.refresh_token_service();
 
     // 首先验证令牌有效性
     let claims = app_state
-        .token_service
+        .token_service()
         .decode(&request.access_token)
         .map_err(|_| HttpResponse::Unauthorized().message("Invalid access token"))?;
 
@@ -103,7 +104,7 @@ pub struct LogoutRequest {
 pub async fn cleanup_expired_tokens(
     State(app_state): State<Arc<AppState>>,
 ) -> Result<Json<CleanupResponse>, HttpResponse> {
-    let refresh_service = &app_state.refresh_token_service;
+    let refresh_service = app_state.refresh_token_service();
 
     let cleaned_count = refresh_service.cleanup_expired().await.map_err(|e| {
         logrs::error!("Failed to cleanup expired tokens: {}", e);
@@ -138,66 +139,58 @@ mod tests {
     use std::sync::Arc;
 
     async fn create_test_app_state() -> Arc<AppState> {
-        let pool = SqlitePool::connect(":memory:").await.unwrap();
+        use crate::config::{AppConfig, AuthConfig, RoomConfig, ServerConfig, StorageConfig};
+        use crate::constants::upload::DEFAULT_UPLOAD_RESERVATION_TTL_SECONDS;
+        use crate::constants::{
+            room::DEFAULT_MAX_ROOM_CONTENT_SIZE, room::DEFAULT_MAX_TIMES_ENTER_ROOM,
+            test::TEST_JWT_SECRET,
+        };
+        use crate::db::init_db;
 
-        // 创建测试表
-        sqlx::query(
-            r#"
-            CREATE TABLE room_refresh_tokens (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                room_id INTEGER NOT NULL,
-                access_token_jti TEXT NOT NULL,
-                token_hash TEXT NOT NULL UNIQUE,
-                expires_at DATETIME NOT NULL,
-                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                last_used_at DATETIME,
-                is_revoked BOOLEAN NOT NULL DEFAULT FALSE
-            );
+        let db_pool = Arc::new(
+            init_db(&crate::db::DbPoolSettings::new("sqlite::memory:"))
+                .await
+                .unwrap(),
+        );
 
-            CREATE TABLE token_blacklist (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                jti TEXT NOT NULL UNIQUE,
-                expires_at DATETIME NOT NULL,
-                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-            );
-            "#,
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
+        // 运行迁移
+        sqlx::migrate!("./migrations").run(&*db_pool).await.unwrap();
 
-        let secret = Arc::new("test_secret".to_string());
-        let token_service = RoomTokenService::new(secret.clone());
+        // 创建测试配置
+        let app_config = AppConfig {
+            server: ServerConfig::default(),
+            storage: StorageConfig {
+                root: std::env::temp_dir(),
+                upload_reservation_ttl_seconds: DEFAULT_UPLOAD_RESERVATION_TTL_SECONDS,
+            },
+            room: RoomConfig {
+                max_content_size: DEFAULT_MAX_ROOM_CONTENT_SIZE,
+                max_times_entered: DEFAULT_MAX_TIMES_ENTER_ROOM,
+            },
+            auth: AuthConfig::new("test-secret-key-for-unit-testing-123456789".to_string())
+                .unwrap(),
+        };
 
-        let pool_arc = Arc::new(pool.clone());
-        let refresh_repo = Arc::new(SqliteRoomRefreshTokenRepository::new(pool_arc.clone()));
-        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(pool_arc));
-
-        let refresh_service =
-            RefreshTokenService::with_defaults(token_service.clone(), refresh_repo, blacklist_repo);
-
-        Arc::new(AppState::new(
-            Arc::new(pool),
-            std::env::temp_dir(),
-            Duration::seconds(10),
-            10000000,
-            100,
-            token_service,
-            refresh_service,
-        ))
+        Arc::new(AppState::new(app_config, db_pool).unwrap())
     }
 
     #[tokio::test]
     async fn test_refresh_token_handler() {
         let app_state = create_test_app_state().await;
 
-        // 创建测试房间
+        // 在数据库中创建测试房间
         let room = Room::new("test_room".to_string(), Some("password".to_string()));
+        let room_with_id = app_state
+            .services()
+            .room_repository
+            .create(&room)
+            .await
+            .unwrap();
 
         // 签发初始令牌对
         let initial_response = app_state
-            .refresh_token_service
-            .issue_token_pair(&room)
+            .refresh_token_service()
+            .issue_token_pair(&room_with_id)
             .await
             .unwrap();
 
@@ -218,13 +211,19 @@ mod tests {
     async fn test_revoke_token_handler() {
         let app_state = create_test_app_state().await;
 
-        // 创建测试房间
+        // 在数据库中创建测试房间
         let room = Room::new("test_room".to_string(), Some("password".to_string()));
+        let room_with_id = app_state
+            .services()
+            .room_repository
+            .create(&room)
+            .await
+            .unwrap();
 
         // 签发令牌对
         let response = app_state
-            .refresh_token_service
-            .issue_token_pair(&room)
+            .refresh_token_service()
+            .issue_token_pair(&room_with_id)
             .await
             .unwrap();
 
