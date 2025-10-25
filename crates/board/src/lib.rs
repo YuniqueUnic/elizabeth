@@ -1,5 +1,6 @@
 pub mod cmd;
 pub mod db;
+pub mod errors;
 mod handlers;
 mod init;
 pub mod models;
@@ -7,6 +8,8 @@ pub mod repository;
 pub mod route;
 pub mod services;
 pub mod state;
+pub mod transaction;
+pub mod validation;
 
 use std::net::SocketAddr;
 use std::path::PathBuf;

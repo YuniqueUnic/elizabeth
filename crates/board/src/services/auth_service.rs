@@ -137,11 +137,12 @@ impl AuthService {
     }
 
     /// 验证令牌并检查房间权限
+    /// 这是核心权限验证方法，其他所有权限验证都应该基于这个方法
     pub async fn verify_token_with_room_permission(
         &self,
         token: &str,
         room: &Room,
-        required_permission: crate::models::permission::RoomPermission,
+        required_permission: crate::models::room::permission::RoomPermission,
     ) -> Result<RoomTokenClaims> {
         let claims = self.verify_access_token(token, room).await?;
 
@@ -151,90 +152,6 @@ impl AuthService {
         }
 
         Ok(claims)
-    }
-
-    /// 验证令牌并检查房间编辑权限
-    pub async fn verify_token_with_edit_permission(
-        &self,
-        token: &str,
-        room: &Room,
-    ) -> Result<RoomTokenClaims> {
-        self.verify_token_with_room_permission(
-            token,
-            room,
-            crate::models::permission::RoomPermission::EDITABLE,
-        )
-        .await
-    }
-
-    /// 验证令牌并检查房间上传权限
-    pub async fn verify_token_with_upload_permission(
-        &self,
-        token: &str,
-        room: &Room,
-    ) -> Result<RoomTokenClaims> {
-        self.verify_token_with_room_permission(
-            token,
-            room,
-            crate::models::permission::RoomPermission::EDITABLE,
-        )
-        .await
-    }
-
-    /// 验证令牌并检查房间下载权限
-    pub async fn verify_token_with_download_permission(
-        &self,
-        token: &str,
-        room: &Room,
-    ) -> Result<RoomTokenClaims> {
-        self.verify_token_with_room_permission(
-            token,
-            room,
-            crate::models::permission::RoomPermission::EDITABLE,
-        )
-        .await
-    }
-
-    /// 验证令牌并检查房间删除权限
-    pub async fn verify_token_with_delete_permission(
-        &self,
-        token: &str,
-        room: &Room,
-    ) -> Result<RoomTokenClaims> {
-        self.verify_token_with_room_permission(
-            token,
-            room,
-            crate::models::permission::RoomPermission::DELETE,
-        )
-        .await
-    }
-
-    /// 验证令牌并检查房间管理权限
-    pub async fn verify_token_with_manage_permission(
-        &self,
-        token: &str,
-        room: &Room,
-    ) -> Result<RoomTokenClaims> {
-        self.verify_token_with_room_permission(
-            token,
-            room,
-            crate::models::permission::RoomPermission::DELETE,
-        )
-        .await
-    }
-
-    /// 验证令牌并检查房间所有权限
-    pub async fn verify_token_with_all_permissions(
-        &self,
-        token: &str,
-        room: &Room,
-    ) -> Result<RoomTokenClaims> {
-        self.verify_token_with_room_permission(
-            token,
-            room,
-            crate::models::permission::RoomPermission::all(),
-        )
-        .await
     }
 
     /// 从授权头中提取令牌
@@ -262,99 +179,16 @@ impl AuthService {
     }
 
     /// 验证授权头中的令牌并检查权限
+    /// 核心授权头权限验证方法
     pub async fn verify_auth_header_with_permission(
         &self,
         auth_header: &str,
         room: &Room,
-        required_permission: crate::models::permission::RoomPermission,
+        required_permission: crate::models::room::permission::RoomPermission,
     ) -> Result<RoomTokenClaims> {
         let token = self.extract_token_from_header(auth_header)?;
         self.verify_token_with_room_permission(&token, room, required_permission)
             .await
-    }
-
-    /// 验证授权头中的令牌并检查编辑权限
-    pub async fn verify_auth_header_with_edit_permission(
-        &self,
-        auth_header: &str,
-        room: &Room,
-    ) -> Result<RoomTokenClaims> {
-        self.verify_auth_header_with_permission(
-            auth_header,
-            room,
-            crate::models::permission::RoomPermission::EDITABLE,
-        )
-        .await
-    }
-
-    /// 验证授权头中的令牌并检查上传权限
-    pub async fn verify_auth_header_with_upload_permission(
-        &self,
-        auth_header: &str,
-        room: &Room,
-    ) -> Result<RoomTokenClaims> {
-        self.verify_auth_header_with_permission(
-            auth_header,
-            room,
-            crate::models::permission::RoomPermission::EDITABLE,
-        )
-        .await
-    }
-
-    /// 验证授权头中的令牌并检查下载权限
-    pub async fn verify_auth_header_with_download_permission(
-        &self,
-        auth_header: &str,
-        room: &Room,
-    ) -> Result<RoomTokenClaims> {
-        self.verify_auth_header_with_permission(
-            auth_header,
-            room,
-            crate::models::permission::RoomPermission::EDITABLE,
-        )
-        .await
-    }
-
-    /// 验证授权头中的令牌并检查删除权限
-    pub async fn verify_auth_header_with_delete_permission(
-        &self,
-        auth_header: &str,
-        room: &Room,
-    ) -> Result<RoomTokenClaims> {
-        self.verify_auth_header_with_permission(
-            auth_header,
-            room,
-            crate::models::permission::RoomPermission::DELETE,
-        )
-        .await
-    }
-
-    /// 验证授权头中的令牌并检查管理权限
-    pub async fn verify_auth_header_with_manage_permission(
-        &self,
-        auth_header: &str,
-        room: &Room,
-    ) -> Result<RoomTokenClaims> {
-        self.verify_auth_header_with_permission(
-            auth_header,
-            room,
-            crate::models::permission::RoomPermission::DELETE,
-        )
-        .await
-    }
-
-    /// 验证授权头中的令牌并检查所有权限
-    pub async fn verify_auth_header_with_all_permissions(
-        &self,
-        auth_header: &str,
-        room: &Room,
-    ) -> Result<RoomTokenClaims> {
-        self.verify_auth_header_with_permission(
-            auth_header,
-            room,
-            crate::models::permission::RoomPermission::all(),
-        )
-        .await
     }
 
     /// 检查令牌是否即将过期（5 分钟内）

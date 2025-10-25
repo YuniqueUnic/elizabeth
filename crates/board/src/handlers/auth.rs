@@ -3,13 +3,13 @@ use std::sync::Arc;
 use anyhow::{Context, Result, anyhow};
 use axum::{
     extract::{Json, State},
-    http::StatusCode,
     response::{IntoResponse, Response},
 };
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::db::DbPool;
+use crate::errors::{AppError, AppResult};
 use crate::models::{RefreshTokenRequest, RefreshTokenResponse};
 use crate::models::{
     permission::RoomPermission,
@@ -125,7 +125,7 @@ impl AppState {
 pub async fn refresh_token(
     State(state): State<AppState>,
     Json(request): Json<RefreshTokenRequestSchema>,
-) -> Result<RefreshTokenResponseSchema, StatusCode> {
+) -> AppResult<RefreshTokenResponseSchema> {
     // 验证刷新令牌
     let claims = state
         .auth_service
@@ -133,7 +133,7 @@ pub async fn refresh_token(
         .await
         .map_err(|e| {
             logrs::error!("Failed to verify refresh token: {}", e);
-            StatusCode::UNAUTHORIZED
+            AppError::token("Invalid refresh token")
         })?;
 
     // 获取房间信息
@@ -141,11 +141,11 @@ pub async fn refresh_token(
         .await
         .map_err(|e| {
             logrs::error!("Failed to get room: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            AppError::internal("Failed to retrieve room information")
         })?
         .ok_or_else(|| {
             logrs::error!("Room not found for id: {}", claims.room_id);
-            StatusCode::NOT_FOUND
+            AppError::room_not_found(claims.room_id.to_string())
         })?;
 
     // 刷新访问令牌
@@ -155,7 +155,7 @@ pub async fn refresh_token(
         .await
         .map_err(|e| {
             logrs::error!("Failed to refresh access token: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            AppError::internal("Failed to refresh access token")
         })?;
 
     // 记录日志
@@ -190,13 +190,13 @@ pub async fn refresh_token(
 pub async fn logout(
     State(state): State<AppState>,
     Json(request): Json<LogoutRequestSchema>,
-) -> Result<LogoutResponseSchema, StatusCode> {
+) -> AppResult<LogoutResponseSchema> {
     // 从请求中获取令牌，如果没有提供则尝试从 Authorization 头中获取
     let token = if let Some(token) = request.token {
         token
     } else {
         // 这里应该从 Authorization 头中获取令牌，但为了简化，我们返回错误
-        return Err(StatusCode::BAD_REQUEST);
+        return Err(AppError::validation("Token is required in request body"));
     };
 
     // 验证访问令牌
@@ -206,7 +206,7 @@ pub async fn logout(
         .decode(&token)
         .map_err(|e| {
             logrs::error!("Failed to decode token: {}", e);
-            StatusCode::UNAUTHORIZED
+            AppError::token("Invalid access token")
         })?;
 
     // 获取房间信息
@@ -214,11 +214,11 @@ pub async fn logout(
         .await
         .map_err(|e| {
             logrs::error!("Failed to get room: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            AppError::internal("Failed to retrieve room information")
         })?
         .ok_or_else(|| {
             logrs::error!("Room not found for id: {}", claims.room_id);
-            StatusCode::NOT_FOUND
+            AppError::room_not_found(claims.room_id.to_string())
         })?;
 
     // 验证访问令牌
@@ -228,7 +228,7 @@ pub async fn logout(
         .await
         .map_err(|e| {
             logrs::error!("Failed to verify access token: {}", e);
-            StatusCode::UNAUTHORIZED
+            AppError::authentication("Token verification failed")
         })?;
 
     // 撤销令牌
@@ -238,7 +238,7 @@ pub async fn logout(
         .await
         .map_err(|e| {
             logrs::error!("Failed to blacklist token: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            AppError::internal("Failed to blacklist token")
         })?;
 
     // 撤销关联的刷新令牌
@@ -249,7 +249,7 @@ pub async fn logout(
             .await
             .map_err(|e| {
                 logrs::error!("Failed to revoke refresh token: {}", e);
-                StatusCode::INTERNAL_SERVER_ERROR
+                AppError::internal("Failed to revoke refresh token")
             })?;
     }
 
@@ -286,14 +286,14 @@ pub async fn logout(
 pub async fn logout_with_auth_header(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
-) -> Result<LogoutResponseSchema, StatusCode> {
+) -> AppResult<LogoutResponseSchema> {
     // 从 Authorization 头中提取令牌
     let auth_header = headers
         .get("authorization")
         .and_then(|h| h.to_str().ok())
         .ok_or_else(|| {
             logrs::error!("Missing Authorization header");
-            StatusCode::BAD_REQUEST
+            AppError::validation("Authorization header is required")
         })?;
 
     let token = state
@@ -301,7 +301,7 @@ pub async fn logout_with_auth_header(
         .extract_token_from_header(auth_header)
         .map_err(|e| {
             logrs::error!("Failed to extract token from header: {}", e);
-            StatusCode::BAD_REQUEST
+            AppError::validation("Invalid Authorization header format")
         })?;
 
     // 验证访问令牌
@@ -311,7 +311,7 @@ pub async fn logout_with_auth_header(
         .decode(&token)
         .map_err(|e| {
             logrs::error!("Failed to decode token: {}", e);
-            StatusCode::UNAUTHORIZED
+            AppError::token("Invalid access token")
         })?;
 
     // 获取房间信息
@@ -319,11 +319,11 @@ pub async fn logout_with_auth_header(
         .await
         .map_err(|e| {
             logrs::error!("Failed to get room: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            AppError::internal("Failed to retrieve room information")
         })?
         .ok_or_else(|| {
             logrs::error!("Room not found for id: {}", claims.room_id);
-            StatusCode::NOT_FOUND
+            AppError::room_not_found(claims.room_id.to_string())
         })?;
 
     // 验证访问令牌
@@ -333,7 +333,7 @@ pub async fn logout_with_auth_header(
         .await
         .map_err(|e| {
             logrs::error!("Failed to verify access token: {}", e);
-            StatusCode::UNAUTHORIZED
+            AppError::authentication("Token verification failed")
         })?;
 
     // 撤销令牌
@@ -343,7 +343,7 @@ pub async fn logout_with_auth_header(
         .await
         .map_err(|e| {
             logrs::error!("Failed to blacklist token: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            AppError::internal("Failed to blacklist token")
         })?;
 
     // 撤销关联的刷新令牌
@@ -354,7 +354,7 @@ pub async fn logout_with_auth_header(
             .await
             .map_err(|e| {
                 logrs::error!("Failed to revoke refresh token: {}", e);
-                StatusCode::INTERNAL_SERVER_ERROR
+                AppError::internal("Failed to revoke refresh token")
             })?;
     }
 
@@ -369,27 +369,6 @@ pub async fn logout_with_auth_header(
         success: true,
         message: "Successfully logged out".to_string(),
     })
-}
-
-/// 错误响应结构
-#[derive(Debug, Serialize, ToSchema)]
-pub struct ErrorResponse {
-    /// 错误消息
-    pub error: String,
-    /// 错误详情
-    pub details: Option<String>,
-}
-
-impl IntoResponse for ErrorResponse {
-    fn into_response(self) -> Response {
-        let body = serde_json::to_string(&self).unwrap_or_default();
-        Response::builder()
-            .status(StatusCode::INTERNAL_SERVER_ERROR)
-            .header("content-type", "application/json")
-            .body(body)
-            .unwrap()
-            .into_response()
-    }
 }
 
 /// 根据房间 ID 获取房间信息
@@ -425,7 +404,6 @@ async fn get_room_by_id(db_pool: &Arc<DbPool>, room_id: i64) -> Result<Option<Ro
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::http::StatusCode;
     use serde_json;
 
     #[test]
@@ -454,17 +432,5 @@ mod tests {
 
         let json = serde_json::to_string(&request).unwrap();
         assert!(json.contains("null"));
-    }
-
-    #[test]
-    fn test_error_response() {
-        let error = ErrorResponse {
-            error: "Test error".to_string(),
-            details: Some("Test details".to_string()),
-        };
-
-        let json = serde_json::to_string(&error).unwrap();
-        assert!(json.contains("Test error"));
-        assert!(json.contains("Test details"));
     }
 }

@@ -47,6 +47,9 @@ serde_json = "1"
 
 anyhow = "1"
 thiserror = "2"
+validator = { version = "0.20", features = ["derive"] }
+regex = "1"
+lazy_static = "1"
 
 utoipa = { version = "5", features = ["chrono"] }
 utoipa-scalar = { version = "0.3", features = ["axum"] }
@@ -65,6 +68,7 @@ sqlx = { version = "0.8", features = [
     "chrono",
 ] }
 async-trait = "0.1"
+lru = "0.16"
 
 # JWT authentication
 uuid = { version = "1", features = ["v4", "serde"] }

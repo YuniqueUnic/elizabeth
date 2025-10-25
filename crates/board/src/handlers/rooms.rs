@@ -9,14 +9,16 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use super::verify_room_token;
+use crate::errors::{AppError, AppResult};
 use crate::models::{Room, RoomToken, permission::RoomPermission};
 use crate::repository::{
     IRoomRepository, IRoomTokenRepository, SqliteRoomRepository, SqliteRoomTokenRepository,
 };
 use crate::services::RoomTokenClaims;
 use crate::state::{AppState, RoomDefaults};
+use crate::validation::{PasswordValidator, RoomNameValidator, TokenValidator};
 
-type HandlerResult<T> = Result<Json<T>, HttpResponse>;
+type HandlerResult<T> = Result<Json<T>, AppError>;
 
 fn apply_room_defaults(room: &mut Room, defaults: &RoomDefaults) {
     room.max_size = defaults.max_size;
@@ -121,23 +123,27 @@ pub async fn create(
     Query(params): Query<CreateRoomParams>,
     State(app_state): State<Arc<AppState>>,
 ) -> HandlerResult<Room> {
-    if name.is_empty() {
-        return Err(HttpResponse::BadRequest().message("Invalid room name"));
+    // 验证房间名称
+    RoomNameValidator::validate(&name)?;
+
+    // 验证房间密码（如果提供）
+    if let Some(ref password) = params.password {
+        PasswordValidator::validate_room_password(password)?;
     }
 
     let repository = SqliteRoomRepository::new(app_state.db_pool.clone());
 
-    if repository.exists(&name).await.map_err(|e| {
-        HttpResponse::InternalServerError().message(format!("Database error: {}", e))
-    })? {
-        return Err(HttpResponse::BadRequest().message("Room already exists"));
+    // 检查房间是否已存在
+    if repository.exists(&name).await? {
+        return Err(AppError::conflict("Room already exists"));
     }
 
     let mut room = Room::new(name.clone(), params.password);
     apply_room_defaults(&mut room, &app_state.room_defaults);
-    let created_room = repository.create(&room).await.map_err(|e| {
-        HttpResponse::InternalServerError().message(format!("Failed to create room: {}", e))
-    })?;
+    let created_room = repository
+        .create(&room)
+        .await
+        .map_err(|e| AppError::internal(format!("Failed to create room: {}", e)))?;
 
     Ok(Json(created_room))
 }
@@ -160,40 +166,31 @@ pub async fn find(
     Path(name): Path<String>,
     State(app_state): State<Arc<AppState>>,
 ) -> HandlerResult<Room> {
-    if name.is_empty() {
-        return Err(HttpResponse::BadRequest().message("Invalid room name"));
-    }
+    // 验证房间名称
+    RoomNameValidator::validate(&name)?;
 
     let repository = SqliteRoomRepository::new(app_state.db_pool.clone());
 
-    match repository.find_by_name(&name).await.map_err(|e| {
-        HttpResponse::InternalServerError().message(format!("Database error: {}", e))
-    })? {
+    match repository.find_by_name(&name).await? {
         Some(room) => {
             if room.can_enter() {
                 Ok(Json(room))
             } else {
-                Err(HttpResponse::Forbidden().message("Room cannot be entered"))
+                Err(AppError::authentication("Room cannot be entered"))
             }
         }
         None => {
             // 如果房间不存在，判断是否存在同名但不同 slug 的房间
-            if repository
-                .find_by_display_name(&name)
-                .await
-                .map_err(|e| {
-                    HttpResponse::InternalServerError().message(format!("Database error: {e}"))
-                })?
-                .is_some()
-            {
-                return Err(HttpResponse::Forbidden().message("Room cannot be accessed"));
+            if repository.find_by_display_name(&name).await?.is_some() {
+                return Err(AppError::authentication("Room cannot be accessed"));
             }
 
             let mut new_room = Room::new(name.clone(), None);
             apply_room_defaults(&mut new_room, &app_state.room_defaults);
-            let created_room = repository.create(&new_room).await.map_err(|e| {
-                HttpResponse::InternalServerError().message(format!("Failed to create room: {}", e))
-            })?;
+            let created_room = repository
+                .create(&new_room)
+                .await
+                .map_err(|e| AppError::internal(format!("Failed to create room: {}", e)))?;
             Ok(Json(created_room))
         }
     }
@@ -219,59 +216,38 @@ pub async fn delete(
     Path(name): Path<String>,
     Query(query): Query<TokenQuery>,
     State(app_state): State<Arc<AppState>>,
-) -> impl IntoResponse {
-    if name.is_empty() {
-        return HttpResponse::BadRequest()
-            .message("Invalid room name")
-            .into_response();
-    }
+) -> Result<HttpResponse, AppError> {
+    // 验证房间名称
+    RoomNameValidator::validate(&name)?;
 
     let repository = SqliteRoomRepository::new(app_state.db_pool.clone());
 
     // 首先检查房间是否存在和过期
-    match repository.find_by_name(&name).await {
-        Ok(Some(room)) => {
-            // 检查房间是否过期
-            if room.is_expired() {
-                return HttpResponse::Gone()
-                    .message("Room has expired")
-                    .into_response();
-            }
-        }
-        Ok(None) => {
-            return HttpResponse::NotFound()
-                .message("Room not found")
-                .into_response();
-        }
-        Err(e) => {
-            return HttpResponse::InternalServerError()
-                .message(format!("Database error: {}", e))
-                .into_response();
-        }
+    let room = repository
+        .find_by_name(&name)
+        .await
+        .map_err(|e| AppError::internal(format!("Database error: {}", e)))?
+        .ok_or_else(|| AppError::room_not_found(&name))?;
+
+    // 检查房间是否过期
+    if room.is_expired() {
+        return Err(AppError::authentication("Room has expired"));
     }
 
-    let verified = match verify_room_token(app_state.clone(), &name, &query.token).await {
-        Ok(verified) => verified,
-        Err(err) => return err.into_response(),
-    };
+    // 验证令牌并检查删除权限
+    let verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
 
     if !verified.claims.as_permission().can_delete() {
-        return HttpResponse::Forbidden()
-            .message("Permission denied by token")
-            .into_response();
+        return Err(AppError::permission_denied(
+            "Insufficient permissions to delete room",
+        ));
     }
 
     // 房间存在且未过期，执行删除
-    match repository.delete(&name).await.map_err(|e| {
-        HttpResponse::InternalServerError().message(format!("Failed to delete room: {}", e))
-    }) {
-        Ok(true) => HttpResponse::Ok()
-            .message("Room deleted successfully")
-            .into_response(),
-        Ok(false) => HttpResponse::NotFound()
-            .message("Room not found")
-            .into_response(),
-        Err(e) => e.into_response(),
+    match repository.delete(&name).await {
+        Ok(true) => Ok(HttpResponse::Ok().message("Room deleted successfully")),
+        Ok(false) => Err(AppError::room_not_found(&name)),
+        Err(e) => Err(AppError::internal(format!("Failed to delete room: {}", e))),
     }
 }
 
@@ -296,52 +272,58 @@ pub async fn issue_token(
     State(app_state): State<Arc<AppState>>,
     Json(payload): Json<IssueTokenRequest>,
 ) -> HandlerResult<IssueTokenResponse> {
-    if name.is_empty() {
-        return Err(HttpResponse::BadRequest().message("Invalid room name"));
-    }
+    // 验证房间名称
+    RoomNameValidator::validate(&name)?;
 
     let mut previous_jti = None;
     let room = if let Some(token) = payload.token.as_deref() {
+        // 验证令牌格式
+        TokenValidator::validate_token_format(token)?;
+
         let verified = verify_room_token(app_state.clone(), &name, token).await?;
         previous_jti = Some(verified.record.jti.clone());
         verified.room
     } else {
         let repository = SqliteRoomRepository::new(app_state.db_pool.clone());
-        let Some(room) = repository.find_by_name(&name).await.map_err(|e| {
-            HttpResponse::InternalServerError().message(format!("Database error: {e}"))
-        })?
+        let Some(room) = repository
+            .find_by_name(&name)
+            .await
+            .map_err(|e| AppError::internal(format!("Database error: {}", e)))?
         else {
-            return Err(HttpResponse::NotFound().message("Room not found"));
+            return Err(AppError::room_not_found(&name));
         };
 
+        // 验证密码
         if let Some(expected_password) = room.password.as_ref()
             && payload.password.as_deref() != Some(expected_password.as_str())
         {
-            return Err(HttpResponse::Forbidden().message("Invalid room password"));
+            return Err(AppError::authentication("Invalid room password"));
         }
 
         room
     };
 
     if !room.can_enter() {
-        return Err(HttpResponse::Forbidden().message("Room cannot be entered"));
+        return Err(AppError::authentication("Room cannot be entered"));
     }
 
     let (token, claims) = app_state
         .token_service
         .issue(&room)
-        .map_err(|e| HttpResponse::Forbidden().message(e.to_string()))?;
+        .map_err(|e| AppError::authentication(e.to_string()))?;
 
     let record = RoomToken::new(claims.room_id, claims.jti.clone(), claims.expires_at());
     let token_repo = SqliteRoomTokenRepository::new(app_state.db_pool.clone());
-    token_repo.create(&record).await.map_err(|e| {
-        HttpResponse::InternalServerError().message(format!("Failed to persist token: {e}"))
-    })?;
+    token_repo
+        .create(&record)
+        .await
+        .map_err(|e| AppError::internal(format!("Failed to persist token: {}", e)))?;
 
     if let Some(jti) = previous_jti {
-        token_repo.revoke(&jti).await.map_err(|e| {
-            HttpResponse::InternalServerError().message(format!("Failed to revoke old token: {e}"))
-        })?;
+        token_repo
+            .revoke(&jti)
+            .await
+            .map_err(|e| AppError::internal(format!("Failed to revoke old token: {}", e)))?;
     }
 
     // 如果请求了刷新令牌，签发令牌对
@@ -350,10 +332,7 @@ pub async fn issue_token(
             .refresh_token_service
             .issue_token_pair(&room)
             .await
-            .map_err(|e| {
-                HttpResponse::InternalServerError()
-                    .message(format!("Failed to issue refresh token: {e}"))
-            })?;
+            .map_err(|e| AppError::internal(format!("Failed to issue refresh token: {}", e)))?;
 
         (
             Some(refresh_response.refresh_token),
@@ -393,7 +372,7 @@ pub async fn validate_token(
     Json(payload): Json<ValidateTokenRequest>,
 ) -> HandlerResult<ValidateTokenResponse> {
     if name.is_empty() {
-        return Err(HttpResponse::BadRequest().message("Invalid room name"));
+        return Err(AppError::validation("Invalid room name"));
     }
 
     let verified = verify_room_token(app_state, &name, &payload.token).await?;
@@ -427,13 +406,13 @@ pub async fn update_permissions(
     Json(payload): Json<UpdateRoomPermissionRequest>,
 ) -> HandlerResult<Room> {
     if name.is_empty() {
-        return Err(HttpResponse::BadRequest().message("Invalid room name"));
+        return Err(AppError::validation("Invalid room name"));
     }
 
     let verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
     let token_perm = verified.claims.as_permission();
     if !token_perm.can_delete() {
-        return Err(HttpResponse::Forbidden().message("Permission denied by token"));
+        return Err(AppError::permission_denied("Permission denied by token"));
     }
 
     let mut new_permission = RoomPermission::VIEW_ONLY;
@@ -455,11 +434,12 @@ pub async fn update_permissions(
     if payload.share {
         let desired_slug = room.name.clone();
         if desired_slug != room.slug {
-            let exists = repo.exists(&desired_slug).await.map_err(|e| {
-                HttpResponse::InternalServerError().message(format!("Database error: {e}"))
-            })?;
+            let exists = repo
+                .exists(&desired_slug)
+                .await
+                .map_err(|e| AppError::internal(format!("Database error: {e}")))?;
             if exists {
-                return Err(HttpResponse::BadRequest().message("Slug already in use"));
+                return Err(AppError::conflict("Slug already in use"));
             }
             room.slug = desired_slug;
         }
@@ -467,9 +447,10 @@ pub async fn update_permissions(
         // 生成私有 slug，避免冲突
         loop {
             let candidate = format!("{}_{}", room.name, Uuid::new_v4());
-            let exists = repo.exists(&candidate).await.map_err(|e| {
-                HttpResponse::InternalServerError().message(format!("Database error: {e}"))
-            })?;
+            let exists = repo
+                .exists(&candidate)
+                .await
+                .map_err(|e| AppError::internal(format!("Database error: {e}")))?;
             if !exists {
                 room.slug = candidate;
                 break;
@@ -477,9 +458,10 @@ pub async fn update_permissions(
         }
     }
 
-    let updated_room = repo.update(&room).await.map_err(|e| {
-        HttpResponse::InternalServerError().message(format!("Failed to update room: {e}"))
-    })?;
+    let updated_room = repo
+        .update(&room)
+        .await
+        .map_err(|e| AppError::internal(format!("Failed to update room: {e}")))?;
 
     Ok(Json(updated_room))
 }
@@ -505,19 +487,20 @@ pub async fn list_tokens(
     State(app_state): State<Arc<AppState>>,
 ) -> HandlerResult<Vec<RoomTokenView>> {
     if name.is_empty() {
-        return Err(HttpResponse::BadRequest().message("Invalid room name"));
+        return Err(AppError::validation("Invalid room name"));
     }
 
     let verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
     let room_id = verified
         .room
         .id
-        .ok_or_else(|| HttpResponse::InternalServerError().message("Room id missing"))?;
+        .ok_or_else(|| AppError::internal("Room id missing"))?;
 
     let token_repo = SqliteRoomTokenRepository::new(app_state.db_pool.clone());
-    let tokens = token_repo.list_by_room(room_id).await.map_err(|e| {
-        HttpResponse::InternalServerError().message(format!("Failed to load tokens: {e}"))
-    })?;
+    let tokens = token_repo
+        .list_by_room(room_id)
+        .await
+        .map_err(|e| AppError::internal(format!("Failed to load tokens: {e}")))?;
 
     Ok(Json(tokens.into_iter().map(RoomTokenView::from).collect()))
 }
@@ -544,15 +527,16 @@ pub async fn revoke_token(
     State(app_state): State<Arc<AppState>>,
 ) -> HandlerResult<RevokeTokenResponse> {
     if name.is_empty() {
-        return Err(HttpResponse::BadRequest().message("Invalid room name"));
+        return Err(AppError::validation("Invalid room name"));
     }
 
     let _verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
 
     let token_repo = SqliteRoomTokenRepository::new(app_state.db_pool.clone());
-    let revoked = token_repo.revoke(&target_jti).await.map_err(|e| {
-        HttpResponse::InternalServerError().message(format!("Failed to revoke token: {e}"))
-    })?;
+    let revoked = token_repo
+        .revoke(&target_jti)
+        .await
+        .map_err(|e| AppError::internal(format!("Failed to revoke token: {e}")))?;
 
     Ok(Json(RevokeTokenResponse { revoked }))
 }
