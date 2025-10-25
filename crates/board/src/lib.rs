@@ -28,7 +28,7 @@ use crate::repository::room_refresh_token_repository::{
     SqliteRoomRefreshTokenRepository, SqliteTokenBlacklistRepository,
 };
 use crate::services::{RoomTokenService, refresh_token_service::RefreshTokenService};
-use crate::state::{AppState, RoomDefaults};
+use crate::state::AppState;
 use configrs::Config;
 
 shadow!(build);
@@ -78,10 +78,8 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
         blacklist_repo,
     );
 
-    let room_defaults = RoomDefaults {
-        max_size: cfg.app.room.max_size,
-        max_times_entered: cfg.app.room.max_times_entered,
-    };
+    let room_max_size = cfg.app.room.max_size;
+    let room_max_times_entered = cfg.app.room.max_times_entered;
 
     let upload_ttl_seconds = if cfg.app.upload.reservation_ttl_seconds <= 0 {
         DEFAULT_UPLOAD_RESERVATION_TTL_SECONDS
@@ -98,7 +96,8 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
         db_pool.clone(),
         storage_root,
         Duration::seconds(upload_ttl_seconds),
-        room_defaults,
+        room_max_size,
+        room_max_times_entered,
         token_service,
         refresh_token_service,
     ));

@@ -45,37 +45,37 @@ to enable/disable specific middleware components based on their needs.
 
 ## Configuration
 
-The middleware system is controlled by the `MiddlewareConfig` structure:
+The middleware system is controlled by the `MiddlewareConfig` structure, which
+contains detailed configuration for each middleware component:
 
 ```rust
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, Default, serde::Deserialize, serde::Serialize)]
 pub struct MiddlewareConfig {
-    pub tracing: bool,
-    pub request_id: bool,
-    pub compression: bool,
-    pub cors: bool,
-    pub security: bool,
-    pub rate_limit: bool,
+    pub tracing: TracingConfig,
+    pub request_id: RequestIdConfig,
+    pub compression: CompressionConfig,
+    pub cors: CorsConfig,
+    pub security: SecurityConfig,
+    pub rate_limit: RateLimitConfig,
 }
 ```
 
-### Default Configuration
+Each middleware component has its own configuration structure with appropriate
+defaults. The configurations are defined in the `configrs` crate and can be
+customized through the application configuration file.
 
-```rust
-impl Default for MiddlewareConfig {
-    fn default() -> Self {
-        Self {
-            tracing: true,
-            request_id: true,
-            compression: false,  // Disabled for development
-            cors: false,        // Disabled for development
-            security: true,
-            rate_limit: false,  // Disabled for development
-        }
-    }
-}
-```
+### Default Behavior
 
+By default, the following middleware are enabled:
+
+- **Tracing**: Enabled with "info" level logging
+- **Request ID**: Enabled with "X-Request-Id" header
+- **Security**: Enabled with basic security headers
+- **Compression**: Disabled (for development)
+- **CORS**: Disabled (for development)
+- **Rate Limiting**: Disabled (for development)
+
+````
 ## Usage
 
 ### Adding New Middleware
@@ -86,7 +86,8 @@ impl Default for MiddlewareConfig {
    pub fn apply_new_middleware_layer<S>(enabled: bool, router: Router<S>) -> Router<S>
    where
        S: Clone + Send + Sync + 'static,
-   ```
+````
+
 3. Add the module to `mod.rs`
 4. Add the configuration field to `MiddlewareConfig`
 5. Apply the middleware in the `apply` function

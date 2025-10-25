@@ -20,7 +20,7 @@ use board::repository::room_refresh_token_repository::{
 };
 use board::route::room::api_router;
 use board::services::{RoomTokenService, refresh_token_service::RefreshTokenService};
-use board::state::{AppState, RoomDefaults};
+use board::state::AppState;
 
 const TEST_UPLOAD_RESERVATION_TTL_SECONDS: i64 = 10;
 
@@ -47,10 +47,8 @@ async fn create_test_app() -> Result<(Router, SqlitePool)> {
         pool_arc,
         storage_root,
         Duration::seconds(TEST_UPLOAD_RESERVATION_TTL_SECONDS),
-        RoomDefaults {
-            max_size: DEFAULT_MAX_ROOM_CONTENT_SIZE,
-            max_times_entered: DEFAULT_MAX_TIMES_ENTER_ROOM,
-        },
+        DEFAULT_MAX_ROOM_CONTENT_SIZE,
+        DEFAULT_MAX_TIMES_ENTER_ROOM,
         token_service,
         refresh_service,
     ));
