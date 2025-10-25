@@ -9,11 +9,11 @@ where
     S: Clone + Send + Sync + 'static,
 {
     if !config.enabled {
-        tracing::info!("Compression middleware disabled");
+        logrs::info!("Compression middleware disabled");
         return router;
     }
 
-    tracing::info!(
+    logrs::info!(
         "Applying compression middleware with min_size: {} bytes",
         config.min_content_length
     );
@@ -23,7 +23,7 @@ where
     // Note: min_content_length filtering would need custom implementation
     // For now, we'll log the configuration
     if config.min_content_length > 0 {
-        tracing::debug!(
+        logrs::debug!(
             "Compression will apply to responses larger than {} bytes",
             config.min_content_length
         );
