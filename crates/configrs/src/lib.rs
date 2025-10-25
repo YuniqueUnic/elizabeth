@@ -2,8 +2,9 @@ use std::{fs::OpenOptions, path::PathBuf};
 
 use config::{FileFormat, FileSourceFile, builder::DefaultState};
 pub use configs::{
-    AppConfig, DatabaseConfig, JwtConfig, LoggingConfig, RoomConfig, ServerConfig, StorageConfig,
-    UploadConfig,
+    AppConfig, CompressionConfig, CorsConfig, DatabaseConfig, JwtConfig, LoggingConfig,
+    MiddlewareConfig, RateLimitConfig, RequestIdConfig, RoomConfig, SecurityConfig, ServerConfig,
+    StorageConfig, TracingConfig, UploadConfig,
 };
 pub use error::{ConfigError, Result};
 use merge::Merge;
