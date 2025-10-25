@@ -5,7 +5,7 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use tracing::Instrument;
+use logrs::Instrument;
 use uuid::Uuid;
 
 // Re-export RequestIdConfig from configrs
@@ -17,11 +17,11 @@ where
     S: Clone + Send + Sync + 'static,
 {
     if !config.enabled {
-        tracing::info!("Request ID middleware disabled");
+        logrs::info!("Request ID middleware disabled");
         return router;
     }
 
-    tracing::info!(
+    logrs::info!(
         "Applying request ID middleware with header: {}",
         config.header_name
     );
@@ -36,8 +36,8 @@ where
                 let request_id =
                     extract_or_generate_request_id(&request, &header_name, generate_if_missing);
 
-                // Add request ID to tracing span
-                let span = tracing::info_span!(
+                // Add request ID to logrs span
+                let span = logrs::info_span!(
                     "request",
                     request_id = %request_id,
                 );
@@ -71,17 +71,17 @@ fn extract_or_generate_request_id(
         && let Ok(request_id) = header_value.to_str()
         && !request_id.is_empty()
     {
-        tracing::debug!("Found existing request ID: {}", request_id);
+        logrs::debug!("Found existing request ID: {}", request_id);
         return request_id.to_string();
     }
 
     // Generate new request ID if configured to do so
     if generate_if_missing {
         let request_id = Uuid::new_v4().to_string();
-        tracing::debug!("Generated new request ID: {}", request_id);
+        logrs::debug!("Generated new request ID: {}", request_id);
         request_id
     } else {
-        tracing::debug!("No request ID found and generation disabled");
+        logrs::debug!("No request ID found and generation disabled");
         "unknown".to_string()
     }
 }

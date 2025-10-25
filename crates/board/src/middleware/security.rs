@@ -13,11 +13,11 @@ where
     S: Clone + Send + Sync + 'static,
 {
     if !config.enabled {
-        tracing::info!("Security headers middleware disabled");
+        logrs::info!("Security headers middleware disabled");
         return router;
     }
 
-    tracing::info!("Applying security headers middleware");
+    logrs::info!("Applying security headers middleware");
 
     let mut router = router;
 
@@ -27,7 +27,7 @@ where
             header::X_CONTENT_TYPE_OPTIONS,
             HeaderValue::from_static("nosniff"),
         ));
-        tracing::debug!("Security: X-Content-Type-Options enabled");
+        logrs::debug!("Security: X-Content-Type-Options enabled");
     }
 
     // X-Frame-Options
@@ -35,14 +35,14 @@ where
         router = router.layer(SetResponseHeaderLayer::overriding(
             header::X_FRAME_OPTIONS,
             HeaderValue::from_str(&config.frame_options).unwrap_or_else(|_| {
-                tracing::warn!(
+                logrs::warn!(
                     "Invalid frame_options value: {}, using DENY",
                     config.frame_options
                 );
                 HeaderValue::from_static("DENY")
             }),
         ));
-        tracing::debug!("Security: X-Frame-Options set to {}", config.frame_options);
+        logrs::debug!("Security: X-Frame-Options set to {}", config.frame_options);
     }
 
     // X-XSS-Protection
@@ -50,14 +50,14 @@ where
         router = router.layer(SetResponseHeaderLayer::overriding(
             header::X_XSS_PROTECTION,
             HeaderValue::from_str(&config.xss_protection).unwrap_or_else(|_| {
-                tracing::warn!(
+                logrs::warn!(
                     "Invalid xss_protection value: {}, using default",
                     config.xss_protection
                 );
                 HeaderValue::from_static("1; mode=block")
             }),
         ));
-        tracing::debug!(
+        logrs::debug!(
             "Security: X-XSS-Protection set to {}",
             config.xss_protection
         );
@@ -68,11 +68,11 @@ where
         router = router.layer(SetResponseHeaderLayer::overriding(
             header::STRICT_TRANSPORT_SECURITY,
             HeaderValue::from_str(&config.strict_transport_security).unwrap_or_else(|_| {
-                tracing::warn!("Invalid HSTS value, using default");
+                logrs::warn!("Invalid HSTS value, using default");
                 HeaderValue::from_static("max-age=31536000; includeSubDomains")
             }),
         ));
-        tracing::debug!("Security: HSTS enabled");
+        logrs::debug!("Security: HSTS enabled");
     }
 
     // Referrer-Policy
@@ -80,11 +80,11 @@ where
         router = router.layer(SetResponseHeaderLayer::overriding(
             header::REFERRER_POLICY,
             HeaderValue::from_str(&config.referrer_policy).unwrap_or_else(|_| {
-                tracing::warn!("Invalid referrer_policy value, using default");
+                logrs::warn!("Invalid referrer_policy value, using default");
                 HeaderValue::from_static("strict-origin-when-cross-origin")
             }),
         ));
-        tracing::debug!(
+        logrs::debug!(
             "Security: Referrer-Policy set to {}",
             config.referrer_policy
         );
@@ -101,7 +101,7 @@ where
             HeaderValue::from_static("off"),
         ));
 
-    tracing::debug!("Security: Additional CSP and DNS prefetch control headers applied");
+    logrs::debug!("Security: Additional CSP and DNS prefetch control headers applied");
 
     router
 }
