@@ -19,6 +19,9 @@ use tokio_util::io::ReaderStream;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+use crate::constants::{
+    storage::DEFAULT_STORAGE_ROOT, upload::DEFAULT_UPLOAD_RESERVATION_TTL_SECONDS,
+};
 use crate::errors::{AppError, AppResult};
 use crate::models::{
     UploadFileDescriptor,
@@ -33,9 +36,6 @@ use crate::state::AppState;
 use crate::validation::RoomNameValidator;
 
 use super::{TokenQuery, verify_room_token};
-
-pub const DEFAULT_STORAGE_ROOT: &str = "storage/rooms";
-pub const DEFAULT_UPLOAD_RESERVATION_TTL_SECONDS: i64 = 10;
 
 type HandlerResult<T> = Result<Json<T>, AppError>;
 
@@ -215,7 +215,7 @@ pub async fn prepare_upload(
         .map_err(|e| AppError::internal(format!("Serialize manifest failed: {e}")))?;
 
     let reservation_repo = SqliteRoomUploadReservationRepository::new(app_state.db_pool.clone());
-    let ttl = app_state.upload_reservation_ttl;
+    let ttl = app_state.upload_reservation_ttl();
 
     let (reservation, updated_room) = reservation_repo
         .reserve_upload(
@@ -344,7 +344,7 @@ pub async fn upload_contents(
         }
     }
 
-    let storage_dir = ensure_room_storage(app_state.storage_root.as_ref(), &verified.room.slug)
+    let storage_dir = ensure_room_storage(app_state.storage_root().as_ref(), &verified.room.slug)
         .await
         .map_err(|e| AppError::internal(format!("Failed to prepare storage directory: {e}")))?;
 

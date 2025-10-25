@@ -11,6 +11,7 @@ use uuid::Uuid;
 use super::verify_room_token;
 use crate::errors::{AppError, AppResult};
 use crate::models::{Room, RoomToken, permission::RoomPermission};
+use crate::permissions::PermissionBuilder;
 use crate::repository::{
     IRoomRepository, IRoomTokenRepository, SqliteRoomRepository, SqliteRoomTokenRepository,
 };
@@ -21,8 +22,8 @@ use crate::validation::{PasswordValidator, RoomNameValidator, TokenValidator};
 type HandlerResult<T> = Result<Json<T>, AppError>;
 
 fn apply_room_defaults(room: &mut Room, app_state: &AppState) {
-    room.max_size = app_state.room_max_size;
-    room.max_times_entered = app_state.room_max_times_entered;
+    room.max_size = app_state.room_max_size();
+    room.max_times_entered = app_state.room_max_times_entered();
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -308,7 +309,7 @@ pub async fn issue_token(
     }
 
     let (token, claims) = app_state
-        .token_service
+        .token_service()
         .issue(&room)
         .map_err(|e| AppError::authentication(e.to_string()))?;
 
@@ -329,7 +330,7 @@ pub async fn issue_token(
     // 如果请求了刷新令牌，签发令牌对
     let (refresh_token, refresh_expires_at) = if payload.with_refresh_token {
         let refresh_response = app_state
-            .refresh_token_service
+            .refresh_token_service()
             .issue_token_pair(&room)
             .await
             .map_err(|e| AppError::internal(format!("Failed to issue refresh token: {}", e)))?;
@@ -415,16 +416,17 @@ pub async fn update_permissions(
         return Err(AppError::permission_denied("Permission denied by token"));
     }
 
-    let mut new_permission = RoomPermission::VIEW_ONLY;
+    let mut builder = PermissionBuilder::new();
     if payload.edit {
-        new_permission = new_permission.with_edit();
+        builder = builder.with_edit();
     }
     if payload.share {
-        new_permission = new_permission.with_share();
+        builder = builder.with_share();
     }
     if payload.delete {
-        new_permission = new_permission.with_delete();
+        builder = builder.with_delete();
     }
+    let new_permission = builder.build();
 
     let repo = SqliteRoomRepository::new(app_state.db_pool.clone());
     let mut room = verified.room;

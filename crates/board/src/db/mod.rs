@@ -6,9 +6,10 @@ use sqlx::{
 };
 use std::str::FromStr;
 
-pub const DEFAULT_DB_URL: &str = "sqlite:app.db";
-pub const DEFAULT_MAX_CONNECTIONS: u32 = 20;
-pub const DEFAULT_MIN_CONNECTIONS: u32 = 5;
+use crate::constants::database::{
+    ACQUIRE_TIMEOUT_SECS, BUSY_TIMEOUT_SECS, DEFAULT_DB_URL, DEFAULT_MAX_CONNECTIONS,
+    DEFAULT_MIN_CONNECTIONS, IDLE_TIMEOUT_SECS, MAX_LIFETIME_SECS,
+};
 
 /// 数据库连接池
 pub type DbPool = Pool<Sqlite>;
@@ -21,16 +22,16 @@ pub async fn init_db(settings: &DbPoolSettings) -> Result<DbPool> {
         .create_if_missing(true)
         .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
         .synchronous(sqlx::sqlite::SqliteSynchronous::Normal)
-        .busy_timeout(std::time::Duration::from_secs(30));
+        .busy_timeout(std::time::Duration::from_secs(BUSY_TIMEOUT_SECS));
 
     let (max_connections, min_connections) = settings.resolve_connection_limits();
 
     let pool = SqlitePoolOptions::new()
         .max_connections(max_connections)
         .min_connections(min_connections)
-        .acquire_timeout(std::time::Duration::from_secs(30))
-        .idle_timeout(std::time::Duration::from_secs(600))
-        .max_lifetime(std::time::Duration::from_secs(1800))
+        .acquire_timeout(std::time::Duration::from_secs(ACQUIRE_TIMEOUT_SECS))
+        .idle_timeout(std::time::Duration::from_secs(IDLE_TIMEOUT_SECS))
+        .max_lifetime(std::time::Duration::from_secs(MAX_LIFETIME_SECS))
         .connect_with(connect_options)
         .await?;
 
@@ -54,7 +55,6 @@ pub async fn run_migrations(pool: &DbPool) -> Result<()> {
     }
 }
 
-#[allow(unused)]
 /// 数据库连接配置
 #[derive(Debug, Clone)]
 pub struct DbPoolSettings {
@@ -73,7 +73,6 @@ impl Default for DbPoolSettings {
     }
 }
 
-#[allow(unused)]
 impl DbPoolSettings {
     pub fn new(url: impl Into<String>) -> Self {
         Self {

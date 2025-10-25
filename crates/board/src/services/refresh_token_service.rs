@@ -9,8 +9,10 @@ use uuid::Uuid;
 
 use crate::models::{RefreshTokenResponse, Room, RoomRefreshToken, TokenBlacklistEntry};
 use crate::repository::room_refresh_token_repository::{
-    IRoomRefreshTokenRepository, ITokenBlacklistRepository,
+    IRoomRefreshTokenRepository, ITokenBlacklistRepository, SqliteRoomRefreshTokenRepository,
+    SqliteTokenBlacklistRepository,
 };
+use crate::repository::room_repository::{IRoomRepository, SqliteRoomRepository};
 use crate::services::token::{RoomTokenClaims, RoomTokenService, TokenType};
 
 /// 刷新令牌服务，简化版本
@@ -76,7 +78,6 @@ impl RefreshTokenService {
         // 2. 创建刷新令牌
         let refresh_exp = now + self.refresh_ttl;
         let refresh_jti = Uuid::new_v4().to_string();
-        let refresh_token_plain = Uuid::new_v4().to_string();
 
         // 3. 创建刷新令牌声明
         let refresh_claims = RoomTokenClaims::refresh_token_builder(room_id, room.slug.clone())
@@ -94,7 +95,7 @@ impl RefreshTokenService {
         let refresh_token_record = RoomRefreshToken::new(
             room_id,
             access_jti,
-            &refresh_token_plain,
+            &refresh_token_signed,
             refresh_exp.naive_utc(),
         );
 
@@ -322,31 +323,8 @@ mod tests {
     async fn create_test_pool() -> DbPool {
         let pool = SqlitePool::connect(":memory:").await.unwrap();
 
-        // 创建测试表
-        sqlx::query(
-            r#"
-            CREATE TABLE room_refresh_tokens (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                room_id INTEGER NOT NULL,
-                access_token_jti TEXT NOT NULL,
-                token_hash TEXT NOT NULL UNIQUE,
-                expires_at DATETIME NOT NULL,
-                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                last_used_at DATETIME,
-                is_revoked BOOLEAN NOT NULL DEFAULT FALSE
-            );
-
-            CREATE TABLE token_blacklist (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                jti TEXT NOT NULL UNIQUE,
-                expires_at DATETIME NOT NULL,
-                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-            );
-            "#,
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
+        // 运行迁移
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
 
         pool
     }
@@ -357,10 +335,10 @@ mod tests {
         let secret = Arc::new("test_secret".to_string());
 
         let base_service = RoomTokenService::new(secret.clone());
-        let refresh_repo = Arc::new(SqliteRoomRefreshTokenRepository::new(Arc::new(
-            pool.clone(),
-        )));
-        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(Arc::new(pool)));
+        let pool_arc = Arc::new(pool.clone());
+        let refresh_repo = Arc::new(SqliteRoomRefreshTokenRepository::new(pool_arc.clone()));
+        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(pool_arc.clone()));
+        let room_repo = Arc::new(SqliteRoomRepository::new(pool_arc));
 
         let refresh_service = RefreshTokenService::new(
             base_service,
@@ -372,9 +350,13 @@ mod tests {
 
         // 创建测试房间
         let room = Room::new("test_room".to_string(), Some("password".to_string()));
+        let room_with_id = room_repo.create(&room).await.unwrap();
 
         // 测试令牌对签发
-        let response = refresh_service.issue_token_pair(&room).await.unwrap();
+        let response = refresh_service
+            .issue_token_pair(&room_with_id)
+            .await
+            .unwrap();
         assert!(!response.access_token.is_empty());
         assert!(!response.refresh_token.is_empty());
 
@@ -390,10 +372,10 @@ mod tests {
         let secret = Arc::new("test_secret".to_string());
 
         let base_service = RoomTokenService::new(secret.clone());
-        let refresh_repo = Arc::new(SqliteRoomRefreshTokenRepository::new(Arc::new(
-            pool.clone(),
-        )));
-        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(Arc::new(pool)));
+        let pool_arc = Arc::new(pool.clone());
+        let refresh_repo = Arc::new(SqliteRoomRefreshTokenRepository::new(pool_arc.clone()));
+        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(pool_arc.clone()));
+        let room_repo = Arc::new(SqliteRoomRepository::new(pool_arc));
 
         let refresh_service = RefreshTokenService::new(
             base_service,
@@ -405,9 +387,13 @@ mod tests {
 
         // 创建测试房间
         let room = Room::new("test_room".to_string(), Some("password".to_string()));
+        let room_with_id = room_repo.create(&room).await.unwrap();
 
         // 1. 签发初始令牌对
-        let initial_response = refresh_service.issue_token_pair(&room).await.unwrap();
+        let initial_response = refresh_service
+            .issue_token_pair(&room_with_id)
+            .await
+            .unwrap();
 
         // 2. 使用刷新令牌获取新的令牌对
         let refreshed_response = refresh_service
@@ -434,10 +420,10 @@ mod tests {
         let secret = Arc::new("test_secret".to_string());
 
         let base_service = RoomTokenService::new(secret.clone());
-        let refresh_repo = Arc::new(SqliteRoomRefreshTokenRepository::new(Arc::new(
-            pool.clone(),
-        )));
-        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(Arc::new(pool)));
+        let pool_arc = Arc::new(pool.clone());
+        let refresh_repo = Arc::new(SqliteRoomRefreshTokenRepository::new(pool_arc.clone()));
+        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(pool_arc.clone()));
+        let room_repo = Arc::new(SqliteRoomRepository::new(pool_arc));
 
         let refresh_service = RefreshTokenService::new(
             base_service.clone(),
@@ -449,9 +435,13 @@ mod tests {
 
         // 创建测试房间
         let room = Room::new("test_room".to_string(), Some("password".to_string()));
+        let room_with_id = room_repo.create(&room).await.unwrap();
 
         // 1. 签发令牌对
-        let response = refresh_service.issue_token_pair(&room).await.unwrap();
+        let response = refresh_service
+            .issue_token_pair(&room_with_id)
+            .await
+            .unwrap();
 
         // 2. 解码访问令牌获取 JTI
         let claims = base_service.decode(&response.access_token).unwrap();
