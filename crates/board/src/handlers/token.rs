@@ -29,7 +29,7 @@ pub async fn verify_room_token(
 
     // 解码令牌
     let claims = app_state
-        .token_service
+        .token_service()
         .decode(token_str)
         .map_err(|e| AppError::token(format!("Token is invalid or expired: {}", e)))?;
 

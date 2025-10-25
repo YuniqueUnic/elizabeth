@@ -1,10 +1,13 @@
 pub mod cmd;
+pub mod config;
+pub mod constants;
 pub mod db;
 pub mod errors;
 mod handlers;
 mod init;
 pub mod middleware;
 pub mod models;
+pub mod permissions;
 pub mod repository;
 pub mod route;
 pub mod services;
@@ -21,8 +24,11 @@ use clap::Parser;
 use shadow_rs::shadow;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
+use crate::config::{AppConfig, AuthConfig, RoomConfig, ServerConfig, StorageConfig};
+use crate::constants::{
+    storage::DEFAULT_STORAGE_ROOT, upload::DEFAULT_UPLOAD_RESERVATION_TTL_SECONDS,
+};
 use crate::db::{DbPoolSettings, init_db, run_migrations};
-use crate::handlers::content::{DEFAULT_STORAGE_ROOT, DEFAULT_UPLOAD_RESERVATION_TTL_SECONDS};
 use crate::init::{cfg_service, const_service, log_service};
 use crate::repository::room_refresh_token_repository::{
     SqliteRoomRefreshTokenRepository, SqliteTokenBlacklistRepository,
@@ -61,46 +67,36 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
     run_migrations(&db_pool).await?;
     let db_pool = Arc::new(db_pool);
 
-    let token_service = RoomTokenService::with_config(
-        Arc::new(cfg.app.jwt.secret.clone()),
-        cfg.app.jwt.ttl_seconds,
-        cfg.app.jwt.leeway_seconds,
-    );
-
-    // 创建刷新令牌仓库
-    let refresh_token_repo = Arc::new(SqliteRoomRefreshTokenRepository::new(db_pool.clone()));
-    let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(db_pool.clone()));
-
-    // 创建刷新令牌服务
-    let refresh_token_service = RefreshTokenService::with_defaults(
-        token_service.clone(),
-        refresh_token_repo,
-        blacklist_repo,
-    );
-
-    let room_max_size = cfg.app.room.max_size;
-    let room_max_times_entered = cfg.app.room.max_times_entered;
-
-    let upload_ttl_seconds = if cfg.app.upload.reservation_ttl_seconds <= 0 {
-        DEFAULT_UPLOAD_RESERVATION_TTL_SECONDS
-    } else {
-        cfg.app.upload.reservation_ttl_seconds
-    };
-    let storage_root = if cfg.app.storage.root.trim().is_empty() {
-        PathBuf::from(DEFAULT_STORAGE_ROOT)
-    } else {
-        PathBuf::from(&cfg.app.storage.root)
+    // 创建应用配置
+    let app_config = AppConfig {
+        server: ServerConfig {
+            host: cfg.app.server.addr.clone(),
+            port: cfg.app.server.port,
+        },
+        storage: StorageConfig {
+            root: if cfg.app.storage.root.trim().is_empty() {
+                PathBuf::from(DEFAULT_STORAGE_ROOT)
+            } else {
+                PathBuf::from(&cfg.app.storage.root)
+            },
+            upload_reservation_ttl_seconds: if cfg.app.upload.reservation_ttl_seconds <= 0 {
+                DEFAULT_UPLOAD_RESERVATION_TTL_SECONDS
+            } else {
+                cfg.app.upload.reservation_ttl_seconds
+            },
+        },
+        room: RoomConfig {
+            max_content_size: cfg.app.room.max_size,
+            max_times_entered: cfg.app.room.max_times_entered,
+        },
+        auth: AuthConfig::new(cfg.app.jwt.secret.clone())
+            .map_err(|e| anyhow::anyhow!("Invalid JWT config: {}", e))?
+            .with_ttl(cfg.app.jwt.ttl_seconds)
+            .with_leeway(cfg.app.jwt.leeway_seconds),
     };
 
-    let app_state = Arc::new(AppState::new(
-        db_pool.clone(),
-        storage_root,
-        Duration::seconds(upload_ttl_seconds),
-        room_max_size,
-        room_max_times_entered,
-        token_service,
-        refresh_token_service,
-    ));
+    // 创建应用状态
+    let app_state = Arc::new(AppState::new(app_config, db_pool)?);
 
     let addr: SocketAddr = format!("{}:{}", cfg.app.server.addr, cfg.app.server.port).parse()?;
     let listener = tokio::net::TcpListener::bind(addr).await?;

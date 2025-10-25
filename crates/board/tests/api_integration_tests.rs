@@ -2,78 +2,41 @@
 //!
 //! 测试 HTTP API 端点的完整功能
 
+mod common;
+
 use anyhow::Result;
 use axum::{
-    Router,
     body::Body,
     http::{Method, Request, StatusCode},
 };
-use chrono::Duration;
 use sqlx::SqlitePool;
-use std::sync::Arc;
-use tower::util::ServiceExt;
-use uuid::Uuid;
+use tower::ServiceExt;
 
-use board::models::room::{DEFAULT_MAX_ROOM_CONTENT_SIZE, DEFAULT_MAX_TIMES_ENTER_ROOM};
-use board::repository::room_refresh_token_repository::{
-    SqliteRoomRefreshTokenRepository, SqliteTokenBlacklistRepository,
+// 导入测试公共模块
+use common::{
+    create_test_app,
+    fixtures::{passwords, room_names},
+    http::{assert_json, assert_status, create_request as create_http_request, send_request},
 };
+
 use board::route::room::api_router;
-use board::services::{RoomTokenService, refresh_token_service::RefreshTokenService};
-use board::state::AppState;
-
-const TEST_UPLOAD_RESERVATION_TTL_SECONDS: i64 = 10;
-
-/// 创建测试应用
-async fn create_test_app() -> Result<(Router, SqlitePool)> {
-    let pool = SqlitePool::connect(":memory:").await?;
-
-    // 运行迁移
-    sqlx::migrate!("./migrations").run(&pool).await?;
-
-    let pool_arc = Arc::new(pool.clone());
-    let token_service =
-        RoomTokenService::with_config(Arc::new("test-secret".to_string()), 30 * 60, 5);
-    let storage_root =
-        std::env::temp_dir().join(format!("elizabeth-board-tests-{}", Uuid::new_v4()));
-
-    // 创建刷新令牌服务
-    let refresh_repo = Arc::new(SqliteRoomRefreshTokenRepository::new(pool_arc.clone()));
-    let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(pool_arc.clone()));
-    let refresh_service =
-        RefreshTokenService::with_defaults(token_service.clone(), refresh_repo, blacklist_repo);
-
-    let app_state = Arc::new(AppState::new(
-        pool_arc,
-        storage_root,
-        Duration::seconds(TEST_UPLOAD_RESERVATION_TTL_SECONDS),
-        DEFAULT_MAX_ROOM_CONTENT_SIZE,
-        DEFAULT_MAX_TIMES_ENTER_ROOM,
-        token_service,
-        refresh_service,
-    ));
-    let app = api_router(app_state).into();
-
-    Ok((app, pool))
-}
 
 #[tokio::test]
 async fn test_create_room_api() -> Result<()> {
     let (app, _pool) = create_test_app().await?;
 
     // 测试创建房间
-    let request = Request::builder()
-        .method(Method::POST)
-        .uri("/api/v1/rooms/test_room?password=test123")
-        .header("content-type", "application/json")
-        .body(Body::empty())?;
+    let request = create_http_request(
+        Method::POST,
+        "/api/v1/rooms/test_room?password=test123",
+        None,
+    );
 
-    let response = app.oneshot(request).await?;
+    let response = send_request(app, request).await?;
 
-    assert_eq!(response.status(), StatusCode::OK);
+    assert_status(&response, StatusCode::OK);
 
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await?;
-    let response_json: serde_json::Value = serde_json::from_slice(&body)?;
+    let response_json: serde_json::Value = assert_json(response).await?;
 
     assert_eq!(response_json["name"], "test_room");
     assert!(response_json["id"].is_number());
