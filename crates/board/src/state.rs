@@ -5,12 +5,6 @@ use chrono::Duration;
 use crate::db::DbPool;
 use crate::services::{RoomTokenService, refresh_token_service::RefreshTokenService};
 
-#[derive(Clone, Debug)]
-pub struct RoomDefaults {
-    pub max_size: i64,
-    pub max_times_entered: i64,
-}
-
 #[derive(Clone)]
 pub struct AppState {
     pub db_pool: Arc<DbPool>,
@@ -18,7 +12,8 @@ pub struct AppState {
     pub refresh_token_service: RefreshTokenService,
     pub storage_root: Arc<PathBuf>,
     pub upload_reservation_ttl: Duration,
-    pub room_defaults: RoomDefaults,
+    pub room_max_size: i64,
+    pub room_max_times_entered: i64,
 }
 
 impl AppState {
@@ -27,7 +22,8 @@ impl AppState {
         db_pool: Arc<DbPool>,
         storage_root: impl Into<PathBuf>,
         upload_reservation_ttl: Duration,
-        room_defaults: RoomDefaults,
+        room_max_size: i64,
+        room_max_times_entered: i64,
         token_service: RoomTokenService,
         refresh_token_service: RefreshTokenService,
     ) -> Self {
@@ -37,7 +33,8 @@ impl AppState {
             refresh_token_service,
             storage_root: Arc::new(storage_root.into()),
             upload_reservation_ttl,
-            room_defaults,
+            room_max_size,
+            room_max_times_entered,
         }
     }
 }

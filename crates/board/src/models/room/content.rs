@@ -21,10 +21,10 @@ pub struct RoomContent {
     pub id: Option<i64>,
     pub room_id: i64,
     pub content_type: ContentType,
-    pub text: Option<String>, // the text content
-    pub url: Option<String>,  // the url to the content
-    pub path: Option<String>, // the saved path to the content on server disk
-    pub size: Option<i64>, // the size of the content, maybe the usize is better but the sqlite does not support u64
+    pub text: Option<String>, // The text content
+    pub url: Option<String>,  // The URL to the content
+    pub path: Option<String>, // The saved path to the content on server disk
+    pub size: Option<i64>, // The size of the content, maybe the usize is better but the SQLite does not support u64
     pub mime_type: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
@@ -139,7 +139,7 @@ mod tests {
             Some("text/html".to_string()),
         );
 
-        // 计算 UTF-8 字节长度
+        // Calculate UTF-8 byte length
         let expected = "https://例子。测试/路径".as_bytes().len() as i64;
         assert_eq!(content.size, Some(expected));
     }

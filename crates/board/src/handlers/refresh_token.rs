@@ -128,7 +128,6 @@ pub struct CleanupResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::RoomDefaults;
     use crate::models::Room;
     use crate::repository::room_refresh_token_repository::{
         SqliteRoomRefreshTokenRepository, SqliteTokenBlacklistRepository,
@@ -181,10 +180,8 @@ mod tests {
             Arc::new(pool),
             std::env::temp_dir(),
             Duration::seconds(10),
-            RoomDefaults {
-                max_size: 10000000,
-                max_times_entered: 100,
-            },
+            10000000,
+            100,
             token_service,
             refresh_service,
         ))
