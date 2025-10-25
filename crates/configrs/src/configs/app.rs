@@ -14,6 +14,7 @@ pub struct AppConfig {
     pub jwt: JwtConfig,
     pub room: RoomConfig,
     pub upload: UploadConfig,
+    pub middleware: MiddlewareConfig,
 }
 
 #[derive(Merge, Debug, Clone, SmartDefault, serde::Deserialize, serde::Serialize)]
@@ -103,6 +104,137 @@ pub struct UploadConfig {
     pub reservation_ttl_seconds: i64,
 }
 
+// Middleware configurations - simplified without Merge trait
+#[derive(Debug, Clone, Default, Merge, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
+pub struct MiddlewareConfig {
+    pub tracing: TracingConfig,
+    pub request_id: RequestIdConfig,
+    pub compression: CompressionConfig,
+    pub cors: CorsConfig,
+    pub security: SecurityConfig,
+    pub rate_limit: RateLimitConfig,
+}
+
+#[derive(Debug, Clone, SmartDefault, Merge, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
+pub struct TracingConfig {
+    #[default(true)]
+    #[merge(strategy = overwrite)]
+    pub enabled: bool,
+    #[default = "info"]
+    #[merge(strategy = overwrite)]
+    pub level: String,
+    #[default(false)]
+    #[merge(strategy = overwrite)]
+    pub include_headers: bool,
+    #[default(false)]
+    #[merge(strategy = overwrite)]
+    pub include_body: bool,
+}
+
+#[derive(Debug, Clone, SmartDefault, Merge, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
+pub struct RequestIdConfig {
+    #[default(true)]
+    #[merge(strategy = overwrite)]
+    pub enabled: bool,
+    #[merge(strategy = overwrite_not_empty_string)]
+    #[default = "X-Request-Id"]
+    pub header_name: String,
+    #[default(true)]
+    #[merge(strategy = overwrite)]
+    pub generate_if_missing: bool,
+}
+
+#[derive(Debug, Clone, SmartDefault, Merge, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
+pub struct CompressionConfig {
+    #[default(false)]
+    #[merge(strategy = overwrite)]
+    pub enabled: bool,
+    #[default(1024)]
+    #[merge(strategy = overwrite)]
+    pub min_content_length: usize,
+}
+
+#[derive(Debug, Clone, SmartDefault, Merge, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
+pub struct CorsConfig {
+    #[default(false)]
+    #[merge(strategy = overwrite)]
+    pub enabled: bool,
+
+    #[default(vec!["*".to_string()])]
+    #[merge(strategy = overwrite)]
+    pub allowed_origins: Vec<String>,
+
+    #[default(vec!["GET".to_string(), "POST".to_string(), "PUT".to_string(), "DELETE".to_string(), "OPTIONS".to_string()])]
+    #[merge(strategy = overwrite)]
+    pub allowed_methods: Vec<String>,
+
+    #[merge(strategy = overwrite)]
+    #[default(vec!["*".to_string()])]
+    pub allowed_headers: Vec<String>,
+
+    #[default(false)]
+    #[merge(strategy = overwrite)]
+    pub allow_credentials: bool,
+
+    #[default(3600)]
+    #[merge(strategy = overwrite)]
+    pub max_age: u64,
+
+    #[default(vec![])]
+    #[merge(strategy = overwrite)]
+    pub expose_headers: Vec<String>,
+}
+
+#[derive(Debug, Clone, SmartDefault, Merge, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
+pub struct SecurityConfig {
+    #[default(true)]
+    #[merge(strategy = overwrite)]
+    pub enabled: bool,
+
+    #[default(true)]
+    #[merge(strategy = overwrite)]
+    pub content_type_options: bool,
+
+    #[default = "DENY"]
+    #[merge(strategy = overwrite_not_empty_string)]
+    pub frame_options: String,
+
+    #[default = "1; mode=block"]
+    #[merge(strategy = overwrite_not_empty_string)]
+    pub xss_protection: String,
+
+    #[default = "max-age=31536000; includeSubDomains"]
+    #[merge(strategy = overwrite_not_empty_string)]
+    pub strict_transport_security: String,
+
+    #[default = "strict-origin-when-cross-origin"]
+    #[merge(strategy = overwrite_not_empty_string)]
+    pub referrer_policy: String,
+}
+
+#[derive(Debug, Clone, SmartDefault, Merge, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
+pub struct RateLimitConfig {
+    #[default(false)]
+    #[merge(strategy = overwrite)]
+    pub enabled: bool,
+    #[default(10)]
+    #[merge(strategy = overwrite)]
+    pub per_second: u64,
+    #[default(20)]
+    #[merge(strategy = overwrite)]
+    pub burst_size: u64,
+    #[default(60)]
+    #[merge(strategy = overwrite)]
+    pub cleanup_interval_seconds: u64,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -126,6 +258,16 @@ mod tests {
         assert_eq!(cfg.room.max_size, 10 * 1024 * 1024);
         assert_eq!(cfg.room.max_times_entered, 100);
         assert_eq!(cfg.upload.reservation_ttl_seconds, 10);
+
+        // Test middleware defaults
+        assert_eq!(cfg.middleware.tracing.enabled, true);
+        assert_eq!(cfg.middleware.tracing.level, "info");
+        assert_eq!(cfg.middleware.request_id.enabled, true);
+        assert_eq!(cfg.middleware.request_id.header_name, "X-Request-Id");
+        assert_eq!(cfg.middleware.compression.enabled, false);
+        assert_eq!(cfg.middleware.cors.enabled, false);
+        assert_eq!(cfg.middleware.security.enabled, true);
+        assert_eq!(cfg.middleware.rate_limit.enabled, false);
     }
 
     #[test]
@@ -160,6 +302,7 @@ mod tests {
             upload: UploadConfig {
                 reservation_ttl_seconds: 30,
             },
+            middleware: MiddlewareConfig::default(),
         };
 
         left.merge(right);

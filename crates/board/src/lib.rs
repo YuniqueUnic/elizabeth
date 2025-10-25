@@ -3,12 +3,12 @@ pub mod db;
 pub mod errors;
 mod handlers;
 mod init;
+pub mod middleware;
 pub mod models;
 pub mod repository;
 pub mod route;
 pub mod services;
 pub mod state;
-pub mod transaction;
 pub mod validation;
 
 use std::net::SocketAddr;
@@ -106,7 +106,7 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
     let addr: SocketAddr = format!("{}:{}", cfg.app.server.addr, cfg.app.server.port).parse()?;
     let listener = tokio::net::TcpListener::bind(addr).await?;
 
-    let (scalar_path, router) = build_api_router(app_state);
+    let (scalar_path, router) = build_api_router(app_state, cfg);
 
     println!("Server listening on http://{addr}");
     println!("Scalar listening on http://{addr}{}", &scalar_path);
@@ -116,7 +116,7 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
         .map_err(anyhow::Error::new)
 }
 
-fn build_api_router(app_state: Arc<AppState>) -> (String, axum::Router) {
+fn build_api_router(app_state: Arc<AppState>, cfg: &configrs::Config) -> (String, axum::Router) {
     let (root_router, mut api) = OpenApiRouter::new()
         .routes(routes!(route::openapi))
         .split_for_parts();
@@ -134,5 +134,10 @@ fn build_api_router(app_state: Arc<AppState>) -> (String, axum::Router) {
 
     let (scalar, scalar_path) = route::scalar(api);
     let router = router.merge(scalar);
+
+    // Apply middleware configuration
+    let middleware_config = crate::middleware::from_app_config(cfg);
+    let router = crate::middleware::apply(&middleware_config, router);
+
     (scalar_path, router)
 }
