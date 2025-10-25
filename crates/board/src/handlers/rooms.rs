@@ -15,14 +15,14 @@ use crate::repository::{
     IRoomRepository, IRoomTokenRepository, SqliteRoomRepository, SqliteRoomTokenRepository,
 };
 use crate::services::RoomTokenClaims;
-use crate::state::{AppState, RoomDefaults};
+use crate::state::AppState;
 use crate::validation::{PasswordValidator, RoomNameValidator, TokenValidator};
 
 type HandlerResult<T> = Result<Json<T>, AppError>;
 
-fn apply_room_defaults(room: &mut Room, defaults: &RoomDefaults) {
-    room.max_size = defaults.max_size;
-    room.max_times_entered = defaults.max_times_entered;
+fn apply_room_defaults(room: &mut Room, app_state: &AppState) {
+    room.max_size = app_state.room_max_size;
+    room.max_times_entered = app_state.room_max_times_entered;
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -139,7 +139,7 @@ pub async fn create(
     }
 
     let mut room = Room::new(name.clone(), params.password);
-    apply_room_defaults(&mut room, &app_state.room_defaults);
+    apply_room_defaults(&mut room, &app_state);
     let created_room = repository
         .create(&room)
         .await
@@ -186,7 +186,7 @@ pub async fn find(
             }
 
             let mut new_room = Room::new(name.clone(), None);
-            apply_room_defaults(&mut new_room, &app_state.room_defaults);
+            apply_room_defaults(&mut new_room, &app_state);
             let created_room = repository
                 .create(&new_room)
                 .await
