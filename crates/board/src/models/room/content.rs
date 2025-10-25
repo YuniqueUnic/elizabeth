@@ -83,22 +83,6 @@ impl RoomContent {
         self.mime_type = mime_type;
         self.size = Some(size);
     }
-
-    pub(crate) fn dummy() -> Self {
-        let now = Utc::now().naive_utc();
-        Self {
-            id: Some(0),
-            room_id: 0,
-            content_type: ContentType::Text,
-            text: None,
-            url: None,
-            size: None,
-            path: None,
-            mime_type: None,
-            created_at: now,
-            updated_at: now,
-        }
-    }
 }
 
 #[cfg(test)]

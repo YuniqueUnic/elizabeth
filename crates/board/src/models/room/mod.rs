@@ -7,7 +7,6 @@ use crate::models::permission::RoomPermission;
 
 pub mod chunk_upload;
 pub mod content;
-pub mod metric;
 pub mod permission;
 pub mod refresh_token;
 pub mod token;
@@ -68,7 +67,7 @@ impl Room {
             name,
             password,
             status: RoomStatus::default(),
-            max_size: DEFAULT_MAX_ROOM_CONTENT_SIZE, // 10MB
+            max_size: DEFAULT_MAX_ROOM_CONTENT_SIZE, // 10 megabytes
             current_size: 0,
             max_times_entered: DEFAULT_MAX_TIMES_ENTER_ROOM,
             current_times_entered: 0,
