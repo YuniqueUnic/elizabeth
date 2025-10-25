@@ -203,7 +203,12 @@ pub mod http {
 
     /// 创建测试请求
     pub fn create_request(method: Method, uri: &str, body: Option<Body>) -> Request<Body> {
-        let builder = Request::builder().method(method).uri(uri);
+        let mut builder = Request::builder().method(method).uri(uri);
+
+        // 如果有请求体，设置 Content-Type
+        if body.is_some() {
+            builder = builder.header("content-type", "application/json");
+        }
 
         let request = if let Some(b) = body {
             builder.body(b).expect("Failed to build request with body")

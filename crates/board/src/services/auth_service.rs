@@ -283,7 +283,7 @@ mod tests {
         let now = Utc::now();
         let claims = RoomTokenClaims {
             sub: "room:1".to_string(),
-            room_id: 1,
+            room_id: 0,
             room_name: "test_room".to_string(),
             permission: 0,
             max_size: 1024,
@@ -307,5 +307,221 @@ mod tests {
                 .await
                 .unwrap()
         );
+    }
+
+    #[tokio::test]
+    async fn test_verify_access_token_success() {
+        let pool = create_test_pool().await;
+        let secret = Arc::new("test_secret_for_unit_testing".to_string());
+
+        let token_service = Arc::new(RoomTokenService::new(secret.clone()));
+        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(Arc::new(pool)));
+
+        let auth_service = AuthService::new(token_service.clone(), blacklist_repo);
+
+        // 创建有效的访问令牌声明
+        let room = crate::models::Room::new("test_room".to_string(), None);
+
+        let claims = RoomTokenClaims {
+            sub: "room:test_room".to_string(),
+            room_id: 0,
+            room_name: "test_room".to_string(),
+            permission: crate::models::room::permission::RoomPermission::VIEW_ONLY.bits(),
+            max_size: 1024,
+            exp: (Utc::now() + chrono::Duration::hours(1)).timestamp(),
+            iat: Utc::now().timestamp(),
+            jti: uuid::Uuid::new_v4().to_string(),
+            token_type: crate::services::token::TokenType::Access,
+            refresh_jti: None,
+        };
+
+        // 生成令牌
+        let token = token_service.encode_claims(&claims).unwrap();
+
+        // 验证访问令牌
+        let verified_claims = auth_service
+            .verify_access_token(&token, &room)
+            .await
+            .unwrap();
+        assert_eq!(verified_claims.room_name, "test_room");
+        assert_eq!(verified_claims.room_id, 0);
+        assert!(verified_claims.is_access_token());
+    }
+
+    #[tokio::test]
+    async fn test_verify_access_token_blacklisted() {
+        let pool = create_test_pool().await;
+        let secret = Arc::new("test_secret_for_unit_testing".to_string());
+
+        let token_service = Arc::new(RoomTokenService::new(secret.clone()));
+        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(Arc::new(pool)));
+
+        let auth_service = AuthService::new(token_service.clone(), blacklist_repo.clone());
+
+        // 创建访问令牌声明
+        let room = crate::models::Room::new("test_room".to_string(), None);
+
+        let claims = RoomTokenClaims {
+            sub: "room:test_room".to_string(),
+            room_id: 0,
+            room_name: "test_room".to_string(),
+            permission: crate::models::room::permission::RoomPermission::VIEW_ONLY.bits(),
+            max_size: 1024,
+            exp: (Utc::now() + chrono::Duration::hours(1)).timestamp(),
+            iat: Utc::now().timestamp(),
+            jti: uuid::Uuid::new_v4().to_string(),
+            token_type: crate::services::token::TokenType::Access,
+            refresh_jti: None,
+        };
+
+        // 生成令牌
+        let token = token_service.encode_claims(&claims).unwrap();
+
+        // 将令牌加入黑名单
+        auth_service.blacklist_token(&claims).await.unwrap();
+
+        // 验证黑名单令牌应该失败
+        let result = auth_service.verify_access_token(&token, &room).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("blacklisted"));
+    }
+
+    #[tokio::test]
+    async fn test_verify_refresh_token_success() {
+        let pool = create_test_pool().await;
+        let secret = Arc::new("test_secret_for_unit_testing".to_string());
+
+        let token_service = Arc::new(RoomTokenService::new(secret.clone()));
+        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(Arc::new(pool)));
+
+        let auth_service = AuthService::new(token_service.clone(), blacklist_repo);
+
+        // 创建刷新令牌声明
+        let claims = RoomTokenClaims {
+            sub: "room:test_room".to_string(),
+            room_id: 0,
+            room_name: "test_room".to_string(),
+            permission: crate::models::room::permission::RoomPermission::VIEW_ONLY.bits(),
+            max_size: 1024,
+            exp: (Utc::now() + chrono::Duration::hours(1)).timestamp(),
+            iat: Utc::now().timestamp(),
+            jti: uuid::Uuid::new_v4().to_string(),
+            token_type: crate::services::token::TokenType::Refresh,
+            refresh_jti: None,
+        };
+
+        // 生成刷新令牌
+        let refresh_token = token_service.encode_claims(&claims).unwrap();
+
+        // 验证刷新令牌
+        let verified_claims = auth_service
+            .verify_refresh_token(&refresh_token)
+            .await
+            .unwrap();
+        assert_eq!(verified_claims.room_name, "test_room");
+        assert!(verified_claims.is_refresh_token());
+    }
+
+    #[tokio::test]
+    async fn test_token_expiration_checks() {
+        let pool = create_test_pool().await;
+        let secret = Arc::new("test_secret_for_unit_testing".to_string());
+
+        let token_service = Arc::new(RoomTokenService::new(secret.clone()));
+        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(Arc::new(pool)));
+
+        let auth_service = AuthService::new(token_service.clone(), blacklist_repo);
+
+        // 创建短期令牌声明（1 分钟过期）
+        let short_lived_claims = RoomTokenClaims {
+            sub: "room:test_room".to_string(),
+            room_id: 0,
+            room_name: "test_room".to_string(),
+            permission: crate::models::room::permission::RoomPermission::VIEW_ONLY.bits(),
+            max_size: 1024,
+            exp: (Utc::now() + chrono::Duration::minutes(1)).timestamp(),
+            iat: Utc::now().timestamp(),
+            jti: uuid::Uuid::new_v4().to_string(),
+            token_type: crate::services::token::TokenType::Access,
+            refresh_jti: None,
+        };
+
+        // 生成令牌
+        let short_lived_token = token_service.encode_claims(&short_lived_claims).unwrap();
+
+        // 测试令牌剩余时间
+        let remaining_seconds = auth_service
+            .get_token_remaining_seconds(&short_lived_token)
+            .await
+            .unwrap();
+        assert!(remaining_seconds > 0);
+        assert!(remaining_seconds <= 60);
+
+        // 测试令牌年龄
+        let age_seconds = auth_service
+            .get_token_age_seconds(&short_lived_token)
+            .await
+            .unwrap();
+        assert!(age_seconds >= 0);
+        assert!(age_seconds < 5); // 应该很小，因为刚创建
+
+        // 创建即将过期的令牌声明（4 分钟过期，应该触发"即将过期"检查）
+        let expiring_claims = RoomTokenClaims {
+            sub: "room:test_room".to_string(),
+            room_id: 0,
+            room_name: "test_room".to_string(),
+            permission: crate::models::room::permission::RoomPermission::VIEW_ONLY.bits(),
+            max_size: 1024,
+            exp: (Utc::now() + chrono::Duration::minutes(4)).timestamp(),
+            iat: Utc::now().timestamp(),
+            jti: uuid::Uuid::new_v4().to_string(),
+            token_type: crate::services::token::TokenType::Access,
+            refresh_jti: None,
+        };
+
+        // 生成令牌
+        let expiring_token = token_service.encode_claims(&expiring_claims).unwrap();
+
+        // 测试即将过期检查
+        let is_expiring_soon = auth_service
+            .is_token_expiring_soon(&expiring_token)
+            .await
+            .unwrap();
+        assert!(is_expiring_soon); // 4 分钟应该触发"即将过期"（5 分钟阈值）
+    }
+
+    #[tokio::test]
+    async fn test_getters() {
+        let pool = create_test_pool().await;
+        let secret = Arc::new("test_secret".to_string());
+
+        let token_service = Arc::new(RoomTokenService::new(secret.clone()));
+        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(Arc::new(pool)));
+
+        let auth_service = AuthService::new(token_service.clone(), blacklist_repo.clone());
+
+        // 测试 getter 方法
+        assert_eq!(
+            auth_service.get_token_service().as_ref() as *const _,
+            token_service.as_ref() as *const _
+        );
+        assert_eq!(
+            auth_service.get_blacklist_repo().as_ref() as *const _,
+            blacklist_repo.as_ref() as *const _
+        );
+    }
+
+    #[tokio::test]
+    async fn test_cleanup_blacklist() {
+        let pool = create_test_pool().await;
+        let secret = Arc::new("test_secret".to_string());
+
+        let token_service = Arc::new(RoomTokenService::new(secret.clone()));
+        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(Arc::new(pool)));
+
+        let auth_service = AuthService::new(token_service, blacklist_repo);
+
+        // 测试清理黑名单（应该能正常调用）
+        auth_service.cleanup_blacklist().await.unwrap();
     }
 }
