@@ -29,7 +29,6 @@ use crate::repository::{
     SqliteRoomContentRepository, SqliteRoomRepository, SqliteRoomUploadReservationRepository,
 };
 use crate::services::RoomTokenClaims;
-use crate::services::{PermissionValidator, PermissionValidatorFactory};
 use crate::state::AppState;
 use crate::validation::RoomNameValidator;
 
@@ -136,13 +135,7 @@ pub async fn list_contents(
     let verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
     let room_id = room_id_or_error(&verified.claims)?;
 
-    // Example of how to use the new permission validation framework
-    // When AuthService is available in AppState, this would be:
-    // let auth_service = app_state.auth_service.clone();
-    // let permission_validator = PermissionValidatorFactory::create_default(auth_service);
-    // let _claims = permission_validator.verify_token_with_view_permission(&query.token, &verified.room).await?;
-
-    // For now, we keep the existing manual permission check
+    // Manual permission check is used for now
     ensure_permission(
         &verified.claims,
         verified.room.permission.can_view(),

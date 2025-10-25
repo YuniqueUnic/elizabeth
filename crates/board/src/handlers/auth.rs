@@ -17,38 +17,6 @@ use crate::models::{
 };
 use crate::services::{AuthService, RefreshTokenService};
 
-/// 刷新令牌请求结构
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct RefreshTokenRequestSchema {
-    /// 刷新令牌
-    #[serde(rename = "refresh_token")]
-    pub refresh_token: String,
-}
-
-/// 刷新令牌响应结构
-#[derive(Debug, Serialize, ToSchema)]
-pub struct RefreshTokenResponseSchema {
-    /// 新的访问令牌
-    pub access_token: String,
-    /// 新的刷新令牌
-    pub refresh_token: String,
-    /// 访问令牌过期时间
-    pub access_token_expires_at: chrono::NaiveDateTime,
-    /// 刷新令牌过期时间
-    pub refresh_token_expires_at: chrono::NaiveDateTime,
-}
-
-impl From<RefreshTokenResponse> for RefreshTokenResponseSchema {
-    fn from(response: RefreshTokenResponse) -> Self {
-        Self {
-            access_token: response.access_token,
-            refresh_token: response.refresh_token,
-            access_token_expires_at: response.access_token_expires_at,
-            refresh_token_expires_at: response.refresh_token_expires_at,
-        }
-    }
-}
-
 /// 登出请求结构
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct LogoutRequestSchema {
@@ -111,12 +79,12 @@ impl AppState {
     summary = "刷新访问令牌",
     description = "使用刷新令牌获取新的访问令牌和刷新令牌对",
     request_body(
-        content = RefreshTokenRequestSchema,
+        content = RefreshTokenRequest,
         description = "刷新令牌请求",
         content_type = "application/json"
     ),
     responses(
-        (status = 200, description = "刷新成功", body = RefreshTokenResponseSchema),
+        (status = 200, description = "刷新成功", body = RefreshTokenResponse),
         (status = 400, description = "无效的请求"),
         (status = 401, description = "无效的刷新令牌"),
         (status = 500, description = "服务器内部错误")
@@ -124,8 +92,8 @@ impl AppState {
 )]
 pub async fn refresh_token(
     State(state): State<AppState>,
-    Json(request): Json<RefreshTokenRequestSchema>,
-) -> AppResult<RefreshTokenResponseSchema> {
+    Json(request): Json<RefreshTokenRequest>,
+) -> AppResult<RefreshTokenResponse> {
     // 验证刷新令牌
     let claims = state
         .auth_service
@@ -165,7 +133,7 @@ pub async fn refresh_token(
         claims.sub
     );
 
-    Ok(response.into())
+    Ok(response)
 }
 
 /// 登出处理器
@@ -408,7 +376,7 @@ mod tests {
 
     #[test]
     fn test_refresh_token_request_schema() {
-        let request = RefreshTokenRequestSchema {
+        let request = RefreshTokenRequest {
             refresh_token: "test_refresh_token".to_string(),
         };
 

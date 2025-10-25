@@ -826,7 +826,6 @@ dependencies = [
  "sha2",
  "shadow-rs",
  "sqlx",
- "tempfile",
  "thiserror 2.0.17",
  "tokio",
  "tokio-util",
