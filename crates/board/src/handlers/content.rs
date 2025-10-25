@@ -9,7 +9,6 @@ use axum::extract::{Multipart, Path as AxumPath, Query, State};
 use axum::http::HeaderValue;
 use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
 use axum::response::Response;
-use axum_responses::http::HttpResponse;
 use chrono::NaiveDateTime;
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
@@ -20,6 +19,7 @@ use tokio_util::io::ReaderStream;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+use crate::errors::{AppError, AppResult};
 use crate::models::{
     UploadFileDescriptor,
     content::{ContentType, RoomContent},
@@ -29,14 +29,16 @@ use crate::repository::{
     SqliteRoomContentRepository, SqliteRoomRepository, SqliteRoomUploadReservationRepository,
 };
 use crate::services::RoomTokenClaims;
+use crate::services::{PermissionValidator, PermissionValidatorFactory};
 use crate::state::AppState;
+use crate::validation::RoomNameValidator;
 
 use super::{TokenQuery, verify_room_token};
 
 pub const DEFAULT_STORAGE_ROOT: &str = "storage/rooms";
 pub const DEFAULT_UPLOAD_RESERVATION_TTL_SECONDS: i64 = 10;
 
-type HandlerResult<T> = Result<Json<T>, HttpResponse>;
+type HandlerResult<T> = Result<Json<T>, AppError>;
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct RoomContentView {
@@ -128,13 +130,19 @@ pub async fn list_contents(
     Query(query): Query<TokenQuery>,
     State(app_state): State<Arc<AppState>>,
 ) -> HandlerResult<Vec<RoomContentView>> {
-    if name.is_empty() {
-        return Err(HttpResponse::BadRequest().message("Invalid room name"));
-    }
+    // Validate room name using the new validation framework
+    RoomNameValidator::validate(&name)?;
 
     let verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
     let room_id = room_id_or_error(&verified.claims)?;
 
+    // Example of how to use the new permission validation framework
+    // When AuthService is available in AppState, this would be:
+    // let auth_service = app_state.auth_service.clone();
+    // let permission_validator = PermissionValidatorFactory::create_default(auth_service);
+    // let _claims = permission_validator.verify_token_with_view_permission(&query.token, &verified.room).await?;
+
+    // For now, we keep the existing manual permission check
     ensure_permission(
         &verified.claims,
         verified.room.permission.can_view(),
@@ -142,9 +150,10 @@ pub async fn list_contents(
     )?;
 
     let repository = SqliteRoomContentRepository::new(app_state.db_pool.clone());
-    let contents = repository.list_by_room(room_id).await.map_err(|e| {
-        HttpResponse::InternalServerError().message(format!("Failed to list contents: {e}"))
-    })?;
+    let contents = repository
+        .list_by_room(room_id)
+        .await
+        .map_err(|e| AppError::internal(format!("Failed to list contents: {e}")))?;
 
     Ok(Json(
         contents.into_iter().map(RoomContentView::from).collect(),
@@ -175,11 +184,11 @@ pub async fn prepare_upload(
     State(app_state): State<Arc<AppState>>,
     Json(payload): Json<UploadPreparationRequest>,
 ) -> HandlerResult<UploadPreparationResponse> {
-    if name.is_empty() {
-        return Err(HttpResponse::BadRequest().message("Invalid room name"));
-    }
+    // Validate room name using the new validation framework
+    RoomNameValidator::validate(&name)?;
+
     if payload.files.is_empty() {
-        return Err(HttpResponse::BadRequest().message("No files provided"));
+        return Err(AppError::validation("No files provided"));
     }
 
     let mut verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
@@ -193,23 +202,24 @@ pub async fn prepare_upload(
     let mut names = HashSet::new();
     for file in &payload.files {
         if file.size <= 0 {
-            return Err(
-                HttpResponse::BadRequest().message(format!("Invalid file size for {}", file.name))
-            );
+            return Err(AppError::validation(format!(
+                "Invalid file size for {}",
+                file.name
+            )));
         }
         if !names.insert(file.name.clone()) {
-            return Err(
-                HttpResponse::BadRequest().message(format!("Duplicate file name {}", file.name))
-            );
+            return Err(AppError::validation(format!(
+                "Duplicate file name {}",
+                file.name
+            )));
         }
         total_size = total_size
             .checked_add(file.size)
-            .ok_or_else(|| HttpResponse::BadRequest().message("Total size overflow"))?;
+            .ok_or_else(|| AppError::validation("Total size overflow"))?;
     }
 
-    let manifest_json = serde_json::to_string(&payload.files).map_err(|e| {
-        HttpResponse::InternalServerError().message(format!("Serialize manifest failed: {e}"))
-    })?;
+    let manifest_json = serde_json::to_string(&payload.files)
+        .map_err(|e| AppError::internal(format!("Serialize manifest failed: {e}")))?;
 
     let reservation_repo = SqliteRoomUploadReservationRepository::new(app_state.db_pool.clone());
     let ttl = app_state.upload_reservation_ttl;
@@ -226,15 +236,15 @@ pub async fn prepare_upload(
         .map_err(|e| {
             let msg = e.to_string();
             if msg.to_lowercase().contains("limit exceeded") {
-                HttpResponse::PayloadTooLarge().message("Room size limit exceeded")
+                AppError::payload_too_large("Room size limit exceeded")
             } else {
-                HttpResponse::InternalServerError().message(format!("Reserve upload failed: {msg}"))
+                AppError::internal(format!("Reserve upload failed: {msg}"))
             }
         })?;
 
     let reservation_id = reservation
         .id
-        .ok_or_else(|| HttpResponse::InternalServerError().message("Reservation id missing"))?;
+        .ok_or_else(|| AppError::internal("Reservation id missing"))?;
 
     verified.room = updated_room.clone();
 
@@ -287,11 +297,11 @@ pub async fn upload_contents(
     State(app_state): State<Arc<AppState>>,
     mut multipart: Multipart,
 ) -> HandlerResult<UploadContentResponse> {
-    if name.is_empty() {
-        return Err(HttpResponse::BadRequest().message("Invalid room name"));
-    }
+    // Validate room name using the new validation framework
+    RoomNameValidator::validate(&name)?;
+
     if query.reservation_id <= 0 {
-        return Err(HttpResponse::BadRequest().message("Invalid reservation id"));
+        return Err(AppError::validation("Invalid reservation id"));
     }
 
     let mut verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
@@ -306,16 +316,14 @@ pub async fn upload_contents(
     let reservation = reservation_repo
         .fetch_by_id(query.reservation_id)
         .await
-        .map_err(|e| {
-            HttpResponse::InternalServerError().message(format!("Load reservation failed: {e}"))
-        })?
-        .ok_or_else(|| HttpResponse::BadRequest().message("Reservation not found"))?;
+        .map_err(|e| AppError::internal(format!("Load reservation failed: {e}")))?
+        .ok_or_else(|| AppError::validation("Reservation not found"))?;
 
     if reservation.room_id != room_id {
-        return Err(HttpResponse::Forbidden().message("Reservation not for this room"));
+        return Err(AppError::permission_denied("Reservation not for this room"));
     }
     if reservation.token_jti != verified.claims.jti {
-        return Err(HttpResponse::Forbidden().message("Reservation token mismatch"));
+        return Err(AppError::permission_denied("Reservation token mismatch"));
     }
 
     let now = chrono::Utc::now().naive_utc();
@@ -324,32 +332,28 @@ pub async fn upload_contents(
             .release_if_pending(query.reservation_id)
             .await
             .ok();
-        return Err(HttpResponse::BadRequest().message("Reservation expired"));
+        return Err(AppError::validation("Reservation expired"));
     }
 
     let expected_files: Vec<UploadFileDescriptor> =
-        serde_json::from_str(&reservation.file_manifest).map_err(|e| {
-            HttpResponse::InternalServerError()
-                .message(format!("Parse reservation manifest failed: {e}"))
-        })?;
+        serde_json::from_str(&reservation.file_manifest)
+            .map_err(|e| AppError::internal(format!("Parse reservation manifest failed: {e}")))?;
     if expected_files.is_empty() {
-        return Err(HttpResponse::BadRequest().message("Reservation manifest empty"));
+        return Err(AppError::validation("Reservation manifest empty"));
     }
 
     let mut expected_map = HashMap::new();
     for file in expected_files {
         if expected_map.insert(file.name.clone(), file).is_some() {
-            return Err(HttpResponse::InternalServerError()
-                .message("Reservation manifest has duplicate file names"));
+            return Err(AppError::internal(
+                "Reservation manifest has duplicate file names",
+            ));
         }
     }
 
     let storage_dir = ensure_room_storage(app_state.storage_root.as_ref(), &verified.room.slug)
         .await
-        .map_err(|e| {
-            HttpResponse::InternalServerError()
-                .message(format!("Failed to prepare storage directory: {e}"))
-        })?;
+        .map_err(|e| AppError::internal(format!("Failed to prepare storage directory: {e}")))?;
 
     struct TempUpload {
         name: String,
@@ -364,12 +368,12 @@ pub async fn upload_contents(
     while let Some(mut field) = multipart
         .next_field()
         .await
-        .map_err(|e| HttpResponse::BadRequest().message(format!("Invalid multipart data: {e}")))?
+        .map_err(|e| AppError::validation(format!("Invalid multipart data: {e}")))?
     {
         let file_name = field
             .file_name()
             .map(|name| name.to_string())
-            .ok_or_else(|| HttpResponse::BadRequest().message("File name missing"))?;
+            .ok_or_else(|| AppError::validation("File name missing"))?;
 
         let expected = if let Some(exp) = expected_map.get(&file_name) {
             exp
@@ -377,47 +381,50 @@ pub async fn upload_contents(
             for temp in &staged {
                 fs::remove_file(&temp.path).await.ok();
             }
-            return Err(HttpResponse::BadRequest().message(format!("Unexpected file: {file_name}")));
+            return Err(AppError::validation(format!(
+                "Unexpected file: {file_name}"
+            )));
         };
 
         if !seen.insert(file_name.clone()) {
             for temp in &staged {
                 fs::remove_file(&temp.path).await.ok();
             }
-            return Err(
-                HttpResponse::BadRequest().message(format!("Duplicate upload file: {file_name}"))
-            );
+            return Err(AppError::validation(format!(
+                "Duplicate upload file: {file_name}"
+            )));
         }
 
         let safe_file_name = sanitize_filename::sanitize(&file_name);
         let unique_segment = Uuid::new_v4().to_string();
         let file_path = storage_dir.join(format!("{unique_segment}_{safe_file_name}"));
-        let mut temp_file = fs::File::create(&file_path).await.map_err(|e| {
-            HttpResponse::InternalServerError().message(format!("Cannot create file: {e}"))
-        })?;
+        let mut temp_file = fs::File::create(&file_path)
+            .await
+            .map_err(|e| AppError::internal(format!("Cannot create file: {e}")))?;
 
         let mut size: i64 = 0;
         while let Some(chunk) = field.next().await {
-            let chunk = chunk.map_err(|e| {
-                HttpResponse::BadRequest().message(format!("Read upload chunk failed: {e}"))
-            })?;
+            let chunk = chunk
+                .map_err(|e| AppError::validation(format!("Read upload chunk failed: {e}")))?;
             size += chunk.len() as i64;
-            temp_file.write_all(&chunk).await.map_err(|e| {
-                HttpResponse::InternalServerError().message(format!("Write file failed: {e}"))
-            })?;
+            temp_file
+                .write_all(&chunk)
+                .await
+                .map_err(|e| AppError::internal(format!("Write file failed: {e}")))?;
         }
-        temp_file.flush().await.map_err(|e| {
-            HttpResponse::InternalServerError().message(format!("Flush file failed: {e}"))
-        })?;
+        temp_file
+            .flush()
+            .await
+            .map_err(|e| AppError::internal(format!("Flush file failed: {e}")))?;
 
         if size != expected.size {
             fs::remove_file(&file_path).await.ok();
             for temp in &staged {
                 fs::remove_file(&temp.path).await.ok();
             }
-            return Err(
-                HttpResponse::BadRequest().message(format!("File size mismatch for {file_name}"))
-            );
+            return Err(AppError::validation(format!(
+                "File size mismatch for {file_name}"
+            )));
         }
 
         let mime = mime_guess::from_path(&file_path)
@@ -433,14 +440,16 @@ pub async fn upload_contents(
     }
 
     if staged.is_empty() {
-        return Err(HttpResponse::BadRequest().message("No files uploaded"));
+        return Err(AppError::validation("No files uploaded"));
     }
 
     if staged.len() != expected_map.len() {
         for temp in &staged {
             fs::remove_file(&temp.path).await.ok();
         }
-        return Err(HttpResponse::BadRequest().message("Uploaded file count mismatch reservation"));
+        return Err(AppError::validation(
+            "Uploaded file count mismatch reservation",
+        ));
     }
 
     let repository = SqliteRoomContentRepository::new(app_state.db_pool.clone());
@@ -482,14 +491,13 @@ pub async fn upload_contents(
                         );
                     }
                 }
-                return Err(HttpResponse::InternalServerError()
-                    .message(format!("Persist content failed: {e}")));
+                return Err(AppError::internal(format!("Persist content failed: {e}")));
             }
         };
 
         actual_total = actual_total
             .checked_add(temp.size)
-            .ok_or_else(|| HttpResponse::InternalServerError().message("Total size overflow"))?;
+            .ok_or_else(|| AppError::internal("Total size overflow"))?;
         uploaded.push(RoomContentView::from(saved));
     }
 
@@ -503,10 +511,8 @@ pub async fn upload_contents(
             file_hash: None,  // 普通上传不提供文件哈希
         })
         .collect();
-    let actual_manifest_json = serde_json::to_string(&actual_manifest).map_err(|e| {
-        HttpResponse::InternalServerError()
-            .message(format!("Serialize actual manifest failed: {e}"))
-    })?;
+    let actual_manifest_json = serde_json::to_string(&actual_manifest)
+        .map_err(|e| AppError::internal(format!("Serialize actual manifest failed: {e}")))?;
 
     let updated_room = reservation_repo
         .consume_reservation(
@@ -517,9 +523,7 @@ pub async fn upload_contents(
             &actual_manifest_json,
         )
         .await
-        .map_err(|e| {
-            HttpResponse::InternalServerError().message(format!("Finalize reservation failed: {e}"))
-        })?;
+        .map_err(|e| AppError::internal(format!("Finalize reservation failed: {e}")))?;
 
     verified.room = updated_room;
 
@@ -551,12 +555,11 @@ pub async fn delete_contents(
     State(app_state): State<Arc<AppState>>,
     Json(payload): Json<DeleteContentRequest>,
 ) -> HandlerResult<DeleteContentResponse> {
-    if name.is_empty() {
-        return Err(HttpResponse::BadRequest().message("Invalid room name"));
-    }
+    // Validate room name using the new validation framework
+    RoomNameValidator::validate(&name)?;
 
     if payload.ids.is_empty() {
-        return Err(HttpResponse::BadRequest().message("No content id provided"));
+        return Err(AppError::validation("No content id provided"));
     }
 
     let mut verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
@@ -571,7 +574,7 @@ pub async fn delete_contents(
     let existing_contents = repository
         .list_by_room(room_id)
         .await
-        .map_err(|e| HttpResponse::InternalServerError().message(format!("Query failed: {e}")))?;
+        .map_err(|e| AppError::internal(format!("Query failed: {e}")))?;
 
     let target_ids: HashSet<i64> = payload.ids.iter().copied().collect();
     let contents: Vec<RoomContent> = existing_contents
@@ -585,7 +588,7 @@ pub async fn delete_contents(
         .collect();
 
     if contents.is_empty() {
-        return Err(HttpResponse::NotFound().message("Contents not found"));
+        return Err(AppError::not_found("Contents not found"));
     }
 
     let mut freed_size = 0;
@@ -601,14 +604,15 @@ pub async fn delete_contents(
     repository
         .delete_by_ids(room_id, &ids)
         .await
-        .map_err(|e| HttpResponse::InternalServerError().message(format!("Delete failed: {e}")))?;
+        .map_err(|e| AppError::internal(format!("Delete failed: {e}")))?;
 
     if freed_size > 0 {
         verified.room.current_size = (verified.room.current_size - freed_size).max(0);
         let room_repo = SqliteRoomRepository::new(app_state.db_pool.clone());
-        verified.room = room_repo.update(&verified.room).await.map_err(|e| {
-            HttpResponse::InternalServerError().message(format!("Update room failed: {e}"))
-        })?;
+        verified.room = room_repo
+            .update(&verified.room)
+            .await
+            .map_err(|e| AppError::internal(format!("Update room failed: {e}")))?;
     }
 
     Ok(Json(DeleteContentResponse {
@@ -638,10 +642,9 @@ pub async fn download_content(
     AxumPath((name, content_id)): AxumPath<(String, i64)>,
     Query(query): Query<TokenQuery>,
     State(app_state): State<Arc<AppState>>,
-) -> Result<Response, HttpResponse> {
-    if name.is_empty() {
-        return Err(HttpResponse::BadRequest().message("Invalid room name"));
-    }
+) -> Result<Response, AppError> {
+    // Validate room name using the new validation framework
+    RoomNameValidator::validate(&name)?;
 
     let verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
     ensure_permission(
@@ -655,20 +658,20 @@ pub async fn download_content(
     let content = repository
         .find_by_id(content_id)
         .await
-        .map_err(|e| HttpResponse::InternalServerError().message(format!("Query failed: {e}")))?
-        .ok_or_else(|| HttpResponse::NotFound().message("Content not found"))?;
+        .map_err(|e| AppError::internal(format!("Query failed: {e}")))?
+        .ok_or_else(|| AppError::not_found("Content not found"))?;
 
     if content.room_id != room_id {
-        return Err(HttpResponse::Forbidden().message("Content not in room"));
+        return Err(AppError::permission_denied("Content not in room"));
     }
 
     let path = content
         .path
-        .ok_or_else(|| HttpResponse::NotFound().message("Content not stored on disk"))?;
+        .ok_or_else(|| AppError::not_found("Content not stored on disk"))?;
 
     let file = fs::File::open(&path)
         .await
-        .map_err(|_| HttpResponse::NotFound().message("File missing on disk"))?;
+        .map_err(|_| AppError::not_found("File missing on disk"))?;
 
     let file_name = Path::new(&path)
         .file_name()
@@ -679,9 +682,7 @@ pub async fn download_content(
     let body = Body::from_stream(stream);
     let mut response = Response::new(body);
     let disposition = HeaderValue::from_str(&format!("attachment; filename=\"{file_name}\""))
-        .map_err(|_| {
-            HttpResponse::InternalServerError().message("Failed to build response headers")
-        })?;
+        .map_err(|_| AppError::internal("Failed to build response headers"))?;
     response
         .headers_mut()
         .insert(CONTENT_DISPOSITION, disposition);
@@ -706,9 +707,9 @@ fn ensure_permission(
     claims: &RoomTokenClaims,
     room_allows: bool,
     action: ContentPermission,
-) -> Result<(), HttpResponse> {
+) -> Result<(), AppError> {
     if !room_allows {
-        return Err(HttpResponse::Forbidden().message("Permission denied by room"));
+        return Err(AppError::permission_denied("Permission denied by room"));
     }
     let permission = claims.as_permission();
     let token_allows = match action {
@@ -717,7 +718,7 @@ fn ensure_permission(
         ContentPermission::Delete => permission.can_delete(),
     };
     if !token_allows {
-        return Err(HttpResponse::Forbidden().message("Permission denied by token"));
+        return Err(AppError::permission_denied("Permission denied by token"));
     }
     Ok(())
 }
@@ -729,9 +730,9 @@ async fn ensure_room_storage(base_dir: &Path, room_name: &str) -> Result<PathBuf
     Ok(dir)
 }
 
-fn room_id_or_error(claims: &RoomTokenClaims) -> Result<i64, HttpResponse> {
+fn room_id_or_error(claims: &RoomTokenClaims) -> Result<i64, AppError> {
     if claims.room_id <= 0 {
-        return Err(HttpResponse::InternalServerError().message("Room id missing in claims"));
+        return Err(AppError::internal("Room id missing in claims"));
     }
     Ok(claims.room_id)
 }
