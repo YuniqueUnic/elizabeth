@@ -10,11 +10,11 @@ where
     S: Clone + Send + Sync + 'static,
 {
     if !config.enabled {
-        tracing::info!("CORS middleware disabled");
+        logrs::info!("CORS middleware disabled");
         return router;
     }
 
-    tracing::info!(
+    logrs::info!(
         "Applying CORS middleware with {} origins, {} methods",
         config.allowed_origins.len(),
         config.allowed_methods.len()
@@ -25,10 +25,10 @@ where
     // Configure allowed origins
     if config.allowed_origins.contains(&"*".to_string()) {
         cors = cors.allow_origin(AllowOrigin::any());
-        tracing::debug!("CORS: allowing any origin");
+        logrs::debug!("CORS: allowing any origin");
     } else {
         for origin in &config.allowed_origins {
-            tracing::debug!("CORS: allowing origin: {}", origin);
+            logrs::debug!("CORS: allowing origin: {}", origin);
         }
         // Note: For specific origins, we would need to parse them into HeaderValue
         // For now, we'll use wildcard if specific origins are configured
@@ -38,7 +38,7 @@ where
     // Configure allowed methods
     if config.allowed_methods.contains(&"*".to_string()) {
         cors = cors.allow_methods(AllowMethods::any());
-        tracing::debug!("CORS: allowing any method");
+        logrs::debug!("CORS: allowing any method");
     } else {
         let methods: Vec<_> = config
             .allowed_methods
@@ -47,14 +47,14 @@ where
             .collect();
         if !methods.is_empty() {
             cors = cors.allow_methods(AllowMethods::list(methods));
-            tracing::debug!("CORS: allowing {} methods", config.allowed_methods.len());
+            logrs::debug!("CORS: allowing {} methods", config.allowed_methods.len());
         }
     }
 
     // Configure allowed headers
     if config.allowed_headers.contains(&"*".to_string()) {
         cors = cors.allow_headers(AllowHeaders::any());
-        tracing::debug!("CORS: allowing any header");
+        logrs::debug!("CORS: allowing any header");
     } else {
         let headers: Vec<_> = config
             .allowed_headers
@@ -63,7 +63,7 @@ where
             .collect();
         if !headers.is_empty() {
             cors = cors.allow_headers(AllowHeaders::list(headers));
-            tracing::debug!("CORS: allowing {} headers", config.allowed_headers.len());
+            logrs::debug!("CORS: allowing {} headers", config.allowed_headers.len());
         }
     }
 
@@ -73,7 +73,7 @@ where
         .max_age(std::time::Duration::from_secs(config.max_age));
 
     if config.allow_credentials {
-        tracing::debug!("CORS: credentials allowed");
+        logrs::debug!("CORS: credentials allowed");
     }
 
     router.layer(cors)

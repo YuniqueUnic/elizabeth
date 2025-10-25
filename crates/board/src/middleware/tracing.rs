@@ -1,9 +1,9 @@
 use axum::Router;
+use logrs::Level;
 use tower_http::trace::{
     DefaultMakeSpan, DefaultOnEos, DefaultOnFailure, DefaultOnRequest, DefaultOnResponse,
     TraceLayer,
 };
-use tracing::Level;
 
 // Re-export TracingConfig from configrs
 pub use configrs::TracingConfig;
@@ -14,12 +14,12 @@ where
     S: Clone + Send + Sync + 'static,
 {
     if !config.enabled {
-        tracing::info!("Request tracing middleware disabled");
+        logrs::info!("Request logrs middleware disabled");
         return router;
     }
 
-    tracing::info!(
-        "Applying request tracing middleware with level: {}",
+    logrs::info!(
+        "Applying request logrs middleware with level: {}",
         config.level
     );
 
@@ -39,10 +39,10 @@ where
 
     // Configure header and body inclusion if supported
     if config.include_headers {
-        tracing::info!("Including headers in trace output");
+        logrs::info!("Including headers in trace output");
     }
     if config.include_body {
-        tracing::info!("Including body in trace output (warning: may impact performance)");
+        logrs::info!("Including body in trace output (warning: may impact performance)");
     }
 
     router.layer(trace_layer)
@@ -56,7 +56,7 @@ fn parse_level(level_str: &str) -> Option<Level> {
         "warn" => Some(Level::WARN),
         "error" => Some(Level::ERROR),
         _ => {
-            tracing::warn!("Invalid log level '{}', defaulting to INFO", level_str);
+            logrs::warn!("Invalid log level '{}', defaulting to INFO", level_str);
             Some(Level::INFO)
         }
     }

@@ -824,8 +824,6 @@ dependencies = [
  "tower",
  "tower-http",
  "tower_governor",
- "tracing",
- "tracing-subscriber",
  "utoipa",
  "utoipa-axum",
  "utoipa-scalar",

@@ -1,7 +1,7 @@
 use axum::{Router, response::IntoResponse};
+use logrs::error;
 use std::sync::Arc;
 use tower_governor::{GovernorLayer, governor::GovernorConfigBuilder};
-use tracing::error;
 
 // Re-export RateLimitConfig from configrs
 pub use configrs::RateLimitConfig;
@@ -12,11 +12,11 @@ where
     S: Clone + Send + Sync + 'static,
 {
     if !config.enabled {
-        tracing::info!("Rate limiting middleware disabled");
+        logrs::info!("Rate limiting middleware disabled");
         return router;
     }
 
-    tracing::info!(
+    logrs::info!(
         "Applying rate limiting middleware: {} req/sec, burst: {}, cleanup: {}s",
         config.per_second,
         config.burst_size,
@@ -25,11 +25,11 @@ where
 
     // Validate configuration
     if config.per_second == 0 {
-        tracing::warn!("Rate limiting per_second cannot be 0, using 1");
+        logrs::warn!("Rate limiting per_second cannot be 0, using 1");
         return router;
     }
     if config.burst_size == 0 {
-        tracing::warn!("Rate limiting burst_size cannot be 0, using 1");
+        logrs::warn!("Rate limiting burst_size cannot be 0, using 1");
         return router;
     }
 
@@ -51,13 +51,13 @@ where
             interval.tick().await;
             let size = governor_limiter.len();
             if size > 0 {
-                tracing::debug!("Rate limiting storage size: {}", size);
+                logrs::debug!("Rate limiting storage size: {}", size);
             }
             governor_limiter.retain_recent();
         }
     });
 
-    tracing::info!(
+    logrs::info!(
         "Rate limiting enabled: {} req/sec, burst: {}",
         config.per_second,
         config.burst_size

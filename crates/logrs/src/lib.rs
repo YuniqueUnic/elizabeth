@@ -1,6 +1,7 @@
 mod logger;
 
 pub use logger::init_logger;
+pub use tracing::{Instrument, Level, info_span};
 pub use tracing_subscriber::filter::LevelFilter;
 
 #[macro_export]
