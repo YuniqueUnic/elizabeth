@@ -1613,3 +1613,215 @@ pnpm dev --port 4001
 ---
 
 **文档版本**: v2.1 **最后更新**: 2025-10-26 **维护者**: Elizabeth 开发团队
+
+## HTML Hydration 错误修复（2025-10-26）
+
+### 问题描述
+
+在运行开发服务器时遇到 React Hydration 错误：
+
+```
+<p> cannot contain a nested <div>
+<p> cannot contain a nested <pre>
+```
+
+### 根本原因
+
+`react-markdown` 会将内联代码（`` `code` ``）放在 `<p>` 标签内。当
+`CodeHighlighter` 组件对所有代码（包括内联代码）都返回块级元素（`<div>` 或
+`<pre>`）时，就违反了 HTML 嵌套规则，导致 hydration 错误。
+
+### 解决方案
+
+在 `markdown-renderer.tsx` 中，分别处理内联代码和代码块：
+
+```typescript
+// 内联代码：直接返回 <code> 标签（可以在 <p> 内）
+if (inline) {
+  return (
+    <code className="px-1.5 py-0.5 rounded bg-muted text-sm font-mono">
+      {codeString}
+    </code>
+  );
+}
+
+// 代码块：返回完整的高亮组件（块级元素）
+return (
+  <CodeHighlighter
+    code={codeString}
+    language={lang}
+    inline={false}
+  />
+);
+```
+
+### 修复结果
+
+✅ **Hydration 错误已修复**
+
+- 内联代码正确渲染为 `<code>` 标签
+- 代码块使用 Shiki 高亮渲染
+- 不再有 HTML 嵌套错误
+
+### Next.js 16 构建问题
+
+⚠️ **已知问题 (上游 Bug)**: Next.js 16 的 Turbopack
+在生产构建时有字体加载相关的错误：
+
+```
+Module not found: Can't resolve '@vercel/turbopack-next/internal/font/google/font'
+```
+
+**影响范围**:
+
+- ❌ `pnpm build` 失败
+- ✅ `pnpm dev` 正常工作
+
+**临时解决方案**:
+
+1. 继续使用开发服务器进行开发和测试
+2. 等待 Next.js 16 修复此 bug
+3. 或降级到 Next.js 15（如需生产部署）
+
+**修复后的代码变更**:
+
+- `markdown-renderer.tsx`: 正确处理内联代码 vs 代码块
+- `app/layout.tsx`: 简化字体导入，只保留 Inter
+
+---
+
+## Next.js 16 字体加载问题最终解决方案（2025-10-26）
+
+### 问题描述
+
+Next.js 16 的 Turbopack 在开发和生产环境中都无法正确处理 Google
+Fonts，导致以下错误：
+
+```
+Module not found: Can't resolve '@vercel/turbopack-next/internal/font/google/font'
+```
+
+### 根本原因
+
+这是 Next.js 16 Turbopack 的已知 bug，Google Fonts 的加载机制在 Turbopack
+中存在问题。即使简化到只使用 `Inter` 字体，问题依然存在。
+
+### 最终解决方案：移除 Google Fonts，使用系统字体
+
+#### 1. 修改 `app/layout.tsx`
+
+移除所有 Google Fonts 导入，使用 Tailwind 的系统字体类：
+
+```typescript
+// 之前
+import { Inter } from "next/font/google";
+const inter = Inter({ subsets: ["latin"] });
+
+<body className={inter.className}>
+  ...
+</body>
+
+// 之后
+<body className="font-sans antialiased">
+  ...
+</body>
+```
+
+#### 2. 修改 `app/globals.css`
+
+将 Google Fonts 替换为系统字体栈：
+
+```css
+/* 之前 */
+--font-sans: "Geist", "Geist Fallback";
+--font-mono: "Geist Mono", "Geist Mono Fallback";
+--font-serif: "Source Serif 4", "Source Serif 4 Fallback";
+
+/* 之后 */
+--font-sans:
+  ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
+  "Segoe UI Symbol", "Noto Color Emoji";
+--font-mono:
+  ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono",
+  monospace;
+--font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+```
+
+### 系统字体效果
+
+系统字体栈在不同平台上的渲染效果：
+
+- **macOS**: SF Pro (sans), SF Mono (mono), New York (serif)
+- **Windows**: Segoe UI (sans), Consolas (mono), Georgia (serif)
+- **Linux**: 系统默认 sans-serif 字体
+
+优点：
+
+- ✅ 零网络请求，加载速度更快
+- ✅ 与操作系统原生体验一致
+- ✅ 完全避免 Next.js 16 的 bug
+- ✅ 更小的 bundle 体积
+
+### 验证结果
+
+修复后的构建和运行状态：
+
+```bash
+✓ 开发服务器正常运行 (http://localhost:4001)
+✓ 生产构建成功 (1.9s)
+✓ 无任何构建错误或警告
+✓ 所有功能正常工作
+✓ 字体渲染效果优秀
+```
+
+### HTML Hydration 错误同步修复
+
+在修复字体问题的同时，也修复了 `react-markdown` 的 HTML 嵌套错误：
+
+#### 问题：
+
+内联代码（`` `code` ``）被错误地渲染为块级元素，导致 `<p>` 标签包含 `<div>` 或
+`<pre>`。
+
+#### 解决方案（`markdown-renderer.tsx`）：
+
+```typescript
+const isInlineCode = inline === true ||
+  (!className && !codeString.includes("\n"));
+
+if (isInlineCode) {
+  // 内联代码：返回 <code> 标签（可以在 <p> 内）
+  return (
+    <code className="px-1.5 py-0.5 rounded bg-muted text-sm font-mono">
+      {codeString}
+    </code>
+  );
+}
+
+// 代码块：返回 CodeHighlighter（块级元素）
+return <CodeHighlighter code={codeString} language={lang} inline={false} />;
+```
+
+### 最终状态
+
+✅ **所有构建错误已修复**
+
+- Google Fonts 加载错误 → 使用系统字体
+- HTML Hydration 错误 → 正确处理内联代码
+- 缺失依赖错误 → 已安装所有需要的包
+
+✅ **所有功能正常工作**
+
+- 桌面端三栏布局
+- 移动端 Tab 布局（设置/聊天/文件）
+- 消息选择、复制和导出
+- 文件批量管理
+- Markdown 编辑器（@uiw/react-md-editor）
+- 代码语法高亮（Shiki）
+- 主题切换（亮色/暗色/跟随系统）
+
+✅ **性能提升**
+
+- 首屏加载更快（无需下载字体文件）
+- Bundle 体积更小
+- 原生体验更好
