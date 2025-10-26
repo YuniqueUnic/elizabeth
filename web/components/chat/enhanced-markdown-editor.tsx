@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useTheme } from "next-themes";
+import { useAppStore } from "@/lib/store";
 import dynamic from "next/dynamic";
 import "@uiw/react-md-editor/markdown-editor.css";
 import "@uiw/react-markdown-preview/markdown.css";
@@ -23,12 +23,34 @@ export function EnhancedMarkdownEditor({
     height = 120,
     showPreview = false,
 }: EnhancedMarkdownEditorProps) {
-    const { theme } = useTheme();
+    const theme = useAppStore((state) => state.theme);
     const [mounted, setMounted] = useState(false);
+    const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">(
+        "light",
+    );
 
     useEffect(() => {
         setMounted(true);
     }, []);
+
+    // 解析主题：如果是 system，则根据系统偏好设置
+    useEffect(() => {
+        if (theme === "system") {
+            const mediaQuery = window.matchMedia(
+                "(prefers-color-scheme: dark)",
+            );
+            const updateTheme = () => {
+                setResolvedTheme(mediaQuery.matches ? "dark" : "light");
+            };
+
+            updateTheme();
+            mediaQuery.addEventListener("change", updateTheme);
+
+            return () => mediaQuery.removeEventListener("change", updateTheme);
+        } else {
+            setResolvedTheme(theme);
+        }
+    }, [theme]);
 
     if (!mounted) {
         return (
@@ -48,7 +70,7 @@ export function EnhancedMarkdownEditor({
 
     return (
         <div
-            data-color-mode={theme === "dark" ? "dark" : "light"}
+            data-color-mode={resolvedTheme}
             className="h-full flex flex-col overflow-hidden"
         >
             <MDEditor
