@@ -1,0 +1,58 @@
+"use client"
+
+import { Button } from "@/components/ui/button"
+import { ChevronLeft, ChevronRight } from "lucide-react"
+import { useAppStore } from "@/lib/store"
+import { RoomSettingsForm } from "@/components/room/room-settings-form"
+import { RoomPermissions } from "@/components/room/room-permissions"
+import { RoomCapacity } from "@/components/room/room-capacity"
+import { RoomSharing } from "@/components/room/room-sharing"
+import { useQuery } from "@tanstack/react-query"
+import { getRoomDetails } from "@/api/roomService"
+import { ScrollArea } from "@/components/ui/scroll-area"
+
+export function LeftSidebar() {
+  const { leftSidebarCollapsed, toggleLeftSidebar, currentRoomId } = useAppStore()
+
+  const { data: roomDetails, isLoading } = useQuery({
+    queryKey: ["room", currentRoomId],
+    queryFn: () => getRoomDetails(currentRoomId),
+  })
+
+  if (leftSidebarCollapsed) {
+    return (
+      <div className="flex w-12 flex-col items-center border-r bg-muted/30 py-4">
+        <Button variant="ghost" size="icon" onClick={toggleLeftSidebar} title="展开侧边栏">
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <aside className="flex w-80 flex-col border-r bg-muted/30">
+      {/* Header */}
+      <div className="flex h-12 items-center justify-between border-b px-4">
+        <h2 className="font-semibold">房间控制</h2>
+        <Button variant="ghost" size="icon" onClick={toggleLeftSidebar} title="收起侧边栏">
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+      </div>
+
+      <ScrollArea className="flex-1 h-0">
+        <div className="space-y-6 p-4">
+          {isLoading ? (
+            <div className="text-center text-sm text-muted-foreground">加载中...</div>
+          ) : roomDetails ? (
+            <>
+              <RoomSettingsForm roomDetails={roomDetails} />
+              <RoomPermissions permissions={roomDetails.permissions} />
+              <RoomCapacity currentSize={roomDetails.currentSize} maxSize={roomDetails.maxSize} />
+              <RoomSharing roomId={roomDetails.id} />
+            </>
+          ) : null}
+        </div>
+      </ScrollArea>
+    </aside>
+  )
+}
