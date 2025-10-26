@@ -18,7 +18,10 @@ export function MobileLayout() {
                         </div>
                     </TabsContent>
 
-                    <TabsContent value="chat" className="h-full m-0">
+                    <TabsContent
+                        value="chat"
+                        className="h-full m-0 data-[state=active]:flex data-[state=active]:flex-col"
+                    >
                         <MiddleColumn />
                     </TabsContent>
 

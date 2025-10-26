@@ -113,7 +113,7 @@ export function RightSidebar() {
   return (
     <>
       <aside
-        className={`flex flex-col bg-muted/30 ${
+        className={`flex flex-col bg-muted/30 h-full overflow-hidden ${
           isMobile ? "w-full" : "w-80 border-l"
         }`}
       >
@@ -163,7 +163,7 @@ export function RightSidebar() {
         </div>
 
         {/* Content */}
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 h-0">
           <div className="p-4 space-y-4">
             {isLoading
               ? (
