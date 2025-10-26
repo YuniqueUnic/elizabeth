@@ -19,11 +19,30 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
             const lang = match ? match[1] : "";
             const codeString = String(children).replace(/\n$/, "");
 
+            // 内联代码的判断：
+            // 1. inline 参数为 true
+            // 2. 或者没有语言标识且没有换行符
+            const isInlineCode = inline === true ||
+              (!className && !codeString.includes("\n"));
+
+            // 内联代码：直接返回 <code> 标签（可以在 <p> 内）
+            if (isInlineCode) {
+              return (
+                <code
+                  className="px-1.5 py-0.5 rounded bg-muted text-sm font-mono"
+                  {...props}
+                >
+                  {codeString}
+                </code>
+              );
+            }
+
+            // 代码块：返回完整的高亮组件（块级元素）
             return (
               <CodeHighlighter
                 code={codeString}
                 language={lang}
-                inline={inline}
+                inline={false}
               />
             );
           },
