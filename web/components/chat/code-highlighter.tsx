@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useTheme } from "next-themes";
+import { useAppStore } from "@/lib/store";
 import { codeToHtml } from "shiki";
 
 interface CodeHighlighterProps {
@@ -17,7 +17,29 @@ export function CodeHighlighter(
 ) {
     const [copied, setCopied] = useState(false);
     const [highlighted, setHighlighted] = useState<string>("");
-    const { theme } = useTheme();
+    const theme = useAppStore((state) => state.theme);
+    const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">(
+        "light",
+    );
+
+    // 解析主题：如果是 system，则根据系统偏好设置
+    useEffect(() => {
+        if (theme === "system") {
+            const mediaQuery = window.matchMedia(
+                "(prefers-color-scheme: dark)",
+            );
+            const updateTheme = () => {
+                setResolvedTheme(mediaQuery.matches ? "dark" : "light");
+            };
+
+            updateTheme();
+            mediaQuery.addEventListener("change", updateTheme);
+
+            return () => mediaQuery.removeEventListener("change", updateTheme);
+        } else {
+            setResolvedTheme(theme);
+        }
+    }, [theme]);
 
     useEffect(() => {
         if (inline || !language) return;
@@ -26,7 +48,9 @@ export function CodeHighlighter(
             try {
                 const html = await codeToHtml(code, {
                     lang: language || "text",
-                    theme: theme === "dark" ? "github-dark" : "github-light",
+                    theme: resolvedTheme === "dark"
+                        ? "github-dark"
+                        : "github-light",
                 });
                 setHighlighted(html);
             } catch (error) {
@@ -36,7 +60,7 @@ export function CodeHighlighter(
         };
 
         highlightCode();
-    }, [code, language, theme, inline]);
+    }, [code, language, resolvedTheme, inline]);
 
     const handleCopy = async () => {
         await navigator.clipboard.writeText(code);
