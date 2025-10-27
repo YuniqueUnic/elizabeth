@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { Toaster } from "@/components/ui/toaster";
+import { FontSizeManager } from "@/components/font-size-manager";
 
 export const metadata: Metadata = {
   title: "Elizabeth - Secure File Sharing",
@@ -18,8 +19,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh-CN" suppressHydrationWarning>
+      <head>
+        <link rel="stylesheet" href="https://unpkg.com/heti/umd/heti.min.css" />
+      </head>
       <body className="font-sans antialiased">
         <Providers>
+          <FontSizeManager />
           {children}
           <Toaster />
         </Providers>
