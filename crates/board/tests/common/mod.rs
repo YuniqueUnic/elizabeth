@@ -45,18 +45,16 @@ pub async fn create_test_app() -> Result<(axum::Router, Arc<SqlitePool>)> {
     let app_state = Arc::new(AppState::new(app_config, db_pool.clone())?);
 
     // 创建路由
-    let (root_router, api) = OpenApiRouter::new()
-        .routes(routes!(board::route::openapi))
-        .split_for_parts();
-    let (status_router, status_api) = board::route::status::api_router().split_for_parts();
+    let (status_router, mut api) = board::route::status::api_router().split_for_parts();
     let (room_router, room_api) =
         board::route::room::api_router(app_state.clone()).split_for_parts();
     let (auth_router, auth_api) =
         board::route::auth::auth_router(app_state.clone()).split_for_parts();
-    let app = root_router
-        .merge(status_router)
-        .merge(room_router)
-        .merge(auth_router);
+
+    api.merge(room_api);
+    api.merge(auth_api);
+
+    let app = status_router.merge(room_router).merge(auth_router);
 
     Ok((app, db_pool))
 }
