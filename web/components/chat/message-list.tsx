@@ -83,7 +83,7 @@ export function MessageList(
       </div>
 
       <ScrollArea className="flex-1 h-0 p-4" ref={scrollRef}>
-        <div className="space-y-4">
+        <div className="space-y-2 mx-2 mt-2">
           {messages.length === 0
             ? (
               <div className="flex h-full items-center justify-center">
