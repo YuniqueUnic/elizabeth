@@ -3,27 +3,37 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { CodeHighlighter } from "./code-highlighter";
+import { useAppStore } from "@/lib/store";
 
 interface MarkdownRendererProps {
   content: string;
 }
 
 export function MarkdownRenderer({ content }: MarkdownRendererProps) {
+  const useHeti = useAppStore((state) => state.useHeti);
+
+  if (useHeti) {
+    return (
+      <div className="heti prose prose-sm dark:prose-invert max-w-none">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+      </div>
+    );
+  }
   return (
     <div className="prose prose-sm dark:prose-invert max-w-none">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          code({ node, inline, className, children, ...props }) {
+          code({ node, className, children, ...props }) {
             const match = /language-(\w+)/.exec(className || "");
             const lang = match ? match[1] : "";
             const codeString = String(children).replace(/\n$/, "");
 
             // 内联代码的判断：
-            // 1. inline 参数为 true
-            // 2. 或者没有语言标识且没有换行符
-            const isInlineCode = inline === true ||
-              (!className && !codeString.includes("\n"));
+            // 1. 没有语言标识（className）且没有换行符
+            // 2. 或者直接检查props中是否有inline（运行时可能存在）
+            const isInlineCode = (!className && !codeString.includes("\n")) ||
+              (props as any).inline === true;
 
             // 内联代码：直接返回 <code> 标签（可以在 <p> 内）
             if (isInlineCode) {

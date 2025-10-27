@@ -219,3 +219,35 @@
     @apply border-l-4 border-primary/30 pl-4 italic;
   }
 }
+
+/* Markdown 编辑器样式增强 - 使用 CSS 变量以支持动态配置 */
+:root {
+  --editor-font-size: 15px;
+  --toolbar-button-size: 28px;
+  --message-font-size: 14px;
+}
+
+.w-md-editor {
+  font-size: var(--editor-font-size) !important;
+}
+
+.w-md-editor-toolbar {
+  min-height: calc(var(--toolbar-button-size) + 10px) !important;
+  padding: 5px !important;
+}
+
+.w-md-editor-toolbar button {
+  width: var(--toolbar-button-size) !important;
+  height: var(--toolbar-button-size) !important;
+  font-size: calc(var(--toolbar-button-size) * 0.5) !important;
+}
+
+.w-md-editor-toolbar svg {
+  width: calc(var(--toolbar-button-size) * 0.6) !important;
+  height: calc(var(--toolbar-button-size) * 0.6) !important;
+}
+
+/* 消息字体大小 */
+.message-content {
+  font-size: var(--message-font-size) !important;
+}

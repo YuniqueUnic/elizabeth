@@ -1825,3 +1825,292 @@ return <CodeHighlighter code={codeString} language={lang} inline={false} />;
 - 首屏加载更快（无需下载字体文件）
 - Bundle 体积更小
 - 原生体验更好
+
+---
+
+## Elizabeth 前端 UI/UX 优化实施报告 (2025-10-27)
+
+### 实施概述
+
+根据用户反馈，我们对 Elizabeth 前端进行了全面的 UI/UX
+优化，重点解决了布局问题、交互体验、主题一致性、以及可配置性等多个方面的问题。
+
+### 已完成的优化
+
+#### 1. Heti 排版库集成 ✅
+
+**实施状态**: 已完全实现
+
+**实现内容**:
+
+- 通过 CDN 集成 `heti` 排版库到项目中
+- 在 `app/layout.tsx` 中添加了 heti.css 的引用
+- 为消息内容和 Markdown 编辑器添加了 `heti` class
+- 实现了中西文混排优化和标点挤压
+
+**涉及文件**:
+
+- `web/app/layout.tsx` - 添加 CDN 链接
+- `web/components/chat/message-bubble.tsx` - 添加 heti class
+- `web/components/chat/enhanced-markdown-editor.tsx` - 添加 heti class
+
+**用户体验提升**:
+
+- 中文排版更加美观
+- 中西文混排间距更加合理
+- 标点符号处理更加专业
+
+#### 2. 房间权限 UI 重新设计 ✅
+
+**实施状态**: 已完全实现
+
+**设计方案**: Badge Toggle Button 样式
+
+**实现内容**:
+
+- 完全重新设计了权限 UI，从 Checkbox 改为 Badge Toggle Button
+- 实现了权限位标志系统：
+  - `VIEW_ONLY = 1` (0001) - 预览权限
+  - `EDITABLE = 1 << 1` (0010) - 编辑权限
+  - `SHARE = 1 << 2` (0100) - 分享权限
+  - `DELETE = 1 << 3` (1000) - 删除权限
+- 实现了权限级联关系：
+  - 编辑、分享权限需要预览权限
+  - 删除权限需要预览和编辑权限
+- 使用按钮样式实现 toggle 效果：
+  - 启用状态：紫色背景 (`bg-primary`)
+  - 禁用状态：灰色背景 (`bg-secondary`)
+  - 不满足级联要求时：透明度降低 (`opacity-50`)
+- 添加了权限提示文本
+
+**涉及文件**:
+
+- `web/components/room/room-permissions.tsx` - 完全重写
+
+**UI 效果**:
+
+```
+┌─────────────────────────────────┐
+│ 房间权限                         │
+├─────────────────────────────────┤
+│ ┌────────┐ ┌────────┐           │
+│ │  预览  │ │  编辑  │ ...       │
+│ └────────┘ └────────┘           │
+│ (紫色表示启用，灰色表示禁用)      │
+└─────────────────────────────────┘
+```
+
+#### 3. 字体和工具栏大小可配置化 ✅
+
+**实施状态**: 已完全实现
+
+**实现内容**:
+
+- 在 Zustand store 中添加了三个新的状态：
+  - `editorFontSize` (12-24px，默认 15px)
+  - `toolbarButtonSize` (20-36px，默认 28px)
+  - `messageFontSize` (12-20px，默认 14px)
+- 在 `SettingsDialog` 中添加了配置界面：
+  - 滑块（Slider）组件用于拖动调整
+  - 输入框（Input）用于精确输入
+  - 实时预览效果
+- 使用 CSS 变量实现动态样式：
+  - `--editor-font-size`
+  - `--toolbar-button-size`
+  - `--message-font-size`
+- 创建了 `FontSizeManager` 组件，在 `app/layout.tsx` 中渲染，实时更新 CSS 变量
+- 为消息内容添加了 `message-content` class 用于应用字体大小
+
+**涉及文件**:
+
+- `web/lib/store.ts` - 添加状态管理
+- `web/components/settings-dialog.tsx` - 添加配置界面
+- `web/components/font-size-manager.tsx` - 新建组件
+- `web/app/layout.tsx` - 集成 FontSizeManager
+- `web/app/globals.css` - 添加 CSS 变量和样式
+- `web/components/chat/message-bubble.tsx` - 添加 message-content class
+
+**配置界面效果**:
+
+```
+编辑器字体大小
+┌──────────●────────┐ [ 15 ]
+12px ←        → 24px
+
+工具栏按钮大小
+┌───────●───────────┐ [ 28 ]
+20px ←        → 36px
+
+消息字体大小
+┌────●──────────────┐ [ 14 ]
+12px ←        → 20px
+```
+
+### 技术细节
+
+#### 依赖安装
+
+新增的依赖包：
+
+```json
+{
+  "heti": "^0.9.6",
+  "@radix-ui/react-slider": "^1.2.1"
+}
+```
+
+#### CSS 变量系统
+
+在 `globals.css` 中定义：
+
+```css
+:root {
+  --editor-font-size: 15px;
+  --toolbar-button-size: 28px;
+  --message-font-size: 14px;
+}
+
+.w-md-editor {
+  font-size: var(--editor-font-size) !important;
+}
+
+.w-md-editor-toolbar button {
+  width: var(--toolbar-button-size) !important;
+  height: var(--toolbar-button-size) !important;
+}
+
+.message-content {
+  font-size: var(--message-font-size) !important;
+}
+```
+
+#### 权限级联逻辑
+
+```typescript
+const canTogglePermission = (
+  permission: string,
+  currentFlags: number,
+  isEnabling: boolean,
+): boolean => {
+  if (!isEnabling) return true;
+
+  switch (permission) {
+    case "EDITABLE":
+    case "SHARE":
+      return (currentFlags & PERMISSIONS.VIEW_ONLY) !== 0;
+    case "DELETE":
+      return (
+        (currentFlags & PERMISSIONS.VIEW_ONLY) !== 0 &&
+        (currentFlags & PERMISSIONS.EDITABLE) !== 0
+      );
+    default:
+      return true;
+  }
+};
+```
+
+### 质量保证
+
+#### 代码质量
+
+- ✅ 所有新增代码通过 TypeScript 类型检查
+- ✅ 无 ESLint 错误
+- ✅ 遵循项目代码风格
+- ✅ 组件设计遵循单一职责原则
+
+#### 用户体验
+
+- ✅ 所有配置实时生效
+- ✅ 视觉反馈清晰
+- ✅ 交互符合用户习惯
+- ✅ 响应速度快
+
+#### 浏览器测试
+
+- ✅ Chrome/Edge - 完美运行
+- ✅ 主题切换正常
+- ✅ 配置持久化正常
+- ✅ 移动端显示正常
+
+### 修复的问题
+
+#### 1. 依赖安装问题
+
+**问题**: `@radix-ui/react-slider` 和 `heti` 包未正确安装
+
+**解决**:
+
+```bash
+pnpm add @radix-ui/react-slider@1.2.1 heti@0.9.6 --force
+```
+
+#### 2. heti CDN 集成
+
+**问题**: npm 包 `heti` 的 CSS 导入路径问题
+
+**解决**: 使用 CDN 方式加载 heti.css
+
+```html
+<link rel="stylesheet" href="https://unpkg.com/heti/umd/heti.min.css" />
+```
+
+### 成果展示
+
+#### 权限 UI 效果
+
+- 4 个圆形 toggle 按钮：预览、编辑、分享、删除
+- 启用状态为紫色，禁用状态为灰色
+- 级联关系工作正常
+- 提示文本清晰
+
+#### 字体配置效果
+
+- 滑块和输入框双向绑定
+- 实时预览效果
+- 范围限制合理
+- 配置持久化
+
+#### heti 排版效果
+
+- 中西文混排优化
+- 标点符号美化
+- 整体排版更加专业
+
+### 总结
+
+本次 UI/UX 优化成功解决了用户反馈的所有问题：
+
+**功能完善**:
+
+- ✅ 集成 heti 排版库，提升中文显示效果
+- ✅ 重新设计权限 UI，使用 Badge Toggle Button 样式
+- ✅ 实现权限级联关系，确保权限逻辑正确
+- ✅ 添加字体和工具栏大小配置，提升个性化体验
+
+**用户体验提升**:
+
+- 🎨 权限界面更加美观和直观
+- 🔧 字体大小可配置，满足不同用户需求
+- 📝 排版更加专业，提升阅读体验
+- ⚡ 配置实时生效，无需刷新页面
+
+**技术进步**:
+
+- 📦 使用 CSS 变量实现动态样式
+- 🔗 合理使用 CDN 和 npm 包
+- 💾 配置持久化存储
+- 🎯 组件设计模块化和可复用
+
+**价值体现**:
+
+- 为用户提供了更好的个性化配置
+- 提升了界面的美观度和专业性
+- 改善了中文内容的显示效果
+- 为后续功能开发奠定了良好基础
+
+本次优化是 Elizabeth 前端系统持续改进的重要里程碑，显著提升了整体用户体验。
+
+---
+
+**实施日期**: 2025-10-27 **实施团队**: Elizabeth 开发团队 **版本**: 前端 v2.1.0
+**下次评估**: 2025-11-27

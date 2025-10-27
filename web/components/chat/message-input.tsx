@@ -45,7 +45,7 @@ export function MessageInput(
 
   return (
     <>
-      <div className="bg-background p-4 h-full flex flex-col">
+      <div className="bg-background h-full flex flex-col">
         {/* Editing Banner */}
         {editingMessage && (
           <div className="mb-2 flex items-center justify-between rounded-md bg-muted px-3 py-2 text-sm">
@@ -74,7 +74,7 @@ export function MessageInput(
             />
           </div>
 
-          <div className="flex justify-end gap-2">
+          <div className="flex justify-end gap-2 mb-2">
             <Button
               variant="outline"
               size="sm"
@@ -99,7 +99,7 @@ export function MessageInput(
       <Dialog open={isExpanded} onOpenChange={setIsExpanded}>
         <DialogContent className="max-w-none w-screen h-screen sm:h-[90vh] sm:max-w-4xl lg:max-w-6xl sm:w-full p-0 sm:p-6 gap-0 flex flex-col sm:rounded-lg rounded-none">
           <DialogTitle className="sr-only">Markdown 编辑器</DialogTitle>
-          <div className="flex-1 overflow-hidden px-4 py-3 sm:px-0 sm:py-0 min-h-0">
+          <div className="flex-1 overflow-hidden sm:px-0 sm:py-0 min-h-0">
             <div className="h-full">
               <EnhancedMarkdownEditor
                 value={content}
