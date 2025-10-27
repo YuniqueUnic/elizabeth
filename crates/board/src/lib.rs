@@ -112,18 +112,11 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
 }
 
 fn build_api_router(app_state: Arc<AppState>, cfg: &configrs::Config) -> (String, axum::Router) {
-    let (root_router, mut api) = OpenApiRouter::new()
-        .routes(routes!(route::openapi))
-        .split_for_parts();
-    let (status_router, status_api) = route::status::api_router().split_for_parts();
+    let (status_router, mut api) = route::status::api_router().split_for_parts();
     let (room_router, room_api) = route::room::api_router(app_state.clone()).split_for_parts();
     let (auth_router, auth_api) = route::auth::auth_router(app_state).split_for_parts();
 
-    let router = root_router
-        .merge(status_router)
-        .merge(room_router)
-        .merge(auth_router);
-    api.merge(status_api);
+    let router = status_router.merge(room_router).merge(auth_router);
     api.merge(room_api);
     api.merge(auth_api);
 

@@ -91,10 +91,11 @@ where
     }
 
     // Additional recommended security headers
+    // Note: cdn.jsdelivr.net and fonts.scalar.com are allowed for Scalar API documentation UI
     router = router
         .layer(SetResponseHeaderLayer::overriding(
             header::CONTENT_SECURITY_POLICY,
-            HeaderValue::from_static("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'"),
+            HeaderValue::from_static("default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' data: https://cdn.jsdelivr.net https://fonts.scalar.com; connect-src 'self'"),
         ))
         .layer(SetResponseHeaderLayer::overriding(
             header::X_DNS_PREFETCH_CONTROL,

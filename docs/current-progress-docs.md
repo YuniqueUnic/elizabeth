@@ -1,5 +1,54 @@
 # Elizabeth 项目文档修正进度报告
 
+## 最新修复（2025-10-27）
+
+### OpenAPI 文档生成与 Scalar UI 修复 ✅
+
+**问题描述：**
+
+- Scalar UI (`/api/v1/scalar`) 无法正常显示
+- OpenAPI JSON 文档内容不完整，只包含一个端点
+- Content Security Policy 阻止必要的外部资源加载
+
+**根本原因：**
+
+1. 路由注册使用了错误的方法 `.route()` 而非 `.routes(routes!())`
+2. `.route()` 方法不会收集 `#[utoipa::path]` 注解
+3. CSP 策略过于严格，阻止 CDN 资源加载
+
+**修复内容：**
+
+- ✅ 修复 `route/room.rs` - 使用 `routes!()` 宏注册所有 room 相关端点
+- ✅ 修复 `route/auth.rs` - 使用 `routes!()` 宏注册所有 auth 相关端点
+- ✅ 移除独立的 `/api/v1/openapi.json` 端点，使用 Scalar 自带的文档端点
+- ✅ 更新 CSP 策略允许 `cdn.jsdelivr.net` 和 `fonts.scalar.com`
+- ✅ 修复测试文件中的路由构建逻辑
+- ✅ 所有测试通过（cargo test）
+- ✅ Scalar UI 完整显示所有 API 端点
+
+**详细文档：**
+
+- [OpenAPI Scalar 修复文档](implementation/openapi-scalar-fix.md)
+
+**影响范围：**
+
+- `crates/board/src/route/room.rs`
+- `crates/board/src/route/auth.rs`
+- `crates/board/src/route/mod.rs`
+- `crates/board/src/lib.rs`
+- `crates/board/src/middleware/security.rs`
+- `crates/board/tests/common/mod.rs`
+
+**验证结果：**
+
+- Scalar UI 正确显示所有端点分组（authentication, status, rooms, content,
+  chunked-upload, Models）
+- 所有资源正常加载（脚本、样式、字体）
+- 所有测试用例通过
+- 无编译警告或错误
+
+---
+
 ## 修正概述
 
 基于之前的 review 报告，我们成功修正了 Elizabeth

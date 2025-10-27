@@ -53,7 +53,7 @@ pub struct DatabaseConfig {
 #[derive(Merge, Debug, Clone, SmartDefault, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct JwtConfig {
-    #[default("secret")]
+    #[default("default-secret-change-in-production".repeat(2))] // pragma: allowlist secret
     #[merge(strategy = overwrite_not_empty_string)]
     pub secret: String,
     #[default(30 * 60)]
