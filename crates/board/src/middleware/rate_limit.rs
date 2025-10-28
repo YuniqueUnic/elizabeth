@@ -1,7 +1,9 @@
 use axum::{Router, response::IntoResponse};
 use logrs::error;
 use std::sync::Arc;
-use tower_governor::{GovernorLayer, governor::GovernorConfigBuilder};
+use tower_governor::{
+    GovernorLayer, governor::GovernorConfigBuilder, key_extractor::SmartIpKeyExtractor,
+};
 
 // Re-export RateLimitConfig from configrs
 pub use configrs::RateLimitConfig;
@@ -38,6 +40,7 @@ where
             .per_second(config.per_second)
             .burst_size(config.burst_size as u32)
             .use_headers()
+            .key_extractor(SmartIpKeyExtractor)
             .finish()
             .expect("Failed to create rate limiter configuration"),
     );

@@ -1,7 +1,9 @@
 // Global state management using Zustand
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { Theme } from "./types";
+import type { Theme, TokenInfo } from "./types";
+import { getRoomToken } from "./utils/api";
+import { hasValidToken } from "../api/authService";
 
 interface AppState {
   // Theme management
@@ -45,6 +47,10 @@ interface AppState {
   // Current room
   currentRoomId: string;
   setCurrentRoomId: (roomId: string) => void;
+
+  // Authentication state (derived from localStorage tokens)
+  isAuthenticated: (roomName?: string) => boolean;
+  getCurrentRoomToken: () => TokenInfo | null;
 
   // heti
   useHeti: boolean;
@@ -140,6 +146,16 @@ export const useAppStore = create<AppState>()(
       // Room
       currentRoomId: "demo-room-123",
       setCurrentRoomId: (roomId) => set({ currentRoomId: roomId }),
+
+      // Authentication (derived from localStorage tokens)
+      isAuthenticated: (roomName) => {
+        const room = roomName || get().currentRoomId;
+        return hasValidToken(room);
+      },
+      getCurrentRoomToken: () => {
+        const roomId = get().currentRoomId;
+        return getRoomToken(roomId);
+      },
 
       // heti
       useHeti: false,

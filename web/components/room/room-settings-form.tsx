@@ -14,7 +14,7 @@ import {
 import { Eye, EyeOff } from "lucide-react";
 import type { RoomDetails } from "@/lib/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { updateRoomSettings } from "@/api/roomService";
+import { updateRoomPermissions, updateRoomSettings } from "@/api/roomService";
 import { useAppStore } from "@/lib/store";
 import { useToast } from "@/hooks/use-toast";
 
@@ -43,8 +43,11 @@ export function RoomSettingsForm({ roomDetails }: RoomSettingsFormProps) {
   const [maxViews, setMaxViews] = useState(roomDetails.settings.maxViews);
 
   const updateMutation = useMutation({
-    mutationFn: (settings: Partial<typeof roomDetails.settings>) =>
-      updateRoomSettings(currentRoomId, settings),
+    mutationFn: (settings: {
+      password?: string | null;
+      expiresAt?: string | null;
+      maxViews?: number;
+    }) => updateRoomSettings(currentRoomId, settings),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["room", currentRoomId] });
       toast({
@@ -68,9 +71,8 @@ export function RoomSettingsForm({ roomDetails }: RoomSettingsFormProps) {
       : new Date(Date.now() + (option?.ms || 0)).toISOString();
 
     updateMutation.mutate({
-      expiresAt: expiresAt || undefined,
-      password,
-      passwordProtected: password.length > 0,
+      expiresAt: expiresAt ?? undefined,
+      password: password.length > 0 ? password : null,
       maxViews,
     });
   };

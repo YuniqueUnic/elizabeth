@@ -729,3 +729,151 @@ fn room_id_or_error(claims: &RoomTokenClaims) -> Result<i64, AppError> {
     }
     Ok(claims.room_id)
 }
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct UpdateContentRequest {
+    pub text: Option<String>,
+    pub url: Option<String>,
+    pub mime_type: Option<String>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct UpdateContentResponse {
+    pub updated: RoomContentView,
+}
+
+#[utoipa::path(
+    put,
+    path = "/api/v1/rooms/{name}/contents/{content_id}",
+    params(
+        ("name" = String, Path, description = "房间名称"),
+        ("content_id" = i64, Path, description = "内容 ID"),
+        ("token" = String, Query, description = "有效的房间 token")
+    ),
+    request_body = UpdateContentRequest,
+    responses(
+        (status = 200, description = "更新成功", body = UpdateContentResponse),
+        (status = 401, description = "token 无效"),
+        (status = 403, description = "无编辑权限"),
+        (status = 404, description = "房间或内容不存在"),
+        (status = 409, description = "版本冲突")
+    ),
+    tag = "content"
+)]
+pub async fn update_content(
+    AxumPath((name, content_id)): AxumPath<(String, i64)>,
+    Query(query): Query<TokenQuery>,
+    State(app_state): State<Arc<AppState>>,
+    Json(payload): Json<UpdateContentRequest>,
+) -> HandlerResult<UpdateContentResponse> {
+    // Validate room name using new validation framework
+    RoomNameValidator::validate(&name)?;
+
+    // Validate content_id
+    if content_id <= 0 {
+        return Err(AppError::validation("Invalid content ID"));
+    }
+
+    // Validate payload - at least one field should be provided
+    if payload.text.is_none() && payload.url.is_none() {
+        return Err(AppError::validation(
+            "At least one of text or url must be provided",
+        ));
+    }
+
+    let mut verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
+    ensure_permission(
+        &verified.claims,
+        verified.room.permission.can_edit(),
+        ContentPermission::Edit,
+    )?;
+
+    let room_id = room_id_or_error(&verified.claims)?;
+    let repository = SqliteRoomContentRepository::new(app_state.db_pool.clone());
+
+    // Get existing content
+    let existing_content = repository
+        .find_by_id(content_id)
+        .await
+        .map_err(|e| AppError::internal(format!("Query failed: {e}")))?
+        .ok_or_else(|| AppError::not_found("Content not found"))?;
+
+    // Verify content belongs to the room
+    if existing_content.room_id != room_id {
+        return Err(AppError::permission_denied("Content not in this room"));
+    }
+
+    // Version control check - compare timestamps
+    let existing_timestamp = existing_content.timestamp();
+
+    // Check for concurrent modification
+    let current_timestamp = chrono::Utc::now().naive_utc().and_utc().timestamp();
+    if payload.text.is_some() {
+        // For text content updates, we'll implement optimistic concurrency control
+        // In a real implementation, you might want to add version field to the request
+        // For now, we'll allow updates but warn about potential conflicts
+        if existing_timestamp > current_timestamp - 300 {
+            // 5 minute window
+            return Err(AppError::conflict(
+                "Content has been modified by another user",
+            ));
+        }
+    }
+
+    // Create updated content
+    let now = chrono::Utc::now().naive_utc();
+    let mut updated_content = existing_content.clone();
+    updated_content.updated_at = now;
+
+    // Update fields based on payload
+    if let Some(text) = payload.text {
+        updated_content.set_text(text);
+    }
+
+    if let Some(url) = payload.url {
+        updated_content.set_url(url, payload.mime_type.clone());
+    }
+
+    // Save updated content
+    let saved_content = repository
+        .update(&updated_content)
+        .await
+        .map_err(|e| AppError::internal(format!("Update failed: {e}")))?;
+
+    verified.room = room_repo_update_if_content_size_changed(
+        &verified.room,
+        &saved_content,
+        &app_state.db_pool,
+    )
+    .await?;
+
+    Ok(Json(UpdateContentResponse {
+        updated: RoomContentView::from(saved_content),
+    }))
+}
+
+// Helper function to update room size when content size changes
+async fn room_repo_update_if_content_size_changed(
+    room: &crate::models::room::Room,
+    content: &RoomContent,
+    db_pool: &sqlx::SqlitePool,
+) -> Result<crate::models::room::Room, AppError> {
+    use crate::repository::{IRoomRepository, SqliteRoomRepository};
+    use std::sync::Arc;
+
+    // Check if size actually changed
+    let size_changed = match content.size {
+        Some(content_size) => content_size != room.current_size,
+        None => false,
+    };
+
+    if size_changed {
+        let room_repo = SqliteRoomRepository::new(Arc::new(db_pool.clone()));
+        room_repo
+            .update(room)
+            .await
+            .map_err(|e| AppError::internal(format!("Update room failed: {e}")))
+    } else {
+        Ok(room.clone())
+    }
+}
