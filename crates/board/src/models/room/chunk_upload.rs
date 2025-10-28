@@ -4,9 +4,8 @@ use sqlx::FromRow;
 use utoipa::ToSchema;
 
 /// 分块状态枚举
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, ToSchema)]
-#[sqlx(type_name = "text")]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, Default)]
+#[serde(rename_all = "lowercase")]
 pub enum ChunkStatus {
     #[default]
     Pending, // 等待上传
@@ -23,6 +22,45 @@ impl std::fmt::Display for ChunkStatus {
             ChunkStatus::Verified => write!(f, "verified"),
             ChunkStatus::Failed => write!(f, "failed"),
         }
+    }
+}
+
+impl std::str::FromStr for ChunkStatus {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "pending" => Ok(ChunkStatus::Pending),
+            "uploaded" => Ok(ChunkStatus::Uploaded),
+            "verified" => Ok(ChunkStatus::Verified),
+            "failed" => Ok(ChunkStatus::Failed),
+            _ => Err(format!("Invalid chunk status: {}", s)),
+        }
+    }
+}
+
+impl sqlx::Type<sqlx::Sqlite> for ChunkStatus {
+    fn type_info() -> sqlx::sqlite::SqliteTypeInfo {
+        <String as sqlx::Type<sqlx::Sqlite>>::type_info()
+    }
+}
+
+impl<'r> sqlx::Decode<'r, sqlx::Sqlite> for ChunkStatus {
+    fn decode(value: sqlx::sqlite::SqliteValueRef<'r>) -> Result<Self, sqlx::error::BoxDynError> {
+        let s = <&str as sqlx::Decode<sqlx::Sqlite>>::decode(value)?;
+        s.parse().map_err(|e: String| e.into())
+    }
+}
+
+impl<'q> sqlx::Encode<'q, sqlx::Sqlite> for ChunkStatus {
+    fn encode_by_ref(
+        &self,
+        args: &mut Vec<sqlx::sqlite::SqliteArgumentValue<'q>>,
+    ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
+        args.push(sqlx::sqlite::SqliteArgumentValue::Text(
+            std::borrow::Cow::Owned(self.to_string()),
+        ));
+        Ok(sqlx::encode::IsNull::No)
     }
 }
 

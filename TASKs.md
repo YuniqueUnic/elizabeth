@@ -249,49 +249,153 @@ interface AuthState {
 
 ### Step 1: 基础设施搭建
 
-- [ ] 创建 API 配置文件
-- [ ] 创建统一的 API 请求封装
-- [ ] 更新类型定义
-- [ ] 实现权限位标志转换工具
+- [x] 创建 API 配置文件 (`web/lib/config.ts`)
+- [x] 创建统一的 API 请求封装 (`web/lib/utils/api.ts`)
+- [x] 更新类型定义 (`web/lib/types.ts`)
+- [x] 实现权限位标志转换工具
 
 ### Step 2: 认证系统
 
-- [ ] 实现 authService (token 获取、验证、刷新)
-- [ ] 实现 token 管理机制 (localStorage + store)
-- [ ] 实现自动 token 注入中间件
+- [x] 实现 authService (token 获取、验证、刷新) (`web/api/authService.ts`)
+- [x] 实现 token 管理机制 (localStorage + store)
+- [x] 实现自动 token 注入中间件
 
 ### Step 3: 房间管理
 
-- [ ] 重写 roomService (创建、查询、删除、权限更新)
-- [ ] 更新相关组件以使用新的 API
-- [ ] 测试房间创建和访问流程
+- [x] 重写 roomService (创建、查询、删除、权限更新) (`web/api/roomService.ts`)
+- [x] 更新相关组件以使用新的 API
+- [x] 测试房间创建和访问流程
+- [x] 后端添加 update_room_settings API (`crates/board/src/handlers/rooms.rs`)
 
 ### Step 4: 消息聊天
 
-- [ ] 创建 messageService
-- [ ] 实现消息发送流程 (prepare + upload)
-- [ ] 实现消息列表获取和过滤
-- [ ] 实现消息删除
-- [ ] 更新聊天组件以使用新的 API
+- [x] 创建 messageService (`web/api/messageService.ts`)
+- [x] 实现消息发送流程 (prepare + upload)
+- [x] 实现消息列表获取和过滤
+- [x] 实现消息删除
+- [x] 实现消息更新 (使用后端 update_content API)
+- [x] 更新聊天组件以使用新的 API (`web/components/layout/middle-column.tsx`)
 
 ### Step 5: 分享功能
 
-- [ ] 重写 shareService (前端生成链接和二维码)
-- [ ] 安装并集成 qrcode 库
-- [ ] 更新分享组件
+- [x] 重写 shareService (前端生成链接和二维码) (`web/api/shareService.ts`)
+- [x] 安装并集成 qrcode 库 (`pnpm add qrcode @types/qrcode`)
+- [ ] 更新分享组件 (待 UI 集成)
 
-### Step 6: Chrome DevTools 自动化测试
+### Step 6: 自动化测试
 
-- [ ] 编写测试脚本
-- [ ] 运行完整的集成测试
-- [ ] 修复发现的问题
+- [x] 编写后端 API 集成测试脚本 (`/tmp/test_integration_v3.sh`)
+- [x] 创建前端集成测试页面 (`web/app/test/page.tsx`)
+- [x] 创建前端集成测试脚本 (`web/tests/integration-test.ts`)
+- [x] 运行后端 API 集成测试 (成功)
+- [x] 修复类型定义问题 (BackendContentType 解析)
+- [ ] 运行完整的前端集成测试
+- [ ] 修复发现的 UI/UX 问题
 
 ### Step 7: 错误处理和优化
 
-- [ ] 完善错误处理
-- [ ] 添加加载状态
+- [x] 完善错误处理 (API 层面)
+- [x] 添加加载状态 (React Query)
 - [ ] 优化用户体验
 - [ ] 更新文档
+
+## 当前进度总结 (2025-10-28 更新)
+
+### ✅ 已完成的工作
+
+1. **后端修复与增强**
+   - ✅ 修复了 `tower_governor` 速率限制中间件的配置问题
+   - ✅ 添加了 `SmartIpKeyExtractor` 和
+     `.into_make_service_with_connect_info::<SocketAddr>()`
+   - ✅ 实现了 `update_room_settings` API 端点
+   - ✅ 后端服务正常运行在 http://127.0.0.1:4092
+   - ✅ Scalar API 文档可访问：http://127.0.0.1:4092/api/v1/scalar
+
+2. **前端基础设施**
+   - ✅ 完整的 API 配置系统 (`web/lib/config.ts`)
+   - ✅ 统一的 API 请求封装，支持自动 token 注入、重试、错误处理
+     (`web/lib/utils/api.ts`)
+   - ✅ Token 管理系统 (localStorage + 自动刷新)
+   - ✅ 类型定义和转换工具 (`web/lib/types.ts`)
+   - ✅ 修复了 `BackendContentType` 解析问题 (支持 tagged enum)
+
+3. **前端服务层**
+   - ✅ `authService`: 完整的认证功能 (获取、验证、刷新、撤销 token)
+   - ✅ `roomService`: 房间管理功能 (创建、查询、更新设置、删除)
+   - ✅ `messageService`: 消息功能 (发送、获取、更新、删除)
+   - ✅ `shareService`: 分享功能 (链接生成、二维码生成、下载、复制)
+   - ✅ 所有服务都支持自动 token 管理
+
+4. **前端组件**
+   - ✅ 修复了 `middle-column.tsx` 中的 `updateMessage` 导入问题
+   - ✅ 消息列表和输入组件已集成后端 API
+   - ✅ 使用 React Query 进行数据管理
+
+5. **测试工具**
+   - ✅ 后端 API 集成测试脚本 (bash + curl) - `/tmp/test_integration_v3.sh`
+   - ✅ 前端集成测试页面 - http://localhost:4001/test
+   - ✅ 前端集成测试脚本 (TypeScript) - `web/tests/integration-test.ts`
+   - ✅ 后端 API 测试通过 (除消息更新功能外)
+
+6. **依赖管理**
+   - ✅ 安装 `qrcode` npm 包
+   - ✅ 安装 `@types/qrcode` 类型定义
+
+### 🔧 已修复的问题
+
+1. **速率限制中间件错误**
+   - 问题："Unable To Extract Key!" 500 错误
+   - 原因：缺少 IP 提取器和连接信息
+   - 解决：添加 `SmartIpKeyExtractor` 和
+     `.into_make_service_with_connect_info::<SocketAddr>()`
+
+2. **文件上传大小匹配**
+   - 问题：使用 `echo` 命令会添加换行符
+   - 解决：使用 `printf "%s"` 代替 `echo`
+
+3. **类型定义不匹配**
+   - 问题：后端返回 `content_type: {"type": "file"}` 而前端期望数字
+   - 解决：添加 `BackendContentType` 类型和 `parseContentType()` 转换函数
+
+4. **消息导入错误**
+   - 问题：`middle-column.tsx` 缺少 `updateMessage` 导入
+   - 解决：添加导入语句
+
+### ⚠️ 已知限制
+
+1. **速率限制配置**
+   - 当前配置：`per_second: 10, burst_size: 20`
+   - 影响：快速测试时容易触发限制
+   - 建议：开发环境可以放宽或禁用
+
+2. **消息更新功能**
+   - 后端 API 测试中跳过了消息更新测试
+   - 原因：上传响应中的 content ID 提取问题
+   - 状态：前端已实现，待完整测试
+
+### 📋 待完成的工作
+
+1. **UI 集成**
+   - [ ] 更新分享组件以使用新的 shareService
+   - [ ] 测试二维码生成和下载功能
+   - [ ] 优化用户体验和错误提示
+
+2. **完整的端到端测试**
+   - [ ] 在浏览器中运行前端集成测试
+   - [ ] 验证所有功能正常工作
+   - [ ] 测试消息更新功能
+   - [ ] 修复发现的 UI/UX 问题
+
+3. **文档更新**
+   - [x] 创建集成进度文档 (`docs/integration-progress.md`)
+   - [ ] 更新 `web/docs/FRONTEND_DOCUMENTATION.md`
+   - [ ] 更新 `docs/implementation/*.md`
+   - [ ] 记录 API 使用示例
+
+4. **性能优化**
+   - [ ] 优化消息加载
+   - [ ] 添加分页支持
+   - [ ] 优化文件上传流程
 
 ## 技术要点
 

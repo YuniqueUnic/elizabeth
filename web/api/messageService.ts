@@ -17,6 +17,7 @@ import type {
 import {
   backendContentToMessage as convertMessage,
   ContentType as CT,
+  parseContentType,
 } from "../lib/types";
 
 // ============================================================================
@@ -70,7 +71,7 @@ export async function getMessages(
 
   // Filter for text content only and convert to messages
   return contents
-    .filter((content) => content.content_type === CT.Text)
+    .filter((content) => parseContentType(content.content_type) === CT.Text)
     .map(convertMessage)
     .sort((a, b) =>
       new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()

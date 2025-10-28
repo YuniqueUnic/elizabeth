@@ -3,7 +3,12 @@
 import { MessageList } from "@/components/chat/message-list";
 import { MessageInput } from "@/components/chat/message-input";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { deleteMessage, getMessages, postMessage } from "@/api/messageService";
+import {
+  deleteMessage,
+  getMessages,
+  postMessage,
+  updateMessage,
+} from "@/api/messageService";
 import { useAppStore } from "@/lib/store";
 import { useState } from "react";
 import type { Message } from "@/lib/types";
