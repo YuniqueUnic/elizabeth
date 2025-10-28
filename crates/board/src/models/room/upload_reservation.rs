@@ -4,9 +4,8 @@ use sqlx::{FromRow, Type};
 use utoipa::ToSchema;
 
 /// 上传状态枚举
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, ToSchema, PartialEq)]
-#[sqlx(type_name = "text")]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Default)]
+#[serde(rename_all = "lowercase")]
 pub enum UploadStatus {
     #[default]
     Pending, // 等待上传
@@ -25,6 +24,46 @@ impl std::fmt::Display for UploadStatus {
             UploadStatus::Failed => write!(f, "failed"),
             UploadStatus::Expired => write!(f, "expired"),
         }
+    }
+}
+
+impl std::str::FromStr for UploadStatus {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "pending" => Ok(UploadStatus::Pending),
+            "uploading" => Ok(UploadStatus::Uploading),
+            "completed" => Ok(UploadStatus::Completed),
+            "failed" => Ok(UploadStatus::Failed),
+            "expired" => Ok(UploadStatus::Expired),
+            _ => Err(format!("Invalid upload status: {}", s)),
+        }
+    }
+}
+
+impl sqlx::Type<sqlx::Sqlite> for UploadStatus {
+    fn type_info() -> sqlx::sqlite::SqliteTypeInfo {
+        <String as sqlx::Type<sqlx::Sqlite>>::type_info()
+    }
+}
+
+impl<'r> sqlx::Decode<'r, sqlx::Sqlite> for UploadStatus {
+    fn decode(value: sqlx::sqlite::SqliteValueRef<'r>) -> Result<Self, sqlx::error::BoxDynError> {
+        let s = <&str as sqlx::Decode<sqlx::Sqlite>>::decode(value)?;
+        s.parse().map_err(|e: String| e.into())
+    }
+}
+
+impl<'q> sqlx::Encode<'q, sqlx::Sqlite> for UploadStatus {
+    fn encode_by_ref(
+        &self,
+        args: &mut Vec<sqlx::sqlite::SqliteArgumentValue<'q>>,
+    ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
+        args.push(sqlx::sqlite::SqliteArgumentValue::Text(
+            std::borrow::Cow::Owned(self.to_string()),
+        ));
+        Ok(sqlx::encode::IsNull::No)
     }
 }
 
