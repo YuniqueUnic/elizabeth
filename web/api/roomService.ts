@@ -50,29 +50,17 @@ export async function createRoom(
   name: string,
   password?: string,
 ): Promise<RoomDetails> {
-  const queryParams: Record<string, string> = {};
+  // Build URL with password query parameter if provided
+  let url = API_ENDPOINTS.rooms.base(name);
   if (password) {
-    queryParams.password = password;
+    url += `?password=${encodeURIComponent(password)}`;
   }
 
   const room = await api.post<BackendRoom>(
-    API_ENDPOINTS.rooms.base(name),
+    url,
     null,
     { skipTokenInjection: true },
   );
-
-  // Add password to query if provided
-  if (password) {
-    const url = new URL(API_ENDPOINTS.rooms.base(name), window.location.origin);
-    url.searchParams.set("password", password);
-
-    const roomWithPassword = await api.post<BackendRoom>(
-      url.pathname + url.search,
-      null,
-      { skipTokenInjection: true },
-    );
-    return convertRoom(roomWithPassword);
-  }
 
   return convertRoom(room);
 }
@@ -82,18 +70,24 @@ export async function createRoom(
  *
  * @param roomName - The name of the room
  * @param token - Optional token for authentication
+ * @param skipAuth - If true, skip token requirement (for checking if room exists)
  * @returns Room details
  */
 export async function getRoomDetails(
   roomName: string,
   token?: string,
+  skipAuth?: boolean,
 ): Promise<RoomDetails> {
-  const authToken = token || await getValidToken(roomName);
+  let authToken: string | undefined;
+
+  if (!skipAuth) {
+    authToken = token || await getValidToken(roomName);
+  }
 
   const room = await api.get<BackendRoom>(
     API_ENDPOINTS.rooms.base(roomName),
     undefined,
-    { token: authToken || undefined },
+    { token: authToken, skipTokenInjection: skipAuth },
   );
 
   return convertRoom(room);

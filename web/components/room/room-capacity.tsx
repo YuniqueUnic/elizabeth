@@ -1,14 +1,14 @@
-"use client"
+"use client";
 
-import { Progress } from "@/components/ui/progress"
+import { Progress } from "@/components/ui/progress";
 
 interface RoomCapacityProps {
-  currentSize: number
-  maxSize: number
+  currentSize: number;
+  maxSize: number;
 }
 
 export function RoomCapacity({ currentSize, maxSize }: RoomCapacityProps) {
-  const percentage = (currentSize / maxSize) * 100
+  const percentage = (currentSize / maxSize) * 100;
 
   return (
     <div className="space-y-3">
@@ -20,5 +20,5 @@ export function RoomCapacity({ currentSize, maxSize }: RoomCapacityProps) {
         </p>
       </div>
     </div>
-  )
+  );
 }
