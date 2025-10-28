@@ -53,6 +53,11 @@ impl RoomContent {
         }
     }
 
+    /// Get timestamp for version control
+    pub fn timestamp(&self) -> i64 {
+        self.updated_at.and_utc().timestamp()
+    }
+
     pub fn set_text(&mut self, text: String) {
         let size = string_storage_size(&text);
         self.text = Some(text);

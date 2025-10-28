@@ -80,6 +80,18 @@ pub struct UpdateRoomPermissionRequest {
     pub delete: bool,
 }
 
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct UpdateRoomSettingsRequest {
+    /// 房间密码（可选，设置为 None 表示移除密码）
+    pub password: Option<String>,
+    /// 房间过期时间（可选，设置为 None 表示永不过期）
+    pub expire_at: Option<NaiveDateTime>,
+    /// 最大进入次数（可选）
+    pub max_times_entered: Option<i64>,
+    /// 最大容量限制（可选，单位：字节）
+    pub max_size: Option<i64>,
+}
+
 #[derive(Debug, Serialize, ToSchema)]
 pub struct RevokeTokenResponse {
     pub revoked: bool,
@@ -541,4 +553,98 @@ pub async fn revoke_token(
         .map_err(|e| AppError::internal(format!("Failed to revoke token: {e}")))?;
 
     Ok(Json(RevokeTokenResponse { revoked }))
+}
+
+/// 更新房间设置
+#[utoipa::path(
+    put,
+    path = "/api/v1/rooms/{name}/settings",
+    params(
+        ("name" = String, Path, description = "房间名称"),
+        ("token" = String, Query, description = "有效的房间 token，需要删除权限")
+    ),
+    request_body = UpdateRoomSettingsRequest,
+    responses(
+        (status = 200, description = "设置更新成功", body = Room),
+        (status = 400, description = "请求参数错误"),
+        (status = 401, description = "token 无效或已撤销"),
+        (status = 403, description = "无更新权限"),
+        (status = 404, description = "房间不存在")
+    ),
+    tag = "rooms"
+)]
+pub async fn update_room_settings(
+    Path(name): Path<String>,
+    Query(query): Query<TokenQuery>,
+    State(app_state): State<Arc<AppState>>,
+    Json(payload): Json<UpdateRoomSettingsRequest>,
+) -> HandlerResult<Room> {
+    // 验证房间名称
+    RoomNameValidator::validate(&name)?;
+
+    // 验证令牌并检查权限
+    let verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
+    let token_perm = verified.claims.as_permission();
+
+    // 需要删除权限才能更新房间设置
+    if !token_perm.can_delete() {
+        return Err(AppError::permission_denied(
+            "Insufficient permissions to update room settings",
+        ));
+    }
+
+    // 验证密码（如果提供）
+    if let Some(ref password) = payload.password
+        && !password.is_empty()
+    {
+        PasswordValidator::validate_room_password(password)?;
+    }
+
+    // 验证 max_times_entered（如果提供）
+    if let Some(max_times) = payload.max_times_entered
+        && max_times <= 0
+    {
+        return Err(AppError::validation(
+            "max_times_entered must be greater than 0",
+        ));
+    }
+
+    // 验证 max_size（如果提供）
+    if let Some(max_size) = payload.max_size
+        && max_size <= 0
+    {
+        return Err(AppError::validation("max_size must be greater than 0"));
+    }
+
+    let repo = SqliteRoomRepository::new(app_state.db_pool.clone());
+    let mut room = verified.room;
+
+    // 更新字段
+    if let Some(password) = payload.password {
+        room.password = if password.is_empty() {
+            None
+        } else {
+            Some(password)
+        };
+    }
+
+    if payload.expire_at.is_some() {
+        room.expire_at = payload.expire_at;
+    }
+
+    if let Some(max_times) = payload.max_times_entered {
+        room.max_times_entered = max_times;
+    }
+
+    if let Some(max_size) = payload.max_size {
+        room.max_size = max_size;
+    }
+
+    // 保存更新
+    let updated_room = repo
+        .update(&room)
+        .await
+        .map_err(|e| AppError::internal(format!("Failed to update room settings: {e}")))?;
+
+    Ok(Json(updated_room))
 }

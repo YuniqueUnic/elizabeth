@@ -1,16 +1,25 @@
 # Elizabeth 前后端 API 集成计划
 
 同时请你使用 chrome-devtools
-进行前端自动化探索和问题修复。同时遇到问题，请你上网查询解决办法
-
-积极使用各种 MCP 工具来辅助你完成相关任务
+进行前端自动化探索和问题修复。同时遇到问题，请你上网查询解决办法 积极使用各种
+MCP 工具来辅助你完成相关任务
 
 > 遇到问题请积极修复 保持 DRY, KISS, LISP, 函数化，模块化，可组合性。
 
-后端 service 请使用 `cargo run -p elizabeth-board -- run` 来启动
+## 项目配置
 
-- 并且后端 service 的配置文件位于：`~/.config/elizabeth/config.yaml`
-- 启动了后端 service 后：http://127.0.0.1:4092/api/v1/scalar 这里是 scalar 端口
+后端：/Users/unic/dev/projs/rs/elizabeth/crates/board
+
+- 启动命令：`cargo run -p elizabeth-board -- run`
+- 配置文件：`~/.config/elizabeth/config.yaml`
+- API 文档：http://127.0.0.1:4092/api/v1/scalar
+- 服务端口：4092
+
+前端：/Users/unic/dev/projs/rs/elizabeth/web
+
+- 启动命令：`pnpm dev --port 4001`
+- 访问地址：http://localhost:4001
+- 服务端口：4001
 
 ## 项目背景
 
@@ -55,24 +64,31 @@
 |------|----------|----------|------|
 
 | 创建房间 | `createRoom(name, password?)` |
+
 `POST /api/v1/rooms/{name}?password=xxx` | - |
 
 | 获取房间信息 | `getRoomDetails(roomId)` | `GET /api/v1/rooms/{name}` |
+
 需要转换权限格式 |
 
 | 更新房间设置 | `updateRoomSettings(roomId, settings)` | 暂不支持 |
+
 使用权限更新 API 代替 |
 
 | 删除房间 | `deleteRoom(roomId, token)` |
+
 `DELETE /api/v1/rooms/{name}?token=xxx` | - |
 
 | 更新权限 | `updateRoomPermissions(roomId, token, permissions)` |
+
 `POST /api/v1/rooms/{name}/permissions?token=xxx` | - |
 
 **关键实现**:
 
 - `getRoomDetails` 需要将后端的 `permission: number` 转换为前端的
-  `permissions: string[]`
+
+`permissions: string[]`
+
 - `updateRoomSettings` 暂时只支持权限更新，过期时间等后续支持
 - 添加房间容量计算逻辑 (current_size / max_size)
 
@@ -87,9 +103,11 @@
 |------|----------|----------|------|
 
 | 获取访问令牌 | `getAccessToken(roomName, password?)` |
+
 `POST /api/v1/rooms/{name}/tokens` | 返回 JWT token |
 
 | 验证令牌 | `validateToken(roomName, token)` |
+
 `POST /api/v1/rooms/{name}/tokens/validate` | - |
 
 | 刷新令牌 | `refreshToken(refreshToken)` | `POST /api/v1/auth/refresh` | - |
@@ -121,15 +139,19 @@
 |------|----------|----------|------|
 
 | 获取消息列表 | `getMessages(roomName, token)` |
+
 `GET /api/v1/rooms/{name}/contents?token=xxx` | 过滤 content_type=0 |
 
 | 发送消息 | `postMessage(roomName, token, content)` |
+
 `POST /api/v1/rooms/{name}/contents` | 需先 prepare，再上传 |
 
 | 更新消息 | `updateMessage(messageId, content, token)` | 暂不支持 |
+
 前端保留功能，后续实现 |
 
 | 删除消息 | `deleteMessage(roomName, messageId, token)` |
+
 `DELETE /api/v1/rooms/{name}/contents` | 传递 ids 数组 |
 
 **发送消息流程**:
@@ -161,6 +183,7 @@
 |------|----------|----------|------|
 
 | 获取分享链接 | `getShareLink(roomName)` | 前端生成 |
+
 `${window.location.origin}/room/${roomName}` |
 
 | 获取二维码 | `getQRCodeImage(roomName)` | 前端生成 | 使用 qrcode 库生成 |

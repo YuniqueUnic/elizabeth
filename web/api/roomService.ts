@@ -1,96 +1,241 @@
-// Mock API service for room and chat operations
-import type { Message, RoomDetails, RoomSettings } from "@/lib/types";
+/**
+ * Room Management Service
+ *
+ * This service handles room-related operations including:
+ * - Creating rooms
+ * - Fetching room details
+ * - Updating room permissions
+ * - Deleting rooms
+ */
 
-// Mock: Get room details
-export const getRoomDetails = async (roomId: string): Promise<RoomDetails> => {
-  // Simulate API delay
-  await new Promise((resolve) => setTimeout(resolve, 300));
+import { API_ENDPOINTS } from "../lib/config";
+import { api } from "../lib/utils/api";
+import { getValidToken } from "./authService";
+import type {
+  BackendRoom,
+  backendRoomToRoomDetails,
+  encodePermissions,
+  RoomDetails,
+  RoomPermission,
+} from "../lib/types";
+import {
+  backendRoomToRoomDetails as convertRoom,
+  encodePermissions as convertPerms,
+} from "../lib/types";
 
-  return {
-    id: roomId,
-    currentSize: 15.5,
-    maxSize: 100,
-    settings: {
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-      passwordProtected: true,
-      password: "demo123", // pragma: allowlist secret
-      maxViews: 100,
-    },
-    permissions: ["read", "edit", "share", "delete"],
-  };
-};
+// ============================================================================
+// Room Request/Response Types
+// ============================================================================
 
-// Mock: Update room settings
-export const updateRoomSettings = async (
-  roomId: string,
-  settings: Partial<RoomSettings>,
-): Promise<void> => {
-  console.log("[API Mock] updateRoomSettings:", { roomId, settings });
-  await new Promise((resolve) => setTimeout(resolve, 300));
-};
+export interface CreateRoomRequest {
+  password?: string;
+}
 
-// Mock: Get messages
-export const getMessages = async (roomId: string): Promise<Message[]> => {
-  await new Promise((resolve) => setTimeout(resolve, 300));
+export interface UpdatePermissionsRequest {
+  permission: number;
+}
 
-  return [
-    {
-      id: "msg_1",
-      content: "欢迎来到 Elizabeth 房间！这是一个安全的文件分享空间。",
-      timestamp: new Date(Date.now() - 3600000).toISOString(),
-      user: "guest_1",
-    },
-    {
-      id: "msg_2",
-      content:
-        "你可以使用 **Markdown** 格式来编写消息，支持 `代码` 和其他格式。",
-      timestamp: new Date(Date.now() - 1800000).toISOString(),
-      user: "guest_2",
-    },
-    {
-      id: "msg_3",
-      content:
-        "# 标题示例\n\n- 列表项 1\n- 列表项 2\n\n这是一个功能完整的协作空间！",
-      timestamp: new Date(Date.now() - 900000).toISOString(),
-      user: "guest_1",
-    },
-  ];
-};
+// ============================================================================
+// Room Management Functions
+// ============================================================================
 
-// Mock: Post new message
-export const postMessage = async (
-  roomId: string,
-  content: string,
-): Promise<Message> => {
-  console.log("[API Mock] postMessage:", { roomId, content });
-  await new Promise((resolve) => setTimeout(resolve, 300));
+/**
+ * Create a new room
+ *
+ * @param name - The name of the room
+ * @param password - Optional password for the room
+ * @returns Room details
+ */
+export async function createRoom(
+  name: string,
+  password?: string,
+): Promise<RoomDetails> {
+  const queryParams: Record<string, string> = {};
+  if (password) {
+    queryParams.password = password;
+  }
 
-  return {
-    id: `msg_${Date.now()}`,
-    content,
-    timestamp: new Date().toISOString(),
-    user: "guest_current",
-  };
-};
+  const room = await api.post<BackendRoom>(
+    API_ENDPOINTS.rooms.base(name),
+    null,
+    { skipTokenInjection: true },
+  );
 
-// Mock: Update message
-export const updateMessage = async (
-  messageId: string,
-  content: string,
-): Promise<Message> => {
-  console.log("[API Mock] updateMessage:", { messageId, content });
-  await new Promise((resolve) => setTimeout(resolve, 300));
+  // Add password to query if provided
+  if (password) {
+    const url = new URL(API_ENDPOINTS.rooms.base(name), window.location.origin);
+    url.searchParams.set("password", password);
 
-  return {
-    id: messageId,
-    content,
-    timestamp: new Date().toISOString(),
-    user: "guest_edited",
-  };
-};
+    const roomWithPassword = await api.post<BackendRoom>(
+      url.pathname + url.search,
+      null,
+      { skipTokenInjection: true },
+    );
+    return convertRoom(roomWithPassword);
+  }
 
-// Mock: Delete message
-export const deleteMessage = async (messageId: string): Promise<void> => {
-  console.log("[API Mock] deleteMessage:", messageId);
-  await new Promise((resolve) => setTimeout(resolve, 300));
+  return convertRoom(room);
+}
+
+/**
+ * Get room details
+ *
+ * @param roomName - The name of the room
+ * @param token - Optional token for authentication
+ * @returns Room details
+ */
+export async function getRoomDetails(
+  roomName: string,
+  token?: string,
+): Promise<RoomDetails> {
+  const authToken = token || await getValidToken(roomName);
+
+  const room = await api.get<BackendRoom>(
+    API_ENDPOINTS.rooms.base(roomName),
+    undefined,
+    { token: authToken || undefined },
+  );
+
+  return convertRoom(room);
+}
+
+/**
+ * Delete a room
+ *
+ * @param roomName - The name of the room
+ * @param token - Optional token for authentication
+ */
+export async function deleteRoom(
+  roomName: string,
+  token?: string,
+): Promise<void> {
+  const authToken = token || await getValidToken(roomName);
+
+  if (!authToken) {
+    throw new Error("Authentication required to delete room");
+  }
+
+  await api.delete(
+    API_ENDPOINTS.rooms.base(roomName),
+    { token: authToken },
+  );
+}
+
+/**
+ * Update room permissions
+ *
+ * @param roomName - The name of the room
+ * @param permissions - Array of permissions to set
+ * @param token - Optional token for authentication
+ */
+export async function updateRoomPermissions(
+  roomName: string,
+  permissions: RoomPermission[],
+  token?: string,
+): Promise<void> {
+  const authToken = token || await getValidToken(roomName);
+
+  if (!authToken) {
+    throw new Error("Authentication required to update permissions");
+  }
+
+  const permissionBits = convertPerms(permissions);
+
+  await api.post(
+    API_ENDPOINTS.rooms.permissions(roomName),
+    { permission: permissionBits },
+    { token: authToken },
+  );
+}
+
+/**
+ * Update room settings
+ *
+ * @param roomName - The name of the room
+ * @param settings - Room settings to update
+ * @param token - Optional token for authentication
+ * @returns Updated room details
+ */
+export async function updateRoomSettings(
+  roomName: string,
+  settings: {
+    password?: string | null;
+    expiresAt?: string | null;
+    maxViews?: number;
+    maxSize?: number;
+  },
+  token?: string,
+): Promise<RoomDetails> {
+  const authToken = token || await getValidToken(roomName);
+
+  if (!authToken) {
+    throw new Error("Authentication required to update room settings");
+  }
+
+  // Convert frontend settings to backend format
+  const payload: {
+    password?: string | null;
+    expire_at?: string | null;
+    max_times_entered?: number;
+    max_size?: number;
+  } = {};
+
+  if (settings.password !== undefined) {
+    payload.password = settings.password;
+  }
+
+  if (settings.expiresAt !== undefined) {
+    payload.expire_at = settings.expiresAt;
+  }
+
+  if (settings.maxViews !== undefined) {
+    payload.max_times_entered = settings.maxViews;
+  }
+
+  if (settings.maxSize !== undefined) {
+    payload.max_size = settings.maxSize;
+  }
+
+  const room = await api.put<BackendRoom>(
+    API_ENDPOINTS.rooms.settings(roomName),
+    payload,
+    { token: authToken },
+  );
+
+  return convertRoom(room);
+}
+
+/**
+ * List all tokens for a room
+ *
+ * @param roomName - The name of the room
+ * @param token - Optional token for authentication
+ * @returns List of tokens
+ */
+export async function listRoomTokens(
+  roomName: string,
+  token?: string,
+): Promise<any[]> {
+  const authToken = token || await getValidToken(roomName);
+
+  if (!authToken) {
+    throw new Error("Authentication required to list tokens");
+  }
+
+  return api.get(
+    API_ENDPOINTS.rooms.tokens(roomName),
+    undefined,
+    { token: authToken },
+  );
+}
+
+// Legacy compatibility exports (for existing components)
+export { getRoomDetails };
+
+export default {
+  createRoom,
+  getRoomDetails,
+  deleteRoom,
+  updateRoomPermissions,
+  listRoomTokens,
 };
