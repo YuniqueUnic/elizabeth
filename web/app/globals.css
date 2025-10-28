@@ -87,8 +87,12 @@
 }
 
 @theme inline {
-  --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --font-sans:
+    ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
+    "Segoe UI Symbol", "Noto Color Emoji";
+  --font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono",
+    monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -127,24 +131,52 @@
   --color-sidebar-ring: var(--sidebar-ring);
   --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
   /* computed shadow variables below - do not modify */
-  --shadow-2xs: var(--shadow-x) var(--shadow-y)
-    color-mix(in srgb, var(--shadow-color) calc(var(--shadow-opacity) * 100%), transparent);
-  --shadow-xs: var(--shadow-x) var(--shadow-y) var(--shadow-blur) var(--shadow-spread)
-    color-mix(in srgb, var(--shadow-color) calc(var(--shadow-opacity) * 100%), transparent);
-  --shadow-sm: var(--shadow-x) var(--shadow-y) calc(var(--shadow-blur) * 1.5) var(--shadow-spread)
-    color-mix(in srgb, var(--shadow-color) calc(var(--shadow-opacity) * 100%), transparent);
-  --shadow-md: calc(var(--shadow-x) * 2) calc(var(--shadow-y) * 2) calc(var(--shadow-blur) * 3)
-    calc(var(--shadow-spread) - 1px)
-    color-mix(in srgb, var(--shadow-color) calc(var(--shadow-opacity) * 100%), transparent);
-  --shadow-lg: calc(var(--shadow-x) * 4) calc(var(--shadow-y) * 4) calc(var(--shadow-blur) * 5)
-    calc(var(--shadow-spread) - 3px)
-    color-mix(in srgb, var(--shadow-color) calc(var(--shadow-opacity) * 100%), transparent);
-  --shadow-xl: calc(var(--shadow-x) * 6) calc(var(--shadow-y) * 6) calc(var(--shadow-blur) * 7)
-    calc(var(--shadow-spread) - 5px)
-    color-mix(in srgb, var(--shadow-color) calc(var(--shadow-opacity) * 100%), transparent);
-  --shadow-2xl: calc(var(--shadow-x) * 8) calc(var(--shadow-y) * 8) calc(max(0px, var(--shadow-blur) * 9 - 8px))
-    calc(var(--shadow-spread) - 12px)
-    color-mix(in srgb, var(--shadow-color) calc(var(--shadow-opacity) * 250%), transparent);
+  --shadow-2xs: var(--shadow-x) var(--shadow-y) color-mix(
+    in srgb,
+    var(--shadow-color) calc(var(--shadow-opacity) * 100%),
+    transparent
+  );
+  --shadow-xs: var(--shadow-x) var(--shadow-y) var(--shadow-blur) var(
+    --shadow-spread
+  ) color-mix(
+    in srgb,
+    var(--shadow-color) calc(var(--shadow-opacity) * 100%),
+    transparent
+  );
+  --shadow-sm: var(--shadow-x) var(--shadow-y) calc(var(--shadow-blur) * 1.5)
+    var(--shadow-spread) color-mix(
+    in srgb,
+    var(--shadow-color) calc(var(--shadow-opacity) * 100%),
+    transparent
+  );
+  --shadow-md: calc(var(--shadow-x) * 2) calc(var(--shadow-y) * 2) calc(
+    var(--shadow-blur) * 3
+  ) calc(var(--shadow-spread) - 1px) color-mix(
+    in srgb,
+    var(--shadow-color) calc(var(--shadow-opacity) * 100%),
+    transparent
+  );
+  --shadow-lg: calc(var(--shadow-x) * 4) calc(var(--shadow-y) * 4) calc(
+    var(--shadow-blur) * 5
+  ) calc(var(--shadow-spread) - 3px) color-mix(
+    in srgb,
+    var(--shadow-color) calc(var(--shadow-opacity) * 100%),
+    transparent
+  );
+  --shadow-xl: calc(var(--shadow-x) * 6) calc(var(--shadow-y) * 6) calc(
+    var(--shadow-blur) * 7
+  ) calc(var(--shadow-spread) - 5px) color-mix(
+    in srgb,
+    var(--shadow-color) calc(var(--shadow-opacity) * 100%),
+    transparent
+  );
+  --shadow-2xl: calc(var(--shadow-x) * 8) calc(var(--shadow-y) * 8) calc(
+    max(0px, var(--shadow-blur) * 9 - 8px)
+  ) calc(var(--shadow-spread) - 12px) color-mix(
+    in srgb,
+    var(--shadow-color) calc(var(--shadow-opacity) * 250%),
+    transparent
+  );
   --shadow: var(--shadow-md);
   --color-shadow-color: var(--shadow-color);
   --shadow-opacity: var(--shadow-opacity);

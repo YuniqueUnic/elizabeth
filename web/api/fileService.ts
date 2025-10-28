@@ -1,98 +1,304 @@
-// Mock API service for file operations
-import type { FileItem } from "@/lib/types"
+/**
+ * File Management Service
+ *
+ * This service handles file-related operations including:
+ * - Listing files in a room
+ * - Uploading files with chunked upload support
+ * - Deleting files
+ * - Batch downloading files
+ */
 
-// Mock: Get files list
-export const getFilesList = async (roomId: string): Promise<FileItem[]> => {
-  await new Promise((resolve) => setTimeout(resolve, 300))
+import { API_ENDPOINTS } from "../lib/config";
+import { api } from "../lib/utils/api";
+import { getValidToken } from "./authService";
+import type {
+  backendContentToFileItem,
+  BackendRoomContent,
+  ContentType,
+  FileItem,
+} from "../lib/types";
+import {
+  backendContentToFileItem as convertFile,
+  ContentType as CT,
+  parseContentType,
+} from "../lib/types";
 
-  return [
-    {
-      id: "file_1",
-      name: "project-proposal.pdf",
-      thumbnailUrl: null,
-      size: 2048000, // 2MB
-      type: "pdf",
-      url: "https://example.com/files/project-proposal.pdf",
-    },
-    {
-      id: "file_2",
-      name: "design-mockup.png",
-      thumbnailUrl: "/placeholder.svg?height=100&width=100",
-      size: 1536000, // 1.5MB
-      type: "image",
-      url: "/placeholder.svg?height=800&width=1200",
-    },
-    {
-      id: "file_3",
-      name: "meeting-notes.docx",
-      thumbnailUrl: null,
-      size: 512000, // 0.5MB
-      type: "document",
-      url: "https://example.com/files/meeting-notes.docx",
-    },
-    {
-      id: "file_4",
-      name: "demo-video.mp4",
-      thumbnailUrl: "/placeholder.svg?height=100&width=100",
-      size: 5242880, // 5MB
-      type: "video",
-      url: "https://example.com/files/demo-video.mp4",
-    },
-    {
-      id: "file_5",
-      name: "External Link",
-      thumbnailUrl: null,
-      size: 0,
-      type: "link",
-      url: "https://github.com/vercel/next.js",
-    },
-  ]
+// ============================================================================
+// File Request/Response Types
+// ============================================================================
+
+export interface PrepareUploadRequest {
+  files: Array<{
+    name: string;
+    size: number;
+    mime: string;
+  }>;
 }
 
-// Mock: Upload file
-export const uploadFile = async (roomId: string, file: File): Promise<FileItem> => {
-  console.log("[API Mock] uploadFile:", { roomId, fileName: file.name, size: file.size })
+export interface PrepareUploadResponse {
+  reservation_id: string;
+  reservations: Array<{
+    file_name: string;
+    expected_size: number;
+    mime_type: string;
+  }>;
+}
 
-  // Simulate upload delay
-  await new Promise((resolve) => setTimeout(resolve, 1000))
+export interface ChunkedUploadRequest {
+  reservation_id: string;
+  chunk_index: number;
+  data: ArrayBuffer;
+  is_last: boolean;
+}
 
-  let fileType: FileItem["type"] = "document"
-  if (file.type.startsWith("image/")) {
-    fileType = "image"
-  } else if (file.type.startsWith("video/")) {
-    fileType = "video"
-  } else if (file.name.endsWith(".pdf")) {
-    fileType = "pdf"
+// ============================================================================
+// File Functions
+// ============================================================================
+
+/**
+ * Get all files for a room
+ * Filters RoomContent for non-text content (content_type != 0)
+ *
+ * @param roomName - The name of the room
+ * @param token - Optional token for authentication
+ * @returns Array of files
+ */
+export async function getFilesList(
+  roomName: string,
+  token?: string,
+): Promise<FileItem[]> {
+  const authToken = token || await getValidToken(roomName);
+
+  if (!authToken) {
+    throw new Error("Authentication required to get files");
   }
 
-  return {
-    id: `file_${Date.now()}`,
-    name: file.name,
-    thumbnailUrl: file.type.startsWith("image/") ? "/placeholder.svg?height=100&width=100" : null,
-    size: file.size,
-    type: fileType,
-    url: URL.createObjectURL(file),
+  const contents = await api.get<BackendRoomContent[]>(
+    API_ENDPOINTS.content.base(roomName),
+    undefined,
+    { token: authToken },
+  );
+
+  // Filter for non-text content (files only) and convert to FileItem
+  return contents
+    .filter((content) => parseContentType(content.content_type) !== CT.Text)
+    .map(convertFile)
+    .sort((a, b) =>
+      new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
+    );
+}
+
+/**
+ * Upload a file to a room
+ *
+ * For small files (<5MB), uses the simple upload process.
+ * For large files, automatically switches to chunked upload.
+ *
+ * @param roomName - The name of the room
+ * @param file - The file to upload
+ * @param token - Optional token for authentication
+ * @param options - Upload options including progress callbacks
+ * @returns The uploaded file item
+ */
+export async function uploadFile(
+  roomName: string,
+  file: File,
+  token?: string,
+  options?: {
+    useChunkedUpload?: boolean;
+    onProgress?: (progress: {
+      bytesUploaded: number;
+      totalBytes: number;
+      percentage: number;
+    }) => void;
+  },
+): Promise<FileItem> {
+  const CHUNKED_UPLOAD_THRESHOLD = 5 * 1024 * 1024; // 5MB
+  const shouldUseChunkedUpload = options?.useChunkedUpload ??
+    (file.size > CHUNKED_UPLOAD_THRESHOLD);
+
+  if (shouldUseChunkedUpload) {
+    // Use chunked upload for large files
+    const { uploadFileChunked } = await import("./chunkedUploadService");
+
+    let uploadedContent: BackendRoomContent | null = null;
+
+    await uploadFileChunked(
+      roomName,
+      file,
+      {
+        onProgress: (progress) => {
+          options?.onProgress?.(progress);
+        },
+        onChunkComplete: () => {
+          // For now, we don't get intermediate results from chunked upload
+          // In a real implementation, you might want to track chunk completion
+        },
+      },
+      token,
+    );
+
+    // After chunked upload is complete, we need to get the uploaded content
+    // This would typically be returned by the completeChunkedUpload endpoint
+    // For now, we'll fall back to listing contents and finding the newest one
+    const contents = await api.get<BackendRoomContent[]>(
+      API_ENDPOINTS.content.base(roomName),
+      undefined,
+      { token },
+    );
+
+    // Find the most recently uploaded file
+    const uploadedFiles = contents
+      .filter((content) => parseContentType(content.content_type) !== CT.Text)
+      .sort((a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+    if (uploadedFiles.length === 0) {
+      throw new Error("Failed to find uploaded file after chunked upload");
+    }
+
+    return convertFile(uploadedFiles[0]);
+  } else {
+    // Use simple upload for small files
+    const authToken = token || await getValidToken(roomName);
+
+    if (!authToken) {
+      throw new Error("Authentication required to upload files");
+    }
+
+    // Step 1: Prepare upload
+    const prepareRequest: PrepareUploadRequest = {
+      files: [{
+        name: file.name,
+        size: file.size,
+        mime: file.type,
+      }],
+    };
+
+    const prepareResponse = await api.post<PrepareUploadResponse>(
+      API_ENDPOINTS.content.prepare(roomName),
+      prepareRequest,
+      { token: authToken },
+    );
+
+    // Step 2: Upload file data
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const uploadedContents = await api.post<BackendRoomContent[]>(
+      `${
+        API_ENDPOINTS.content.base(roomName)
+      }?reservation_id=${prepareResponse.reservation_id}`,
+      formData,
+      { token: authToken },
+    );
+
+    if (uploadedContents.length === 0) {
+      throw new Error("Failed to upload file");
+    }
+
+    return convertFile(uploadedContents[0]);
   }
 }
 
-// Mock: Delete file
-export const deleteFile = async (fileId: string): Promise<void> => {
-  console.log("[API Mock] deleteFile:", fileId)
-  await new Promise((resolve) => setTimeout(resolve, 300))
+/**
+ * Delete a file
+ *
+ * @param roomName - The name of the room
+ * @param fileId - The ID of the file to delete
+ * @param token - Optional token for authentication
+ */
+export async function deleteFile(
+  roomName: string,
+  fileId: string,
+  token?: string,
+): Promise<void> {
+  const authToken = token || await getValidToken(roomName);
+
+  if (!authToken) {
+    throw new Error("Authentication required to delete files");
+  }
+
+  // Backend expects an array of IDs
+  await api.delete(
+    `${API_ENDPOINTS.content.base(roomName)}?ids=${fileId}`,
+    { token: authToken },
+  );
 }
 
-// Mock: Batch download files
-export const downloadFilesBatch = async (fileIds: string[]): Promise<void> => {
-  console.log("[API Mock] downloadFilesBatch:", fileIds)
+/**
+ * Delete multiple files
+ *
+ * @param roomName - The name of the room
+ * @param fileIds - Array of file IDs to delete
+ * @param token - Optional token for authentication
+ */
+export async function deleteFiles(
+  roomName: string,
+  fileIds: string[],
+  token?: string,
+): Promise<void> {
+  const authToken = token || await getValidToken(roomName);
 
-  // Simulate download preparation
-  await new Promise((resolve) => setTimeout(resolve, 500))
+  if (!authToken) {
+    throw new Error("Authentication required to delete files");
+  }
 
-  // Create a mock download
-  const link = document.createElement("a")
-  link.href = "data:text/plain;charset=utf-8,Mock%20Batch%20Download%20Content"
-  link.download = `elizabeth_batch_${Date.now()}.zip`
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
+  const idsParam = fileIds.join(",");
+  await api.delete(
+    `${API_ENDPOINTS.content.base(roomName)}?ids=${idsParam}`,
+    { token: authToken },
+  );
 }
+
+/**
+ * Batch download files
+ * Creates a ZIP file containing multiple files
+ *
+ * @param roomName - The name of the room
+ * @param fileIds - Array of file IDs to download
+ * @param token - Optional token for authentication
+ * @returns Promise that resolves when download is triggered
+ */
+export async function downloadFilesBatch(
+  roomName: string,
+  fileIds: string[],
+  token?: string,
+): Promise<void> {
+  const authToken = token || await getValidToken(roomName);
+
+  if (!authToken) {
+    throw new Error("Authentication required to download files");
+  }
+
+  const response = await api.post(
+    `${API_ENDPOINTS.content.base(roomName)}/download`,
+    { file_ids: fileIds },
+    {
+      token: authToken,
+      responseType: "blob", // Important for file downloads
+    },
+  );
+
+  // Create download link for the ZIP file
+  const blob = new Blob([response], { type: "application/zip" });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `elizabeth_files_${Date.now()}.zip`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.URL.revokeObjectURL(url);
+}
+
+// Legacy compatibility exports (for existing components)
+export { getFilesList };
+export default {
+  getFilesList,
+  uploadFile,
+  deleteFile,
+  deleteFiles,
+  downloadFilesBatch,
+};
