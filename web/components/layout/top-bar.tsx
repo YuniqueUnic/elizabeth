@@ -12,7 +12,8 @@ import {
   Trash2,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { getMessages, getRoomDetails } from "@/api/roomService";
+import { getRoomDetails } from "@/api/roomService";
+import { getMessages } from "@/api/messageService";
 import { useAppStore } from "@/lib/store";
 import { useToast } from "@/hooks/use-toast";
 import { formatDate } from "@/lib/utils/format";

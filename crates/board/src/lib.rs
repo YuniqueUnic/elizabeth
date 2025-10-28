@@ -106,9 +106,12 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
     println!("Server listening on http://{addr}");
     println!("Scalar listening on http://{addr}{}", &scalar_path);
 
-    axum::serve(listener, router.into_make_service())
-        .await
-        .map_err(anyhow::Error::new)
+    axum::serve(
+        listener,
+        router.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .map_err(anyhow::Error::new)
 }
 
 fn build_api_router(app_state: Arc<AppState>, cfg: &configrs::Config) -> (String, axum::Router) {
