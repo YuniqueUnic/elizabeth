@@ -8,35 +8,45 @@
  * - Logging out (revoking tokens)
  */
 
-import { API_ENDPOINTS } from '../lib/config'
-import { api, setRoomToken, clearRoomToken, getRoomToken, isTokenExpired } from '../lib/utils/api'
-import type { BackendTokenResponse, BackendTokenValidation, TokenInfo } from '../lib/types'
+import { API_ENDPOINTS } from "../lib/config";
+import {
+  api,
+  clearRoomToken,
+  getRoomToken,
+  isTokenExpired,
+  setRoomToken,
+} from "../lib/utils/api";
+import type {
+  BackendTokenResponse,
+  BackendTokenValidation,
+  TokenInfo,
+} from "../lib/types";
 
 // ============================================================================
 // Token Request/Response Types
 // ============================================================================
 
 export interface IssueTokenRequest {
-  password?: string
-  permission?: number
-  ttl_seconds?: number
-  max_uses?: number
-  expires_at?: string
+  password?: string;
+  permission?: number;
+  ttl_seconds?: number;
+  max_uses?: number;
+  expires_at?: string;
 }
 
 export interface IssueTokenResponse {
-  token: string
-  jti: string
-  permission: number
-  room_name: string
-  max_uses: number | null
-  uses: number
-  expires_at: string
-  created_at: string
+  token: string;
+  jti: string;
+  permission: number;
+  room_name: string;
+  max_uses: number | null;
+  uses: number;
+  expires_at: string;
+  created_at: string;
 }
 
 export interface RefreshTokenRequest {
-  refresh_token: string
+  refresh_token: string;
 }
 
 export interface RefreshTokenResponse extends BackendTokenResponse {
@@ -58,27 +68,27 @@ export interface RefreshTokenResponse extends BackendTokenResponse {
 export async function getAccessToken(
   roomName: string,
   password?: string,
-  options?: Omit<IssueTokenRequest, 'password'>
+  options?: Omit<IssueTokenRequest, "password">,
 ): Promise<IssueTokenResponse> {
   const requestBody: IssueTokenRequest = {
     password,
     ...options,
-  }
+  };
 
   const response = await api.post<IssueTokenResponse>(
     API_ENDPOINTS.rooms.tokens(roomName),
     requestBody,
-    { skipTokenInjection: true }
-  )
+    { skipTokenInjection: true },
+  );
 
   // Store the token
   const tokenInfo: TokenInfo = {
     token: response.token,
     expiresAt: response.expires_at,
-  }
-  setRoomToken(roomName, tokenInfo)
+  };
+  setRoomToken(roomName, tokenInfo);
 
-  return response
+  return response;
 }
 
 /**
@@ -90,19 +100,19 @@ export async function getAccessToken(
  */
 export async function validateToken(
   roomName: string,
-  token?: string
+  token?: string,
 ): Promise<BackendTokenValidation> {
-  const tokenToValidate = token || getRoomToken(roomName)?.token
+  const tokenToValidate = token || getRoomToken(roomName)?.token;
 
   if (!tokenToValidate) {
-    throw new Error('No token available for validation')
+    throw new Error("No token available for validation");
   }
 
   return api.post<BackendTokenValidation>(
     API_ENDPOINTS.rooms.validateToken(roomName),
     { token: tokenToValidate },
-    { skipTokenInjection: true }
-  )
+    { skipTokenInjection: true },
+  );
 }
 
 /**
@@ -112,18 +122,18 @@ export async function validateToken(
  * @returns New token information
  */
 export async function refreshToken(
-  refreshToken: string
+  refreshToken: string,
 ): Promise<RefreshTokenResponse> {
   const response = await api.post<RefreshTokenResponse>(
     API_ENDPOINTS.auth.refresh,
     { refresh_token: refreshToken },
-    { skipTokenInjection: true }
-  )
+    { skipTokenInjection: true },
+  );
 
   // Note: We can't determine which room this token is for from the response
   // The calling code should handle storing the token with the appropriate room name
 
-  return response
+  return response;
 }
 
 /**
@@ -135,8 +145,8 @@ export async function logout(accessToken?: string): Promise<void> {
   await api.post(
     API_ENDPOINTS.auth.logout,
     { access_token: accessToken },
-    { skipTokenInjection: true }
-  )
+    { skipTokenInjection: true },
+  );
 }
 
 /**
@@ -149,17 +159,17 @@ export async function logout(accessToken?: string): Promise<void> {
 export async function revokeRoomToken(
   roomName: string,
   jti: string,
-  token?: string
+  token?: string,
 ): Promise<void> {
   await api.delete(
     API_ENDPOINTS.rooms.revokeToken(roomName, jti),
-    { token }
-  )
+    { token },
+  );
 
   // If this was the currently stored token, clear it
-  const currentToken = getRoomToken(roomName)
+  const currentToken = getRoomToken(roomName);
   if (currentToken) {
-    clearRoomToken(roomName)
+    clearRoomToken(roomName);
   }
 }
 
@@ -170,37 +180,37 @@ export async function revokeRoomToken(
  * @returns Valid token or null if no token available
  */
 export async function getValidToken(roomName: string): Promise<string | null> {
-  const tokenInfo = getRoomToken(roomName)
+  const tokenInfo = getRoomToken(roomName);
 
   if (!tokenInfo) {
-    return null
+    return null;
   }
 
   // Check if token needs refresh
   if (isTokenExpired(tokenInfo.expiresAt)) {
     if (tokenInfo.refreshToken) {
       try {
-        const newTokenInfo = await refreshToken(tokenInfo.refreshToken)
+        const newTokenInfo = await refreshToken(tokenInfo.refreshToken);
         const updatedToken: TokenInfo = {
           token: newTokenInfo.token,
           expiresAt: newTokenInfo.expires_at,
           refreshToken: newTokenInfo.refresh_token,
-        }
-        setRoomToken(roomName, updatedToken)
-        return newTokenInfo.token
+        };
+        setRoomToken(roomName, updatedToken);
+        return newTokenInfo.token;
       } catch (error) {
-        console.error('Failed to refresh token:', error)
-        clearRoomToken(roomName)
-        return null
+        console.error("Failed to refresh token:", error);
+        clearRoomToken(roomName);
+        return null;
       }
     } else {
       // Token expired and no refresh token available
-      clearRoomToken(roomName)
-      return null
+      clearRoomToken(roomName);
+      return null;
     }
   }
 
-  return tokenInfo.token
+  return tokenInfo.token;
 }
 
 /**
@@ -210,11 +220,11 @@ export async function getValidToken(roomName: string): Promise<string | null> {
  * @returns True if user has a valid token
  */
 export function hasValidToken(roomName: string): boolean {
-  const tokenInfo = getRoomToken(roomName)
-  if (!tokenInfo) return false
+  const tokenInfo = getRoomToken(roomName);
+  if (!tokenInfo) return false;
 
   // Check if token is not expired (with buffer)
-  return !isTokenExpired(tokenInfo.expiresAt)
+  return !isTokenExpired(tokenInfo.expiresAt);
 }
 
 export default {
@@ -225,4 +235,4 @@ export default {
   revokeRoomToken,
   getValidToken,
   hasValidToken,
-}
+};

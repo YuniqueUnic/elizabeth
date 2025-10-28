@@ -57,13 +57,15 @@ export type RoomPermission = "read" | "edit" | "share" | "delete";
  */
 export interface BackendRoom {
   name: string;
+  password: string | null; // Room password (null if no password)
   permission: number; // Bitflags: 1=read, 2=edit, 4=share, 8=delete
   max_size: number;
   current_size: number;
   times_entered: number;
   max_times_entered: number;
+  current_times_entered: number;
   created_at: string;
-  expires_at: string | null;
+  expire_at: string | null;
 }
 
 /**
@@ -194,11 +196,11 @@ export function backendRoomToRoomDetails(room: BackendRoom): RoomDetails {
     name: room.name,
     currentSize: room.current_size,
     maxSize: room.max_size,
-    timesEntered: room.times_entered,
+    timesEntered: room.current_times_entered,
     maxTimesEntered: room.max_times_entered,
     settings: {
-      expiresAt: room.expires_at,
-      passwordProtected: false, // Backend doesn't return this info
+      expiresAt: room.expire_at,
+      passwordProtected: room.password !== null && room.password !== "",
       maxViews: room.max_times_entered,
     },
     permissions: parsePermissions(room.permission),
