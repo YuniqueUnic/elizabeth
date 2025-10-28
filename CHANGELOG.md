@@ -7,6 +7,74 @@ and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+<<<<<<< Updated upstream
+=======
+## Elizabeth Board - [0.3.0](https://github.com/YuniqueUnic/elizabeth/releases/tag/v0.3.0) - 2025-10-28
+
+
+### Added
+- _(docs)_ update integration progress and API completion reports
+- Implement message service for chat operations
+- _(api)_ integrate backend API for room management and authentication
+- _(logrs)_ replace `tracing` crate with custom `logrs` logging facade
+- _(auth)_ add comprehensive token verification and management tests
+- _(board)_ implement centralized application configuration and constants management
+- _(board)_ remove `RoomDefaults` and simplify state management
+- _(board)_ add middleware support with configurable options
+- _(chunked-upload)_ implement file merging endpoint and update dependencies
+- _(board)_ implement chunked upload functionality
+- _(chunked-upload)_ implement database schema and models for chunked uploads
+- _(board)_ add admin token verification for room deletion
+- _(board)_ add slug column to rooms table and update related queries
+- _(board)_ add room tokens table and related queries
+- _(board)_ add RoomPermission type annotation in SQL queries and models
+- _(board)_ refine room status enum and remove unused attributes
+- _(board)_ unify Room model for DB and API layers
+- _(board)_ update room status to use enum with sqlx type mapping
+- _(board)_ enable logging feature and fix related compilation issues
+- _(board)_ add health check endpoint
+- _(board)_ add axum_responses dependency
+
+### Fixed
+- _(board)_ replace numeric permission with RoomPermission enum
+- _(board)_ rename default database file from 'database.db' to 'app.db'
+- _(board)_ update default database path and use config-provided URL
+- _(board)_ add sqlx query files for room operations
+- _(board)_ add OpenAPI documentation and scalar UI
+- _(board)_ add status endpoint
+
+### Other
+- _(board)_ remove unused permission validator and related code
+- _(board)_ implement unified error handling and validation frameworks
+- _(deps)_ update rust dependencies and adjust axum versions
+- _(board)_ refactor token claim construction using builder pattern
+- _(board)_ implement refresh token and blacklist mechanism
+- _(board)_ implement room expiration logic and update migration structure
+- _(board)_ implement database schema for room-based file sharing service
+- _(board)_ implement room-centric data model and enhance database schema
+- _(board)_ implement content handler module and update module exports
+- _(board)_ optimize room and content repositories with transactional writes and shared queries
+- _(board)_ refactor room content storage and repository interface
+- _(board)_ add bon crate and refactor room content model
+- use bitflags to implment the permissions..
+- _(workspace)_ rename packages to elizabeth-* and update references
+- _(db)_ extract database constants and update model enums
+- _(board)_ update dependencies and adjust versions
+- _(board)_ rename CustomDateTime to NativeDateTimeWapper
+- _(room)_ implement Room CRUD API with password protection and expiration
+- _(pre-commit)_ reorder and stage-specific rust checks
+- _(board)_ remove unused axum-macros dependency and update routing structure
+- _(prek)_ add pre-commit hooks configuration with Rust support
+- _(board)_ add health and status endpoints with OpenAPI integration
+- _(board)_ modularize routing and API documentation
+- _(workspace)_ centralize package metadata in workspace
+- _(release)_ add release binaries workflow and update release-plz config
+- _(deps)_ update convert_case and clap dependencies
+- _(board)_ structure the core application named borad.
+- _(project)_ initialize project configuration for Elizabeth
+- _(workspace)_ rename crate from elizabeth to board
+
+>>>>>>> Stashed changes
 ## Elizabeth Board - [0.3.0](https://github.com/YuniqueUnic/elizabeth/releases/tag/v0.3.0) - 2025-10-27
 
 
