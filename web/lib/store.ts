@@ -1,9 +1,24 @@
 // Global state management using Zustand
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { Theme, TokenInfo } from "./types";
+import type { Message, Theme, TokenInfo } from "./types";
 import { getRoomToken } from "./utils/api";
 import { hasValidToken } from "../api/authService";
+import {
+  deleteMessage,
+  getMessages,
+  postMessage,
+  updateMessage,
+} from "@/api/messageService";
+import type { Message } from "@/lib/types";
+
+// Extend the Message type to include local state for unsaved changes
+export type LocalMessage = Message & {
+  isNew?: boolean;
+  isDirty?: boolean;
+  isPendingDelete?: boolean;
+  originalContent?: string; // To allow reverting edits
+};
 
 interface AppState {
   // Theme management
@@ -55,6 +70,20 @@ interface AppState {
   // heti
   useHeti: boolean;
   setUseHeti: (value: boolean) => void;
+
+  // UI Preferences
+  showDeleteConfirmation: boolean;
+  setShowDeleteConfirmation: (show: boolean) => void;
+
+  // Local message management for explicit saving
+  messages: LocalMessage[];
+  setMessages: (messages: Message[]) => void;
+  addMessage: (content: string) => void;
+  updateMessageContent: (messageId: string, content: string) => void;
+  markMessageForDeletion: (messageId: string) => void;
+  revertMessageChanges: (messageId: string) => void;
+  hasUnsavedChanges: () => boolean;
+  saveMessages: () => Promise<void>;
 }
 
 export const useAppStore = create<AppState>()(
@@ -160,6 +189,121 @@ export const useAppStore = create<AppState>()(
       // heti
       useHeti: false,
       setUseHeti: (value) => set({ useHeti: value }),
+
+      // UI Preferences
+      showDeleteConfirmation: true,
+      setShowDeleteConfirmation: (show) => set({ showDeleteConfirmation: show }),
+
+      // Local message management
+      messages: [],
+      setMessages: (messages) =>
+        set({
+          messages: messages.map((m) => ({
+            ...m,
+            isNew: false,
+            isDirty: false,
+            isPendingDelete: false,
+          })),
+        }),
+      addMessage: (content) => {
+        const newMessage: LocalMessage = {
+          id: `temp-${Date.now()}`,
+          content,
+          timestamp: new Date().toISOString(),
+          isOwn: true,
+          isNew: true,
+        };
+        set((state) => ({ messages: [...state.messages, newMessage] }));
+      },
+      updateMessageContent: (messageId, content) => {
+        set((state) => ({
+          messages: state.messages.map((m) => {
+            if (m.id === messageId) {
+              // Store original content on first edit, if not already stored
+              const originalContent = m.originalContent ?? m.content;
+              return {
+                ...m,
+                content,
+                isDirty: !m.isNew, // Don't mark new messages as dirty
+                originalContent,
+              };
+            }
+            return m;
+          }),
+        }));
+      },
+      markMessageForDeletion: (messageId) => {
+        set((state) => ({
+          messages: state.messages.map((m) =>
+            m.id === messageId ? { ...m, isPendingDelete: true } : m
+          ),
+        }));
+      },
+      revertMessageChanges: (messageId: string) => {
+        set((state) => ({
+          messages: state.messages.map((m) => {
+            if (m.id === messageId) {
+              const revertedMessage = { ...m };
+              // Revert pending deletion
+              if (revertedMessage.isPendingDelete) {
+                revertedMessage.isPendingDelete = false;
+              }
+              // Revert content edit
+              if (revertedMessage.isDirty && revertedMessage.originalContent) {
+                revertedMessage.content = revertedMessage.originalContent;
+                revertedMessage.isDirty = false;
+                revertedMessage.originalContent = undefined;
+              }
+              return revertedMessage;
+            }
+            return m;
+          }),
+        }));
+      },
+      hasUnsavedChanges: () => {
+        const messages = get().messages;
+        return messages.some((m) => m.isNew || m.isDirty || m.isPendingDelete);
+      },
+      saveMessages: async () => {
+        const { messages, currentRoomId } = get();
+        const unsavedMessages = messages.filter(
+          (m) => m.isNew || m.isDirty || m.isPendingDelete,
+        );
+
+        if (unsavedMessages.length === 0) {
+          return;
+        }
+
+        const promises = unsavedMessages.map((msg) => {
+          if (msg.isPendingDelete) {
+            // For new messages that are deleted before saving, just remove them locally
+            if (msg.isNew) {
+              return Promise.resolve();
+            }
+            return deleteMessage(currentRoomId, msg.id);
+          }
+          if (msg.isNew) {
+            return postMessage(currentRoomId, msg.content);
+          }
+          if (msg.isDirty) {
+            return updateMessage(currentRoomId, msg.id, msg.content);
+          }
+          return Promise.resolve();
+        });
+
+        await Promise.all(promises);
+
+        // Refetch messages from the server to ensure consistency
+        const updatedMessages = await getMessages(currentRoomId);
+        set({
+          messages: updatedMessages.map((m) => ({
+            ...m,
+            isNew: false,
+            isDirty: false,
+            isPendingDelete: false,
+          })),
+        });
+      },
     }),
     {
       name: "elizabeth-storage",
@@ -175,3 +319,8 @@ export const useAppStore = create<AppState>()(
     },
   ),
 );
+
+// Expose the store on the window for debugging purposes
+if (typeof window !== "undefined") {
+  (window as any).useAppStore = useAppStore;
+}

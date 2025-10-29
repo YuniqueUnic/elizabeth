@@ -70,48 +70,34 @@ export async function getMessages(
     { token: authToken },
   );
 
-  // Filter for text content and text files, then convert to messages
   const filteredContents = contents.filter((content) => {
     const contentType = parseContentType(content.content_type);
-    // Include both explicit text content and text files
     return contentType === CT.Text ||
       (contentType === CT.File &&
         content.mime_type === "text/plain" &&
         content.file_name?.includes("message.txt"));
   });
 
-  // For file-based messages, fetch the actual content
   const messagesWithContent = await Promise.all(
     filteredContents.map(async (content) => {
-      const contentType = parseContentType(content.content_type);
-
-      // If it's a text file, fetch its content
-      if (contentType === CT.File && content.mime_type === "text/plain") {
+      // If content text is missing and it's a text file, fetch it
+      if (!content.text && content.mime_type === "text/plain") {
         try {
           const response = await fetch(
             `${API_BASE_URL}${
               API_ENDPOINTS.content.byId(roomName, String(content.id))
             }?token=${authToken}`,
-            {
-              headers: {
-                "Accept": "text/plain",
-              },
-            },
+            { headers: { "Accept": "text/plain" } },
           );
-
           if (response.ok) {
             const fileContent = await response.text();
-            // Create a new content object with the file content as text
-            return {
-              ...content,
-              text: fileContent,
-            };
+            return { ...content, text: fileContent };
           }
+          return { ...content, text: "[Failed to load content]" };
         } catch (error) {
-          // Content fetch failed, skip this message content
+          return { ...content, text: "[Failed to load content]" };
         }
       }
-
       return content;
     }),
   );
@@ -272,25 +258,14 @@ export async function updateMessage(
     throw new Error("Authentication required to update messages");
   }
 
-  try {
-    console.log(
-      "Attempting to update message:",
-      { roomName, messageId, content, authToken },
-    );
+  // Call the update_content API
+  const response = await api.put<{ updated: BackendRoomContent }>(
+    API_ENDPOINTS.content.byId(roomName, messageId),
+    { text: content },
+    { token: authToken },
+  );
 
-    // Call the update_content API
-    const response = await api.put<{ updated: BackendRoomContent }>(
-      API_ENDPOINTS.content.byId(roomName, messageId),
-      { text: content },
-      { token: authToken },
-    );
-
-    console.log("Update successful, response:", response);
-    return convertMessage(response.updated);
-  } catch (error) {
-    console.error("Failed to update message:", error);
-    throw error; // Re-throw the error to be caught by the mutation
-  }
+  return convertMessage(response.updated);
 }
 
 export default {

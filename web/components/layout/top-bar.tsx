@@ -13,28 +13,87 @@ import {
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { getRoomDetails } from "@/api/roomService";
-import { getMessages } from "@/api/messageService";
+import { deleteMessages, getMessages } from "@/api/messageService";
 import { useAppStore } from "@/lib/store";
 import { useToast } from "@/hooks/use-toast";
 import { formatDate } from "@/lib/utils/format";
+import { useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export function TopBar() {
+  const queryClient = useQueryClient();
   const currentRoomId = useAppStore((state) => state.currentRoomId);
   const selectedMessages = useAppStore((state) => state.selectedMessages);
-  const includeMetadataInExport = useAppStore((state) =>
-    state.includeMetadataInExport
+  const messages = useAppStore((state) => state.messages);
+  const hasUnsavedChanges = useAppStore((state) => state.hasUnsavedChanges);
+  const saveMessages = useAppStore((state) => state.saveMessages);
+  const markMessageForDeletion = useAppStore(
+    (state) => state.markMessageForDeletion,
+  );
+  const showDeleteConfirmation = useAppStore(
+    (state) => state.showDeleteConfirmation,
+  );
+  const setShowDeleteConfirmation = useAppStore(
+    (state) => state.setShowDeleteConfirmation,
+  );
+  const includeMetadataInExport = useAppStore(
+    (state) => state.includeMetadataInExport,
   );
   const { toast } = useToast();
+  const [
+    isDeleteConfirmationOpen,
+    setIsDeleteConfirmationOpen,
+  ] = useState(false);
 
   const { data: roomDetails } = useQuery({
     queryKey: ["room", currentRoomId],
     queryFn: () => getRoomDetails(currentRoomId),
   });
 
-  const { data: messages = [] } = useQuery({
-    queryKey: ["messages", currentRoomId],
-    queryFn: () => getMessages(currentRoomId),
-  });
+  const handleSaveChanges = async () => {
+    try {
+      await saveMessages();
+      toast({
+        title: "保存成功",
+        description: "所有更改已成功保存",
+      });
+    } catch (error) {
+      toast({
+        title: "保存失败",
+        description: "无法保存更改，请重试",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteMessages = () => {
+    if (selectedMessages.size === 0) {
+      toast({
+        title: "未选择消息",
+        description: "请先选择要删除的消息",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (showDeleteConfirmation) {
+      setIsDeleteConfirmationOpen(true);
+    } else {
+      selectedMessages.forEach((messageId) => {
+        markMessageForDeletion(messageId);
+      });
+    }
+  };
 
   const handleCopyMessages = async () => {
     if (selectedMessages.size === 0) {
@@ -52,9 +111,9 @@ export function TopBar() {
         if (includeMetadataInExport) {
           const messageNumber = messages.findIndex((msg) => msg.id === m.id) +
             1;
-          return `### 消息 #${messageNumber}\n**用户:** ${m.user || '匿名'}\n**时间:** ${
-            formatDate(m.timestamp)
-          }\n\n${m.content}`;
+          return `### 消息 #${messageNumber}\n**用户:** ${
+            m.user || "匿名"
+          }\n**时间:** ${formatDate(m.timestamp)}\n\n${m.content}`;
         }
         return m.content;
       })
@@ -83,9 +142,9 @@ export function TopBar() {
         if (includeMetadataInExport) {
           const messageNumber = messages.findIndex((msg) => msg.id === m.id) +
             1;
-          return `### 消息 #${messageNumber}\n**用户:** ${m.user || '匿名'}\n**时间:** ${
-            formatDate(m.timestamp)
-          }\n\n${m.content}`;
+          return `### 消息 #${messageNumber}\n**用户:** ${
+            m.user || "匿名"
+          }\n**时间:** ${formatDate(m.timestamp)}\n\n${m.content}`;
         }
         return m.content;
       })
@@ -154,6 +213,8 @@ export function TopBar() {
           size="icon"
           className="hidden md:flex"
           title="保存"
+          onClick={handleSaveChanges}
+          disabled={!hasUnsavedChanges()}
         >
           <Save className="h-4 w-4" />
         </Button>
@@ -162,6 +223,8 @@ export function TopBar() {
           size="icon"
           className="hidden md:flex"
           title="删除"
+          onClick={handleDeleteMessages}
+          disabled={selectedMessages.size === 0}
         >
           <Trash2 className="h-4 w-4" />
         </Button>
@@ -189,6 +252,49 @@ export function TopBar() {
 
         <ThemeSwitcher />
       </div>
+      <AlertDialog
+        open={isDeleteConfirmationOpen}
+        onOpenChange={setIsDeleteConfirmationOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              你确定要删除选中的 {selectedMessages.size} 条消息吗？
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              这个操作将会被记录，直到你点击保存按钮。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <div className="flex w-full items-center justify-between">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  selectedMessages.forEach((messageId) => {
+                    markMessageForDeletion(messageId);
+                  });
+                  setShowDeleteConfirmation(false);
+                  setIsDeleteConfirmationOpen(false);
+                }}
+              >
+                确认/并不再提示
+              </Button>
+              <div className="flex gap-2">
+                <AlertDialogCancel>取消</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    selectedMessages.forEach((messageId) => {
+                      markMessageForDeletion(messageId);
+                    });
+                  }}
+                >
+                  确认
+                </AlertDialogAction>
+              </div>
+            </div>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </header>
   );
 }

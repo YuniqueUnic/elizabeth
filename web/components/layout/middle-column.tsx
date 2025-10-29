@@ -10,25 +10,75 @@ import {
   updateMessage,
 } from "@/api/messageService";
 import { useAppStore } from "@/lib/store";
-import { useCallback, useState } from "react";
-import type { Message } from "@/lib/types";
+import { useCallback, useEffect, useState } from "react";
+import type { LocalMessage, Message } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { useRoomPermissions } from "@/hooks/use-room-permissions";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 
 export function MiddleColumn() {
   const currentRoomId = useAppStore((state) => state.currentRoomId);
+  const messages = useAppStore((state) => state.messages);
+  const setMessages = useAppStore((state) => state.setMessages);
+  const addMessage = useAppStore((state) => state.addMessage);
+  const updateMessageContent = useAppStore(
+    (state) => state.updateMessageContent,
+  );
+  const markMessageForDeletion = useAppStore(
+    (state) => state.markMessageForDeletion,
+  );
+  const revertMessageChanges = useAppStore(
+    (state) => state.revertMessageChanges,
+  );
+  const showDeleteConfirmation = useAppStore(
+    (state) => state.showDeleteConfirmation,
+  );
+  const setShowDeleteConfirmation = useAppStore(
+    (state) => state.setShowDeleteConfirmation,
+  );
+
   const queryClient = useQueryClient();
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+  const [deleteCandidateId, setDeleteCandidateId] = useState<string | null>(
+    null,
+  );
   const { toast } = useToast();
   const { can } = useRoomPermissions();
+  const [isLoading, setIsLoading] = useState(true);
 
-  const { data: messages = [], isLoading } = useQuery({
-    queryKey: ["messages", currentRoomId],
-    queryFn: () => getMessages(currentRoomId),
-    refetchInterval: 5000, // 每 5 秒自动刷新一次，保持实时性
-    staleTime: 1000, // 1 秒后认为数据过期
-  });
+  useEffect(() => {
+    const fetchMessages = async () => {
+      if (currentRoomId) {
+        setIsLoading(true);
+        try {
+          const fetchedMessages = await getMessages(currentRoomId);
+          setMessages(fetchedMessages);
+        } catch (error) {
+          console.error("Failed to fetch messages:", error);
+          toast({
+            title: "加载失败",
+            description: "无法加载消息，请刷新重试",
+            variant: "destructive",
+          });
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    fetchMessages();
+  }, [currentRoomId, setMessages, toast]);
 
   const postMutation = useMutation({
     mutationFn: (content: string) => postMessage(currentRoomId, content),
@@ -135,24 +185,29 @@ export function MiddleColumn() {
   const handleSend = useCallback(
     (content: string) => {
       if (editingMessage) {
-        updateMutation.mutate({ messageId: editingMessage.id, content });
+        updateMessageContent(editingMessage.id, content);
+        setEditingMessage(null);
       } else {
-        postMutation.mutate(content);
+        addMessage(content);
       }
     },
-    [editingMessage, updateMutation, postMutation],
+    [editingMessage, updateMessageContent, addMessage],
   );
 
-  const handleEdit = (message: Message) => {
+  const handleEdit = useCallback((message: Message) => {
     setEditingMessage(message);
-  };
+  }, []);
 
   const handleCancelEdit = () => {
     setEditingMessage(null);
   };
 
   const handleDelete = (messageId: string) => {
-    deleteMutation.mutate(messageId);
+    if (showDeleteConfirmation) {
+      setDeleteCandidateId(messageId);
+    } else {
+      markMessageForDeletion(messageId);
+    }
   };
 
   return (
@@ -165,6 +220,7 @@ export function MiddleColumn() {
             isLoading={isLoading}
             onEdit={handleEdit}
             onDelete={handleDelete}
+            onRevert={revertMessageChanges}
           />
         </Panel>
 
@@ -185,6 +241,47 @@ export function MiddleColumn() {
           </Panel>
         )}
       </PanelGroup>
+      <AlertDialog
+        open={deleteCandidateId !== null}
+        onOpenChange={(open) => !open && setDeleteCandidateId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>你确定要删除这条消息吗？</AlertDialogTitle>
+            <AlertDialogDescription>
+              这个操作将会被记录，直到你点击保存按钮。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <div className="flex w-full items-center justify-between">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (deleteCandidateId) {
+                    markMessageForDeletion(deleteCandidateId);
+                  }
+                  setShowDeleteConfirmation(false);
+                  setDeleteCandidateId(null);
+                }}
+              >
+                确认/并不再提示
+              </Button>
+              <div className="flex gap-2">
+                <AlertDialogCancel>取消</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    if (deleteCandidateId) {
+                      markMessageForDeletion(deleteCandidateId);
+                    }
+                  }}
+                >
+                  确认
+                </AlertDialogAction>
+              </div>
+            </div>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </main>
   );
 }

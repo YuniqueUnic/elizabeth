@@ -3,20 +3,21 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { MessageBubble } from "./message-bubble";
-import type { Message } from "@/lib/types";
+import type { LocalMessage, Message } from "@/lib/types";
 import { useEffect, useRef } from "react";
 import { useAppStore } from "@/lib/store";
 import { CheckSquare, Repeat, Square } from "lucide-react";
 
 interface MessageListProps {
-  messages: Message[];
+  messages: LocalMessage[];
   isLoading: boolean;
   onEdit: (message: Message) => void;
   onDelete: (messageId: string) => void;
+  onRevert: (messageId: string) => void;
 }
 
 export function MessageList(
-  { messages, isLoading, onEdit, onDelete }: MessageListProps,
+  { messages, isLoading, onEdit, onDelete, onRevert }: MessageListProps,
 ) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const selectedMessages = useAppStore((state) => state.selectedMessages);
@@ -100,6 +101,7 @@ export function MessageList(
                   messageNumber={index + 1}
                   onEdit={onEdit}
                   onDelete={onDelete}
+                  onRevert={onRevert}
                   showCheckbox={true}
                 />
               ))
