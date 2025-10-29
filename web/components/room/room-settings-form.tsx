@@ -68,7 +68,7 @@ export function RoomSettingsForm({ roomDetails }: RoomSettingsFormProps) {
     const option = EXPIRY_OPTIONS.find((opt) => opt.value === expiryOption);
     const expiresAt = option?.ms === 0
       ? null
-      : new Date(Date.now() + (option?.ms || 0)).toISOString();
+      : new Date(Date.now() + (option?.ms || 0)).toISOString().slice(0, 23);
 
     updateMutation.mutate({
       expiresAt: expiresAt ?? undefined,

@@ -10,7 +10,9 @@
 进行前端自动化探索和问题修复，除非十分必要，可以使用 curl
 来辅助你。不能使用其它工具。
 。但是如果遇到问题，请你上网查询解决办法积极使用各种 MCP
-工具来辅助你完成相关任务
+工具来辅助你完成相关任务 数据库是 sqlite,
+当遇到问题时你可以直接查看数据库的内容：
+/Users/unic/dev/projs/rs/elizabeth/app.db 从而辅助你找到问题所在
 
 并且去除冗余的程序逻辑和 logs. 保持项目代码的 KISS, LISP,
 函数化，模块化，可组合性
@@ -47,6 +49,9 @@ db-reset: _check-env #!/usr/bin/env bash echo "🧨 重置数据库..." if [[ -f
 "$DATABASE_FILE" ]]; then
         rm -f "$DATABASE_FILE" echo "🗑️ 已删除旧数据库文件" fi just migrate echo
 "✅ 数据库重置完成"
+
+数据库是 sqlite, 当遇到问题时你可以直接查看数据库的内容：
+/Users/unic/dev/projs/rs/elizabeth/app.db 从而辅助你找到问题所在
 
 ## 1. 房间访问与身份验证测试
 

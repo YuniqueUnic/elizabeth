@@ -35,10 +35,9 @@ export function MessageInput(
     }
   }, [editingMessage]);
 
-  const handleSend = (contentToSend?: string) => {
-    const textToSend = String(contentToSend || content || "");
-    if (textToSend.trim() && !isLoading) {
-      onSend(textToSend.trim());
+  const handleSend = (text: string) => {
+    if (text.trim() && !isLoading) {
+      onSend(text.trim());
       setContent("");
       setIsExpanded(false);
     }
@@ -106,7 +105,7 @@ export function MessageInput(
             </Button>
             <Button
               size="sm"
-              onClick={handleSend}
+              onClick={() => handleSend(content)}
               disabled={!content.trim() || isLoading}
             >
               <Send className="mr-2 h-4 w-4" />
@@ -135,7 +134,7 @@ export function MessageInput(
               取消
             </Button>
             <Button
-              onClick={handleSend}
+              onClick={() => handleSend(content)}
               disabled={!content.trim() || isLoading}
             >
               <Send className="mr-2 h-4 w-4" />
