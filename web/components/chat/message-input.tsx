@@ -35,13 +35,33 @@ export function MessageInput(
     }
   }, [editingMessage]);
 
-  const handleSend = () => {
-    if (content.trim() && !isLoading) {
-      onSend(content.trim());
+  const handleSend = (contentToSend?: string) => {
+    const textToSend = String(contentToSend || content || "");
+    if (textToSend.trim() && !isLoading) {
+      onSend(textToSend.trim());
       setContent("");
       setIsExpanded(false);
     }
   };
+
+  useEffect(() => {
+    const handleCustomSend = (e: Event) => {
+      const customEvent = e as CustomEvent<{ content: string }>;
+      if (
+        customEvent.detail?.content && customEvent.detail.content.trim() &&
+        !isLoading
+      ) {
+        onSend(customEvent.detail.content.trim());
+        setContent("");
+        setIsExpanded(false);
+      }
+    };
+
+    window.addEventListener("sendMessage", handleCustomSend);
+    return () => {
+      window.removeEventListener("sendMessage", handleCustomSend);
+    };
+  }, [isLoading, onSend]);
 
   return (
     <>

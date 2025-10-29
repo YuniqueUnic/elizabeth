@@ -163,8 +163,10 @@ export async function postMessage(
   );
 
   // Step 2: Upload content as FormData (required by backend)
+  // Ensure content is a string
+  const contentString = typeof content === "string" ? content : String(content);
   const formData = new FormData();
-  const blob = new Blob([content], { type: "text/plain" });
+  const blob = new Blob([contentString], { type: "text/plain" });
   formData.append("file", blob, "message.txt");
 
   const uploadedContents = await api.post<BackendRoomContent[]>(

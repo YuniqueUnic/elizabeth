@@ -24,6 +24,7 @@ export function EnhancedMarkdownEditor({
   showPreview = false,
 }: EnhancedMarkdownEditorProps) {
   const theme = useAppStore((state) => state.theme);
+  const sendOnEnter = useAppStore((state) => state.sendOnEnter);
   const [mounted, setMounted] = useState(false);
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">(
     "light",
@@ -52,6 +53,9 @@ export function EnhancedMarkdownEditor({
     }
   }, [theme]);
 
+  // 如果 showPreview 为 true（全屏模式），强制使用 100% 高度
+  const editorHeight = showPreview ? "100%" : height;
+
   if (!mounted) {
     return (
       <div
@@ -65,22 +69,41 @@ export function EnhancedMarkdownEditor({
     );
   }
 
-  // 如果 showPreview 为 true（全屏模式），强制使用 100% 高度
-  const editorHeight = showPreview ? "100%" : height;
-
   return (
     <div
       data-color-mode={resolvedTheme}
       className="h-full flex flex-col overflow-hidden"
     >
       <MDEditor
-        value={value}
-        onChange={(val) => onChange(val || "")}
+        value={value || ""}
+        onChange={(val) => {
+          const newValue = val || "";
+          if (newValue !== value) {
+            onChange(newValue);
+          }
+        }}
         height={editorHeight}
         preview={showPreview ? "live" : "edit"}
         hideToolbar={false}
         textareaProps={{
           placeholder: placeholder || "输入消息...",
+          onKeyDown: (e) => {
+            if (
+              sendOnEnter && e.key === "Enter" && !e.shiftKey && !e.ctrlKey &&
+              !e.metaKey
+            ) {
+              e.preventDefault();
+              const currentValue = (e.target as HTMLTextAreaElement).value;
+              if (currentValue.trim()) {
+                onChange(currentValue.trim());
+                // Trigger send via custom event
+                const sendEvent = new CustomEvent("sendMessage", {
+                  detail: { content: currentValue.trim() },
+                });
+                window.dispatchEvent(sendEvent);
+              }
+            }
+          },
         }}
         className="w-full flex-1"
         style={showPreview ? { flex: 1 } : { maxHeight: editorHeight }}

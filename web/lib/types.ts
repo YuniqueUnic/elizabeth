@@ -27,8 +27,12 @@ export type BackendContentType =
  * Convert backend ContentType to frontend enum
  */
 export function parseContentType(
-  backendType: BackendContentType | number,
+  backendType: BackendContentType | number | undefined | null,
 ): ContentType {
+  // Fallback when backend omits content_type (e.g., during upload pipeline)
+  if (backendType == null) {
+    return ContentType.File;
+  }
   if (typeof backendType === "number") {
     return backendType as ContentType;
   }
@@ -263,9 +267,17 @@ export function backendRoomToRoomDetails(room: BackendRoom): RoomDetails {
  * Convert backend RoomContent to frontend Message (for text content)
  */
 export function backendContentToMessage(content: BackendRoomContent): Message {
+  // Ensure content.text is always a string
+  let messageContent = "";
+  if (content.text !== undefined && content.text !== null) {
+    messageContent = typeof content.text === "string"
+      ? content.text
+      : String(content.text);
+  }
+
   return {
     id: String(content.id),
-    content: content.text || "",
+    content: messageContent,
     timestamp: content.created_at,
     fileName: content.file_name || undefined,
   };
@@ -277,7 +289,9 @@ export function backendContentToMessage(content: BackendRoomContent): Message {
 export function backendContentToFileItem(
   content: BackendRoomContent,
 ): FileItem {
-  const contentType = parseContentType(content.content_type);
+  // Be defensive: some responses may not include content_type immediately
+  const rawType = (content as any).content_type ?? (content as any).contentType;
+  const contentType = parseContentType(rawType);
 
   const typeMap: Record<number, FileItem["type"]> = {
     [ContentType.Image]: "image",
