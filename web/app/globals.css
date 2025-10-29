@@ -131,52 +131,27 @@
   --color-sidebar-ring: var(--sidebar-ring);
   --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
   /* computed shadow variables below - do not modify */
-  --shadow-2xs: var(--shadow-x) var(--shadow-y) color-mix(
-    in srgb,
-    var(--shadow-color) calc(var(--shadow-opacity) * 100%),
-    transparent
-  );
-  --shadow-xs: var(--shadow-x) var(--shadow-y) var(--shadow-blur) var(
-    --shadow-spread
-  ) color-mix(
-    in srgb,
-    var(--shadow-color) calc(var(--shadow-opacity) * 100%),
-    transparent
-  );
-  --shadow-sm: var(--shadow-x) var(--shadow-y) calc(var(--shadow-blur) * 1.5)
-    var(--shadow-spread) color-mix(
-    in srgb,
-    var(--shadow-color) calc(var(--shadow-opacity) * 100%),
-    transparent
-  );
-  --shadow-md: calc(var(--shadow-x) * 2) calc(var(--shadow-y) * 2) calc(
-    var(--shadow-blur) * 3
-  ) calc(var(--shadow-spread) - 1px) color-mix(
-    in srgb,
-    var(--shadow-color) calc(var(--shadow-opacity) * 100%),
-    transparent
-  );
-  --shadow-lg: calc(var(--shadow-x) * 4) calc(var(--shadow-y) * 4) calc(
-    var(--shadow-blur) * 5
-  ) calc(var(--shadow-spread) - 3px) color-mix(
-    in srgb,
-    var(--shadow-color) calc(var(--shadow-opacity) * 100%),
-    transparent
-  );
-  --shadow-xl: calc(var(--shadow-x) * 6) calc(var(--shadow-y) * 6) calc(
-    var(--shadow-blur) * 7
-  ) calc(var(--shadow-spread) - 5px) color-mix(
-    in srgb,
-    var(--shadow-color) calc(var(--shadow-opacity) * 100%),
-    transparent
-  );
-  --shadow-2xl: calc(var(--shadow-x) * 8) calc(var(--shadow-y) * 8) calc(
-    max(0px, var(--shadow-blur) * 9 - 8px)
-  ) calc(var(--shadow-spread) - 12px) color-mix(
-    in srgb,
-    var(--shadow-color) calc(var(--shadow-opacity) * 250%),
-    transparent
-  );
+  --shadow-2xs: var(--shadow-x) var(--shadow-y) color-mix(in srgb,
+      var(--shadow-color) calc(var(--shadow-opacity) * 100%),
+      transparent);
+  --shadow-xs: var(--shadow-x) var(--shadow-y) var(--shadow-blur) var(--shadow-spread) color-mix(in srgb,
+      var(--shadow-color) calc(var(--shadow-opacity) * 100%),
+      transparent);
+  --shadow-sm: var(--shadow-x) var(--shadow-y) calc(var(--shadow-blur) * 1.5) var(--shadow-spread) color-mix(in srgb,
+      var(--shadow-color) calc(var(--shadow-opacity) * 100%),
+      transparent);
+  --shadow-md: calc(var(--shadow-x) * 2) calc(var(--shadow-y) * 2) calc(var(--shadow-blur) * 3) calc(var(--shadow-spread) - 1px) color-mix(in srgb,
+      var(--shadow-color) calc(var(--shadow-opacity) * 100%),
+      transparent);
+  --shadow-lg: calc(var(--shadow-x) * 4) calc(var(--shadow-y) * 4) calc(var(--shadow-blur) * 5) calc(var(--shadow-spread) - 3px) color-mix(in srgb,
+      var(--shadow-color) calc(var(--shadow-opacity) * 100%),
+      transparent);
+  --shadow-xl: calc(var(--shadow-x) * 6) calc(var(--shadow-y) * 6) calc(var(--shadow-blur) * 7) calc(var(--shadow-spread) - 5px) color-mix(in srgb,
+      var(--shadow-color) calc(var(--shadow-opacity) * 100%),
+      transparent);
+  --shadow-2xl: calc(var(--shadow-x) * 8) calc(var(--shadow-y) * 8) calc(max(0px, var(--shadow-blur) * 9 - 8px)) calc(var(--shadow-spread) - 12px) color-mix(in srgb,
+      var(--shadow-color) calc(var(--shadow-opacity) * 250%),
+      transparent);
   --shadow: var(--shadow-md);
   --color-shadow-color: var(--shadow-color);
   --shadow-opacity: var(--shadow-opacity);
@@ -190,6 +165,7 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }
@@ -286,36 +262,40 @@
 
 /* 文件名溢出处理增强 */
 .file-name {
-  @apply truncate;
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  word-break: break-word;
 }
 
 .file-name-wrapper {
-  @apply overflow-hidden;
-  min-width: 0; /* 允许 flex 子项收缩 */
+  min-width: 0;
+  /* 允许 flex 子项收缩 */
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
-/* 在小屏幕上进一步优化文件名显示 */
+/* 在不同屏幕尺寸下优化文件名显示 */
 @media (max-width: 640px) {
   .file-name {
-    @apply text-xs;
-    max-width: 100px;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
   }
 }
 
-/* 在中等屏幕上优化文件名显示 */
 @media (min-width: 641px) and (max-width: 1024px) {
   .file-name {
-    max-width: 150px;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
   }
 }
 
-/* 在大屏幕上优化文件名显示 */
 @media (min-width: 1025px) {
   .file-name {
-    max-width: 200px;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
   }
 }

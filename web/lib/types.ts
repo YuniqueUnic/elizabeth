@@ -151,6 +151,7 @@ export interface RoomSettings {
 export interface RoomDetails {
   id: string;
   name: string;
+  slug?: string; // Room slug (name for shareable, name_uuid for non-shareable)
   currentSize: number; // in bytes
   maxSize: number; // in bytes
   timesEntered: number;
@@ -243,6 +244,7 @@ export function backendRoomToRoomDetails(room: BackendRoom): RoomDetails {
   return {
     id: room.name,
     name: room.name,
+    slug: room.slug,
     currentSize: room.current_size,
     maxSize: room.max_size,
     timesEntered: room.current_times_entered,

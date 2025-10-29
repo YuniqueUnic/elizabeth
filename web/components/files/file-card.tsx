@@ -56,11 +56,21 @@ export function FileCard(
         </div>
 
         {/* File Info */}
-        <div className="file-name-wrapper">
-          <p className="file-name text-sm font-medium" title={file.name}>
+        <div className="file-name-wrapper min-w-0 flex-1 overflow-hidden">
+          <p
+            className="file-name text-sm font-medium truncate"
+            title={file.name}
+            style={{
+              wordBreak: "break-word",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              maxWidth: "100%",
+            }}
+          >
             {file.name}
           </p>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground truncate">
             {formatFileSize(file.size || 0)}
           </p>
         </div>

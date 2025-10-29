@@ -1,9 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { getRoomDetails, updateRoomPermissions } from "@/api/roomService";
+import { useAppStore } from "@/lib/store";
+import { useToast } from "@/hooks/use-toast";
+import { useRoomPermissions } from "@/hooks/use-room-permissions";
+import { encodePermissions, parsePermissions } from "@/lib/types";
 import type { RoomPermission } from "@/lib/types";
+import { getAccessToken } from "@/api/authService";
 
 interface RoomPermissionsProps {
   permissions: RoomPermission[];
@@ -74,11 +80,66 @@ function canTogglePermission(
 }
 
 export function RoomPermissions({ permissions }: RoomPermissionsProps) {
+  const currentRoomId = useAppStore((state) => state.currentRoomId);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const { can } = useRoomPermissions();
+
   const [permissionFlags, setPermissionFlags] = useState(
     permissionsToFlags(permissions),
   );
 
+  const hasChanges = permissionFlags !== permissionsToFlags(permissions);
+
+  const updateMutation = useMutation({
+    mutationFn: (newPermissions: RoomPermission[]) =>
+      updateRoomPermissions(currentRoomId, newPermissions),
+    onSuccess: async () => {
+      // 先使房间查询失效并重新获取，以获取最新的 slug 信息
+      queryClient.invalidateQueries({ queryKey: ["room", currentRoomId] });
+
+      // 权限更新后，需要刷新 token 以获取新的权限
+      // 先获取最新的房间信息以获取 slug（如果 SHARE 权限被移除，可能需要用 slug 访问）
+      try {
+        const roomDetails = await getRoomDetails(
+          currentRoomId,
+          undefined,
+          true,
+        );
+        // 使用房间的实际 slug 或 name 来刷新 token
+        const roomIdentifier = roomDetails.slug || roomDetails.name;
+        await getAccessToken(roomIdentifier);
+        // 如果 slug 改变了，需要更新当前房间 ID
+        if (roomDetails.slug && roomDetails.slug !== currentRoomId) {
+          queryClient.invalidateQueries({ queryKey: ["room"] });
+        }
+      } catch (error) {
+        console.error(
+          "Failed to refresh token after permission update:",
+          error,
+        );
+      }
+
+      toast({
+        title: "权限已更新",
+        description: "房间权限已成功更新",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "更新失败",
+        description: "无法更新房间权限，请重试",
+        variant: "destructive",
+      });
+    },
+  });
+
   const allPermissions: RoomPermission[] = ["read", "edit", "share", "delete"];
+
+  const handleSave = () => {
+    const newPermissions = parsePermissions(permissionFlags);
+    updateMutation.mutate(newPermissions);
+  };
 
   const hasPermission = (permission: RoomPermission): boolean => {
     const flag = permission === "read"
@@ -164,6 +225,36 @@ export function RoomPermissions({ permissions }: RoomPermissionsProps) {
       <p className="text-xs text-muted-foreground italic">
         提示：编辑、分享需要预览权限；删除需要预览和编辑权限
       </p>
+
+      {/* 只有管理员才能修改权限 */}
+      {can.delete && (
+        <div className="flex gap-2">
+          <Button
+            onClick={handleSave}
+            disabled={!hasChanges || updateMutation.isPending}
+            className="flex-1"
+            size="sm"
+          >
+            {updateMutation.isPending ? "保存中..." : "保存权限"}
+          </Button>
+          {hasChanges && (
+            <Button
+              variant="outline"
+              onClick={() =>
+                setPermissionFlags(permissionsToFlags(permissions))}
+              size="sm"
+            >
+              取消
+            </Button>
+          )}
+        </div>
+      )}
+
+      {!can.delete && (
+        <p className="text-xs text-muted-foreground">
+          只有房间管理员可以修改权限
+        </p>
+      )}
     </div>
   );
 }

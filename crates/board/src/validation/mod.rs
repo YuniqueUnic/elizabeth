@@ -11,7 +11,7 @@ use crate::errors::{AppError, AppResult};
 pub struct RoomNameValidator;
 
 impl RoomNameValidator {
-    /// 验证房间名称
+    /// 验证房间名称（用户输入）
     /// 规则：
     /// - 长度：3-50 字符
     /// - 只能包含字母、数字、下划线和连字符
@@ -29,6 +29,34 @@ impl RoomNameValidator {
         if !re.is_match(name) {
             return Err(AppError::validation(
                 "Room name can only contain letters, numbers, underscores, and hyphens, and cannot start or end with underscore or hyphen",
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// 验证房间标识符（可以是名称或 slug）
+    /// 用于路径参数，允许更长的 slug（包含 UUID）
+    /// 规则：
+    /// - 长度：3-150 字符（允许 slug 格式）
+    /// - 只能包含字母、数字、下划线和连字符
+    /// - 不能以下划线或连字符开头/结尾
+    pub fn validate_identifier(name: &str) -> AppResult<()> {
+        if name.is_empty() {
+            return Err(AppError::validation("Room identifier cannot be empty"));
+        }
+
+        if name.len() < 3 || name.len() > 150 {
+            return Err(AppError::validation(
+                "Room identifier must be between 3 and 150 characters",
+            ));
+        }
+
+        // 使用更宽松的正则表达式，允许更长的标识符
+        let re = get_room_identifier_regex();
+        if !re.is_match(name) {
+            return Err(AppError::validation(
+                "Room identifier can only contain letters, numbers, underscores, and hyphens",
             ));
         }
 
@@ -143,6 +171,12 @@ impl TokenValidator {
 fn get_room_name_regex() -> &'static Regex {
     static REGEX: OnceLock<Regex> = OnceLock::new();
     REGEX.get_or_init(|| Regex::new(r"^[a-zA-Z0-9](?:[a-zA-Z0-9_-]{1,48}[a-zA-Z0-9])?$").unwrap())
+}
+
+fn get_room_identifier_regex() -> &'static Regex {
+    static REGEX: OnceLock<Regex> = OnceLock::new();
+    // 更宽松的验证，允许更长的 slug（包括 UUID 格式）
+    REGEX.get_or_init(|| Regex::new(r"^[a-zA-Z0-9][a-zA-Z0-9_-]*[a-zA-Z0-9]$").unwrap())
 }
 
 #[cfg(test)]
