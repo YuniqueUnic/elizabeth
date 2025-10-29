@@ -8,7 +8,7 @@
  * - Logging out (revoking tokens)
  */
 
-import { API_ENDPOINTS } from "../lib/config";
+import { API_ENDPOINTS, TOKEN_CONFIG } from "../lib/config";
 import {
   api,
   clearRoomToken,
@@ -82,11 +82,20 @@ export async function getAccessToken(
   );
 
   // Store the token
+  console.log('🔑 getAccessToken API response for room:', roomName);
+  console.log('📤 Response data:', response);
+
   const tokenInfo: TokenInfo = {
     token: response.token,
     expiresAt: response.expires_at,
   };
+
+  console.log('💾 Storing tokenInfo for room:', roomName, tokenInfo);
   setRoomToken(roomName, tokenInfo);
+
+  // Verify storage
+  const stored = localStorage.getItem(TOKEN_CONFIG.storageKey);
+  console.log('✅ Verification - stored tokens after setRoomToken:', stored);
 
   return response;
 }

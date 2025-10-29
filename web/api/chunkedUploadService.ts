@@ -32,10 +32,27 @@ export interface ChunkUploadProgress {
 }
 
 export interface ChunkedUploadRequest {
-  file_name: string;
-  file_size: number;
-  mime_type: string;
-  total_chunks: number;
+  files: Array<{
+    name: string;
+    size: number;
+    mime?: string;
+    file_hash?: string;
+    chunk_size?: number;
+  }>;
+}
+
+export interface ChunkedUploadPreparationResponse {
+  reservation_id: string;
+  upload_token: string;
+  expires_at: string;
+  files: Array<{
+    name: string;
+    size: number;
+    mime?: string;
+    chunk_size: number;
+    total_chunks: number;
+    file_hash?: string;
+  }>;
 }
 
 export interface ChunkData {
@@ -82,19 +99,22 @@ export async function uploadFileChunked(
 
   // Step 1: Prepare chunked upload
   const prepareRequest: ChunkedUploadRequest = {
-    file_name: file.name,
-    file_size: file.size,
-    mime_type: file.type,
-    total_chunks,
+    files: [{
+      name: file.name,
+      size: file.size,
+      mime: file.type,
+      chunk_size: chunkSize,
+    }],
   };
 
-  const prepareResponse = await api.post<{ upload_id: string }>(
+  const prepareResponse = await api.post<ChunkedUploadPreparationResponse>(
     API_ENDPOINTS.chunkedUpload.prepare(roomName),
     prepareRequest,
     { token: authToken },
   );
 
-  const uploadId = prepareResponse.upload_id;
+  const uploadToken = prepareResponse.upload_token;
+  const reservationId = prepareResponse.reservation_id;
 
   // Step 2: Upload chunks
   for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
@@ -108,11 +128,11 @@ export async function uploadFileChunked(
 
       await uploadChunk(
         roomName,
-        uploadId,
+        uploadToken,
         {
           chunk_index: chunkIndex,
           data: arrayBuffer,
-          is_last,
+          is_last: isLast,
         },
         authToken,
         maxRetries,
@@ -151,7 +171,7 @@ export async function uploadFileChunked(
  * Upload a single chunk
  *
  * @param roomName - The name of the room
- * @param uploadId - The upload ID from prepare step
+ * @param uploadToken - The upload token from prepare step
  * @param chunkData - The chunk data to upload
  * @param token - Authentication token
  * @param maxRetries - Maximum number of retries
@@ -159,7 +179,7 @@ export async function uploadFileChunked(
  */
 async function uploadChunk(
   roomName: string,
-  uploadId: string,
+  uploadToken: string,
   chunkData: ChunkData,
   token: string,
   maxRetries: number = 3,
@@ -169,10 +189,13 @@ async function uploadChunk(
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       const formData = new FormData();
-      formData.append("upload_id", uploadId);
+      formData.append("upload_token", uploadToken);
       formData.append("chunk_index", chunkData.chunk_index.toString());
-      formData.append("data", new Blob([chunkData.data]));
-      formData.append("is_last", chunkData.is_last.toString());
+      formData.append("chunk_size", chunkData.data.byteLength.toString());
+
+      // Add chunk hash if available (optional)
+      const chunkBlob = new Blob([chunkData.data]);
+      formData.append("chunk_data", chunkBlob);
 
       await api.post(
         API_ENDPOINTS.chunkedUpload.upload(roomName),

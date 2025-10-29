@@ -15,7 +15,7 @@ use crate::repository::room_refresh_token_repository::{
 };
 
 const DEFAULT_LEEWAY_SECONDS: i64 = 5;
-const DEFAULT_TOKEN_TTL_MINUTES: i64 = 30;
+const DEFAULT_TOKEN_TTL_MINUTES: i64 = 120;
 const DEFAULT_REFRESH_TOKEN_TTL_DAYS: i64 = 7;
 const MINIMUM_EXP_DELTA_SECONDS: i64 = 5;
 

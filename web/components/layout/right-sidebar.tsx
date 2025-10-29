@@ -58,7 +58,7 @@ export function RightSidebar() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (fileId: string) => deleteFile(fileId),
+    mutationFn: (fileId: string) => deleteFile(currentRoomId, fileId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["files", currentRoomId] });
       queryClient.invalidateQueries({ queryKey: ["room", currentRoomId] });
@@ -92,7 +92,7 @@ export function RightSidebar() {
         title: "开始下载",
         description: `正在准备下载 ${selectedFiles.size} 个文件`,
       });
-      await downloadFilesBatch(Array.from(selectedFiles));
+      await downloadFilesBatch(currentRoomId, Array.from(selectedFiles));
       clearFileSelection();
       toast({
         title: "下载完成",

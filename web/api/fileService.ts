@@ -84,7 +84,7 @@ export async function getFilesList(
     .filter((content) => parseContentType(content.content_type) !== CT.Text)
     .map(convertFile)
     .sort((a, b) =>
-      new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
+      new Date(b.uploadedAt || '').getTime() - new Date(a.uploadedAt || '').getTime()
     );
 }
 
@@ -220,10 +220,11 @@ export async function deleteFile(
     throw new Error("Authentication required to delete files");
   }
 
-  // Backend expects an array of IDs
+  // Backend expects token in query parameter AND ids in both query and body
+  const idsParam = parseInt(fileId, 10);
   await api.delete(
-    `${API_ENDPOINTS.content.base(roomName)}?ids=${fileId}`,
-    { token: authToken },
+    `${API_ENDPOINTS.content.base(roomName)}?ids=${idsParam}&token=${authToken}`,
+    { ids: [idsParam] },
   );
 }
 
@@ -245,11 +246,55 @@ export async function deleteFiles(
     throw new Error("Authentication required to delete files");
   }
 
-  const idsParam = fileIds.join(",");
+  const numericIds = fileIds.map(id => parseInt(id, 10));
+  const idsParam = numericIds.join(",");
+  // Backend expects token in query parameter AND ids in both query and body
   await api.delete(
-    `${API_ENDPOINTS.content.base(roomName)}?ids=${idsParam}`,
-    { token: authToken },
+    `${API_ENDPOINTS.content.base(roomName)}?ids=${idsParam}&token=${authToken}`,
+    { ids: numericIds },
   );
+}
+
+/**
+ * Download a single file
+ *
+ * @param roomName - The name of the room
+ * @param fileId - The ID of the file to download
+ * @param fileName - The name of the file to download
+ * @param token - Optional token for authentication
+ * @returns Promise that resolves when download is triggered
+ */
+export async function downloadFile(
+  roomName: string,
+  fileId: string,
+  fileName: string,
+  token?: string,
+): Promise<void> {
+  const authToken = token || await getValidToken(roomName);
+
+  if (!authToken) {
+    throw new Error("Authentication required to download files");
+  }
+
+  const response = await api.get(
+    `${API_ENDPOINTS.content.base(roomName)}/${fileId}`,
+    undefined,
+    {
+      token: authToken,
+      responseType: "blob", // Important for file downloads
+    },
+  );
+
+  // Create download link for the file
+  const blob = new Blob([response]);
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.URL.revokeObjectURL(url);
 }
 
 /**
@@ -274,7 +319,7 @@ export async function downloadFilesBatch(
 
   const response = await api.post(
     `${API_ENDPOINTS.content.base(roomName)}/download`,
-    { file_ids: fileIds },
+    { file_ids: fileIds.map(id => parseInt(id, 10)) },
     {
       token: authToken,
       responseType: "blob", // Important for file downloads
@@ -294,11 +339,12 @@ export async function downloadFilesBatch(
 }
 
 // Legacy compatibility exports (for existing components)
-export { getFilesList };
+// getFilesList is already exported above
 export default {
   getFilesList,
   uploadFile,
   deleteFile,
   deleteFiles,
+  downloadFile,
   downloadFilesBatch,
 };

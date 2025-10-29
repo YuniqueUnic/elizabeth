@@ -67,7 +67,7 @@ export default function HomePage() {
 
   if (mode === "home") {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-background to-muted/20 p-4">
+      <div className="flex min-h-screen flex-col items-center justify-center bg-linear-to-br from-background to-muted/20 p-4">
         <div className="absolute top-4 right-4">
           <ThemeSwitcher />
         </div>
@@ -126,7 +126,7 @@ export default function HomePage() {
 
   if (mode === "create") {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-background to-muted/20 p-4">
+      <div className="flex min-h-screen flex-col items-center justify-center bg-linear-to-br from-background to-muted/20 p-4">
         <div className="absolute top-4 right-4">
           <ThemeSwitcher />
         </div>
@@ -207,7 +207,7 @@ export default function HomePage() {
 
   // Join mode
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-background to-muted/20 p-4">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-linear-to-br from-background to-muted/20 p-4">
       <div className="absolute top-4 right-4">
         <ThemeSwitcher />
       </div>

@@ -81,7 +81,7 @@ export async function getRoomDetails(
   let authToken: string | undefined;
 
   if (!skipAuth) {
-    authToken = token || await getValidToken(roomName);
+    authToken = token || (await getValidToken(roomName)) || undefined;
   }
 
   const room = await api.get<BackendRoom>(
@@ -224,7 +224,7 @@ export async function listRoomTokens(
 }
 
 // Legacy compatibility exports (for existing components)
-export { getRoomDetails };
+// getRoomDetails is already exported above
 
 export default {
   createRoom,

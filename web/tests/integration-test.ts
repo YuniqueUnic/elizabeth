@@ -84,10 +84,10 @@ async function runIntegrationTest() {
     console.log("7. Updating room settings");
     const updatedRoom = await updateRoomSettings(
       roomName,
-      tokenResponse.token,
       {
         maxSize: 20971520, // 20MB
       },
+      tokenResponse.token,
     );
     console.log("✓ Room settings updated:", updatedRoom);
     console.log("");

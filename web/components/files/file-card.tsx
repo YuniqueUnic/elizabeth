@@ -56,8 +56,10 @@ export function FileCard(
         </div>
 
         {/* File Info */}
-        <div className="flex-1 overflow-hidden">
-          <p className="truncate text-sm font-medium">{file.name}</p>
+        <div className="file-name-wrapper">
+          <p className="file-name text-sm font-medium" title={file.name}>
+            {file.name}
+          </p>
           <p className="text-xs text-muted-foreground">
             {formatFileSize(file.size || 0)}
           </p>

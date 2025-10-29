@@ -56,15 +56,18 @@ export type RoomPermission = "read" | "edit" | "share" | "delete";
  * Backend Room response
  */
 export interface BackendRoom {
+  id?: number;
   name: string;
+  slug: string;
   password: string | null; // Room password (null if no password)
-  permission: number; // Bitflags: 1=read, 2=edit, 4=share, 8=delete
+  permission: number | string; // Bitflags: 1=read, 2=edit, 4=share, 8=delete, or string representation
+  status: "open" | "lock" | "close";
   max_size: number;
   current_size: number;
-  times_entered: number;
   max_times_entered: number;
   current_times_entered: number;
   created_at: string;
+  updated_at: string;
   expire_at: string | null;
 }
 
@@ -84,22 +87,54 @@ export interface BackendRoomContent {
 }
 
 /**
+ * Upload preparation response
+ */
+export interface UploadPreparationResponse {
+  reservation_id: number;
+  reserved_size: number;
+  expires_at: string;
+  current_size: number;
+  remaining_size: number;
+  max_size: number;
+}
+
+/**
  * Backend Token response
  */
 export interface BackendTokenResponse {
   token: string;
+  claims: {
+    sub: string;
+    room_id: number;
+    room_name: string;
+    permission: number;
+    max_size: number;
+    exp: number;
+    iat: number;
+    jti: string;
+    token_type: "access" | "refresh";
+    refresh_jti?: string;
+  };
   expires_at: string;
   refresh_token?: string;
+  refresh_token_expires_at?: string;
 }
 
 /**
  * Backend Token validation response
  */
 export interface BackendTokenValidation {
-  valid: boolean;
-  room_name: string;
-  permission: number;
-  expires_at: string;
+  claims: {
+    sub: string;
+    room_id: number;
+    room_name: string;
+    permission: number;
+    max_size: number;
+    exp: number;
+    iat: number;
+    jti: string;
+    token_type: "access" | "refresh";
+  };
 }
 
 // ============================================================================
@@ -130,6 +165,8 @@ export interface Message {
   content: string;
   timestamp: string;
   fileName?: string;
+  user?: string;
+  isOwn?: boolean;
 }
 
 export interface FileItem {
@@ -141,6 +178,7 @@ export interface FileItem {
   url?: string;
   mimeType?: string;
   createdAt?: string;
+  uploadedAt?: string;
 }
 
 /**
@@ -166,7 +204,18 @@ export type Theme = "dark" | "light" | "system";
 /**
  * Convert backend permission bits to frontend permission strings
  */
-export function parsePermissions(bits: number): RoomPermission[] {
+export function parsePermissions(bits: number | string): RoomPermission[] {
+  // Handle string representation (e.g., "VIEW_ONLY | EDITABLE | SHARE | DELETE")
+  if (typeof bits === "string") {
+    const perms: RoomPermission[] = [];
+    if (bits.includes("VIEW_ONLY") || bits.includes("1")) perms.push("read");
+    if (bits.includes("EDITABLE") || bits.includes("2")) perms.push("edit");
+    if (bits.includes("SHARE") || bits.includes("4")) perms.push("share");
+    if (bits.includes("DELETE") || bits.includes("8")) perms.push("delete");
+    return perms;
+  }
+
+  // Handle numeric bit flags
   const perms: RoomPermission[] = [];
   if (bits & 1) perms.push("read");
   if (bits & 2) perms.push("edit");
@@ -243,5 +292,6 @@ export function backendContentToFileItem(
     url: content.url || undefined,
     mimeType: content.mime_type || undefined,
     createdAt: content.created_at,
+    uploadedAt: content.created_at,
   };
 }

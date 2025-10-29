@@ -87,11 +87,25 @@ export default function RoomPage() {
 
   const handlePasswordSubmit = async (password: string) => {
     try {
+      console.log('🔑 handlePasswordSubmit called for room:', roomName);
       setError(null);
-      await getAccessToken(roomName, password);
+
+      const tokenResponse = await getAccessToken(roomName, password);
+      console.log('✅ getAccessToken success:', tokenResponse.token ? tokenResponse.token.substring(0, 30) + '...' : 'no token');
+
+      // Verify token was stored
+      const storedToken = localStorage.getItem('elizabeth_tokens');
+      console.log('💾 localStorage after getAccessToken:', storedToken ? storedToken.substring(0, 100) + '...' : 'empty');
+
       setNeedsPassword(false);
       setRoomExists(true);
+
+      // Final verification
+      const finalToken = localStorage.getItem('elizabeth_tokens');
+      console.log('🏁 Final localStorage state:', finalToken ? finalToken.substring(0, 100) + '...' : 'empty');
+
     } catch (err: any) {
+      console.error('❌ handlePasswordSubmit failed:', err);
       // Check for authentication errors (401) or password-related errors
       if (
         err.code === 401 ||
@@ -113,7 +127,7 @@ export default function RoomPage() {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
-          <LoadingSpinner size="lg" />
+          <LoadingSpinner className="h-12 w-12" />
           <p className="text-muted-foreground">正在加载房间...</p>
         </div>
       </div>
