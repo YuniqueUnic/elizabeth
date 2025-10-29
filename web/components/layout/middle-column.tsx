@@ -10,7 +10,7 @@ import {
   updateMessage,
 } from "@/api/messageService";
 import { useAppStore } from "@/lib/store";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import type { Message } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
@@ -132,13 +132,16 @@ export function MiddleColumn() {
     },
   });
 
-  const handleSend = (content: string) => {
-    if (editingMessage) {
-      updateMutation.mutate({ messageId: editingMessage.id, content });
-    } else {
-      postMutation.mutate(content);
-    }
-  };
+  const handleSend = useCallback(
+    (content: string) => {
+      if (editingMessage) {
+        updateMutation.mutate({ messageId: editingMessage.id, content });
+      } else {
+        postMutation.mutate(content);
+      }
+    },
+    [editingMessage, updateMutation, postMutation],
+  );
 
   const handleEdit = (message: Message) => {
     setEditingMessage(message);
