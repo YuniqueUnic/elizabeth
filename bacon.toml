@@ -85,7 +85,11 @@ command = [
 ]
 need_stdout = true
 allow_warnings = true
-background = true
+background = false
+on_change_strategy = "kill_then_restart"
+default_watch = false
+watch= ["./crates","./app.db"]
+
 
 # Run your long-running application (eg server) and have the result displayed in bacon.
 # For programs that never stop (eg a server), `background` is set to false

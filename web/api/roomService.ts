@@ -108,13 +108,14 @@ export async function deleteRoom(
  * @param roomName - The name of the room
  * @param permissions - Array of permissions to set
  * @param token - Optional token for authentication
+ * @returns Updated room details
  */
 export async function updateRoomPermissions(
   roomName: string,
   permissions: RoomPermission[],
   token?: string,
-): Promise<void> {
-  const authToken = token || await getValidToken(roomName);
+): Promise<RoomDetails> {
+  const authToken = token || (await getValidToken(roomName));
 
   if (!authToken) {
     throw new Error("Authentication required to update permissions");
@@ -122,7 +123,7 @@ export async function updateRoomPermissions(
 
   // Backend expects { edit: bool, share: bool, delete: bool }
   // VIEW_ONLY (read) is always included by default
-  await api.post(
+  const room = await api.post<BackendRoom>(
     API_ENDPOINTS.rooms.permissions(roomName),
     {
       edit: permissions.includes("edit"),
@@ -131,6 +132,7 @@ export async function updateRoomPermissions(
     },
     { token: authToken },
   );
+  return convertRoom(room);
 }
 
 /**

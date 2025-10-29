@@ -116,6 +116,8 @@ db-reset: _check-env
         echo "🗑️  已删除旧数据库文件"
     fi
     just migrate
+    rm ./app.db*
+    cp -f "$DATABASE_FILE" .
     echo "✅ 数据库重置完成"
 
 # 🎉 数据库初始化（含 prepare 缓存）

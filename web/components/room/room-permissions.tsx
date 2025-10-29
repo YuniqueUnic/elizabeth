@@ -10,6 +10,8 @@ import { useRoomPermissions } from "@/hooks/use-room-permissions";
 import { encodePermissions, parsePermissions } from "@/lib/types";
 import type { RoomPermission } from "@/lib/types";
 import { getAccessToken } from "@/api/authService";
+import { useRouter } from "next/navigation";
+import { clearRoomToken } from "@/lib/utils/api";
 
 interface RoomPermissionsProps {
   permissions: RoomPermission[];
@@ -80,7 +82,8 @@ function canTogglePermission(
 }
 
 export function RoomPermissions({ permissions }: RoomPermissionsProps) {
-  const currentRoomId = useAppStore((state) => state.currentRoomId);
+  const router = useRouter();
+  const { currentRoomId, setCurrentRoomId } = useAppStore();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { can } = useRoomPermissions();
@@ -94,36 +97,40 @@ export function RoomPermissions({ permissions }: RoomPermissionsProps) {
   const updateMutation = useMutation({
     mutationFn: (newPermissions: RoomPermission[]) =>
       updateRoomPermissions(currentRoomId, newPermissions),
-    onSuccess: async () => {
-      // 先使房间查询失效并重新获取，以获取最新的 slug 信息
-      queryClient.invalidateQueries({ queryKey: ["room", currentRoomId] });
+    onSuccess: async (updatedRoom) => {
+      const newIdentifier = updatedRoom.slug || updatedRoom.name;
+      const oldIdentifier = currentRoomId;
 
-      // 权限更新后，需要刷新 token 以获取新的权限
-      // 先获取最新的房间信息以获取 slug（如果 SHARE 权限被移除，可能需要用 slug 访问）
       try {
-        const roomDetails = await getRoomDetails(
-          currentRoomId,
-          undefined,
-          true,
-        );
-        // 使用房间的实际 slug 或 name 来刷新 token
-        const roomIdentifier = roomDetails.slug || roomDetails.name;
-        await getAccessToken(roomIdentifier);
-        // 如果 slug 改变了，需要更新当前房间 ID
-        if (roomDetails.slug && roomDetails.slug !== currentRoomId) {
-          queryClient.invalidateQueries({ queryKey: ["room"] });
+        // Get new token and store it. This is crucial for the next page load.
+        await getAccessToken(newIdentifier);
+
+        if (newIdentifier !== oldIdentifier) {
+          // Clean up the old token.
+          clearRoomToken(oldIdentifier);
+
+          // Force a full page reload to the new URL.
+          // This avoids issues with Next.js router state and ensures a clean load.
+          window.location.href = `/${newIdentifier}`;
+        } else {
+          // If slug hasn't changed, just invalidate queries to be safe
+          queryClient.invalidateQueries({ queryKey: ["room", oldIdentifier] });
+          queryClient.invalidateQueries({
+            queryKey: ["contents", oldIdentifier],
+          });
+          toast({
+            title: "权限已更新",
+            description: "房间权限已成功更新",
+          });
         }
       } catch (error) {
-        console.error(
-          "Failed to refresh token after permission update:",
-          error,
-        );
+        console.error("Failed to update permissions and navigate:", error);
+        toast({
+          title: "更新失败",
+          description: "无法保存权限并导航，请手动刷新页面。",
+          variant: "destructive",
+        });
       }
-
-      toast({
-        title: "权限已更新",
-        description: "房间权限已成功更新",
-      });
     },
     onError: () => {
       toast({
