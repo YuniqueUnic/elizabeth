@@ -179,8 +179,8 @@ pub async fn find(
     Path(name): Path<String>,
     State(app_state): State<Arc<AppState>>,
 ) -> HandlerResult<Room> {
-    // 验证房间名称
-    RoomNameValidator::validate(&name)?;
+    // 验证房间标识符（可能是名称或 slug）
+    RoomNameValidator::validate_identifier(&name)?;
 
     let repository = SqliteRoomRepository::new(app_state.db_pool.clone());
 
@@ -230,8 +230,8 @@ pub async fn delete(
     Query(query): Query<TokenQuery>,
     State(app_state): State<Arc<AppState>>,
 ) -> Result<HttpResponse, AppError> {
-    // 验证房间名称
-    RoomNameValidator::validate(&name)?;
+    // 验证房间标识符（可能是名称或 slug）
+    RoomNameValidator::validate_identifier(&name)?;
 
     let repository = SqliteRoomRepository::new(app_state.db_pool.clone());
 
@@ -285,8 +285,8 @@ pub async fn issue_token(
     State(app_state): State<Arc<AppState>>,
     Json(payload): Json<IssueTokenRequest>,
 ) -> HandlerResult<IssueTokenResponse> {
-    // 验证房间名称
-    RoomNameValidator::validate(&name)?;
+    // 验证房间标识符（可能是名称或 slug）
+    RoomNameValidator::validate_identifier(&name)?;
 
     let mut previous_jti = None;
     let room = if let Some(token) = payload.token.as_deref() {
@@ -418,9 +418,8 @@ pub async fn update_permissions(
     State(app_state): State<Arc<AppState>>,
     Json(payload): Json<UpdateRoomPermissionRequest>,
 ) -> HandlerResult<Room> {
-    if name.is_empty() {
-        return Err(AppError::validation("Invalid room name"));
-    }
+    // 验证房间标识符（可能是名称或 slug）
+    RoomNameValidator::validate_identifier(&name)?;
 
     let verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
     let token_perm = verified.claims.as_permission();
@@ -500,9 +499,8 @@ pub async fn list_tokens(
     Query(query): Query<TokenQuery>,
     State(app_state): State<Arc<AppState>>,
 ) -> HandlerResult<Vec<RoomTokenView>> {
-    if name.is_empty() {
-        return Err(AppError::validation("Invalid room name"));
-    }
+    // 验证房间标识符（可能是名称或 slug）
+    RoomNameValidator::validate_identifier(&name)?;
 
     let verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
     let room_id = verified
@@ -579,8 +577,8 @@ pub async fn update_room_settings(
     State(app_state): State<Arc<AppState>>,
     Json(payload): Json<UpdateRoomSettingsRequest>,
 ) -> HandlerResult<Room> {
-    // 验证房间名称
-    RoomNameValidator::validate(&name)?;
+    // 验证房间标识符（可能是名称或 slug）
+    RoomNameValidator::validate_identifier(&name)?;
 
     // 验证令牌并检查权限
     let verified = verify_room_token(app_state.clone(), &name, &query.token).await?;

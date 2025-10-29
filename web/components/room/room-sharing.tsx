@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Download, LinkIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { getQRCodeImage, getShareLink } from "@/api/shareService";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTheme } from "@/lib/hooks/use-theme";
 
 interface RoomSharingProps {
@@ -14,10 +14,19 @@ interface RoomSharingProps {
 export function RoomSharing({ roomId }: RoomSharingProps) {
   const [copied, setCopied] = useState(false);
   const { theme } = useTheme();
+  const [currentTheme, setCurrentTheme] = useState<"light" | "dark">("light");
+
+  // 监听主题变化，确保二维码主题同步
+  useEffect(() => {
+    const root = window.document.documentElement;
+    const isDark = root.classList.contains("dark");
+    setCurrentTheme(isDark ? "dark" : "light");
+  }, [theme]);
 
   const { data: qrCodeUrl } = useQuery({
-    queryKey: ["qrcode", roomId, theme],
-    queryFn: () => getQRCodeImage(roomId, { theme }),
+    queryKey: ["qrcode", roomId, currentTheme],
+    queryFn: () => getQRCodeImage(roomId, { theme: currentTheme }),
+    enabled: !!roomId,
   });
 
   const { data: shareLink } = useQuery({
@@ -47,15 +56,21 @@ export function RoomSharing({ roomId }: RoomSharingProps) {
       <h3 className="text-sm font-semibold">分享房间</h3>
 
       {/* QR Code */}
-      {qrCodeUrl && (
-        <div className={`flex justify-center rounded-lg border p-4 ${
-          theme === "dark" ? "bg-slate-800 border-slate-700" : "bg-white border-gray-200"
-        }`}>
+      {qrCodeUrl ? (
+        <div className="flex justify-center rounded-lg border border-border bg-background p-4">
           <img
-            src={qrCodeUrl || "/placeholder.svg"}
+            src={qrCodeUrl}
             alt="Room QR Code"
             className="h-40 w-40"
+            onError={(e) => {
+              console.error("Failed to load QR code:", e);
+              e.currentTarget.src = "/placeholder.svg";
+            }}
           />
+        </div>
+      ) : (
+        <div className="flex justify-center rounded-lg border border-border bg-muted p-4">
+          <p className="text-sm text-muted-foreground">正在生成二维码...</p>
         </div>
       )}
 

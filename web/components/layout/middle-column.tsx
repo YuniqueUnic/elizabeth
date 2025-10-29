@@ -14,26 +14,35 @@ import { useState } from "react";
 import type { Message } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { useRoomPermissions } from "@/hooks/use-room-permissions";
 
 export function MiddleColumn() {
   const currentRoomId = useAppStore((state) => state.currentRoomId);
   const queryClient = useQueryClient();
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
   const { toast } = useToast();
+  const { can } = useRoomPermissions();
 
   const { data: messages = [], isLoading } = useQuery({
     queryKey: ["messages", currentRoomId],
     queryFn: () => getMessages(currentRoomId),
+    refetchInterval: 5000, // 每 5 秒自动刷新一次，保持实时性
+    staleTime: 1000, // 1 秒后认为数据过期
   });
 
   const postMutation = useMutation({
     mutationFn: (content: string) => postMessage(currentRoomId, content),
     onMutate: async (content: string) => {
       // 取消任何进行中的查询
-      await queryClient.cancelQueries({ queryKey: ["messages", currentRoomId] });
+      await queryClient.cancelQueries({
+        queryKey: ["messages", currentRoomId],
+      });
 
       // 快照当前的消息列表
-      const previousMessages = queryClient.getQueryData(["messages", currentRoomId]);
+      const previousMessages = queryClient.getQueryData([
+        "messages",
+        currentRoomId,
+      ]);
 
       // 创建一个临时的乐观消息对象
       const optimisticMessage: Message = {
@@ -44,10 +53,13 @@ export function MiddleColumn() {
       };
 
       // 乐观更新：立即将新消息添加到列表中
-      queryClient.setQueryData(["messages", currentRoomId], (old: Message[] = []) => [
-        ...old,
-        optimisticMessage,
-      ]);
+      queryClient.setQueryData(
+        ["messages", currentRoomId],
+        (old: Message[] = []) => [
+          ...old,
+          optimisticMessage,
+        ],
+      );
 
       // 返回用于回滚的上下文
       return { previousMessages, optimisticMessage };
@@ -55,7 +67,10 @@ export function MiddleColumn() {
     onError: (error, content, context) => {
       // 如果出错，回滚到之前的状态
       if (context?.previousMessages) {
-        queryClient.setQueryData(["messages", currentRoomId], context.previousMessages);
+        queryClient.setQueryData(
+          ["messages", currentRoomId],
+          context.previousMessages,
+        );
       }
 
       toast({
@@ -65,12 +80,14 @@ export function MiddleColumn() {
       });
     },
     onSuccess: (newMessage, content, context) => {
-      // 用真实的服务器响应替换乐观消息
-      queryClient.setQueryData(["messages", currentRoomId], (old: Message[] = []) => {
-        return old.map((msg) =>
-          msg.id === context?.optimisticMessage.id ? newMessage : msg
-        );
-      });
+      queryClient.setQueryData(
+        ["messages", currentRoomId],
+        (old: Message[] = []) => {
+          return old.map((msg) =>
+            msg.id === context?.optimisticMessage.id ? newMessage : msg
+          );
+        },
+      );
 
       toast({
         title: "消息已发送",
@@ -78,8 +95,12 @@ export function MiddleColumn() {
       });
     },
     onSettled: () => {
-      // 无论成功还是失败，最终都重新获取数据以确保一致性
-      queryClient.invalidateQueries({ queryKey: ["messages", currentRoomId] });
+      // 延迟重新获取数据以确保用户能看到乐观更新
+      setTimeout(() => {
+        queryClient.invalidateQueries({
+          queryKey: ["messages", currentRoomId],
+        });
+      }, 500);
     },
   });
 
@@ -150,14 +171,16 @@ export function MiddleColumn() {
         </PanelResizeHandle>
 
         {/* 编辑器面板 */}
-        <Panel defaultSize={30} minSize={20}>
-          <MessageInput
-            onSend={handleSend}
-            editingMessage={editingMessage}
-            onCancelEdit={handleCancelEdit}
-            isLoading={postMutation.isPending || updateMutation.isPending}
-          />
-        </Panel>
+        {can.edit && (
+          <Panel defaultSize={30} minSize={20}>
+            <MessageInput
+              onSend={handleSend}
+              editingMessage={editingMessage}
+              onCancelEdit={handleCancelEdit}
+              isLoading={postMutation.isPending || updateMutation.isPending}
+            />
+          </Panel>
+        )}
       </PanelGroup>
     </main>
   );
