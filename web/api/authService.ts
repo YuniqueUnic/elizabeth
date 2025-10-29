@@ -81,21 +81,12 @@ export async function getAccessToken(
     { skipTokenInjection: true },
   );
 
-  // Store the token
-  console.log('🔑 getAccessToken API response for room:', roomName);
-  console.log('📤 Response data:', response);
-
   const tokenInfo: TokenInfo = {
     token: response.token,
     expiresAt: response.expires_at,
   };
 
-  console.log('💾 Storing tokenInfo for room:', roomName, tokenInfo);
   setRoomToken(roomName, tokenInfo);
-
-  // Verify storage
-  const stored = localStorage.getItem(TOKEN_CONFIG.storageKey);
-  console.log('✅ Verification - stored tokens after setRoomToken:', stored);
 
   return response;
 }
@@ -195,6 +186,10 @@ export async function getValidToken(roomName: string): Promise<string | null> {
     return null;
   }
 
+  if (!tokenInfo.token || !tokenInfo.expiresAt) {
+    return null;
+  }
+
   // Check if token needs refresh
   if (isTokenExpired(tokenInfo.expiresAt)) {
     if (tokenInfo.refreshToken) {
@@ -213,7 +208,6 @@ export async function getValidToken(roomName: string): Promise<string | null> {
         return null;
       }
     } else {
-      // Token expired and no refresh token available
       clearRoomToken(roomName);
       return null;
     }

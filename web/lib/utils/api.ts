@@ -49,6 +49,14 @@ export function getRoomToken(roomName: string): TokenInfo | null {
 }
 
 /**
+ * Get the raw JWT token string for a room
+ */
+export function getRoomTokenString(roomName: string): string | null {
+  const tokenInfo = getRoomToken(roomName);
+  return tokenInfo?.token || null;
+}
+
+/**
  * Set token for a specific room
  */
 export function setRoomToken(roomName: string, tokenInfo: TokenInfo): void {
@@ -81,7 +89,12 @@ export function isTokenExpired(
   expiresAt: string,
   bufferMs: number = TOKEN_CONFIG.refreshBeforeExpiry,
 ): boolean {
-  const expiryTime = new Date(expiresAt).getTime();
+  // Some backends may return ISO timestamps without timezone information (e.g. "2025-10-29T08:47:40").
+  // In JS, such strings are interpreted as local time, which can incorrectly mark tokens as expired
+  // when they were intended to be UTC. To be robust, treat timestamps lacking timezone as UTC.
+  const hasTimezone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(expiresAt);
+  const normalized = hasTimezone ? expiresAt : `${expiresAt}Z`;
+  const expiryTime = new Date(normalized).getTime();
   const now = Date.now();
   return (expiryTime - now) <= bufferMs;
 }
@@ -89,20 +102,22 @@ export function isTokenExpired(
 /**
  * Try to get a fresh token for a room (for non-password-protected rooms)
  */
-export async function refreshRoomToken(roomName: string): Promise<string | null> {
+export async function refreshRoomToken(
+  roomName: string,
+): Promise<string | null> {
   try {
-    console.log('🔄 Attempting to refresh token for room:', roomName);
-
-    const response = await fetch(`${API_BASE_URL}/rooms/${encodeURIComponent(roomName)}/tokens`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
+    const response = await fetch(
+      `${API_BASE_URL}/rooms/${encodeURIComponent(roomName)}/tokens`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({}),
       },
-      body: JSON.stringify({}),
-    });
+    );
 
     if (!response.ok) {
-      console.log('❌ Failed to refresh token for room:', roomName, response.status);
       return null;
     }
 
@@ -113,14 +128,13 @@ export async function refreshRoomToken(roomName: string): Promise<string | null>
         expiresAt: data.expires_at,
       };
 
-      console.log('✅ Successfully refreshed token for room:', roomName);
       setRoomToken(roomName, tokenInfo);
       return data.token;
     }
 
     return null;
   } catch (error) {
-    console.error('❌ Error refreshing token for room:', roomName, error);
+    console.error("Error refreshing token for room:", roomName, error);
     return null;
   }
 }
@@ -313,32 +327,28 @@ async function request<T = any>(
 
       if (!response.ok) {
         // Handle 401 Unauthorized - try token refresh
-        if (response.status === 401 && roomName && !tokenRefreshAttempted && !skipTokenInjection) {
-          console.log('🔄 Received 401, attempting token refresh for room:', roomName);
-
-          // Clear the invalid token first
+        if (
+          response.status === 401 && roomName && !tokenRefreshAttempted &&
+          !skipTokenInjection
+        ) {
           clearRoomToken(roomName);
           tokenRefreshAttempted = true;
 
-          // Try to get a fresh token automatically (works for non-password-protected rooms)
           const freshToken = await refreshRoomToken(roomName);
 
           if (freshToken) {
-            console.log('✅ Successfully refreshed token, retrying request');
-
-            // Rebuild URL with fresh token
             url = buildURL(path);
             url = injectToken(url, freshToken);
-
-            // Continue to next attempt (will retry with fresh token)
-            attempt--; // Don't count this as an attempt since we'll retry with fresh token
+            attempt--;
             continue;
           } else {
-            console.log('❌ Could not refresh token automatically, room may be password protected');
             // Throw a more user-friendly error that the UI can handle
             const errorData = await response.json();
             throw new APIError(
-              `Token expired: ${errorData.message || 'Please refresh the page to re-authenticate'}`,
+              `Token expired: ${
+                errorData.message ||
+                "Please refresh the page to re-authenticate"
+              }`,
               401,
               response,
             );

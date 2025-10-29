@@ -12,6 +12,7 @@ import { useAppStore } from "@/lib/store";
 import { RoomPasswordDialog } from "@/components/room/room-password-dialog";
 import { getRoomDetails } from "@/api/roomService";
 import { getAccessToken, hasValidToken } from "@/api/authService";
+import { isTokenExpired } from "@/lib/utils/api";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
@@ -38,15 +39,36 @@ export default function RoomPage() {
     // Set current room ID
     setCurrentRoomId(roomName);
 
-    // Check if we already have a valid token
-    if (hasValidToken(roomName)) {
-      setLoading(false);
-      setRoomExists(true);
-      return;
-    }
+    // Check if we already have a valid token in localStorage
+    const checkTokenAndAccess = () => {
+      try {
+        const stored = localStorage.getItem("elizabeth_tokens");
 
-    // Try to access room without password first
-    checkRoomAccess();
+        if (stored) {
+          const tokens = JSON.parse(stored);
+          const tokenInfo = tokens[roomName];
+
+          if (tokenInfo && tokenInfo.expiresAt) {
+            const isValid = !isTokenExpired(tokenInfo.expiresAt, 0);
+
+            if (isValid) {
+              setLoading(false);
+              setRoomExists(true);
+              return;
+            } else {
+              delete tokens[roomName];
+              localStorage.setItem("elizabeth_tokens", JSON.stringify(tokens));
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Error reading tokens:", e);
+      }
+
+      checkRoomAccess();
+    };
+
+    checkTokenAndAccess();
   }, [roomName, router, setCurrentRoomId]);
 
   const checkRoomAccess = async () => {
@@ -57,7 +79,21 @@ export default function RoomPage() {
       // Try to get room details without token (skipAuth=true)
       const room = await getRoomDetails(roomName, undefined, true);
 
-      // Room exists, check if it needs password
+      // Check if room has SHARE permission
+      // If not shareable, verify that roomName matches the slug (UUID link)
+      const isShareable = room.permissions.includes("share");
+      const roomSlug = room.slug || room.name;
+
+      // If room is not shareable and name doesn't match slug, reject direct access
+      if (!isShareable && roomName !== roomSlug && roomSlug.includes("_")) {
+        setError(
+          "该房间不允许直接访问，请使用管理员提供的完整链接（包含 UUID）",
+        );
+        setLoading(false);
+        return;
+      }
+
+      // Room exists and is accessible
       setRoomExists(true);
 
       // If room has password, show password dialog
@@ -87,25 +123,12 @@ export default function RoomPage() {
 
   const handlePasswordSubmit = async (password: string) => {
     try {
-      console.log('🔑 handlePasswordSubmit called for room:', roomName);
       setError(null);
-
-      const tokenResponse = await getAccessToken(roomName, password);
-      console.log('✅ getAccessToken success:', tokenResponse.token ? tokenResponse.token.substring(0, 30) + '...' : 'no token');
-
-      // Verify token was stored
-      const storedToken = localStorage.getItem('elizabeth_tokens');
-      console.log('💾 localStorage after getAccessToken:', storedToken ? storedToken.substring(0, 100) + '...' : 'empty');
-
+      await getAccessToken(roomName, password);
       setNeedsPassword(false);
       setRoomExists(true);
-
-      // Final verification
-      const finalToken = localStorage.getItem('elizabeth_tokens');
-      console.log('🏁 Final localStorage state:', finalToken ? finalToken.substring(0, 100) + '...' : 'empty');
-
     } catch (err: any) {
-      console.error('❌ handlePasswordSubmit failed:', err);
+      console.error("Password submission failed:", err);
       // Check for authentication errors (401) or password-related errors
       if (
         err.code === 401 ||

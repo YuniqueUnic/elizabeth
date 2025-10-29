@@ -18,6 +18,7 @@ import {
 import { useAppStore } from "@/lib/store";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useRoomPermissions } from "@/hooks/use-room-permissions";
 import type { FileItem } from "@/lib/types";
 
 export function RightSidebar() {
@@ -29,6 +30,7 @@ export function RightSidebar() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const isMobile = useIsMobile();
+  const { can } = useRoomPermissions();
 
   const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -36,6 +38,9 @@ export function RightSidebar() {
   const { data: files = [], isLoading } = useQuery({
     queryKey: ["files", currentRoomId],
     queryFn: () => getFilesList(currentRoomId),
+    refetchInterval: 5000, // 每 5 秒自动刷新一次，保持实时性
+    staleTime: 1000, // 1 秒后认为数据过期
+    enabled: !!currentRoomId, // 只在有房间 ID 时启用查询
   });
 
   const uploadMutation = useMutation({
@@ -204,12 +209,14 @@ export function RightSidebar() {
           )}
 
           {/* Upload Zone */}
-          <div className="p-4 pt-2">
-            <FileUploadZone
-              onUpload={handleUpload}
-              isUploading={uploadMutation.isPending}
-            />
-          </div>
+          {can.edit && (
+            <div className="p-4 pt-2">
+              <FileUploadZone
+                onUpload={handleUpload}
+                isUploading={uploadMutation.isPending}
+              />
+            </div>
+          )}
         </div>
       </aside>
 

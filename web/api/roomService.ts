@@ -11,17 +11,8 @@
 import { API_ENDPOINTS } from "../lib/config";
 import { api } from "../lib/utils/api";
 import { getValidToken } from "./authService";
-import type {
-  BackendRoom,
-  backendRoomToRoomDetails,
-  encodePermissions,
-  RoomDetails,
-  RoomPermission,
-} from "../lib/types";
-import {
-  backendRoomToRoomDetails as convertRoom,
-  encodePermissions as convertPerms,
-} from "../lib/types";
+import type { BackendRoom, RoomDetails, RoomPermission } from "../lib/types";
+import { backendRoomToRoomDetails as convertRoom } from "../lib/types";
 
 // ============================================================================
 // Room Request/Response Types
@@ -29,10 +20,6 @@ import {
 
 export interface CreateRoomRequest {
   password?: string;
-}
-
-export interface UpdatePermissionsRequest {
-  permission: number;
 }
 
 // ============================================================================
@@ -133,11 +120,15 @@ export async function updateRoomPermissions(
     throw new Error("Authentication required to update permissions");
   }
 
-  const permissionBits = convertPerms(permissions);
-
+  // Backend expects { edit: bool, share: bool, delete: bool }
+  // VIEW_ONLY (read) is always included by default
   await api.post(
     API_ENDPOINTS.rooms.permissions(roomName),
-    { permission: permissionBits },
+    {
+      edit: permissions.includes("edit"),
+      share: permissions.includes("share"),
+      delete: permissions.includes("delete"),
+    },
     { token: authToken },
   );
 }

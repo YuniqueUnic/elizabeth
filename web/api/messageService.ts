@@ -75,9 +75,9 @@ export async function getMessages(
     const contentType = parseContentType(content.content_type);
     // Include both explicit text content and text files
     return contentType === CT.Text ||
-           (contentType === CT.File &&
-            content.mime_type === "text/plain" &&
-            content.file_name?.includes("message.txt"));
+      (contentType === CT.File &&
+        content.mime_type === "text/plain" &&
+        content.file_name?.includes("message.txt"));
   });
 
   // For file-based messages, fetch the actual content
@@ -89,12 +89,14 @@ export async function getMessages(
       if (contentType === CT.File && content.mime_type === "text/plain") {
         try {
           const response = await fetch(
-            `${API_BASE_URL}${API_ENDPOINTS.content.byId(roomName, String(content.id))}?token=${authToken}`,
+            `${API_BASE_URL}${
+              API_ENDPOINTS.content.byId(roomName, String(content.id))
+            }?token=${authToken}`,
             {
               headers: {
-                'Accept': 'text/plain',
+                "Accept": "text/plain",
               },
-            }
+            },
           );
 
           if (response.ok) {
@@ -106,12 +108,12 @@ export async function getMessages(
             };
           }
         } catch (error) {
-          console.warn(`Failed to fetch content for message ${content.id}:`, error);
+          // Content fetch failed, skip this message content
         }
       }
 
       return content;
-    })
+    }),
   );
 
   return messagesWithContent
@@ -200,7 +202,9 @@ export async function deleteMessage(
 
   // Backend expects token in query parameter AND ids in both query and body
   await api.delete(
-    `${API_ENDPOINTS.content.base(roomName)}?ids=${messageId}&token=${authToken}`,
+    `${
+      API_ENDPOINTS.content.base(roomName)
+    }?ids=${messageId}&token=${authToken}`,
     { ids: [parseInt(messageId, 10)] },
   );
 }
@@ -226,8 +230,10 @@ export async function deleteMessages(
   const idsParam = messageIds.join(",");
   // Backend expects token in query parameter AND ids in both query and body
   await api.delete(
-    `${API_ENDPOINTS.content.base(roomName)}?ids=${idsParam}&token=${authToken}`,
-    { ids: messageIds.map(id => parseInt(id, 10)) },
+    `${
+      API_ENDPOINTS.content.base(roomName)
+    }?ids=${idsParam}&token=${authToken}`,
+    { ids: messageIds.map((id) => parseInt(id, 10)) },
   );
 }
 

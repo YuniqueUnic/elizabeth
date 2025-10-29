@@ -84,7 +84,8 @@ export async function getFilesList(
     .filter((content) => parseContentType(content.content_type) !== CT.Text)
     .map(convertFile)
     .sort((a, b) =>
-      new Date(b.uploadedAt || '').getTime() - new Date(a.uploadedAt || '').getTime()
+      new Date(b.uploadedAt || "").getTime() -
+      new Date(a.uploadedAt || "").getTime()
     );
 }
 
@@ -161,10 +162,17 @@ export async function uploadFile(
     return convertFile(uploadedFiles[0]);
   } else {
     // Use simple upload for small files
-    const authToken = token || await getValidToken(roomName);
+    let authToken = token || await getValidToken(roomName);
 
     if (!authToken) {
-      throw new Error("Authentication required to upload files");
+      try {
+        const { getAccessToken } = await import("./authService");
+        const tokenResponse = await getAccessToken(roomName);
+        authToken = tokenResponse.token;
+      } catch (err) {
+        console.error("Failed to get access token:", err);
+        throw new Error("Authentication required to upload files");
+      }
     }
 
     // Step 1: Prepare upload
@@ -186,13 +194,33 @@ export async function uploadFile(
     const formData = new FormData();
     formData.append("file", file);
 
-    const uploadedContents = await api.post<BackendRoomContent[]>(
-      `${
-        API_ENDPOINTS.content.base(roomName)
-      }?reservation_id=${prepareResponse.reservation_id}`,
-      formData,
-      { token: authToken },
-    );
+    // Attempt upload; if reservation 过期 (400) 则自动重新预留并重试一次
+    const doUpload = async (reservationId: string) => {
+      return await api.post<BackendRoomContent[]>(
+        `${
+          API_ENDPOINTS.content.base(roomName)
+        }?reservation_id=${reservationId}`,
+        formData,
+        { token: authToken },
+      );
+    };
+
+    let uploadedContents: BackendRoomContent[];
+    try {
+      uploadedContents = await doUpload(prepareResponse.reservation_id);
+    } catch (err: any) {
+      // If Bad Request, likely reservation TTL expired; re-prepare once
+      if (err?.code === 400) {
+        const retryPrepare = await api.post<PrepareUploadResponse>(
+          API_ENDPOINTS.content.prepare(roomName),
+          prepareRequest,
+          { token: authToken },
+        );
+        uploadedContents = await doUpload(retryPrepare.reservation_id);
+      } else {
+        throw err;
+      }
+    }
 
     if (uploadedContents.length === 0) {
       throw new Error("Failed to upload file");
@@ -223,7 +251,9 @@ export async function deleteFile(
   // Backend expects token in query parameter AND ids in both query and body
   const idsParam = parseInt(fileId, 10);
   await api.delete(
-    `${API_ENDPOINTS.content.base(roomName)}?ids=${idsParam}&token=${authToken}`,
+    `${
+      API_ENDPOINTS.content.base(roomName)
+    }?ids=${idsParam}&token=${authToken}`,
     { ids: [idsParam] },
   );
 }
@@ -246,11 +276,13 @@ export async function deleteFiles(
     throw new Error("Authentication required to delete files");
   }
 
-  const numericIds = fileIds.map(id => parseInt(id, 10));
+  const numericIds = fileIds.map((id) => parseInt(id, 10));
   const idsParam = numericIds.join(",");
   // Backend expects token in query parameter AND ids in both query and body
   await api.delete(
-    `${API_ENDPOINTS.content.base(roomName)}?ids=${idsParam}&token=${authToken}`,
+    `${
+      API_ENDPOINTS.content.base(roomName)
+    }?ids=${idsParam}&token=${authToken}`,
     { ids: numericIds },
   );
 }
@@ -270,10 +302,17 @@ export async function downloadFile(
   fileName: string,
   token?: string,
 ): Promise<void> {
-  const authToken = token || await getValidToken(roomName);
+  let authToken = token || await getValidToken(roomName);
 
   if (!authToken) {
-    throw new Error("Authentication required to download files");
+    try {
+      const { getAccessToken } = await import("./authService");
+      const tokenResponse = await getAccessToken(roomName);
+      authToken = tokenResponse.token;
+    } catch (err) {
+      console.error("Failed to get access token:", err);
+      throw new Error("Authentication required to download files");
+    }
   }
 
   const response = await api.get(
@@ -311,15 +350,22 @@ export async function downloadFilesBatch(
   fileIds: string[],
   token?: string,
 ): Promise<void> {
-  const authToken = token || await getValidToken(roomName);
+  let authToken = token || await getValidToken(roomName);
 
   if (!authToken) {
-    throw new Error("Authentication required to download files");
+    try {
+      const { getAccessToken } = await import("./authService");
+      const tokenResponse = await getAccessToken(roomName);
+      authToken = tokenResponse.token;
+    } catch (err) {
+      console.error("Failed to get access token:", err);
+      throw new Error("Authentication required to download files");
+    }
   }
 
   const response = await api.post(
     `${API_ENDPOINTS.content.base(roomName)}/download`,
-    { file_ids: fileIds.map(id => parseInt(id, 10)) },
+    { file_ids: fileIds.map((id) => parseInt(id, 10)) },
     {
       token: authToken,
       responseType: "blob", // Important for file downloads
