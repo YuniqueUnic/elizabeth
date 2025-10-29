@@ -30,6 +30,8 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
     setMessageFontSize,
     useHeti,
     setUseHeti,
+    showDeleteConfirmation,
+    setShowDeleteConfirmation,
   } = useAppStore();
 
   return (
@@ -84,6 +86,21 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
               id="use-heti"
               checked={useHeti}
               onCheckedChange={setUseHeti}
+            />
+          </div>
+
+          {/* Show Delete Confirmation Setting */}
+          <div className="flex items-center justify-between space-x-4">
+            <div className="flex-1 space-y-1">
+              <Label htmlFor="delete-confirmation">删除时提示</Label>
+              <p className="text-sm text-muted-foreground">
+                删除时弹出提示保存的 dialog
+              </p>
+            </div>
+            <Switch
+              id="delete-confirmation"
+              checked={showDeleteConfirmation}
+              onCheckedChange={setShowDeleteConfirmation}
             />
           </div>
 

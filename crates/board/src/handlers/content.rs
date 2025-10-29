@@ -807,6 +807,7 @@ pub async fn update_content(
     let existing_timestamp = existing_content.timestamp();
 
     // Check for concurrent modification
+    /*
     let current_timestamp = chrono::Utc::now().naive_utc().and_utc().timestamp();
     if payload.text.is_some() {
         // For text content updates, we'll implement optimistic concurrency control
@@ -815,10 +816,11 @@ pub async fn update_content(
         if existing_timestamp > current_timestamp - 300 {
             // 5 minute window
             return Err(AppError::conflict(
-                "Content has been modified by another user",
+                "Content was modified recently, please refresh and try again",
             ));
         }
     }
+    */
 
     // Create updated content
     let now = chrono::Utc::now().naive_utc();
