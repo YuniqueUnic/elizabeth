@@ -31,53 +31,45 @@ export default function RoomPage() {
   const [roomExists, setRoomExists] = useState(false);
 
   useEffect(() => {
-    if (!roomName) {
-      router.push("/");
-      return;
-    }
-
-    // Set current room ID
-    setCurrentRoomId(roomName);
-
-    // Check if we already have a valid token in localStorage
-    const checkTokenAndAccess = () => {
-      try {
-        const stored = localStorage.getItem("elizabeth_tokens");
-
-        if (stored) {
-          const tokens = JSON.parse(stored);
-          const tokenInfo = tokens[roomName];
-
-          if (tokenInfo && tokenInfo.expiresAt) {
-            const isValid = !isTokenExpired(tokenInfo.expiresAt, 0);
-
-            if (isValid) {
-              setLoading(false);
-              setRoomExists(true);
-              return;
-            } else {
-              delete tokens[roomName];
-              localStorage.setItem("elizabeth_tokens", JSON.stringify(tokens));
-            }
-          }
-        }
-      } catch (e) {
-        console.error("Error reading tokens:", e);
+    const initRoom = async () => {
+      if (!roomName) {
+        router.push("/");
+        return;
       }
 
-      checkRoomAccess();
+      setCurrentRoomId(roomName);
+
+      // Check if we have a valid token first
+      if (hasValidToken(roomName)) {
+        setLoading(false);
+        setRoomExists(true);
+        return;
+      }
+
+      // If no valid token, try to get one and then check access
+      try {
+        await getAccessToken(roomName);
+        await checkRoomAccess();
+      } catch (e) {
+        // If we still fail, then there's a problem
+        setError("无法访问房间或获取令牌");
+        setLoading(false);
+      }
     };
 
-    checkTokenAndAccess();
+    initRoom();
   }, [roomName, router, setCurrentRoomId]);
 
   const checkRoomAccess = async () => {
+    if (!roomName) return;
+
     try {
       setLoading(true);
       setError(null);
 
       // Try to get room details without token (skipAuth=true)
       const room = await getRoomDetails(roomName, undefined, true);
+      console.log("Room details received:", room);
 
       // Check if room has SHARE permission
       // If not shareable, verify that roomName matches the slug (UUID link)
@@ -98,14 +90,18 @@ export default function RoomPage() {
 
       // If room has password, show password dialog
       if (room.settings.passwordProtected) {
+        console.log("Room is password protected.");
         setNeedsPassword(true);
         setLoading(false);
       } else {
+        console.log("Room is not password protected. Attempting to get access token.");
         // No password needed, try to get token
         try {
           await getAccessToken(roomName);
+          console.log("Successfully obtained access token.");
           setLoading(false);
         } catch (err) {
+          console.error("Failed to get access token:", err);
           setError("无法获取访问令牌");
           setLoading(false);
         }

@@ -8,6 +8,7 @@
 default_job = "check"
 env.CARGO_TERM_COLOR = "always"
 
+
 [jobs.check]
 command = ["cargo", "check"]
 need_stdout = true
@@ -79,6 +80,7 @@ command = [
   "elizabeth-board",
   "--",
   "run",
+  "-vv",
   # put launch parameters for your program behind a `--` separator
 ]
 need_stdout = true

@@ -47,7 +47,10 @@ export function LeftSidebar() {
                 <>
                   <RoomSettingsForm roomDetails={roomDetails} />
                   <RoomPermissions permissions={roomDetails.permissions} />
-                  <RoomSharing roomId={roomDetails.name} />
+                  <RoomSharing
+                    key={roomDetails.slug}
+                    roomId={roomDetails.slug || roomDetails.name}
+                  />
                   <RoomCapacity
                     currentSize={roomDetails.currentSize}
                     maxSize={roomDetails.maxSize}
@@ -105,7 +108,10 @@ export function LeftSidebar() {
               <>
                 <RoomSettingsForm roomDetails={roomDetails} />
                 <RoomPermissions permissions={roomDetails.permissions} />
-                <RoomSharing roomId={roomDetails.name} />
+                <RoomSharing
+                  key={roomDetails.slug}
+                  roomId={roomDetails.slug || roomDetails.name}
+                />
                 <RoomCapacity
                   currentSize={roomDetails.currentSize}
                   maxSize={roomDetails.maxSize}

@@ -1,10 +1,19 @@
 # Elizabeth 前后端 API 集成计划
 
-同时请你使用 chrome-devtools
-进行前端自动化探索和问题修复。同时遇到问题，请你上网查询解决办法 积极使用各种
-MCP 工具来辅助你完成相关任务
+# 前端 UI 完整功能测试计划
 
-> 遇到问题请积极修复 保持 DRY, KISS, LISP, 函数化，模块化，可组合性。
+重要！:使用 chrome-devtools 进行前端 UI 自动化探索和问题修复
+
+前端 UI 的各个功能都测试通过 UI
+测试的方式使其测试通过。确保前端功能正确，逻辑正确。并且 UI
+反馈和行为也是正确的。只能使用 chrome-devtools
+进行前端自动化探索和问题修复，除非十分必要，可以使用 curl
+来辅助你。不能使用其它工具。
+。但是如果遇到问题，请你上网查询解决办法积极使用各种 MCP
+工具来辅助你完成相关任务
+
+并且去除冗余的程序逻辑和 logs. 保持项目代码的 KISS, LISP,
+函数化，模块化，可组合性
 
 ## 项目配置
 
@@ -21,486 +30,473 @@ MCP 工具来辅助你完成相关任务
 - 访问地址：http://localhost:4001
 - 服务端口：4001
 
-## 项目背景
+rust 后端也使用 bacon run 进行了 hot-reload 自动构建，前端也是使用 pnpm dev
+--port 4001 进行了 hot-reload 自动构建。
 
-- **后端**: Rust + Axum，运行在 `http://localhost:4092`
-- **前端**: Next.js 15 + React + TypeScript
-- **认证方式**: JWT Token (通过 query 参数 `?token=xxx` 传递)
-- **关键发现**: 后端的 `RoomContent` 支持 `ContentType::Text`，可以用于存储消息
+这里是数据库：/Users/unic/dev/projs/rs/elizabeth/app.db
+(位置是正确的，代码中的位置也是正确的.) 这里是 sqlx 的 migration :
+/Users/unic/dev/projs/rs/elizabeth/crates/board/migrations (sqlx
+代码编写时的数据库在/Users/unic/dev/projs/rs/elizabeth/crates/board/app.db,
+但是实际前后端集成测试的数据库位于 /Users/unic/dev/projs/rs/elizabeth/app.db)
+关于数据库的删除和重建，请你参考 /Users/unic/dev/projs/rs/elizabeth/justfile
+中的
 
-## 阶段一：核心功能集成
+# 🧨 删除并重建数据库（重新执行迁移）
 
-### 1. 环境配置与类型定义
+db-reset: _check-env #!/usr/bin/env bash echo "🧨 重置数据库..." if [[ -f
+"$DATABASE_FILE" ]]; then
+        rm -f "$DATABASE_FILE" echo "🗑️ 已删除旧数据库文件" fi just migrate echo
+"✅ 数据库重置完成"
 
-**文件**: `web/lib/config.ts` (新建)
+## 1. 房间访问与身份验证测试
 
-- 创建 API 配置文件
-- 定义后端服务器地址 `http://localhost:4092/api/v1`
-- 配置环境变量支持 (开发/生产)
+### 1.1 房间自动创建与访问
 
-**文件**: `web/lib/types.ts` (更新)
+- **步骤**：直接访问 `http://localhost:4001/new-room-test`
+- **期望**：自动创建房间并进入，显示完整的房间界面
+- **检查点**：
+- 顶部栏显示房间占用信息
+- 左侧栏显示房间设置
+- 中间栏显示消息输入区
+- 右侧栏显示文件上传区
+- **验证**：检查 localStorage 中是否有 token，token 权限是否为 15（全权限）
 
-- 对齐后端数据结构
-- 添加后端返回的类型定义
-- 权限位标志转换工具 (后端使用位标志 1,2,4,8，前端使用字符串数组)
-- ContentType 枚举映射 (Text=0, Image=1, File=2, Url=3)
+### 1.2 SHARE 权限控制测试
 
-**文件**: `web/lib/utils/api.ts` (新建)
+- **步骤**：
 
-- 创建统一的 API 请求封装
-- 实现 token 管理 (localStorage)
-- 请求拦截器 (自动添加 token 到 query)
-- 错误处理中间件
-- 响应格式统一处理
+1. 创建房间
+2. 移除 SHARE 权限并保存
+3. 记录新的 slug（包含 UUID）
+4. 尝试用房间名称直接访问
+5. 用新的 slug 访问
 
-### 2. 房间管理 API 集成
+- **期望**：
+- 移除 SHARE 后，直接访问被拒绝，显示错误提示
+- 使用 slug 访问成功
+- 分享区域显示新的 slug URL
+- **验证**：检查 URL 变化、token 更新、UI 反馈
 
-**文件**: `web/api/roomService.ts` (重写)
+### 1.3 密码保护房间测试
 
-**API 映射**:
+- **步骤**：
 
-| 功能 | 前端方法 | 后端 API | 说明 |
+1. 在房间设置中设置密码
+2. 保存设置
+3. 刷新页面或新标签页访问
+4. 输入正确密码
+5. 输入错误密码
 
-|------|----------|----------|------|
+- **期望**：
+- 设置密码后显示密码输入对话框
+- 正确密码可以进入
+- 错误密码显示错误提示
+- **验证**：密码对话框显示、错误提示、成功进入后 token 获取
 
-| 创建房间 | `createRoom(name, password?)` |
+### 1.4 房间查看次数测试
 
-`POST /api/v1/rooms/{name}?password=xxx` | - |
+步骤
 
-| 获取房间信息 | `getRoomDetails(roomId)` | `GET /api/v1/rooms/{name}` |
+1. 在房间设置中配置最大查看次数
+2. 保存设置
+3. 刷新页面或者新建标签页访问
 
-需要转换权限格式 |
+期望
 
-| 更新房间设置 | `updateRoomSettings(roomId, settings)` | 暂不支持 |
+1. 每次访问都会让房间可被访问次数减少一次
+2. 房间可被访问次数==0 时，房间内容清空，房间完全重置
 
-使用权限更新 API 代替 |
+### 1.5 房间过期时间测试
 
-| 删除房间 | `deleteRoom(roomId, token)` |
+步骤
 
-`DELETE /api/v1/rooms/{name}?token=xxx` | - |
+1. 在房间设置中配置房间过期时间
+2. 保存设置
+3. 刷新页面或者新建标签页访问
 
-| 更新权限 | `updateRoomPermissions(roomId, token, permissions)` |
+期望
 
-`POST /api/v1/rooms/{name}/permissions?token=xxx` | - |
+1. 在房间过期时间之前去访问房间，房间内容保持。并且允许用户变更
+   (如果有对应权限的话)
+2. 超过房间过期时间去访问房间时，房间内容清空，房间完全重置
 
-**关键实现**:
+## 2. 顶部栏功能测试 (TopBar)
 
-- `getRoomDetails` 需要将后端的 `permission: number` 转换为前端的
+### 2.1 消息复制功能
 
-`permissions: string[]`
+- **步骤**：
 
-- `updateRoomSettings` 暂时只支持权限更新，过期时间等后续支持
-- 添加房间容量计算逻辑 (current_size / max_size)
+1. 发送几条消息
+2. 选择消息（点击 checkbox）
+3. 点击"复制选中消息"按钮
 
-### 3. 认证 API 集成
+- **期望**：
+- 未选择消息时，按钮禁用或点击后提示"未选择消息"
+- 选择消息后，点击按钮复制成功
+- 显示 toast 提示"已复制 X 条消息"
+- **验证**：剪贴板内容、toast 提示、按钮状态
 
-**文件**: `web/api/authService.ts` (新建)
+### 2.2 消息导出下载功能
 
-**API 映射**:
+- **步骤**：
 
-| 功能 | 前端方法 | 后端 API | 说明 |
+1. 选择多条消息
+2. 点击"下载导出选中消息"按钮
 
-|------|----------|----------|------|
+- **期望**：
+- 触发文件下载
+- 文件内容包含选中的消息
+- 如果开启元数据，包含用户、时间等信息
+- **验证**：下载文件、文件内容格式、元数据选项
 
-| 获取访问令牌 | `getAccessToken(roomName, password?)` |
+### 2.3 删除功能
 
-`POST /api/v1/rooms/{name}/tokens` | 返回 JWT token |
+- **步骤**：
 
-| 验证令牌 | `validateToken(roomName, token)` |
+1. 选择消息或文件
+2. 点击顶部"删除"按钮
 
-`POST /api/v1/rooms/{name}/tokens/validate` | - |
+- **期望**：
+- 显示确认对话框（如果有）
+- 删除成功
+- 列表更新
+- 显示成功 toast
+- **验证**：确认流程、删除成功、UI 更新
 
-| 刷新令牌 | `refreshToken(refreshToken)` | `POST /api/v1/auth/refresh` | - |
+### 2.4 设置对话框
 
-| 登出 | `logout(accessToken)` | `POST /api/v1/auth/logout` | 撤销令牌 |
+- **步骤**：点击"设置"按钮
+- **期望**：打开设置对话框，可以配置应用设置
+- **验证**：对话框显示、设置项可用
 
-**Token 管理**:
+### 2.5 主题切换
 
-- 在 localStorage 存储当前房间的 token
-- 格式：`{ [roomName]: { token, expiresAt, refreshToken? } }`
-- 自动刷新机制 (token 过期前 5 分钟)
-- 统一的 token 注入到所有 API 请求
+- **步骤**：点击主题切换按钮
+- **期望**：在亮色/暗色/跟随系统之间切换
+- **验证**：主题实时更新、设置持久化
 
-### 4. 消息聊天 API 集成 (使用 Content API)
+## 3. 左侧栏功能测试 (LeftSidebar)
 
-**文件**: `web/api/messageService.ts` (新建)
+### 3.1 侧边栏折叠/展开
 
-**核心映射策略**:
+- **步骤**：点击"收起侧边栏"按钮
+- **期望**：侧边栏收起为窄条，按钮图标变为展开图标
+- **验证**：宽度变化、图标变化、功能按钮可用
 
-- 消息 = `RoomContent` with `content_type: ContentType::Text (0)`
-- 消息内容存储在 `text` 字段
-- 消息 ID = `content.id`
-- 消息时间 = `content.created_at`
+### 3.2 房间设置表单
 
-**API 映射**:
+- **步骤**：
 
-| 功能 | 前端方法 | 后端 API | 说明 |
+1. 修改过期时间（选择不同选项）
+2. 设置房间密码
+3. 修改最大查看次数
+4. 点击"保存设置"
 
-|------|----------|----------|------|
+- **期望**：
+- 表单字段可以正常编辑
+- 保存成功显示 toast
+- 设置立即生效
+- 刷新页面后设置保持
+- **验证**：表单交互、保存成功、数据持久化
 
-| 获取消息列表 | `getMessages(roomName, token)` |
+### 3.3 房间权限设置
 
-`GET /api/v1/rooms/{name}/contents?token=xxx` | 过滤 content_type=0 |
+- **步骤**：
 
-| 发送消息 | `postMessage(roomName, token, content)` |
+1. 点击权限按钮（预览、编辑、分享、删除）
+2. 测试权限依赖：
 
-`POST /api/v1/rooms/{name}/contents` | 需先 prepare，再上传 |
+- 尝试启用编辑但禁用预览（应该自动启用预览）
+- 尝试启用删除但禁用预览/编辑（应该自动启用）
+- 尝试禁用预览但保留其他权限（应该禁用所有）
 
-| 更新消息 | `updateMessage(messageId, content, token)` | 暂不支持 |
+3. 点击"保存权限"
 
-前端保留功能，后续实现 |
+- **期望**：
+- 权限按钮可以切换状态
+- 权限依赖自动处理
+- 保存按钮在有变更时启用
+- 保存成功后 token 刷新
+- slug 根据 SHARE 权限更新
+- **验证**：按钮状态、依赖逻辑、token 权限更新、slug 变化
 
-| 删除消息 | `deleteMessage(roomName, messageId, token)` |
+### 3.4 房间分享功能
 
-`DELETE /api/v1/rooms/{name}/contents` | 传递 ids 数组 |
+说明：当房间有分享权限时：允许用户直接通过 http://domain.com/room_name
+的方式访问对应的 room 如果不允许的话，那么这个字段的含义就是：不允许用户直接通过
+http://domain.com/room_name 的方式访问对应的 room , 用户需要访问的该 SHARE 为
+false 的 room 的话，就需要我们通过我们给出的链接来访问对应的 room.
+http://domain.com/room_name_[uuid] 也就是 room_name_[uuid], room_name +
+随机的一个 uuid 拼接重构构成的新的 room name. 如果该 room_name
+存在，那么就需要重新再生成 room_name + uuid 直到唯一 (这个是房间分享功能的逻辑)
 
-**发送消息流程**:
+- **步骤**：
 
-1. 调用 `POST /api/v1/rooms/{name}/contents/prepare` 预留空间
+1. 点击"获取链接"按钮
+2. 点击"下载"按钮（下载二维码）
+3. 复制分享链接
 
-   - 请求：`{ files: [{ name: "message.txt", size: textByteSize, mime: "text/plain" }] }`
-   - 获取 `reservation_id`
+- **期望**：
+- 显示房间链接（根据 SHARE 权限显示名称或 slug）
+- 二维码显示
+- 可以复制链接
+- 可以下载二维码
+- **验证**：链接格式、二维码显示、复制功能
 
-2. 调用 `POST /api/v1/rooms/{name}/contents?reservation_id=xxx` 上传
+### 3.5 容量使用显示
 
-   - 使用 FormData 上传，或直接发送 text 内容
-   - 需要确认后端是否支持纯文本上传，或需要模拟文件上传
+- **步骤**：上传不同大小的文件
+- **期望**：容量使用实时更新，显示百分比和已用/总量
+- **验证**：数值准确、格式正确、实时更新
 
-**注意事项**:
+## 4. 中间栏功能测试 (MiddleColumn)
 
-- 后端 API 可能需要调整以支持文本内容的直接上传（不通过 multipart/form-data）
-- 如果不支持，需要将文本包装成 Blob 上传
-- 消息编辑功能暂时不可用，需要后端添加更新 API
+在本系统中，消息在 rust server 后端中表现为特殊的 room content: Text.
+而在前端，这应该将该 text 类型的 content 展示为消息，而不是文件。
 
-### 5. 分享 API 集成
+### 4.1 消息发送功能
 
-**文件**: `web/api/shareService.ts` (重写)
+- **步骤**：
 
-**API 映射**:
+1. 在消息输入框输入内容
+2. 按 Enter 发送
+3. 按 Shift+Enter 换行
+4. 使用 Markdown 格式（粗体、代码块等）
+5. 点击"发送"按钮
 
-| 功能 | 前端方法 | 后端 API | 说明 |
+- **期望**：
+- 消息立即显示在列表中（乐观更新）
+- Markdown 渲染正确
+- 发送按钮在输入为空时禁用
+- 显示时间戳
+- **验证**：消息显示、格式渲染、按钮状态、时间显示
 
-|------|----------|----------|------|
+### 4.2 消息编辑功能
 
-| 获取分享链接 | `getShareLink(roomName)` | 前端生成 |
+- **步骤**：
 
-`${window.location.origin}/room/${roomName}` |
+1. 点击已有消息
+2. 编辑内容
+3. 保存或取消
 
-| 获取二维码 | `getQRCodeImage(roomName)` | 前端生成 | 使用 qrcode 库生成 |
+- **期望**：
+- 进入编辑模式
+- 可以修改内容
+- 保存后更新消息
+- 取消后恢复原内容
+- **验证**：编辑模式、保存更新、取消恢复
 
-**实现方式**:
+### 4.3 消息删除功能
 
-- 安装 `qrcode` npm 包
-- 前端生成二维码，不依赖后端
+- **步骤**：
 
-### 6. 全局状态管理更新
+1. 选择消息
+2. 删除消息（通过右键菜单或其他方式）
 
-**文件**: `web/lib/store.ts` (更新)
+- **期望**：
+- 消息从列表中移除
+- 显示删除成功提示
+- **验证**：消息移除、提示显示
 
-添加认证状态管理：
+### 4.4 消息选择功能
 
-```typescript
-interface AuthState {
-  tokens: Record<string, TokenInfo>; // { [roomName]: { token, expiresAt, refreshToken } }
-  currentRoomToken: string | null;
-  setRoomToken: (roomName: string, tokenInfo: TokenInfo) => void;
-  clearRoomToken: (roomName: string) => void;
-  getCurrentToken: () => string | null;
-}
-```
+- **步骤**：
 
-### 7. Chrome DevTools 自动化测试
+1. 点击消息 checkbox 选择
+2. 点击"全选"
+3. 点击"反选"
+4. 点击"取消全选"
 
-**工具**: `chrome-devtools` MCP
+- **期望**：
+- 单个消息可以选择/取消
+- 全选选择所有消息
+- 反选反转选择状态
+- 顶部栏按钮根据选择状态启用/禁用
+- **验证**：选择状态、按钮联动、批量操作可用
 
-**测试场景**:
+### 4.5 权限控制（只读模式）
 
-1. **房间创建与访问流程**
+- **步骤**：
 
-   - 启动前端 (Next.js dev server)
-   - 启动后端 (cargo run -p elizabeth-board -- run)
-   - 访问首页
-   - 输入房间名和密码，创建房间
-   - 验证房间创建成功，获得 token
-   - 验证 UI 显示正确的房间信息
+1. 设置房间权限为只读（只有预览权限）
+2. 刷新页面
+3. 尝试发送消息
 
-2. **消息发送与接收流程**
+- **期望**：
+- 消息输入框不显示或被禁用
+- 显示提示信息（如需权限提示）
+- **验证**：UI 隐藏/禁用、提示信息
 
-   - 在编辑器中输入消息
-   - 点击发送
-   - 验证消息出现在列表中
-   - 验证消息内容和时间显示正确
+## 5. 右侧栏功能测试 (RightSidebar)
 
-3. **权限管理流程**
+目前的文件 item 存在 文件名称过长，而导致的内容溢出，或者水平位置不对。
+需要解决该问题。推荐使用 wrap, 将文字 wrap 为多行。
 
-   - 修改房间权限设置
-   - 验证权限更新成功
-   - 验证 UI 反映新的权限状态
+### 5.1 文件上传功能
 
-4. **错误处理测试**
+- **步骤**：
 
-   - 测试无效 token 的处理
-   - 测试房间不存在的处理
-   - 测试网络错误的处理
+1. 点击"上传文件"按钮或拖拽文件
+2. 选择单个文件上传
+3. 选择多个文件上传
+4. 上传大文件
+5. 上传不同格式文件（图片、PDF、文本等）
 
-**测试文件**: `web/tests/integration.test.ts` (新建)
+- **期望**：
+- 文件选择对话框打开
+- 上传进度显示
+- 上传成功后在文件列表中显示
+- 显示文件大小、名称
+- 容量使用更新
+- **验证**：上传进度、列表更新、文件信息、容量更新
 
-## 实施步骤
+### 5.2 文件下载功能
 
-### Step 1: 基础设施搭建
+- **步骤**：
 
-- [x] 创建 API 配置文件 (`web/lib/config.ts`)
-- [x] 创建统一的 API 请求封装 (`web/lib/utils/api.ts`)
-- [x] 更新类型定义 (`web/lib/types.ts`)
-- [x] 实现权限位标志转换工具
+1. 点击单个文件下载
+2. 选择多个文件后点击"下载选中文件"
 
-### Step 2: 认证系统
+- **期望**：
+- 单个文件直接下载
+- 多个文件打包下载
+- 下载文件内容正确
+- **验证**：下载触发、文件内容、打包格式
 
-- [x] 实现 authService (token 获取、验证、刷新) (`web/api/authService.ts`)
-- [x] 实现 token 管理机制 (localStorage + store)
-- [x] 实现自动 token 注入中间件
+### 5.3 文件删除功能
 
-### Step 3: 房间管理
+- **步骤**：
 
-- [x] 重写 roomService (创建、查询、删除、权限更新) (`web/api/roomService.ts`)
-- [x] 更新相关组件以使用新的 API
-- [x] 测试房间创建和访问流程
-- [x] 后端添加 update_room_settings API (`crates/board/src/handlers/rooms.rs`)
+1. 选择文件
+2. 点击"删除文件"按钮
+3. 确认删除（如果有对话框）
 
-### Step 4: 消息聊天
+- **期望**：
+- 文件从列表中移除
+- 容量使用减少
+- 显示删除成功提示
+- **验证**：文件移除、容量更新、提示显示
 
-- [x] 创建 messageService (`web/api/messageService.ts`)
-- [x] 实现消息发送流程 (prepare + upload)
-- [x] 实现消息列表获取和过滤
-- [x] 实现消息删除
-- [x] 实现消息更新 (使用后端 update_content API)
-- [x] 更新聊天组件以使用新的 API (`web/components/layout/middle-column.tsx`)
+### 5.4 文件预览功能
 
-### Step 5: 分享功能
+- **步骤**：
 
-- [x] 重写 shareService (前端生成链接和二维码) (`web/api/shareService.ts`)
-- [x] 安装并集成 qrcode 库 (`pnpm add qrcode @types/qrcode`)
-- [ ] 更新分享组件 (待 UI 集成)
+1. 点击文件卡片
+2. 在不同文件类型上测试（图片、PDF、文本）
 
-### Step 6: 自动化测试
+- **期望**：
+- 打开预览模态框
+- 正确显示文件内容
+- 可以关闭预览
+- **验证**：模态框显示、内容渲染、关闭功能
 
-- [x] 编写后端 API 集成测试脚本 (`/tmp/test_integration_v3.sh`)
-- [x] 创建前端集成测试页面 (`web/app/test/page.tsx`)
-- [x] 创建前端集成测试脚本 (`web/tests/integration-test.ts`)
-- [x] 运行后端 API 集成测试 (成功)
-- [x] 修复类型定义问题 (BackendContentType 解析)
-- [ ] 运行完整的前端集成测试
-- [ ] 修复发现的 UI/UX 问题
+### 5.5 文件选择功能
 
-### Step 7: 错误处理和优化
+- **步骤**：
 
-- [x] 完善错误处理 (API 层面)
-- [x] 添加加载状态 (React Query)
-- [ ] 优化用户体验
-- [ ] 更新文档
+1. 点击文件 checkbox
+2. 点击"全选"
+3. 点击"反选"
 
-## 当前进度总结 (2025-10-28 更新)
+- **期望**：
+- 单个文件可以选择
+- 全选选择所有文件
+- 反选反转选择状态
+- 批量操作按钮根据选择状态启用
+- **验证**：选择状态、按钮状态、批量操作
 
-### ✅ 已完成的工作
+### 5.6 权限控制（只读模式）
 
-1. **后端修复与增强**
-   - ✅ 修复了 `tower_governor` 速率限制中间件的配置问题
-   - ✅ 添加了 `SmartIpKeyExtractor` 和
-     `.into_make_service_with_connect_info::<SocketAddr>()`
-   - ✅ 实现了 `update_room_settings` API 端点
-   - ✅ 后端服务正常运行在 http://127.0.0.1:4092
-   - ✅ Scalar API 文档可访问：http://127.0.0.1:4092/api/v1/scalar
+- **步骤**：
 
-2. **前端基础设施**
-   - ✅ 完整的 API 配置系统 (`web/lib/config.ts`)
-   - ✅ 统一的 API 请求封装，支持自动 token 注入、重试、错误处理
-     (`web/lib/utils/api.ts`)
-   - ✅ Token 管理系统 (localStorage + 自动刷新)
-   - ✅ 类型定义和转换工具 (`web/lib/types.ts`)
-   - ✅ 修复了 `BackendContentType` 解析问题 (支持 tagged enum)
+1. 设置权限为只读
+2. 刷新页面
+3. 尝试上传文件
 
-3. **前端服务层**
-   - ✅ `authService`: 完整的认证功能 (获取、验证、刷新、撤销 token)
-   - ✅ `roomService`: 房间管理功能 (创建、查询、更新设置、删除)
-   - ✅ `messageService`: 消息功能 (发送、获取、更新、删除)
-   - ✅ `shareService`: 分享功能 (链接生成、二维码生成、下载、复制)
-   - ✅ 所有服务都支持自动 token 管理
+- **期望**：
+- 文件上传区域不显示或被禁用
+- 可以查看和下载文件
+- **验证**：上传区域隐藏、查看功能可用
 
-4. **前端组件**
-   - ✅ 修复了 `middle-column.tsx` 中的 `updateMessage` 导入问题
-   - ✅ 消息列表和输入组件已集成后端 API
-   - ✅ 使用 React Query 进行数据管理
+## 6. 实时更新测试
 
-5. **测试工具**
-   - ✅ 后端 API 集成测试脚本 (bash + curl) - `/tmp/test_integration_v3.sh`
-   - ✅ 前端集成测试页面 - http://localhost:4001/test
-   - ✅ 前端集成测试脚本 (TypeScript) - `web/tests/integration-test.ts`
-   - ✅ 后端 API 测试通过 (除消息更新功能外)
+### 6.1 消息自动刷新
 
-6. **依赖管理**
-   - ✅ 安装 `qrcode` npm 包
-   - ✅ 安装 `@types/qrcode` 类型定义
+- **步骤**：
 
-### 🔧 已修复的问题
+1. 在一个浏览器标签页发送消息
+2. 在另一个标签页观察
 
-1. **速率限制中间件错误**
-   - 问题："Unable To Extract Key!" 500 错误
-   - 原因：缺少 IP 提取器和连接信息
-   - 解决：添加 `SmartIpKeyExtractor` 和
-     `.into_make_service_with_connect_info::<SocketAddr>()`
+- **期望**：第二个标签页自动更新消息列表（每 5 秒）
+- **验证**：自动刷新、数据同步
 
-2. **文件上传大小匹配**
-   - 问题：使用 `echo` 命令会添加换行符
-   - 解决：使用 `printf "%s"` 代替 `echo`
+### 6.2 文件自动刷新
 
-3. **类型定义不匹配**
-   - 问题：后端返回 `content_type: {"type": "file"}` 而前端期望数字
-   - 解决：添加 `BackendContentType` 类型和 `parseContentType()` 转换函数
+- **步骤**：
 
-4. **消息导入错误**
-   - 问题：`middle-column.tsx` 缺少 `updateMessage` 导入
-   - 解决：添加导入语句
+1. 在一个标签页上传文件
+2. 在另一个标签页观察
 
-### ⚠️ 已知限制
+- **期望**：文件列表自动更新
+- **验证**：自动刷新、列表同步
 
-1. **速率限制配置**
-   - 当前配置：`per_second: 10, burst_size: 20`
-   - 影响：快速测试时容易触发限制
-   - 建议：开发环境可以放宽或禁用
+## 7. 错误处理测试
 
-2. **消息更新功能**
-   - 后端 API 测试中跳过了消息更新测试
-   - 原因：上传响应中的 content ID 提取问题
-   - 状态：前端已实现，待完整测试
+### 7.1 网络错误处理
 
-### 📋 待完成的工作
+- **步骤**：模拟网络断开或服务器错误
+- **期望**：显示友好的错误提示，不影响其他功能
+- **验证**：错误提示、错误恢复
 
-1. **UI 集成**
-   - [ ] 更新分享组件以使用新的 shareService
-   - [ ] 测试二维码生成和下载功能
-   - [ ] 优化用户体验和错误提示
+### 7.2 权限错误处理
 
-2. **完整的端到端测试**
-   - [ ] 在浏览器中运行前端集成测试
-   - [ ] 验证所有功能正常工作
-   - [ ] 测试消息更新功能
-   - [ ] 修复发现的 UI/UX 问题
+- **步骤**：尝试执行无权限的操作
+- **期望**：显示权限不足提示
+- **验证**：错误提示、操作阻止
 
-3. **文档更新**
-   - [x] 创建集成进度文档 (`docs/integration-progress.md`)
-   - [ ] 更新 `web/docs/FRONTEND_DOCUMENTATION.md`
-   - [ ] 更新 `docs/implementation/*.md`
-   - [ ] 记录 API 使用示例
+### 7.3 Token 过期处理
 
-4. **性能优化**
-   - [ ] 优化消息加载
-   - [ ] 添加分页支持
-   - [ ] 优化文件上传流程
+- **步骤**：等待 token 过期或手动清除 token
+- **期望**：自动刷新 token 或重新获取
+- **验证**：token 刷新、请求重试
 
-## 技术要点
+## 8. 边界情况测试
 
-### 1. Token 认证流程
+### 8.1 超长文件名
 
-```
-1. 用户输入房间名 + 密码
-   ↓
-2. POST /api/v1/rooms/{name}/tokens { password }
-   ↓
-3. 获取 { token, expires_at, refresh_token }
-   ↓
-4. 存储到 localStorage 和 store
-   ↓
-5. 所有后续请求自动添加 ?token=xxx
-```
+- **步骤**：上传超长文件名的文件
+- **期望**：文件名在 UI 中正确截断，不破坏布局
+- **验证**：文件名显示、布局保持
 
-### 2. 消息发送流程
+### 8.2 空消息/空文件
 
-```
-1. 用户输入消息内容
-   ↓
-2. POST /api/v1/rooms/{name}/contents/prepare
-   { files: [{ name: "message.txt", size, mime: "text/plain" }] }
-   ↓
-3. 获取 reservation_id
-   ↓
-4. POST /api/v1/rooms/{name}/contents?reservation_id=xxx
-   FormData: { file: new Blob([text], { type: "text/plain" }) }
-   ↓
-5. 获取新创建的 RoomContent (content_type=0)
-   ↓
-6. 更新前端消息列表
-```
+- **步骤**：发送空消息或上传空文件
+- **期望**：验证阻止或显示提示
+- **验证**：输入验证、错误提示
 
-### 3. 权限转换
+### 8.3 大量数据
 
-```typescript
-// 后端 -> 前端
-function parsePermissions(bits: number): string[] {
-  const perms: string[] = [];
-  if (bits & 1) perms.push("read");
-  if (bits & 2) perms.push("edit");
-  if (bits & 4) perms.push("share");
-  if (bits & 8) perms.push("delete");
-  return perms;
-}
+- **步骤**：发送大量消息，上传大量文件
+- **期望**：列表性能良好，滚动流畅
+- **验证**：性能、滚动体验
 
-// 前端 -> 后端
-function encodePermissions(perms: string[]): number {
-  let bits = 0;
-  if (perms.includes("read")) bits |= 1;
-  if (perms.includes("edit")) bits |= 2;
-  if (perms.includes("share")) bits |= 4;
-  if (perms.includes("delete")) bits |= 8;
-  return bits;
-}
-```
+## 测试执行顺序
 
-## 潜在问题和解决方案
+1. **基础流程**：房间创建 → 权限设置 → 消息发送 → 文件上传
+2. **权限控制**：测试不同权限组合下的功能可用性
+3. **高级功能**：消息编辑、文件预览、批量操作
+4. **边界情况**：错误处理、异常输入
+5. **实时同步**：多标签页数据同步
+6. **UI 交互**：折叠展开、主题切换、设置配置
 
-### 问题 1: 消息编辑功能
+## 验证检查清单
 
-**现状**: 前端有消息编辑功能，但后端不支持更新 content
+每个测试完成后检查：
 
-**解决方案**:
-
-- 短期：前端禁用编辑按钮
-- 长期：后端添加 `PUT /api/v1/rooms/{name}/contents/{id}` API
-
-### 问题 2: 文本内容上传方式
-
-**现状**: 后端 upload_contents 可能只接受文件上传
-
-**解决方案**:
-
-- 将文本内容包装成 Blob: `new Blob([text], { type: 'text/plain' })`
-- 或确认后端是否支持纯 JSON 上传文本内容
-
-### 问题 3: 房间设置更新
-
-**现状**: 后端没有统一的房间设置更新 API
-
-**解决方案**:
-
-- 短期：只实现权限更新功能
-- 长期：确认是否需要添加房间元数据更新 API
-
-## 验收标准
-
-- [ ] 用户可以创建房间并设置密码
-- [ ] 用户可以通过密码获取访问令牌
-- [ ] 用户可以在房间中发送和接收消息
-- [ ] 用户可以删除消息
-- [ ] 用户可以管理房间权限
-- [ ] 用户可以删除房间
-- [ ] 所有 API 调用都使用真实的后端接口
-- [ ] Token 自动管理和刷新正常工作
-- [ ] 错误处理完善，用户体验良好
-- [ ] Chrome DevTools 自动化测试全部通过
-
-## 文档更新
-
-计划完成后需要更新以下文档：
-
-- `web/docs/FRONTEND_DOCUMENTATION.md` - 更新 API 集成章节
-- `docs/api-documentation.md` - 补充实际使用案例
-- `docs/current-progress-docs.md` - 记录集成进度
+- [ ] 功能按预期工作
+- [ ] UI 反馈正确（toast、错误提示等）
+- [ ] 数据同步正确（前端状态与后端一致）
+- [ ] 权限控制正确（基于 JWT 权限）
+- [ ] 错误处理友好
+- [ ] 性能表现良好
+- [ ] 代码中无冗余日志（保留必要的 error 日志）
