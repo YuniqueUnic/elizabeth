@@ -5,7 +5,7 @@
  * Messages are stored as RoomContent with content_type = ContentType.Text (0)
  */
 
-import { API_ENDPOINTS } from "../lib/config";
+import { API_BASE_URL, API_ENDPOINTS } from "../lib/config";
 import { api } from "../lib/utils/api";
 import { getValidToken } from "./authService";
 import type {
@@ -28,17 +28,18 @@ export interface PrepareUploadRequest {
   files: Array<{
     name: string;
     size: number;
-    mime: string;
+    mime?: string;
+    file_hash?: string;
   }>;
 }
 
 export interface PrepareUploadResponse {
-  reservation_id: string;
-  reservations: Array<{
-    file_name: string;
-    expected_size: number;
-    mime_type: string;
-  }>;
+  reservation_id: number;
+  reserved_size: number;
+  expires_at: string;
+  current_size: number;
+  remaining_size: number;
+  max_size: number;
 }
 
 // ============================================================================
@@ -47,7 +48,7 @@ export interface PrepareUploadResponse {
 
 /**
  * Get all messages for a room
- * Filters RoomContent for text-only content (content_type = 0)
+ * Filters RoomContent for text-only content (content_type = 0 or text files)
  *
  * @param roomName - The name of the room
  * @param token - Optional token for authentication
@@ -69,9 +70,51 @@ export async function getMessages(
     { token: authToken },
   );
 
-  // Filter for text content only and convert to messages
-  return contents
-    .filter((content) => parseContentType(content.content_type) === CT.Text)
+  // Filter for text content and text files, then convert to messages
+  const filteredContents = contents.filter((content) => {
+    const contentType = parseContentType(content.content_type);
+    // Include both explicit text content and text files
+    return contentType === CT.Text ||
+           (contentType === CT.File &&
+            content.mime_type === "text/plain" &&
+            content.file_name?.includes("message.txt"));
+  });
+
+  // For file-based messages, fetch the actual content
+  const messagesWithContent = await Promise.all(
+    filteredContents.map(async (content) => {
+      const contentType = parseContentType(content.content_type);
+
+      // If it's a text file, fetch its content
+      if (contentType === CT.File && content.mime_type === "text/plain") {
+        try {
+          const response = await fetch(
+            `${API_BASE_URL}${API_ENDPOINTS.content.byId(roomName, String(content.id))}?token=${authToken}`,
+            {
+              headers: {
+                'Accept': 'text/plain',
+              },
+            }
+          );
+
+          if (response.ok) {
+            const fileContent = await response.text();
+            // Create a new content object with the file content as text
+            return {
+              ...content,
+              text: fileContent,
+            };
+          }
+        } catch (error) {
+          console.warn(`Failed to fetch content for message ${content.id}:`, error);
+        }
+      }
+
+      return content;
+    })
+  );
+
+  return messagesWithContent
     .map(convertMessage)
     .sort((a, b) =>
       new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
@@ -83,7 +126,7 @@ export async function getMessages(
  *
  * This uses a two-step process:
  * 1. Prepare upload to reserve space
- * 2. Upload the message as a text file
+ * 2. Upload the message as a text file using FormData
  *
  * @param roomName - The name of the room
  * @param content - The message content
@@ -117,7 +160,7 @@ export async function postMessage(
     { token: authToken },
   );
 
-  // Step 2: Upload content
+  // Step 2: Upload content as FormData (required by backend)
   const formData = new FormData();
   const blob = new Blob([content], { type: "text/plain" });
   formData.append("file", blob, "message.txt");
@@ -155,10 +198,10 @@ export async function deleteMessage(
     throw new Error("Authentication required to delete messages");
   }
 
-  // Backend expects an array of IDs
+  // Backend expects token in query parameter AND ids in both query and body
   await api.delete(
-    `${API_ENDPOINTS.content.base(roomName)}?ids=${messageId}`,
-    { token: authToken },
+    `${API_ENDPOINTS.content.base(roomName)}?ids=${messageId}&token=${authToken}`,
+    { ids: [parseInt(messageId, 10)] },
   );
 }
 
@@ -181,9 +224,10 @@ export async function deleteMessages(
   }
 
   const idsParam = messageIds.join(",");
+  // Backend expects token in query parameter AND ids in both query and body
   await api.delete(
-    `${API_ENDPOINTS.content.base(roomName)}?ids=${idsParam}`,
-    { token: authToken },
+    `${API_ENDPOINTS.content.base(roomName)}?ids=${idsParam}&token=${authToken}`,
+    { ids: messageIds.map(id => parseInt(id, 10)) },
   );
 }
 

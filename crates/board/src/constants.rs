@@ -44,8 +44,8 @@ pub mod auth {
     ///  注意：默认配置不应该在生产环境中使用
     pub const DEFAULT_JWT_SERCET: &str = "default-secret-change-in-production"; // pragma: allowlist secret
 
-    /// 默认 JWT 过期时间（秒）- 1 小时
-    pub const DEFAULT_TTL_SECONDS: i64 = 3600;
+    /// 默认 JWT 过期时间（秒）- 2 小时
+    pub const DEFAULT_TTL_SECONDS: i64 = 7200;
 
     /// JWT leeway 时间（秒）- 允许的时间偏差
     pub const DEFAULT_LEEWAY_SECONDS: i64 = 5;
@@ -86,8 +86,8 @@ pub mod test {
     /// 测试用 JWT 密钥
     pub const TEST_JWT_SECRET: &str = "test-secret";
 
-    /// 测试用 JWT TTL（秒）- 30 分钟
-    pub const TEST_JWT_TTL_SECONDS: i64 = 30 * 60;
+    /// 测试用 JWT TTL（秒）- 2 小时
+    pub const TEST_JWT_TTL_SECONDS: i64 = 120 * 60;
 }
 
 pub mod config {

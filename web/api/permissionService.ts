@@ -10,9 +10,11 @@
 import { API_ENDPOINTS } from "../lib/config";
 import { api } from "../lib/utils/api";
 import { getValidToken } from "./authService";
-import type {
+import {
   encodePermissions,
   parsePermissions,
+} from "../lib/types";
+import type {
   RoomDetails,
   RoomPermission,
 } from "../lib/types";
@@ -247,7 +249,7 @@ export async function isRoomShareable(
     const room = await api.get(
       API_ENDPOINTS.rooms.base(roomName),
       undefined,
-      { token: token || await getValidToken(roomName) },
+      { token: token || (await getValidToken(roomName)) || undefined },
     );
 
     // Check if room has SHARE permission (bit 2 = 4)

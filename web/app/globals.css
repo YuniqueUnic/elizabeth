@@ -283,3 +283,39 @@
 .message-content {
   font-size: var(--message-font-size) !important;
 }
+
+/* 文件名溢出处理增强 */
+.file-name {
+  @apply truncate;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-name-wrapper {
+  @apply overflow-hidden;
+  min-width: 0; /* 允许 flex 子项收缩 */
+  flex: 1;
+}
+
+/* 在小屏幕上进一步优化文件名显示 */
+@media (max-width: 640px) {
+  .file-name {
+    @apply text-xs;
+    max-width: 100px;
+  }
+}
+
+/* 在中等屏幕上优化文件名显示 */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .file-name {
+    max-width: 150px;
+  }
+}
+
+/* 在大屏幕上优化文件名显示 */
+@media (min-width: 1025px) {
+  .file-name {
+    max-width: 200px;
+  }
+}

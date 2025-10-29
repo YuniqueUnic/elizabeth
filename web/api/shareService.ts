@@ -69,8 +69,8 @@ export async function getShareLink(
   }
 
   // Check if room is shareable (has SHARE permission)
-  const { isShareable } = await import("./roomAccessService");
-  const availability = await isShareable.checkRoomAvailability(roomName);
+  const { checkRoomAvailability } = await import("./roomAccessService");
+  const availability = await checkRoomAvailability(roomName);
 
   if (availability.isShareable) {
     return `${window.location.origin}/${roomName}`;
@@ -168,6 +168,7 @@ export async function getQRCodeImage(
     errorCorrectionLevel?: "L" | "M" | "Q" | "H";
     includeLogo?: boolean;
     customData?: Record<string, any>;
+    theme?: "light" | "dark" | "system";
   },
 ): Promise<string> {
   const shareLink = await getShareLink(roomName);
@@ -180,15 +181,34 @@ export async function getQRCodeImage(
     qrContent = `${shareLink}?${customParams.toString()}`;
   }
 
+  // Get theme-aware colors
+  const getThemeColors = () => {
+    const theme = options?.theme ||
+      (typeof window !== "undefined" &&
+       (window.document.documentElement.classList.contains("dark") ? "dark" : "light")) ||
+      "light";
+
+    if (theme === "dark") {
+      return {
+        dark: "#FFFFFF", // White QR code on dark background
+        light: "#1e293b", // Dark blue background
+      };
+    } else {
+      return {
+        dark: "#1e293b", // Dark blue QR code on light background
+        light: "#FFFFFF", // White background
+      };
+    }
+  };
+
+  const colors = getThemeColors();
+
   // Use qrcode library to generate QR code
   return await QRCode.toDataURL(qrContent, {
     width: options?.width || 300,
     margin: options?.margin || 2,
     errorCorrectionLevel: options?.errorCorrectionLevel || "M",
-    color: {
-      dark: "#000000",
-      light: "#FFFFFF",
-    },
+    color: colors,
   });
 }
 

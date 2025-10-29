@@ -83,7 +83,7 @@ export function MessageBubble(
         }`}
       >
         <span>
-          #{messageNumber} · {message.user}
+          #{messageNumber} · {message.user || '匿名'}
         </span>
         <span title={new Date(message.timestamp).toLocaleString("zh-CN")}>
           {formatDate(message.timestamp)}

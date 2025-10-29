@@ -52,7 +52,7 @@ export function TopBar() {
         if (includeMetadataInExport) {
           const messageNumber = messages.findIndex((msg) => msg.id === m.id) +
             1;
-          return `### 消息 #${messageNumber}\n**用户:** ${m.user}\n**时间:** ${
+          return `### 消息 #${messageNumber}\n**用户:** ${m.user || '匿名'}\n**时间:** ${
             formatDate(m.timestamp)
           }\n\n${m.content}`;
         }
@@ -83,7 +83,7 @@ export function TopBar() {
         if (includeMetadataInExport) {
           const messageNumber = messages.findIndex((msg) => msg.id === m.id) +
             1;
-          return `### 消息 #${messageNumber}\n**用户:** ${m.user}\n**时间:** ${
+          return `### 消息 #${messageNumber}\n**用户:** ${m.user || '匿名'}\n**时间:** ${
             formatDate(m.timestamp)
           }\n\n${m.content}`;
         }
