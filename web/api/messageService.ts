@@ -169,7 +169,7 @@ export async function postMessage(
   const blob = new Blob([contentString], { type: "text/plain" });
   formData.append("file", blob, "message.txt");
 
-  const uploadedContents = await api.post<BackendRoomContent[]>(
+  const response = await api.post<{ uploaded: BackendRoomContent[] }>(
     `${
       API_ENDPOINTS.content.base(roomName)
     }?reservation_id=${prepareResponse.reservation_id}`,
@@ -177,11 +177,21 @@ export async function postMessage(
     { token: authToken },
   );
 
+  const uploadedContents = response.uploaded;
+
   if (uploadedContents.length === 0) {
     throw new Error("Failed to upload message");
   }
 
-  return convertMessage(uploadedContents[0]);
+  // Manually construct the message to ensure correct content is returned
+  const createdMessage: Message = {
+    id: String(uploadedContents[0].id),
+    content: contentString,
+    timestamp: uploadedContents[0].created_at,
+    isOwn: true,
+  };
+
+  return createdMessage;
 }
 
 /**
@@ -262,14 +272,25 @@ export async function updateMessage(
     throw new Error("Authentication required to update messages");
   }
 
-  // Call the update_content API
-  const response = await api.put<{ updated: BackendRoomContent }>(
-    API_ENDPOINTS.content.byId(roomName, messageId),
-    { text: content },
-    { token: authToken },
-  );
+  try {
+    console.log(
+      "Attempting to update message:",
+      { roomName, messageId, content, authToken },
+    );
 
-  return convertMessage(response.updated);
+    // Call the update_content API
+    const response = await api.put<{ updated: BackendRoomContent }>(
+      API_ENDPOINTS.content.byId(roomName, messageId),
+      { text: content },
+      { token: authToken },
+    );
+
+    console.log("Update successful, response:", response);
+    return convertMessage(response.updated);
+  } catch (error) {
+    console.error("Failed to update message:", error);
+    throw error; // Re-throw the error to be caught by the mutation
+  }
 }
 
 export default {
