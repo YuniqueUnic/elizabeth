@@ -1,6 +1,8 @@
 // Global state management using Zustand
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
+import { immer } from "zustand/middleware/immer";
+import { devtools } from "zustand/middleware";
 import type { Message, Theme, TokenInfo } from "./types";
 import { getRoomToken } from "./utils/api";
 import { hasValidToken } from "../api/authService";
@@ -192,7 +194,8 @@ export const useAppStore = create<AppState>()(
 
       // UI Preferences
       showDeleteConfirmation: true,
-      setShowDeleteConfirmation: (show) => set({ showDeleteConfirmation: show }),
+      setShowDeleteConfirmation: (show) =>
+        set({ showDeleteConfirmation: show }),
 
       // Local message management
       messages: [],
@@ -307,20 +310,20 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: "elizabeth-storage",
+      storage: createJSONStorage(() => localStorage),
+      // Only persist a subset of the state
       partialize: (state) => ({
-        theme: state.theme,
+        // Persist UI preferences
         sendOnEnter: state.sendOnEnter,
         includeMetadataInExport: state.includeMetadataInExport,
         editorFontSize: state.editorFontSize,
         toolbarButtonSize: state.toolbarButtonSize,
         messageFontSize: state.messageFontSize,
         useHeti: state.useHeti,
+        showDeleteConfirmation: state.showDeleteConfirmation,
+        // Persist tokens
+        tokens: state.tokens,
       }),
     },
   ),
 );
-
-// Expose the store on the window for debugging purposes
-if (typeof window !== "undefined") {
-  (window as any).useAppStore = useAppStore;
-}
