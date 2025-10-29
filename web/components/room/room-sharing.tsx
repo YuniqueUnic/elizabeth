@@ -5,6 +5,7 @@ import { Download, LinkIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { getQRCodeImage, getShareLink } from "@/api/shareService";
 import { useState } from "react";
+import { useTheme } from "@/lib/hooks/use-theme";
 
 interface RoomSharingProps {
   roomId: string;
@@ -12,10 +13,11 @@ interface RoomSharingProps {
 
 export function RoomSharing({ roomId }: RoomSharingProps) {
   const [copied, setCopied] = useState(false);
+  const { theme } = useTheme();
 
   const { data: qrCodeUrl } = useQuery({
-    queryKey: ["qrcode", roomId],
-    queryFn: () => getQRCodeImage(roomId),
+    queryKey: ["qrcode", roomId, theme],
+    queryFn: () => getQRCodeImage(roomId, { theme }),
   });
 
   const { data: shareLink } = useQuery({
@@ -46,7 +48,9 @@ export function RoomSharing({ roomId }: RoomSharingProps) {
 
       {/* QR Code */}
       {qrCodeUrl && (
-        <div className="flex justify-center rounded-lg border bg-white p-4">
+        <div className={`flex justify-center rounded-lg border p-4 ${
+          theme === "dark" ? "bg-slate-800 border-slate-700" : "bg-white border-gray-200"
+        }`}>
           <img
             src={qrCodeUrl || "/placeholder.svg"}
             alt="Room QR Code"

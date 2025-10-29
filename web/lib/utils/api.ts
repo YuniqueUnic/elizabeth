@@ -86,6 +86,45 @@ export function isTokenExpired(
   return (expiryTime - now) <= bufferMs;
 }
 
+/**
+ * Try to get a fresh token for a room (for non-password-protected rooms)
+ */
+export async function refreshRoomToken(roomName: string): Promise<string | null> {
+  try {
+    console.log('🔄 Attempting to refresh token for room:', roomName);
+
+    const response = await fetch(`${API_BASE_URL}/rooms/${encodeURIComponent(roomName)}/tokens`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    });
+
+    if (!response.ok) {
+      console.log('❌ Failed to refresh token for room:', roomName, response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    if (data.token) {
+      const tokenInfo: TokenInfo = {
+        token: data.token,
+        expiresAt: data.expires_at,
+      };
+
+      console.log('✅ Successfully refreshed token for room:', roomName);
+      setRoomToken(roomName, tokenInfo);
+      return data.token;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('❌ Error refreshing token for room:', roomName, error);
+    return null;
+  }
+}
+
 // ============================================================================
 // API Response Types
 // ============================================================================
@@ -231,9 +270,16 @@ async function request<T = any>(
 
   let url = buildURL(path);
 
+  // Extract room name from path for token refresh logic
+  const roomMatch = path.match(/\/rooms\/([^\/]+)/);
+  const roomName = roomMatch ? decodeURIComponent(roomMatch[1]) : null;
+
   // Inject token if not skipped
   if (!skipTokenInjection && token) {
     url = injectToken(url, token);
+  } else if (!skipTokenInjection && roomName && !token) {
+    // Try to get token from storage for this room
+    url = injectToken(url, undefined, roomName);
   }
 
   // Set default headers
@@ -246,8 +292,9 @@ async function request<T = any>(
   }
 
   let lastError: Error | null = null;
+  let tokenRefreshAttempted = false;
 
-  // Retry logic
+  // Retry logic with token refresh on 401
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const controller = new AbortController();
@@ -265,6 +312,39 @@ async function request<T = any>(
       clearTimeout(timeoutId);
 
       if (!response.ok) {
+        // Handle 401 Unauthorized - try token refresh
+        if (response.status === 401 && roomName && !tokenRefreshAttempted && !skipTokenInjection) {
+          console.log('🔄 Received 401, attempting token refresh for room:', roomName);
+
+          // Clear the invalid token first
+          clearRoomToken(roomName);
+          tokenRefreshAttempted = true;
+
+          // Try to get a fresh token automatically (works for non-password-protected rooms)
+          const freshToken = await refreshRoomToken(roomName);
+
+          if (freshToken) {
+            console.log('✅ Successfully refreshed token, retrying request');
+
+            // Rebuild URL with fresh token
+            url = buildURL(path);
+            url = injectToken(url, freshToken);
+
+            // Continue to next attempt (will retry with fresh token)
+            attempt--; // Don't count this as an attempt since we'll retry with fresh token
+            continue;
+          } else {
+            console.log('❌ Could not refresh token automatically, room may be password protected');
+            // Throw a more user-friendly error that the UI can handle
+            const errorData = await response.json();
+            throw new APIError(
+              `Token expired: ${errorData.message || 'Please refresh the page to re-authenticate'}`,
+              401,
+              response,
+            );
+          }
+        }
+
         // Try to parse error response
         try {
           const errorData = await response.json();
@@ -286,10 +366,10 @@ async function request<T = any>(
     } catch (error) {
       lastError = error as Error;
 
-      // Don't retry on client errors (4xx) or abort errors
+      // Don't retry on client errors (4xx) or abort errors, except for 401 which we handled above
       if (
         error instanceof APIError && error.code && error.code >= 400 &&
-        error.code < 500
+        error.code < 500 && error.code !== 401
       ) {
         throw error;
       }
@@ -362,9 +442,14 @@ export const api = {
    */
   delete: <T = any>(
     path: string,
+    data?: any,
     options?: RequestOptions,
   ): Promise<T> => {
-    return request<T>(path, { ...options, method: "DELETE" });
+    return request<T>(path, {
+      ...options,
+      method: "DELETE",
+      body: data ? JSON.stringify(data) : undefined,
+    });
   },
 };
 

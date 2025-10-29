@@ -9,8 +9,9 @@
  */
 
 import { API_ENDPOINTS } from "../lib/config";
-import { api, getRoomToken, saveTokens } from "../lib/utils/api";
+import { api, getRoomToken, setRoomToken, getStoredTokens } from "../lib/utils/api";
 import { getValidToken } from "./authService";
+import { parsePermissions } from "../lib/types";
 import type { RoomDetails } from "../lib/types";
 
 // ============================================================================
@@ -299,14 +300,11 @@ export async function accessRoom(
       passwordResult.token!,
     );
 
-    // Save token to cache
-    saveTokens({
-      ...getStoredTokens(),
-      [roomName]: {
-        token: passwordResult.token!,
-        expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 minutes
-        refreshToken: passwordResult.token,
-      },
+    // Save token to cache using unified token storage
+    setRoomToken(roomName, {
+      token: passwordResult.token!,
+      expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 minutes
+      refreshToken: passwordResult.token,
     });
 
     return {
@@ -337,14 +335,11 @@ export async function accessRoom(
       shareableResult.token!,
     );
 
-    // Save token to cache
-    saveTokens({
-      ...getStoredTokens(),
-      [roomName]: {
-        token: shareableResult.token!,
-        expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 minutes
-        refreshToken: shareableResult.token,
-      },
+    // Save token to cache using unified token storage
+    setRoomToken(roomName, {
+      token: shareableResult.token!,
+      expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 minutes
+      refreshToken: shareableResult.token,
     });
 
     return {
@@ -402,20 +397,6 @@ function isTokenExpired(tokenInfo: { expiresAt: string }): boolean {
   return new Date(tokenInfo.expiresAt) <= new Date();
 }
 
-/**
- * Get stored tokens (helper function)
- */
-function getStoredTokens() {
-  if (typeof window === "undefined") return {};
-
-  try {
-    const stored = localStorage.getItem("elizabeth_tokens");
-    return stored ? JSON.parse(stored) : {};
-  } catch (error) {
-    console.error("Failed to parse stored tokens:", error);
-    return {};
-  }
-}
 
 export default {
   checkRoomAvailability,

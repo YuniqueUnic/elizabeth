@@ -19,6 +19,8 @@ import {
 import type { FileItem } from "@/lib/types";
 import { formatFileSize } from "@/lib/utils/format";
 import { useToast } from "@/hooks/use-toast";
+import { useAppStore } from "@/lib/store";
+import { downloadFile } from "@/api/fileService";
 
 interface FilePreviewModalProps {
   file: FileItem | null;
@@ -31,6 +33,7 @@ export function FilePreviewModal(
   { file, open, onOpenChange, onDelete }: FilePreviewModalProps,
 ) {
   const { toast } = useToast();
+  const currentRoomId = useAppStore((state) => state.currentRoomId);
   const [showIframe, setShowIframe] = useState(false);
 
   if (!file) return null;
@@ -42,13 +45,25 @@ export function FilePreviewModal(
     file.name.match(/\.(mp4|webm|ogg)$/i);
   const isPdf = file.name.match(/\.pdf$/i);
 
-  const handleDownload = () => {
-    toast({
-      title: "开始下载",
-      description: `正在下载 ${file.name}`,
-    });
-    // Mock download
-    console.log("[v0] Downloading file:", file.id);
+  const handleDownload = async () => {
+    try {
+      toast({
+        title: "开始下载",
+        description: `正在下载 ${file.name}`,
+      });
+      await downloadFile(currentRoomId, file.id, file.name);
+      toast({
+        title: "下载完成",
+        description: `${file.name} 已成功下载`,
+      });
+    } catch (error) {
+      console.error("Download failed:", error);
+      toast({
+        title: "下载失败",
+        description: "无法下载文件，请重试",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleCopyLink = () => {
@@ -85,7 +100,9 @@ export function FilePreviewModal(
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
             <div className="flex-1 truncate pr-4">
-              <div className="truncate">{file.name}</div>
+              <div className="file-name" title={file.name}>
+                {file.name}
+              </div>
               <div className="text-sm font-normal text-muted-foreground">
                 {file.size ? formatFileSize(file.size) : ""}
               </div>

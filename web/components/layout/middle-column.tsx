@@ -28,19 +28,58 @@ export function MiddleColumn() {
 
   const postMutation = useMutation({
     mutationFn: (content: string) => postMessage(currentRoomId, content),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["messages", currentRoomId] });
-      toast({
-        title: "消息已发送",
-        description: "您的消息已成功发送",
-      });
+    onMutate: async (content: string) => {
+      // 取消任何进行中的查询
+      await queryClient.cancelQueries({ queryKey: ["messages", currentRoomId] });
+
+      // 快照当前的消息列表
+      const previousMessages = queryClient.getQueryData(["messages", currentRoomId]);
+
+      // 创建一个临时的乐观消息对象
+      const optimisticMessage: Message = {
+        id: `temp-${Date.now()}`,
+        content,
+        timestamp: new Date().toISOString(),
+        isOwn: true,
+      };
+
+      // 乐观更新：立即将新消息添加到列表中
+      queryClient.setQueryData(["messages", currentRoomId], (old: Message[] = []) => [
+        ...old,
+        optimisticMessage,
+      ]);
+
+      // 返回用于回滚的上下文
+      return { previousMessages, optimisticMessage };
     },
-    onError: () => {
+    onError: (error, content, context) => {
+      // 如果出错，回滚到之前的状态
+      if (context?.previousMessages) {
+        queryClient.setQueryData(["messages", currentRoomId], context.previousMessages);
+      }
+
       toast({
         title: "发送失败",
         description: "无法发送消息，请重试",
         variant: "destructive",
       });
+    },
+    onSuccess: (newMessage, content, context) => {
+      // 用真实的服务器响应替换乐观消息
+      queryClient.setQueryData(["messages", currentRoomId], (old: Message[] = []) => {
+        return old.map((msg) =>
+          msg.id === context?.optimisticMessage.id ? newMessage : msg
+        );
+      });
+
+      toast({
+        title: "消息已发送",
+        description: "您的消息已成功发送",
+      });
+    },
+    onSettled: () => {
+      // 无论成功还是失败，最终都重新获取数据以确保一致性
+      queryClient.invalidateQueries({ queryKey: ["messages", currentRoomId] });
     },
   });
 
@@ -114,9 +153,9 @@ export function MiddleColumn() {
         <Panel defaultSize={30} minSize={20}>
           <MessageInput
             onSend={handleSend}
-            editingMessage={null}
+            editingMessage={editingMessage}
             onCancelEdit={handleCancelEdit}
-            isLoading={postMutation.isPending}
+            isLoading={postMutation.isPending || updateMutation.isPending}
           />
         </Panel>
       </PanelGroup>
