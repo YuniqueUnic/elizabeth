@@ -21,111 +21,81 @@ export default function RoomPage() {
   const params = useParams();
   const router = useRouter();
   const isMobile = useIsMobile();
-  const { setCurrentRoomId } = useAppStore();
+  const { currentRoomId, setCurrentRoomId } = useAppStore();
 
   const roomName = params.roomName as string;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [needsPassword, setNeedsPassword] = useState(false);
-  const [roomExists, setRoomExists] = useState(false);
 
   useEffect(() => {
+    let isCancelled = false;
+
     const initRoom = async () => {
       if (!roomName) {
         router.push("/");
         return;
       }
 
+      setLoading(true);
+      setError(null);
+      setNeedsPassword(false);
+
+      // This logic runs every time the `roomName` in the URL changes.
+      // 1. Set the global room identifier.
       setCurrentRoomId(roomName);
 
-      // Check if we have a valid token first
+      // 2. Check for a valid, non-expired token for this identifier.
       if (hasValidToken(roomName)) {
-        setLoading(false);
-        setRoomExists(true);
+        if (!isCancelled) {
+          setLoading(false);
+        }
         return;
       }
 
-      // If no valid token, try to get one and then check access
+      // 3. If no valid token, try to access the room to see if it's public,
+      //    password-protected, or requires a special slug.
       try {
-        await getAccessToken(roomName);
-        await checkRoomAccess();
-      } catch (e) {
-        // If we still fail, then there's a problem
-        setError("无法访问房间或获取令牌");
-        setLoading(false);
+        const room = await getRoomDetails(roomName, undefined, true);
+        if (isCancelled) return;
+
+        // At this point, the room exists. Check for password.
+        if (room.settings.passwordProtected) {
+          setNeedsPassword(true);
+        } else {
+          // No password, so we should be able to get a token directly.
+          await getAccessToken(roomName);
+        }
+      } catch (err: any) {
+        if (!isCancelled) {
+          if (err.message?.includes("404")) {
+            setError("房间不存在");
+          } else {
+            setError("无法访问房间，请稍后重试");
+          }
+        }
+      } finally {
+        if (!isCancelled) {
+          setLoading(false);
+        }
       }
     };
 
     initRoom();
-  }, [roomName, router, setCurrentRoomId]);
 
-  const checkRoomAccess = async () => {
-    if (!roomName) return;
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      // Try to get room details without token (skipAuth=true)
-      const room = await getRoomDetails(roomName, undefined, true);
-      console.log("Room details received:", room);
-
-      // Check if room has SHARE permission
-      // If not shareable, verify that roomName matches the slug (UUID link)
-      const isShareable = room.permissions.includes("share");
-      const roomSlug = room.slug || room.name;
-
-      // If room is not shareable and name doesn't match slug, reject direct access
-      if (!isShareable && roomName !== roomSlug && roomSlug.includes("_")) {
-        setError(
-          "该房间不允许直接访问，请使用管理员提供的完整链接（包含 UUID）",
-        );
-        setLoading(false);
-        return;
-      }
-
-      // Room exists and is accessible
-      setRoomExists(true);
-
-      // If room has password, show password dialog
-      if (room.settings.passwordProtected) {
-        console.log("Room is password protected.");
-        setNeedsPassword(true);
-        setLoading(false);
-      } else {
-        console.log("Room is not password protected. Attempting to get access token.");
-        // No password needed, try to get token
-        try {
-          await getAccessToken(roomName);
-          console.log("Successfully obtained access token.");
-          setLoading(false);
-        } catch (err) {
-          console.error("Failed to get access token:", err);
-          setError("无法获取访问令牌");
-          setLoading(false);
-        }
-      }
-    } catch (err: any) {
-      // Room doesn't exist or other error
-      if (err.message?.includes("404") || err.message?.includes("not found")) {
-        setError("房间不存在");
-      } else {
-        setError("无法访问房间，请稍后重试");
-      }
-      setLoading(false);
-    }
-  };
+    return () => {
+      isCancelled = true;
+    };
+  }, [roomName, setCurrentRoomId, router]);
 
   const handlePasswordSubmit = async (password: string) => {
     try {
       setError(null);
       await getAccessToken(roomName, password);
       setNeedsPassword(false);
-      setRoomExists(true);
     } catch (err: any) {
       console.error("Password submission failed:", err);
-      // Check for authentication errors (401) or password-related errors
       if (
         err.code === 401 ||
         err.message?.toLowerCase().includes("password") ||
@@ -178,20 +148,9 @@ export default function RoomPage() {
     );
   }
 
-  if (!roomExists) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-background p-4">
-        <Alert className="max-w-md">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>房间不存在</AlertTitle>
-          <AlertDescription>
-            您访问的房间不存在或已被删除。
-          </AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
-
+  // If we are not loading, have no errors, and don't need a password,
+  // we can assume the room is accessible and render the main layout.
+  // The token check in `initRoom` or a successful password submission ensures this.
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background">
       <TopBar />
