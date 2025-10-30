@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { RoomPage } from "../page-objects/room-page";
 
 test.describe("烟雾测试 - Playwright 框架验证", () => {

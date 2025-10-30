@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Download, LinkIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { getQRCodeImage, getShareLink } from "@/api/shareService";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useTheme } from "@/lib/hooks/use-theme";
 
 interface RoomSharingProps {
@@ -56,23 +56,25 @@ export function RoomSharing({ roomId }: RoomSharingProps) {
       <h3 className="text-sm font-semibold">分享房间</h3>
 
       {/* QR Code */}
-      {qrCodeUrl ? (
-        <div className="flex justify-center rounded-lg border border-border bg-background p-4">
-          <img
-            src={qrCodeUrl}
-            alt="Room QR Code"
-            className="h-40 w-40"
-            onError={(e) => {
-              console.error("Failed to load QR code:", e);
-              e.currentTarget.src = "/placeholder.svg";
-            }}
-          />
-        </div>
-      ) : (
-        <div className="flex justify-center rounded-lg border border-border bg-muted p-4">
-          <p className="text-sm text-muted-foreground">正在生成二维码...</p>
-        </div>
-      )}
+      {qrCodeUrl
+        ? (
+          <div className="flex justify-center rounded-lg border border-border bg-background p-4">
+            <img
+              src={qrCodeUrl}
+              alt="Room QR Code"
+              className="h-40 w-40"
+              onError={(e) => {
+                console.error("Failed to load QR code:", e);
+                e.currentTarget.src = "/placeholder.svg";
+              }}
+            />
+          </div>
+        )
+        : (
+          <div className="flex justify-center rounded-lg border border-border bg-muted p-4">
+            <p className="text-sm text-muted-foreground">正在生成二维码...</p>
+          </div>
+        )}
 
       {/* Actions */}
       <div className="flex gap-2">

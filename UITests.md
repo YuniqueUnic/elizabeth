@@ -23,51 +23,62 @@ backend: /Users/unic/dev/projs/rs/elizabeth/crates/board frontend:
 you always stuck during exec bash cmd. recommend to use desktop-commander to do
 such things which has timeout parameter can avoid such situation.
 
+cd /Users/unic/dev/projs/rs/elizabeth/web && npx playwright test
+e2e/tests/messaging.spec.ts 2>&1 | grep -A 2 "failed\|✓\|✘" | tail -50
+
+such command will let all tasks stuck...you can run it in background and route
+the output to a log file . and continue fix others... do not stuck here...
+
+and you can look such test-result to help you Identitify issues.
+/Users/unic/dev/projs/rs/elizabeth/web/test-results
+
 if you want to know the origin tests description and expect, please see
 /Users/unic/dev/projs/rs/elizabeth/TASKs.md
 
-## if you want to know some room UI design and UX design，please see /Users/unic/dev/projs/rs/elizabeth/功能说明.md
+if you want to know some room UI design and UX design，please see
+/Users/unic/dev/projs/rs/elizabeth/功能说明.md
 
-Project: chromium 10/30/2025, 5:44:23 PM Total time: 7.9m room-settings.spec.ts
-房间设置功能测试 › 房间基础信息 › RS-001: 应该正确显示房间 URLchromium 15.8s
-room-settings.spec.ts:23 房间设置功能测试 › 房间基础信息 › RS-002: 应该从 URL
-中提取房间名称 chromium 15.8s room-settings.spec.ts:28 房间设置功能测试 ›
-房间基础信息 › RS-003: 应该显示容量信息 chromium 15.9s room-settings.spec.ts:33
-房间设置功能测试 › 过期时间设置 › RS-004: 应该可以修改过期时间 - 1 分钟 chromium
-15.9s room-settings.spec.ts:40 房间设置功能测试 › 过期时间设置 › RS-005:
-应该可以修改过期时间 - 1 小时 chromium 15.8s room-settings.spec.ts:49
-房间设置功能测试 › 过期时间设置 › RS-006: 应该可以修改过期时间 - 1 天 chromium
-15.8s room-settings.spec.ts:58 房间设置功能测试 › 过期时间设置 › RS-007:
-应该可以修改过期时间 - 永不过期 chromium 15.8s room-settings.spec.ts:67
-房间设置功能测试 › 房间密码设置 › RS-008: 应该可以设置房间密码 chromium 15.8s
-room-settings.spec.ts:78 房间设置功能测试 › 房间密码设置 › RS-009:
-应该可以清空房间密码 chromium 16.2s room-settings.spec.ts:86 房间设置功能测试 ›
-房间密码设置 › RS-010: 应该支持特殊字符密码 chromium 16.0s
-room-settings.spec.ts:95 房间设置功能测试 › 房间密码设置 › RS-011:
-应该支持长密码 chromium 16.0s room-settings.spec.ts:103 房间设置功能测试 ›
-最大查看次数设置 › RS-012: 应该可以设置最大查看次数 chromium 16.4s
-room-settings.spec.ts:113 房间设置功能测试 › 最大查看次数设置 › RS-013:
-应该可以增加最大查看次数 chromium 15.9s room-settings.spec.ts:120
-房间设置功能测试 › 最大查看次数设置 › RS-014: 应该可以减少最大查看次数 chromium
-15.9s room-settings.spec.ts:131 房间设置功能测试 › 最大查看次数设置 › RS-015:
-最大查看次数应该接受小数值 chromium 16.1s room-settings.spec.ts:141
-房间设置功能测试 › 设置保存 › RS-016: 应该可以保存单个设置 chromium 16.0s
-room-settings.spec.ts:150 房间设置功能测试 › 设置保存 › RS-017:
-应该可以保存多个设置 chromium 16.9s room-settings.spec.ts:161 房间设置功能测试 ›
-设置保存 › RS-018: 应该可以多次保存设置 chromium 15.9s room-settings.spec.ts:177
-房间设置功能测试 › 权限管理 › RS-019: 应该可以切换预览权限 chromium 16.0s
-room-settings.spec.ts:195 房间设置功能测试 › 权限管理 › RS-020:
-应该可以切换编辑权限 chromium 16.0s room-settings.spec.ts:206 房间设置功能测试 ›
-权限管理 › RS-021: 应该可以切换分享权限 chromium 15.8s room-settings.spec.ts:216
-房间设置功能测试 › 权限管理 › RS-022: 应该可以切换删除权限 chromium 16.3s
-room-settings.spec.ts:226 房间设置功能测试 › 权限管理 › RS-023:
-应该可以保存权限设置 chromium 15.8s room-settings.spec.ts:236 房间设置功能测试 ›
-权限管理 › RS-024: 应该支持所有权限组合 chromium 15.8s room-settings.spec.ts:252
-房间设置功能测试 › 分享功能 › RS-025: 应该显示分享按钮 chromium 15.9s
-room-settings.spec.ts:271 房间设置功能测试 › 分享功能 › RS-026:
-应该显示下载二维码按钮 chromium 16.0s room-settings.spec.ts:277 房间设置功能测试
-› 设置表单交互 › RS-027: 输入框应该支持焦点和取消焦点 chromium 16.1s
-room-settings.spec.ts:285 房间设置功能测试 › 设置表单交互 › RS-028: 应该可以使用
-Tab 键在表单中导航 chromium 15.8s room-settings.spec.ts:295 房间设置功能测试 ›
-设置表单交互 › RS-029: 应该可以使用 Enter 键提交表单 chromium 17.2s
-room-settings.spec.ts:304
+---
+
+messaging.spec.ts 消息系统功能测试 › 基础消息发送 › MSG-001:
+应该可以发送简单文本消息 chromium 18.3s messaging.spec.ts:23 消息系统功能测试 ›
+基础消息发送 › MSG-002: 应该可以发送多条消息 chromium 15.9s messaging.spec.ts:32
+消息系统功能测试 › 基础消息发送 › MSG-003: 应该可以发送包含特殊字符的消息
+chromium 16.6s messaging.spec.ts:44 消息系统功能测试 › 基础消息发送 › MSG-004:
+应该可以发送包含 emoji 的消息 chromium 15.9s messaging.spec.ts:52
+消息系统功能测试 › 基础消息发送 › MSG-005: 应该可以发送长文本消息 chromium 16.3s
+messaging.spec.ts:61 消息系统功能测试 › 基础消息发送 › MSG-006:
+应该可以发送换行消息 chromium 16.1s messaging.spec.ts:70 消息系统功能测试 ›
+消息状态管理 › MSG-007: 发送消息后应该显示未保存标签 chromium 16.2s
+messaging.spec.ts:82 消息系统功能测试 › 消息状态管理 › MSG-008:
+点击保存后未保存标签应该消失 chromium 16.3s messaging.spec.ts:89
+消息系统功能测试 › 消息状态管理 › MSG-009: 保存按钮在有未保存消息时应该启用
+chromium 17.2s messaging.spec.ts:102 消息系统功能测试 › 消息输入框交互 ›
+MSG-010: 输入框应该可以获得焦点 chromium 16.9s messaging.spec.ts:111
+消息系统功能测试 › 消息输入框交互 › MSG-011: 输入框应该可以清空 chromium 16.5s
+messaging.spec.ts:121 消息系统功能测试 › 消息输入框交互 › MSG-012:
+应该可以选择输入框中的所有文本 chromium 15.9s messaging.spec.ts:130
+消息系统功能测试 › 消息输入框交互 › MSG-013: 输入框应该可以处理粘贴操作 chromium
+15.9s messaging.spec.ts:140 消息系统功能测试 › 消息输入框交互 › MSG-014:
+发送按钮在有输入时应该启用 chromium 17.7s messaging.spec.ts:161 消息系统功能测试
+› 消息输入框交互 › MSG-015: 发送按钮在无输入时应该禁用 chromium 16.5s
+messaging.spec.ts:168 消息系统功能测试 › 消息列表交互 › MSG-016:
+应该可以选择单条消息 chromium 16.1s messaging.spec.ts:177 消息系统功能测试 ›
+消息列表交互 › MSG-017: 应该可以全选消息 chromium 16.8s messaging.spec.ts:192
+消息系统功能测试 › 消息列表交互 › MSG-018: 应该可以反选消息 chromium 15.8s
+messaging.spec.ts:204 消息系统功能测试 › 消息列表交互 › MSG-019:
+消息列表应该显示消息计数 chromium 17.7s messaging.spec.ts:210 消息系统功能测试 ›
+顶部栏按钮 › MSG-020: 复制按钮应该可见 chromium 16.3s messaging.spec.ts:218
+消息系统功能测试 › 顶部栏按钮 › MSG-021: 下载按钮应该可见 chromium 17.3s
+messaging.spec.ts:233 消息系统功能测试 › 顶部栏按钮 › MSG-022: 删除按钮应该可见
+chromium 15.9s messaging.spec.ts:248 消息系统功能测试 › 顶部栏按钮 › MSG-023:
+帮助按钮应该可见 chromium 16.3s messaging.spec.ts:263 消息系统功能测试 ›
+顶部栏按钮 › MSG-024: 设置按钮应该可见 chromium 16.6s messaging.spec.ts:269
+消息系统功能测试 › 消息流程 › MSG-025: 完整消息流程 - 发送、保存 chromium 16.1s
+messaging.spec.ts:277 消息系统功能测试 › 消息流程 › MSG-026: 多消息流程 chromium
+15.9s messaging.spec.ts:294 消息系统功能测试 › 边界情况 › MSG-027:
+应该处理非常长的消息 chromium 15.8s messaging.spec.ts:319 消息系统功能测试 ›
+边界情况 › MSG-028: 应该处理只有空格的消息 chromium 15.9s messaging.spec.ts:328
+消息系统功能测试 › 边界情况 › MSG-029: 应该处理 HTML 标签内容 chromium 15.9s
+messaging.spec.ts:336 消息系统功能测试 › 边界情况 › MSG-030:
+应该处理连续快速发送 chromium 16.8s messaging.spec.ts:345

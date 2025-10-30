@@ -288,24 +288,33 @@ export class RoomPage extends BasePage {
      * 获取最后一条消息的文本
      */
     async getLastMessageText(): Promise<string> {
-        const messages = this.page.locator(
-            htmlSelectors.middleColumn.messageList.message.container,
-        );
-        const lastMessage = messages.last();
-        const content = lastMessage.locator(
-            htmlSelectors.middleColumn.messageList.message.content,
-        );
-        return await content.textContent() || "";
+        try {
+            // 使用 getByTestId 来获取所有消息容器（最可靠的方式）
+            const messages = this.page.getByTestId(/^message-item-/);
+            const lastMessage = messages.last();
+            const content = lastMessage.getByTestId(/^message-content-/);
+            const text = await content.textContent({ timeout: 5000 });
+            return text?.trim() || "";
+        } catch (error) {
+            console.error("获取消息文本失败：", error);
+            return "";
+        }
     }
 
     /**
      * 检查是否显示"未保存"标签
      */
     async hasUnsavedBadge(): Promise<boolean> {
-        const badge = this.page.locator(
-            htmlSelectors.middleColumn.messageList.message.unsavedBadge,
-        );
-        return await badge.isVisible().catch(() => false);
+        try {
+            // 使用 getByTestId 来获取"未保存"标签（最可靠的方式）
+            const unsavedBadges = this.page.getByTestId(
+                /^message-unsaved-badge-/,
+            );
+            // 如果存在至少一个未保存标签，说明有消息未保存
+            return (await unsavedBadges.count()) > 0;
+        } catch (error) {
+            return false;
+        }
     }
 
     /**

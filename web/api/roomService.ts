@@ -10,11 +10,11 @@
 
 import { API_ENDPOINTS } from "../lib/config";
 import {
-    api,
-    clearRoomToken,
-    getRoomToken,
-    isTokenExpired,
-    setRoomToken,
+  api,
+  clearRoomToken,
+  getRoomToken,
+  isTokenExpired,
+  setRoomToken,
 } from "../lib/utils/api";
 import { getValidToken } from "./authService";
 import type { BackendRoom, RoomDetails, RoomPermission } from "../lib/types";
@@ -196,7 +196,7 @@ export async function updateRoomSettings(
   );
 
   if (settings.password !== undefined) {
-      clearRoomToken(roomName);
+    clearRoomToken(roomName);
   }
 
   return convertRoom(room);
