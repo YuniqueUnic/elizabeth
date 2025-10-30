@@ -113,7 +113,8 @@ test.describe("房间设置功能测试", () => {
         test("RS-012: 应该可以设置最大查看次数", async () => {
             await roomPage.roomSettings.maxViewCount.setValue(50);
 
-            const value = await roomPage.roomSettings.maxViewCount.getValue();
+            const value = await roomPage.roomSettings.maxViewCount
+                .getNumberValue();
             expect(value).toBe(50);
         });
 
@@ -124,7 +125,8 @@ test.describe("房间设置功能测试", () => {
             await roomPage.roomSettings.maxViewCount.increment(5);
 
             // 可能的预期值范围
-            const value = await roomPage.roomSettings.maxViewCount.getValue();
+            const value = await roomPage.roomSettings.maxViewCount
+                .getNumberValue();
             expect(value).toBeGreaterThan(100);
         });
 
@@ -134,14 +136,16 @@ test.describe("房间设置功能测试", () => {
 
             await roomPage.roomSettings.maxViewCount.decrement(10);
 
-            const value = await roomPage.roomSettings.maxViewCount.getValue();
+            const value = await roomPage.roomSettings.maxViewCount
+                .getNumberValue();
             expect(value).toBeLessThan(100);
         });
 
         test("RS-015: 最大查看次数应该接受小数值", async () => {
             await roomPage.roomSettings.maxViewCount.setValue(999);
 
-            const value = await roomPage.roomSettings.maxViewCount.getValue();
+            const value = await roomPage.roomSettings.maxViewCount
+                .getNumberValue();
             expect(value).toBe(999);
         });
     });

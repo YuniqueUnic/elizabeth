@@ -39,7 +39,7 @@ export const htmlSelectors = {
 
             expirationTime: {
                 label: 'text="过期时间"',
-                select: "combobox",
+                select: 'heading:has-text("房间设置") ~ div combobox',
                 options: {
                     oneMinute: 'option:has-text("1 分钟")',
                     tenMinutes: 'option:has-text("10 分钟")',
@@ -98,7 +98,8 @@ export const htmlSelectors = {
         roomCapacity: {
             section: 'heading:has-text("容量使用")',
             progressBar: "progressbar",
-            info: "text=/MB/",
+            // 使用 paragraph 而不是 text 正则，更稳定
+            info: 'heading:has-text("容量使用") ~ paragraph',
         },
     },
 
@@ -152,8 +153,8 @@ export const htmlSelectors = {
                 helpBtn: 'button:has-text("Open help")',
             },
 
-            // ✅ 改为使用 data-testid
-            input: '[data-testid="message-input-textarea"]',
+            // 使用 textarea 选择器，因为 MDEditor 的 textarea 无法添加 data-testid 属性
+            input: "textarea",
 
             actions: {
                 expandBtn: 'button:has-text("展开编辑器")',

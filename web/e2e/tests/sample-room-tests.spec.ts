@@ -108,7 +108,7 @@ test.describe("Elizabeth Room UI Tests", () => {
         await roomPage.roomSettings.maxViewCount.setValue(newCount);
 
         // 验证值已设置
-        const count = await roomPage.roomSettings.maxViewCount.getValue();
+        const count = await roomPage.roomSettings.maxViewCount.getNumberValue();
         expect(count).toBe(newCount);
     });
 
@@ -134,7 +134,7 @@ test.describe("Elizabeth Room UI Tests", () => {
         const password = await roomPage.roomSettings.password.getValue();
         expect(password).toBe("SecurePass123");
 
-        const count = await roomPage.roomSettings.maxViewCount.getValue();
+        const count = await roomPage.roomSettings.maxViewCount.getNumberValue();
         expect(count).toBe(100);
     });
 
