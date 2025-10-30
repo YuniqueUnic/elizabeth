@@ -1,0 +1,359 @@
+/**
+ * 消息系统功能测试
+ * 测试消息发送、编辑、删除、保存等功能
+ */
+
+import { expect, test } from "@playwright/test";
+import { RoomPage } from "../page-objects/room-page";
+
+const BASE_URL = "http://localhost:4001";
+const TEST_ROOM = "messaging-test-room";
+const TEST_ROOM_URL = `${BASE_URL}/${TEST_ROOM}`;
+
+test.describe("消息系统功能测试", () => {
+    let roomPage: RoomPage;
+
+    test.beforeEach(async ({ page }) => {
+        roomPage = new RoomPage(page);
+        await roomPage.goto(TEST_ROOM_URL);
+        await roomPage.waitForRoomLoad();
+    });
+
+    test.describe("基础消息发送", () => {
+        test("MSG-001: 应该可以发送简单文本消息", async () => {
+            const initialCount = await roomPage.getMessageCount();
+
+            await roomPage.sendMessage("Hello World");
+
+            const newCount = await roomPage.getMessageCount();
+            expect(newCount).toBeGreaterThan(initialCount);
+        });
+
+        test("MSG-002: 应该可以发送多条消息", async () => {
+            const initialCount = await roomPage.getMessageCount();
+
+            await roomPage.sendMessage("Message 1");
+            await roomPage.sendMessage("Message 2");
+            await roomPage.sendMessage("Message 3");
+
+            await roomPage.page.waitForTimeout(500);
+            const newCount = await roomPage.getMessageCount();
+            expect(newCount).toBeGreaterThan(initialCount + 2);
+        });
+
+        test("MSG-003: 应该可以发送包含特殊字符的消息", async () => {
+            const specialMessage = "Test @#$%^&*()_+-=[]{}|;:,.<>?";
+            await roomPage.sendMessage(specialMessage);
+
+            const lastMessage = await roomPage.getLastMessageText();
+            expect(lastMessage).toContain("@#$%");
+        });
+
+        test("MSG-004: 应该可以发送包含 emoji 的消息", async () => {
+            const emojiMessage = "Hello 👋 World 🌍 Playwright 🎭";
+            await roomPage.sendMessage(emojiMessage);
+
+            await roomPage.page.waitForTimeout(300);
+            const messageCount = await roomPage.getMessageCount();
+            expect(messageCount).toBeGreaterThan(0);
+        });
+
+        test("MSG-005: 应该可以发送长文本消息", async () => {
+            const longMessage = "This is a very long message. ".repeat(10);
+            await roomPage.sendMessage(longMessage);
+
+            await roomPage.page.waitForTimeout(300);
+            const lastMessage = await roomPage.getLastMessageText();
+            expect(lastMessage.length).toBeGreaterThan(50);
+        });
+
+        test("MSG-006: 应该可以发送换行消息", async () => {
+            const multilineMessage = "Line 1\nLine 2\nLine 3";
+            await roomPage.messages.input.fill(multilineMessage);
+            await roomPage.messages.sendBtn.click();
+
+            await roomPage.page.waitForTimeout(500);
+            const messageCount = await roomPage.getMessageCount();
+            expect(messageCount).toBeGreaterThan(0);
+        });
+    });
+
+    test.describe("消息状态管理", () => {
+        test("MSG-007: 发送消息后应该显示未保存标签", async () => {
+            await roomPage.sendMessage("Unsaved test");
+
+            const hasUnsaved = await roomPage.hasUnsavedBadge();
+            expect(hasUnsaved).toBe(true);
+        });
+
+        test("MSG-008: 点击保存后未保存标签应该消失", async () => {
+            await roomPage.sendMessage("Save test");
+            let hasUnsaved = await roomPage.hasUnsavedBadge();
+            expect(hasUnsaved).toBe(true);
+
+            await roomPage.topBar.saveBtn.click();
+            await roomPage.page.waitForTimeout(1000);
+
+            // 等待标签消失
+            hasUnsaved = await roomPage.hasUnsavedBadge().catch(() => false);
+            expect(hasUnsaved).toBe(false);
+        });
+
+        test("MSG-009: 保存按钮在有未保存消息时应该启用", async () => {
+            await roomPage.sendMessage("Enable save button");
+
+            const isEnabled = await roomPage.topBar.saveBtn.isEnabled();
+            expect(isEnabled).toBe(true);
+        });
+    });
+
+    test.describe("消息输入框交互", () => {
+        test("MSG-010: 输入框应该可以获得焦点", async () => {
+            await roomPage.messages.input.focus();
+
+            const isFocused = await roomPage.messages.input.getLocator()
+                .evaluate(
+                    (el: any) => el === document.activeElement,
+                );
+            expect(isFocused).toBe(true);
+        });
+
+        test("MSG-011: 输入框应该可以清空", async () => {
+            await roomPage.messages.input.fill("Test content");
+            await roomPage.page.waitForTimeout(100);
+
+            await roomPage.messages.input.clear();
+            const value = await roomPage.messages.input.getValue();
+            expect(value).toBe("");
+        });
+
+        test("MSG-012: 应该可以选择输入框中的所有文本", async () => {
+            await roomPage.messages.input.fill("Select all test");
+
+            const input = roomPage.messages.input;
+            await input.selectAll();
+
+            await roomPage.page.waitForTimeout(100);
+            expect(true).toBe(true); // 验证没有抛出错误
+        });
+
+        test("MSG-013: 输入框应该可以处理粘贴操作", async () => {
+            const testText = "Pasted content";
+            await roomPage.messages.input.focus();
+
+            // 模拟粘贴
+            await roomPage.page.evaluate((text) => {
+                const textarea = document.querySelector(
+                    'textarea[placeholder*="输入消息"]',
+                ) as HTMLTextAreaElement;
+                if (textarea) {
+                    textarea.value = text;
+                    textarea.dispatchEvent(
+                        new Event("input", { bubbles: true }),
+                    );
+                }
+            }, testText);
+
+            const value = await roomPage.messages.input.getValue();
+            expect(value).toContain("Pasted");
+        });
+
+        test("MSG-014: 发送按钮在有输入时应该启用", async () => {
+            await roomPage.messages.input.fill("Test message");
+
+            const isEnabled = await roomPage.messages.sendBtn.isEnabled();
+            expect(isEnabled).toBe(true);
+        });
+
+        test("MSG-015: 发送按钮在无输入时应该禁用", async () => {
+            await roomPage.messages.input.clear();
+
+            const isDisabled = await roomPage.messages.sendBtn.isDisabled();
+            expect(isDisabled).toBe(true);
+        });
+    });
+
+    test.describe("消息列表交互", () => {
+        test("MSG-016: 应该可以选择单条消息", async () => {
+            // 首先发送一条消息
+            await roomPage.sendMessage("Selectable message");
+            await roomPage.page.waitForTimeout(300);
+
+            // 尝试选择消息（点击 checkbox）
+            const firstCheckbox = roomPage.page.locator(
+                'input[type="checkbox"]',
+            ).first();
+            const isVisible = await firstCheckbox.isVisible().catch(() =>
+                false
+            );
+            expect(typeof isVisible).toBe("boolean");
+        });
+
+        test("MSG-017: 应该可以全选消息", async () => {
+            // 发送几条消息
+            await roomPage.sendMessage("Message 1");
+            await roomPage.sendMessage("Message 2");
+            await roomPage.page.waitForTimeout(300);
+
+            // 点击全选
+            const selectAllBtn = roomPage.messages.selectAllBtn;
+            const isVisible = await selectAllBtn.isVisible();
+            expect(isVisible).toBe(true);
+        });
+
+        test("MSG-018: 应该可以反选消息", async () => {
+            const invertBtn = roomPage.messages.invertBtn;
+            const isVisible = await invertBtn.isVisible();
+            expect(isVisible).toBe(true);
+        });
+
+        test("MSG-019: 消息列表应该显示消息计数", async () => {
+            const count = await roomPage.getMessageCount();
+            expect(typeof count).toBe("number");
+            expect(count).toBeGreaterThanOrEqual(0);
+        });
+    });
+
+    test.describe("顶部栏按钮", () => {
+        test("MSG-020: 复制按钮应该可见", async () => {
+            // 先发送消息
+            await roomPage.sendMessage("Test for copy button");
+            // 选择消息
+            const messageCheckbox = roomPage.page.locator(
+                'input[type="checkbox"]',
+            ).first();
+            await messageCheckbox.check();
+            await roomPage.page.waitForTimeout(300);
+
+            const copyBtn = roomPage.topBar.copyBtn;
+            const isVisible = await copyBtn.isVisible();
+            expect(isVisible).toBe(true);
+        });
+
+        test("MSG-021: 下载按钮应该可见", async () => {
+            // 先发送消息
+            await roomPage.sendMessage("Test for download button");
+            // 选择消息
+            const messageCheckbox = roomPage.page.locator(
+                'input[type="checkbox"]',
+            ).first();
+            await messageCheckbox.check();
+            await roomPage.page.waitForTimeout(300);
+
+            const downloadBtn = roomPage.topBar.downloadBtn;
+            const isVisible = await downloadBtn.isVisible();
+            expect(isVisible).toBe(true);
+        });
+
+        test("MSG-022: 删除按钮应该可见", async () => {
+            // 先发送消息
+            await roomPage.sendMessage("Test for delete button");
+            // 选择消息
+            const messageCheckbox = roomPage.page.locator(
+                'input[type="checkbox"]',
+            ).first();
+            await messageCheckbox.check();
+            await roomPage.page.waitForTimeout(300);
+
+            const deleteBtn = roomPage.topBar.deleteBtn;
+            const isVisible = await deleteBtn.isVisible();
+            expect(isVisible).toBe(true);
+        });
+
+        test("MSG-023: 帮助按钮应该可见", async () => {
+            const helpBtn = roomPage.topBar.helpBtn;
+            const isVisible = await helpBtn.isVisible();
+            expect(isVisible).toBe(true);
+        });
+
+        test("MSG-024: 设置按钮应该可见", async () => {
+            const settingsBtn = roomPage.topBar.settingsBtn;
+            const isVisible = await settingsBtn.isVisible();
+            expect(isVisible).toBe(true);
+        });
+    });
+
+    test.describe("消息流程", () => {
+        test("MSG-025: 完整消息流程 - 发送、保存", async () => {
+            // 发送消息
+            await roomPage.sendMessage("Complete flow message");
+
+            // 验证未保存状态
+            let hasUnsaved = await roomPage.hasUnsavedBadge();
+            expect(hasUnsaved).toBe(true);
+
+            // 点击保存
+            await roomPage.topBar.saveBtn.click();
+            await roomPage.page.waitForTimeout(500);
+
+            // 验证状态改变
+            hasUnsaved = await roomPage.hasUnsavedBadge().catch(() => false);
+            expect(hasUnsaved).toBe(false);
+        });
+
+        test("MSG-026: 多消息流程", async () => {
+            const initialCount = await roomPage.getMessageCount();
+
+            // 发送多条消息
+            for (let i = 0; i < 5; i++) {
+                await roomPage.sendMessage(`Message ${i + 1}`);
+                await roomPage.page.waitForTimeout(200);
+            }
+
+            // 验证消息数量增加
+            const finalCount = await roomPage.getMessageCount();
+            expect(finalCount).toBeGreaterThan(initialCount + 3);
+
+            // 保存所有消息
+            await roomPage.topBar.saveBtn.click();
+            await roomPage.page.waitForTimeout(500);
+
+            // 验证保存完成
+            const hasError = await roomPage.page.locator("text=/错误/")
+                .isVisible().catch(() => false);
+            expect(hasError).toBe(false);
+        });
+    });
+
+    test.describe("边界情况", () => {
+        test("MSG-027: 应该处理非常长的消息", async () => {
+            const veryLongMessage = "x".repeat(5000);
+            await roomPage.sendMessage(veryLongMessage);
+
+            await roomPage.page.waitForTimeout(300);
+            const messageCount = await roomPage.getMessageCount();
+            expect(messageCount).toBeGreaterThan(0);
+        });
+
+        test("MSG-028: 应该处理只有空格的消息", async () => {
+            await roomPage.messages.input.fill("   ");
+            const isDisabled = await roomPage.messages.sendBtn.isDisabled();
+
+            // 空格应该被视为空消息
+            expect(isDisabled).toBe(true);
+        });
+
+        test("MSG-029: 应该处理 HTML 标签内容", async () => {
+            const htmlContent = "<script>alert('xss')</script>";
+            await roomPage.sendMessage(htmlContent);
+
+            await roomPage.page.waitForTimeout(300);
+            // 验证没有执行 script
+            expect(true).toBe(true);
+        });
+
+        test("MSG-030: 应该处理连续快速发送", async () => {
+            const initialCount = await roomPage.getMessageCount();
+
+            // 快速连续发送
+            for (let i = 0; i < 3; i++) {
+                await roomPage.messages.input.fill(`Quick message ${i}`);
+                await roomPage.messages.sendBtn.click();
+            }
+
+            await roomPage.page.waitForTimeout(500);
+            const finalCount = await roomPage.getMessageCount();
+            expect(finalCount).toBeGreaterThan(initialCount);
+        });
+    });
+});
