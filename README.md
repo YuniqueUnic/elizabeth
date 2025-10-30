@@ -3,6 +3,24 @@
 Elizabeth 是一个基于 Rust
 的文件分享和协作平台项目，旨在提供简单、安全、高效的文件共享解决方案。
 
+## 项目配置
+
+后端：/Users/unic/dev/projs/rs/elizabeth/crates/board
+
+- 启动命令：`cargo run -p elizabeth-board -- run`
+- 配置文件：`~/.config/elizabeth/config.yaml`
+- API 文档：http://127.0.0.1:4092/api/v1/scalar
+- 服务端口：4092
+
+前端：/Users/unic/dev/projs/rs/elizabeth/web
+
+- 启动命令：`pnpm dev --port 4001`
+- 访问地址：http://localhost:4001
+- 服务端口：4001
+
+rust 后端也使用 bacon run 进行了 hot-reload 自动构建，前端也是使用 pnpm dev
+--port 4001 进行了 hot-reload 自动构建。
+
 ## 项目概述
 
 Elizabeth

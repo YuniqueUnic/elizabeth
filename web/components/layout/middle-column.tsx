@@ -221,6 +221,7 @@ export function MiddleColumn() {
             onEdit={handleEdit}
             onDelete={handleDelete}
             onRevert={revertMessageChanges}
+            editingMessageId={editingMessage?.id || null}
           />
         </Panel>
 

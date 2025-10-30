@@ -17,31 +17,8 @@
 并且去除冗余的程序逻辑和 logs. 保持项目代码的 KISS, LISP,
 函数化，模块化，可组合性
 
-please use desktop-manager to kill process and start process when you need, do
-not use shell by yourself for process handling. and please use correct command
-to run backend server and frontend, if addr in use, please kill related process
-firstly, and then use desktop-manager to start process in background.
-
 you you should only use manage_services.sh to manage backend and frontend
 services, and you should lookup related log file when you encounter issues.
-
-## 项目配置
-
-后端：/Users/unic/dev/projs/rs/elizabeth/crates/board
-
-- 启动命令：`cargo run -p elizabeth-board -- run`
-- 配置文件：`~/.config/elizabeth/config.yaml`
-- API 文档：http://127.0.0.1:4092/api/v1/scalar
-- 服务端口：4092
-
-前端：/Users/unic/dev/projs/rs/elizabeth/web
-
-- 启动命令：`pnpm dev --port 4001`
-- 访问地址：http://localhost:4001
-- 服务端口：4001
-
-rust 后端也使用 bacon run 进行了 hot-reload 自动构建，前端也是使用 pnpm dev
---port 4001 进行了 hot-reload 自动构建。
 
 这里是数据库：/Users/unic/dev/projs/rs/elizabeth/app.db
 (位置是正确的，代码中的位置也是正确的.) 这里是 sqlx 的 migration :
