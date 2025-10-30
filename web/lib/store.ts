@@ -1,8 +1,6 @@
 // Global state management using Zustand
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import { immer } from "zustand/middleware/immer";
-import { devtools } from "zustand/middleware";
 import type { Message, Theme, TokenInfo } from "./types";
 import { getRoomToken } from "./utils/api";
 import { hasValidToken } from "../api/authService";
@@ -12,7 +10,6 @@ import {
   postMessage,
   updateMessage,
 } from "@/api/messageService";
-import type { Message } from "@/lib/types";
 
 // Extend the Message type to include local state for unsaved changes
 export type LocalMessage = Message & {
@@ -51,6 +48,12 @@ interface AppState {
   selectAllMessages: (messageIds: string[]) => void;
   invertMessageSelection: (messageIds: string[]) => void;
 
+  // Metadata settings for copy and download (separate configurations)
+  includeMetadataInCopy: boolean;
+  setIncludeMetadataInCopy: (value: boolean) => void;
+  includeMetadataInDownload: boolean;
+  setIncludeMetadataInDownload: (value: boolean) => void;
+  // Legacy: keep for backward compatibility, but prefer using copy/download specific settings
   includeMetadataInExport: boolean;
   setIncludeMetadataInExport: (value: boolean) => void;
 
@@ -153,6 +156,12 @@ export const useAppStore = create<AppState>()(
         set({ selectedMessages: newSelected });
       },
 
+      includeMetadataInCopy: false,
+      setIncludeMetadataInCopy: (value) =>
+        set({ includeMetadataInCopy: value }),
+      includeMetadataInDownload: true,
+      setIncludeMetadataInDownload: (value) =>
+        set({ includeMetadataInDownload: value }),
       includeMetadataInExport: true,
       setIncludeMetadataInExport: (value) =>
         set({ includeMetadataInExport: value }),
@@ -315,14 +324,14 @@ export const useAppStore = create<AppState>()(
       partialize: (state) => ({
         // Persist UI preferences
         sendOnEnter: state.sendOnEnter,
+        includeMetadataInCopy: state.includeMetadataInCopy,
+        includeMetadataInDownload: state.includeMetadataInDownload,
         includeMetadataInExport: state.includeMetadataInExport,
         editorFontSize: state.editorFontSize,
         toolbarButtonSize: state.toolbarButtonSize,
         messageFontSize: state.messageFontSize,
         useHeti: state.useHeti,
         showDeleteConfirmation: state.showDeleteConfirmation,
-        // Persist tokens
-        tokens: state.tokens,
       }),
     },
   ),

@@ -20,8 +20,10 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
   const {
     sendOnEnter,
     setSendOnEnter,
-    includeMetadataInExport,
-    setIncludeMetadataInExport,
+    includeMetadataInCopy,
+    setIncludeMetadataInCopy,
+    includeMetadataInDownload,
+    setIncludeMetadataInDownload,
     editorFontSize,
     setEditorFontSize,
     toolbarButtonSize,
@@ -63,15 +65,33 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
 
           <div className="flex items-center justify-between space-x-4">
             <div className="flex-1 space-y-1">
-              <Label htmlFor="include-metadata">导出时包含消息元数据</Label>
+              <Label htmlFor="include-metadata-copy">
+                复制时包含消息元数据
+              </Label>
               <p className="text-sm text-muted-foreground">
-                导出消息时包含时间戳和消息编号
+                复制消息时包含时间戳和消息编号
               </p>
             </div>
             <Switch
-              id="include-metadata"
-              checked={includeMetadataInExport}
-              onCheckedChange={setIncludeMetadataInExport}
+              id="include-metadata-copy"
+              checked={includeMetadataInCopy}
+              onCheckedChange={setIncludeMetadataInCopy}
+            />
+          </div>
+
+          <div className="flex items-center justify-between space-x-4">
+            <div className="flex-1 space-y-1">
+              <Label htmlFor="include-metadata-download">
+                下载/导出时包含消息元数据
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                下载/导出消息时包含时间戳和消息编号
+              </p>
+            </div>
+            <Switch
+              id="include-metadata-download"
+              checked={includeMetadataInDownload}
+              onCheckedChange={setIncludeMetadataInDownload}
             />
           </div>
 

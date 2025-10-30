@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Copy, Edit2, Trash2, RotateCcw } from "lucide-react";
+import { Copy, Edit2, RotateCcw, Trash2 } from "lucide-react";
 import type { Message } from "@/lib/types";
 import { formatDate } from "@/lib/utils/format";
 import { useState } from "react";
@@ -31,11 +31,24 @@ export function MessageBubble(
   const toggleMessageSelection = useAppStore((state) =>
     state.toggleMessageSelection
   );
+  const includeMetadataInCopy = useAppStore(
+    (state) => state.includeMetadataInCopy,
+  );
 
   const isSelected = selectedMessages.has(message.id);
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(message.content);
+    let textToCopy: string;
+
+    if (includeMetadataInCopy) {
+      textToCopy = `### 消息 #${messageNumber}\n**用户:** ${
+        message.user || "匿名"
+      }\n**时间:** ${formatDate(message.timestamp)}\n\n${message.content}`;
+    } else {
+      textToCopy = message.content;
+    }
+
+    await navigator.clipboard.writeText(textToCopy);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
     toast({
@@ -119,61 +132,65 @@ export function MessageBubble(
       {/* Action Buttons */}
       {isHovered && (
         <div className="absolute right-2 top-2 flex gap-1 rounded-md border bg-background p-1 shadow-sm">
-          {message.isPendingDelete ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6"
-              title="撤销删除"
-              onClick={() => onRevert(message.id)}
-            >
-              <RotateCcw className="h-3 w-3" />
-            </Button>
-          ) : (
-            <>
-              {message.isDirty && (
+          {message.isPendingDelete
+            ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                title="撤销删除"
+                onClick={() => onRevert(message.id)}
+              >
+                <RotateCcw className="h-3 w-3" />
+              </Button>
+            )
+            : (
+              <>
+                {message.isDirty && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    title="撤销编辑"
+                    onClick={() => onRevert(message.id)}
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                  </Button>
+                )}
+                {
+                  /* The original code had a `can("edit")` check here, but `can` is not defined.
+                   Assuming it's a placeholder for a permission check or similar.
+                   For now, I'll remove it as it's not part of the requested edit. */
+                }
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6"
-                  title="撤销编辑"
-                  onClick={() => onRevert(message.id)}
+                  className="h-7 w-7"
+                  onClick={() => onEdit(message)}
+                  title="编辑"
                 >
-                  <RotateCcw className="h-3 w-3" />
+                  <Edit2 className="h-3 w-3" />
                 </Button>
-              )}
-              {/* The original code had a `can("edit")` check here, but `can` is not defined.
-                   Assuming it's a placeholder for a permission check or similar.
-                   For now, I'll remove it as it's not part of the requested edit. */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={() => onEdit(message)}
-                title="编辑"
-              >
-                <Edit2 className="h-3 w-3" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={handleCopy}
-                title={copied ? "已复制" : "复制"}
-              >
-                <Copy className="h-3 w-3" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-destructive hover:text-destructive"
-                onClick={handleDelete}
-                title="删除"
-              >
-                <Trash2 className="h-3 w-3" />
-              </Button>
-            </>
-          )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={handleCopy}
+                  title={copied ? "已复制" : "复制"}
+                >
+                  <Copy className="h-3 w-3" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-destructive hover:text-destructive"
+                  onClick={handleDelete}
+                  title="删除"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </>
+            )}
         </div>
       )}
     </div>
