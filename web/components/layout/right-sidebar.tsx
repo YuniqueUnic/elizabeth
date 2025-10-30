@@ -20,6 +20,10 @@ import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useRoomPermissions } from "@/hooks/use-room-permissions";
 import type { FileItem } from "@/lib/types";
+import {
+  handleMutationError,
+  handleMutationSuccess,
+} from "@/lib/utils/mutations";
 
 export function RightSidebar() {
   const currentRoomId = useAppStore((state) => state.currentRoomId);
@@ -38,8 +42,8 @@ export function RightSidebar() {
   const { data: files = [], isLoading } = useQuery({
     queryKey: ["files", currentRoomId],
     queryFn: () => getFilesList(currentRoomId),
-    staleTime: 4000, // 4 秒后认为数据过期
-    enabled: !!currentRoomId, // 只在有房间 ID 时启用查询
+    staleTime: 4000,
+    enabled: !!currentRoomId,
   });
 
   const uploadMutation = useMutation({
@@ -47,16 +51,14 @@ export function RightSidebar() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["files", currentRoomId] });
       queryClient.invalidateQueries({ queryKey: ["room", currentRoomId] });
-      toast({
+      handleMutationSuccess(toast, {
         title: "上传成功",
         description: "文件已成功上传到房间",
       });
     },
-    onError: () => {
-      toast({
-        title: "上传失败",
+    onError: (error) => {
+      handleMutationError(error, toast, {
         description: "文件上传失败，请重试",
-        variant: "destructive",
       });
     },
   });
@@ -66,16 +68,14 @@ export function RightSidebar() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["files", currentRoomId] });
       queryClient.invalidateQueries({ queryKey: ["room", currentRoomId] });
-      toast({
+      handleMutationSuccess(toast, {
         title: "删除成功",
         description: "文件已从房间中删除",
       });
     },
-    onError: () => {
-      toast({
-        title: "删除失败",
+    onError: (error) => {
+      handleMutationError(error, toast, {
         description: "无法删除文件，请重试",
-        variant: "destructive",
       });
     },
   });
@@ -98,10 +98,6 @@ export function RightSidebar() {
       });
       await downloadFilesBatch(currentRoomId, Array.from(selectedFiles));
       clearFileSelection();
-      toast({
-        title: "下载完成",
-        description: "文件已成功下载",
-      });
     }
   };
 
