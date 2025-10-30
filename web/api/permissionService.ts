@@ -10,14 +10,8 @@
 import { API_ENDPOINTS } from "../lib/config";
 import { api } from "../lib/utils/api";
 import { getValidToken } from "./authService";
-import {
-  encodePermissions,
-  parsePermissions,
-} from "../lib/types";
-import type {
-  RoomDetails,
-  RoomPermission,
-} from "../lib/types";
+import { encodePermissions, parsePermissions } from "../lib/types";
+import type { RoomDetails, RoomPermission } from "../lib/types";
 
 // ============================================================================
 // Permission Service Types

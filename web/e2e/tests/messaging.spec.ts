@@ -92,7 +92,17 @@ test.describe("消息系统功能测试", () => {
             expect(hasUnsaved).toBe(true);
 
             await roomPage.topBar.saveBtn.click();
-            await roomPage.page.waitForTimeout(1000);
+
+            // 等待保存成功通知或等待更长时间让 UI 更新
+            try {
+                await roomPage.page.locator('text="保存成功"').waitFor({
+                    state: "visible",
+                    timeout: 3000,
+                });
+            } catch {
+                // 通知可能不出现，继续检查标签
+                await roomPage.page.waitForTimeout(1500);
+            }
 
             // 等待标签消失
             hasUnsaved = await roomPage.hasUnsavedBadge().catch(() => false);
@@ -218,11 +228,12 @@ test.describe("消息系统功能测试", () => {
         test("MSG-020: 复制按钮应该可见", async () => {
             // 先发送消息
             await roomPage.sendMessage("Test for copy button");
-            // 选择消息
-            const messageCheckbox = roomPage.page.locator(
-                'input[type="checkbox"]',
-            ).first();
-            await messageCheckbox.check();
+            await roomPage.page.waitForTimeout(300);
+
+            // 选择消息 - 使用 getByRole 来查找最后一个 checkbox
+            const checkboxes = roomPage.page.getByRole("checkbox");
+            const lastCheckbox = checkboxes.last();
+            await lastCheckbox.check({ force: true, timeout: 10000 });
             await roomPage.page.waitForTimeout(300);
 
             const copyBtn = roomPage.topBar.copyBtn;
@@ -233,11 +244,12 @@ test.describe("消息系统功能测试", () => {
         test("MSG-021: 下载按钮应该可见", async () => {
             // 先发送消息
             await roomPage.sendMessage("Test for download button");
-            // 选择消息
-            const messageCheckbox = roomPage.page.locator(
-                'input[type="checkbox"]',
-            ).first();
-            await messageCheckbox.check();
+            await roomPage.page.waitForTimeout(300);
+
+            // 选择消息 - 使用 getByRole 来查找最后一个 checkbox
+            const checkboxes = roomPage.page.getByRole("checkbox");
+            const lastCheckbox = checkboxes.last();
+            await lastCheckbox.check({ force: true, timeout: 10000 });
             await roomPage.page.waitForTimeout(300);
 
             const downloadBtn = roomPage.topBar.downloadBtn;
@@ -248,11 +260,12 @@ test.describe("消息系统功能测试", () => {
         test("MSG-022: 删除按钮应该可见", async () => {
             // 先发送消息
             await roomPage.sendMessage("Test for delete button");
-            // 选择消息
-            const messageCheckbox = roomPage.page.locator(
-                'input[type="checkbox"]',
-            ).first();
-            await messageCheckbox.check();
+            await roomPage.page.waitForTimeout(300);
+
+            // 选择消息 - 使用 getByRole 来查找最后一个 checkbox
+            const checkboxes = roomPage.page.getByRole("checkbox");
+            const lastCheckbox = checkboxes.last();
+            await lastCheckbox.check({ force: true, timeout: 10000 });
             await roomPage.page.waitForTimeout(300);
 
             const deleteBtn = roomPage.topBar.deleteBtn;
@@ -284,7 +297,16 @@ test.describe("消息系统功能测试", () => {
 
             // 点击保存
             await roomPage.topBar.saveBtn.click();
-            await roomPage.page.waitForTimeout(500);
+
+            // 等待保存成功通知或等待更长时间
+            try {
+                await roomPage.page.locator('text="保存成功"').waitFor({
+                    state: "visible",
+                    timeout: 3000,
+                });
+            } catch {
+                await roomPage.page.waitForTimeout(1500);
+            }
 
             // 验证状态改变
             hasUnsaved = await roomPage.hasUnsavedBadge().catch(() => false);

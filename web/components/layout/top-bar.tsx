@@ -200,6 +200,7 @@ export function TopBar() {
           title="复制选中消息"
           onClick={handleCopyMessages}
           disabled={selectedMessages.size === 0}
+          data-testid="copy-messages-btn"
         >
           <Copy className="h-4 w-4" />
         </Button>
@@ -210,6 +211,7 @@ export function TopBar() {
           title="下载导出选中消息"
           onClick={handleDownloadMessages}
           disabled={selectedMessages.size === 0}
+          data-testid="download-messages-btn"
         >
           <Download className="h-4 w-4" />
         </Button>
@@ -224,6 +226,7 @@ export function TopBar() {
           title="保存"
           onClick={handleSaveChanges}
           disabled={!hasUnsavedChanges()}
+          data-testid="save-messages-btn"
         >
           <Save className="h-4 w-4" />
         </Button>
@@ -234,6 +237,7 @@ export function TopBar() {
           title="删除"
           onClick={handleDeleteMessages}
           disabled={selectedMessages.size === 0}
+          data-testid="delete-messages-btn"
         >
           <Trash2 className="h-4 w-4" />
         </Button>
@@ -243,6 +247,7 @@ export function TopBar() {
             size="icon"
             className="hidden md:flex"
             title="帮助"
+            data-testid="help-btn"
           >
             <HelpCircle className="h-4 w-4" />
           </Button>
@@ -256,6 +261,7 @@ export function TopBar() {
             size="icon"
             className="h-8 w-8 md:h-10 md:w-10"
             title="设置"
+            data-testid="settings-btn"
           >
             <Settings className="h-4 w-4" />
           </Button>
