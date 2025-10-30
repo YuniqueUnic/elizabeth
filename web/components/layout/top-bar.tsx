@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { SettingsDialog } from "@/components/settings-dialog";
+import { HelpDialog } from "@/components/help-dialog";
 import {
   Copy,
   Download,
@@ -212,9 +213,13 @@ export function TopBar() {
           <Download className="h-4 w-4" />
         </Button>
         <Button
-          variant="ghost"
+          variant={hasUnsavedChanges() ? "default" : "ghost"}
           size="icon"
-          className="hidden md:flex"
+          className={`hidden md:flex ${
+            hasUnsavedChanges()
+              ? "bg-primary text-primary-foreground hover:bg-primary/90"
+              : ""
+          }`}
           title="保存"
           onClick={handleSaveChanges}
           disabled={!hasUnsavedChanges()}
@@ -231,14 +236,16 @@ export function TopBar() {
         >
           <Trash2 className="h-4 w-4" />
         </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="hidden md:flex"
-          title="帮助"
-        >
-          <HelpCircle className="h-4 w-4" />
-        </Button>
+        <HelpDialog>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="hidden md:flex"
+            title="帮助"
+          >
+            <HelpCircle className="h-4 w-4" />
+          </Button>
+        </HelpDialog>
 
         <div className="mx-1 md:mx-2 h-6 w-px bg-border" />
 

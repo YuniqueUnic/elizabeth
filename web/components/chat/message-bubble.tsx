@@ -18,11 +18,19 @@ interface MessageBubbleProps {
   onDelete: (messageId: string) => void;
   onRevert: (messageId: string) => void;
   showCheckbox?: boolean;
+  isEditing?: boolean;
 }
 
 export function MessageBubble(
-  { message, messageNumber, onEdit, onDelete, onRevert, showCheckbox }:
-    MessageBubbleProps,
+  {
+    message,
+    messageNumber,
+    onEdit,
+    onDelete,
+    onRevert,
+    showCheckbox,
+    isEditing = false,
+  }: MessageBubbleProps,
 ) {
   const [isHovered, setIsHovered] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -116,14 +124,19 @@ export function MessageBubble(
       {/* Status Badges */}
       <div className="absolute left-8 top-0 -translate-y-1/2 transform">
         <div className="flex gap-1">
-          {message.isNew && (
-            <Badge variant="outline" className="text-xs">
-              New
+          {isEditing && (
+            <Badge variant="default" className="text-xs bg-blue-500">
+              正在编辑
             </Badge>
           )}
-          {message.isDirty && (
+          {message.isNew && !isEditing && (
             <Badge variant="outline" className="text-xs">
-              Edited
+              未保存
+            </Badge>
+          )}
+          {message.isDirty && !isEditing && (
+            <Badge variant="outline" className="text-xs">
+              已编辑
             </Badge>
           )}
         </div>
