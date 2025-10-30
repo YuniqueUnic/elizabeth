@@ -1,0 +1,17 @@
+{
+    "extends": "next/core-web-vitals",
+    "rules": {
+        "@next/next/no-html-link-for-pages": "off"
+    },
+    "overrides": [
+        {
+            "files": [
+                "components/ui/**/*.tsx"
+            ],
+            "rules": {
+                "tailwindcss/classnames-order": "off",
+                "tailwindcss/no-custom-classname": "off"
+            }
+        }
+    ]
+}

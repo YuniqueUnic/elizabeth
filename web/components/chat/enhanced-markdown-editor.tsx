@@ -6,7 +6,12 @@ import dynamic from "next/dynamic";
 import "@uiw/react-md-editor/markdown-editor.css";
 import "@uiw/react-markdown-preview/markdown.css";
 
-const MDEditor = dynamic(() => import("@uiw/react-md-editor"), { ssr: false });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-var-requires
+const MDEditor = dynamic(
+  // @ts-ignore - Module may not be found in some environments
+  () => import("@uiw/react-md-editor"),
+  { ssr: false },
+) as any;
 
 interface EnhancedMarkdownEditorProps {
   value: string;
@@ -73,10 +78,11 @@ export function EnhancedMarkdownEditor({
     <div
       data-color-mode={resolvedTheme}
       className="h-full flex flex-col overflow-hidden"
+      data-testid="message-input-editor"
     >
       <MDEditor
         value={value || ""}
-        onChange={(val) => {
+        onChange={(val: any) => {
           const newValue = val || "";
           if (newValue !== value) {
             onChange(newValue);
@@ -87,8 +93,7 @@ export function EnhancedMarkdownEditor({
         hideToolbar={false}
         textareaProps={{
           placeholder: placeholder || "输入消息...",
-          "data-testid": "message-input-textarea",
-          onKeyDown: (e) => {
+          onKeyDown: (e: any) => {
             if (
               sendOnEnter && e.key === "Enter" && !e.shiftKey && !e.ctrlKey &&
               !e.metaKey
