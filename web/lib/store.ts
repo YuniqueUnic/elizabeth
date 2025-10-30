@@ -185,7 +185,8 @@ export const useAppStore = create<AppState>()(
 
       // Room
       currentRoomId: "demo-room-123",
-      setCurrentRoomId: (roomId) => set({ currentRoomId: roomId }),
+      setCurrentRoomId: (roomId) =>
+        set({ currentRoomId: roomId, messages: [] }),
 
       // Authentication (derived from localStorage tokens)
       isAuthenticated: (roomName) => {

@@ -20,7 +20,6 @@ export function LeftSidebar() {
   const { data: roomDetails, isLoading } = useQuery({
     queryKey: ["room", currentRoomId],
     queryFn: () => getRoomDetails(currentRoomId),
-    refetchInterval: 5000, // 每 5 秒自动刷新一次，保持实时性
     staleTime: 1000, // 1 秒后认为数据过期
     enabled: !!currentRoomId, // 只在有房间 ID 时启用查询
   });

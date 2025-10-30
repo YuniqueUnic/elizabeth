@@ -61,9 +61,9 @@ export default function RoomPage() {
         if (isCancelled) return;
 
         // At this point, the room exists. Check for password.
-        if (room.settings.passwordProtected) {
+        if (room.settings.passwordProtected && !hasValidToken(roomName)) {
           setNeedsPassword(true);
-        } else {
+        } else if (!hasValidToken(roomName)) {
           // No password, so we should be able to get a token directly.
           await getAccessToken(roomName);
         }
