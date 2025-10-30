@@ -118,25 +118,26 @@ pub struct ChunkedUploadStatusResponse {
 /// 文件合并完成请求
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct FileMergeRequest {
-    pub reservation_id: i64,
+    pub reservation_id: String,
     pub final_hash: String,
 }
 
 /// 文件合并完成响应
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct FileMergeResponse {
-    pub reservation_id: i64,
-    pub upload_status: String,
-    pub file_info: MergedFileInfo,
+    pub reservation_id: String,
+    pub merged_files: Vec<MergedFileInfo>,
+    pub message: String,
 }
 
 /// 合并后的文件信息
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct MergedFileInfo {
-    pub name: String,
-    pub size: i64,
-    pub hash: String,
-    pub path: String,
+    pub file_name: String,
+    pub file_size: i64,
+    pub file_hash: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_id: Option<i64>,
 }
 
 impl RoomChunkUpload {

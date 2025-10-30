@@ -24,6 +24,7 @@ import {
   handleMutationError,
   handleMutationSuccess,
 } from "@/lib/utils/mutations";
+import { useParams } from "next/navigation";
 
 export function RightSidebar() {
   const currentRoomId = useAppStore((state) => state.currentRoomId);
@@ -35,21 +36,26 @@ export function RightSidebar() {
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const { can } = useRoomPermissions();
+  const params = useParams();
+  const roomName = (params.roomName as string) || currentRoomId;
 
   const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
 
   const { data: files = [], isLoading } = useQuery({
-    queryKey: ["files", currentRoomId],
-    queryFn: () => getFilesList(currentRoomId),
+    queryKey: ["files", roomName],
+    queryFn: () => getFilesList(roomName),
     staleTime: 4000,
-    enabled: !!currentRoomId,
+    enabled: !!roomName,
   });
 
   const uploadMutation = useMutation({
-    mutationFn: (file: File) => uploadFile(currentRoomId, file),
+    mutationFn: (file: File) => uploadFile(roomName, file),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["files", currentRoomId] });
+      console.log(
+        `[uploadMutation.onSuccess] 上传成功，失效缓存 roomName=${roomName}`,
+      );
+      queryClient.invalidateQueries({ queryKey: ["files", roomName] });
       queryClient.invalidateQueries({ queryKey: ["room", currentRoomId] });
       handleMutationSuccess(toast, {
         title: "上传成功",
@@ -57,6 +63,7 @@ export function RightSidebar() {
       });
     },
     onError: (error) => {
+      console.error(`[uploadMutation.onError] 上传失败:`, error);
       handleMutationError(error, toast, {
         description: "文件上传失败，请重试",
       });
@@ -64,9 +71,9 @@ export function RightSidebar() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (fileId: string) => deleteFile(currentRoomId, fileId),
+    mutationFn: (fileId: string) => deleteFile(roomName, fileId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["files", currentRoomId] });
+      queryClient.invalidateQueries({ queryKey: ["files", roomName] });
       queryClient.invalidateQueries({ queryKey: ["room", currentRoomId] });
       handleMutationSuccess(toast, {
         title: "删除成功",
@@ -96,7 +103,7 @@ export function RightSidebar() {
         title: "开始下载",
         description: `正在准备下载 ${selectedFiles.size} 个文件`,
       });
-      await downloadFilesBatch(currentRoomId, Array.from(selectedFiles));
+      await downloadFilesBatch(roomName, Array.from(selectedFiles));
       clearFileSelection();
     }
   };

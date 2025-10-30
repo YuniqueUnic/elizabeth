@@ -4,8 +4,10 @@ use chrono::{NaiveDateTime, Utc};
 use sqlx::{Executor, Sqlite};
 use std::sync::Arc;
 
-use crate::db::DbPool;
-use crate::models::{Room, RoomStatus, permission::RoomPermission};
+use crate::{
+    db::DbPool,
+    models::{Room, RoomStatus, permission::RoomPermission},
+};
 
 #[async_trait]
 pub trait IRoomRepository: Send + Sync {
@@ -169,14 +171,43 @@ impl SqliteRoomRepository {
         Ok(rooms)
     }
 
-    async fn purge_if_expired(&self, room: Room) -> Result<Option<Room>> {
+    async fn reset_if_expired(&self, room: Room) -> Result<Option<Room>> {
         if room.is_expired() {
             if let Some(id) = room.id {
-                sqlx::query("DELETE FROM rooms WHERE id = ?")
+                // 清空房间内容
+                sqlx::query("DELETE FROM room_contents WHERE room_id = ?")
                     .bind(id)
                     .execute(&*self.pool)
                     .await?;
-                logrs::info!("Deleted expired room {}", room.slug);
+
+                // 重置房间状态：清空内容大小和访问次数
+                let now = Utc::now().naive_utc();
+                let mut reset_room = room.clone();
+                reset_room.current_size = 0;
+                reset_room.current_times_entered = 0;
+                // 保持 expire_at 不变，这样下次查询时仍然会检查过期状态
+
+                sqlx::query!(
+                    r#"
+                    UPDATE rooms SET
+                        current_size = 0,
+                        current_times_entered = 0,
+                        updated_at = ?
+                    WHERE id = ?
+                    "#,
+                    now,
+                    id
+                )
+                .execute(&*self.pool)
+                .await?;
+
+                logrs::info!(
+                    "Reset expired room {} - cleared content and reset counters",
+                    room.slug
+                );
+
+                // 返回重置后的房间，标记为不可进入但保留记录
+                return Ok(None); // 返回 None 表示房间不可访问，但数据已保存
             }
             Ok(None)
         } else {
@@ -228,7 +259,7 @@ impl IRoomRepository for SqliteRoomRepository {
         let created_room = Self::fetch_room_by_id_or_err(&mut *tx, room_id).await?;
 
         tx.commit().await?;
-        self.purge_if_expired(created_room)
+        self.reset_if_expired(created_room)
             .await?
             .ok_or_else(|| anyhow!("created room expired immediately"))
     }
@@ -236,7 +267,7 @@ impl IRoomRepository for SqliteRoomRepository {
     async fn find_by_name(&self, name: &str) -> Result<Option<Room>> {
         let room = Self::fetch_room_optional_by_name(&*self.pool, name).await?;
         if let Some(room) = room {
-            self.purge_if_expired(room).await
+            self.reset_if_expired(room).await
         } else {
             Ok(None)
         }
@@ -245,7 +276,7 @@ impl IRoomRepository for SqliteRoomRepository {
     async fn find_by_display_name(&self, name: &str) -> Result<Option<Room>> {
         let room = Self::fetch_room_optional_by_display_name(&*self.pool, name).await?;
         if let Some(room) = room {
-            self.purge_if_expired(room).await
+            self.reset_if_expired(room).await
         } else {
             Ok(None)
         }
@@ -254,7 +285,7 @@ impl IRoomRepository for SqliteRoomRepository {
     async fn find_by_id(&self, id: i64) -> Result<Option<Room>> {
         let room = Self::fetch_room_optional_by_id(&*self.pool, id).await?;
         if let Some(room) = room {
-            self.purge_if_expired(room).await
+            self.reset_if_expired(room).await
         } else {
             Ok(None)
         }
@@ -293,7 +324,7 @@ impl IRoomRepository for SqliteRoomRepository {
         let updated_room = Self::fetch_room_by_id_or_err(&mut *tx, room_id).await?;
 
         tx.commit().await?;
-        self.purge_if_expired(updated_room)
+        self.reset_if_expired(updated_room)
             .await?
             .ok_or_else(|| anyhow!("updated room expired unexpectedly"))
     }
