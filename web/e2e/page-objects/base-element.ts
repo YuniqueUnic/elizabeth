@@ -368,15 +368,48 @@ export class CheckboxElement extends BaseElement {
  */
 export class ComboboxElement extends BaseElement {
     async open(): Promise<this> {
-        await this.locator.click();
-        await this.page.waitForTimeout(300);
+        // 等待元素可见并准备就绪，增加超时时间
+        try {
+            await this.locator.waitFor({ state: "visible", timeout: 10000 });
+        } catch (e) {
+            // 如果超时，尝试滚动到元素
+            await this.locator.scrollIntoViewIfNeeded();
+            await this.page.waitForTimeout(500);
+        }
+
+        // 点击打开 combobox
+        await this.locator.click({ timeout: 10000 }).catch(async () => {
+            // 如果第一次失败，尝试重新滚动和点击
+            await this.locator.scrollIntoViewIfNeeded();
+            await this.page.waitForTimeout(300);
+            await this.locator.click({ timeout: 5000 });
+        });
+
+        await this.page.waitForTimeout(500);
         return this;
     }
 
     async selectOption(label: string): Promise<this> {
         await this.open();
-        const option = this.page.locator(`text=${label}`).first();
-        await option.click();
+
+        // 使用 getByRole('option') 来查找选项，这与 Radix UI combobox 兼容
+        // 添加重试机制以处理选项查找失败的情况
+        let option = this.page.getByRole("option", {
+            name: new RegExp(label),
+        }).first();
+
+        try {
+            await option.click({ timeout: 5000 });
+        } catch (e) {
+            // 如果第一次查找失败，等待一下后重试
+            await this.page.waitForTimeout(1000);
+            option = this.page.getByRole("option", {
+                name: new RegExp(label),
+            }).first();
+            await option.click({ timeout: 5000 });
+        }
+
+        await this.page.waitForTimeout(300);
         return this;
     }
 
@@ -391,6 +424,7 @@ export class ComboboxElement extends BaseElement {
 export class SpinbuttonElement extends BaseElement {
     async setValue(value: number): Promise<this> {
         await this.locator.fill(String(value));
+        await this.page.waitForTimeout(200);
         return this;
     }
 
@@ -413,6 +447,7 @@ export class SpinbuttonElement extends BaseElement {
         for (let i = 0; i < times; i++) {
             await this.locator.press("ArrowUp");
         }
+        await this.page.waitForTimeout(200);
         return this;
     }
 
@@ -420,6 +455,7 @@ export class SpinbuttonElement extends BaseElement {
         for (let i = 0; i < times; i++) {
             await this.locator.press("ArrowDown");
         }
+        await this.page.waitForTimeout(200);
         return this;
     }
 }

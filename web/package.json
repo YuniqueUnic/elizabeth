@@ -44,7 +44,8 @@
     "tailwindcss-animate": "^1.0.7",
     "tw-animate-css": "latest",
     "use-sync-external-store": "latest",
-    "zustand": "latest"
+    "zustand": "latest",
+    "cmdk": "^1"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1",
