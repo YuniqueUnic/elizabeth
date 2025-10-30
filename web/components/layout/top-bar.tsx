@@ -30,6 +30,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  handleMutationError,
+  handleMutationSuccess,
+} from "@/lib/utils/mutations";
 
 export function TopBar() {
   const queryClient = useQueryClient();
@@ -54,10 +58,9 @@ export function TopBar() {
     (state) => state.includeMetadataInDownload,
   );
   const { toast } = useToast();
-  const [
-    isDeleteConfirmationOpen,
-    setIsDeleteConfirmationOpen,
-  ] = useState(false);
+  const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = useState(
+    false,
+  );
 
   const { data: roomDetails } = useQuery({
     queryKey: ["room", currentRoomId],
@@ -67,15 +70,13 @@ export function TopBar() {
   const handleSaveChanges = async () => {
     try {
       await saveMessages();
-      toast({
+      handleMutationSuccess(toast, {
         title: "保存成功",
         description: "所有更改已成功保存",
       });
     } catch (error) {
-      toast({
-        title: "保存失败",
+      handleMutationError(error, toast, {
         description: "无法保存更改，请重试",
-        variant: "destructive",
       });
     }
   };

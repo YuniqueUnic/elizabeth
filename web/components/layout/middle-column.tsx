@@ -123,7 +123,7 @@ export function MiddleColumn() {
         ["messages", currentRoomId],
         (old: Message[] = []) => {
           return old.map((msg) =>
-            msg.id === context?.optimisticMessage.id ? newMessage : msg,
+            msg.id === context?.optimisticMessage.id ? newMessage : msg
           );
         },
       );
