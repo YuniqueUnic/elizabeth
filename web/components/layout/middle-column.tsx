@@ -26,6 +26,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+  handleMutationError,
+  handleMutationSuccess,
+} from "@/lib/utils/mutations";
 
 export function MiddleColumn() {
   const currentRoomId = useAppStore((state) => state.currentRoomId);
@@ -59,74 +63,59 @@ export function MiddleColumn() {
 
   useEffect(() => {
     const fetchMessages = async () => {
-      if (currentRoomId) {
-        setIsLoading(true);
-        try {
-          const fetchedMessages = await getMessages(currentRoomId);
-          setMessages(fetchedMessages);
-        } catch (error) {
-          console.error("Failed to fetch messages:", error);
-          toast({
-            title: "加载失败",
-            description: "无法加载消息，请刷新重试",
-            variant: "destructive",
-          });
-        } finally {
-          setIsLoading(false);
-        }
+      if (!currentRoomId) return;
+      setIsLoading(true);
+      try {
+        const fetchedMessages = await getMessages(currentRoomId);
+        setMessages(fetchedMessages);
+      } catch (error) {
+        handleMutationError(error, toast, {
+          description: "无法加载消息，请刷新重试",
+        });
+      } finally {
+        setIsLoading(false);
       }
     };
 
     fetchMessages();
   }, [currentRoomId, setMessages, toast]);
 
+  const createOptimisticMessage = (content: string): Message => ({
+    id: `temp-${Date.now()}`,
+    content,
+    timestamp: new Date().toISOString(),
+    isOwn: true,
+  });
+
   const postMutation = useMutation({
     mutationFn: (content: string) => postMessage(currentRoomId, content),
     onMutate: async (content: string) => {
-      // 取消任何进行中的查询
       await queryClient.cancelQueries({
         queryKey: ["messages", currentRoomId],
       });
 
-      // 快照当前的消息列表
       const previousMessages = queryClient.getQueryData([
         "messages",
         currentRoomId,
       ]);
 
-      // 创建一个临时的乐观消息对象
-      const optimisticMessage: Message = {
-        id: `temp-${Date.now()}`,
-        content,
-        timestamp: new Date().toISOString(),
-        isOwn: true,
-      };
-
-      // 乐观更新：立即将新消息添加到列表中
+      const optimisticMessage = createOptimisticMessage(content);
       queryClient.setQueryData(
         ["messages", currentRoomId],
-        (old: Message[] = []) => [
-          ...old,
-          optimisticMessage,
-        ],
+        (old: Message[] = []) => [...old, optimisticMessage],
       );
 
-      // 返回用于回滚的上下文
       return { previousMessages, optimisticMessage };
     },
     onError: (error, content, context) => {
-      // 如果出错，回滚到之前的状态
       if (context?.previousMessages) {
         queryClient.setQueryData(
           ["messages", currentRoomId],
           context.previousMessages,
         );
       }
-
-      toast({
-        title: "发送失败",
+      handleMutationError(error, toast, {
         description: "无法发送消息，请重试",
-        variant: "destructive",
       });
     },
     onSuccess: (newMessage, content, context) => {
@@ -134,18 +123,16 @@ export function MiddleColumn() {
         ["messages", currentRoomId],
         (old: Message[] = []) => {
           return old.map((msg) =>
-            msg.id === context?.optimisticMessage.id ? newMessage : msg
+            msg.id === context?.optimisticMessage.id ? newMessage : msg,
           );
         },
       );
 
-      toast({
+      handleMutationSuccess(toast, {
         title: "消息已发送",
-        description: "您的消息已成功发送",
       });
     },
     onSettled: () => {
-      // 延迟重新获取数据以确保用户能看到乐观更新
       setTimeout(() => {
         queryClient.invalidateQueries({
           queryKey: ["messages", currentRoomId],
@@ -167,10 +154,8 @@ export function MiddleColumn() {
       });
     },
     onError: () => {
-      toast({
-        title: "更新失败",
+      handleMutationError(null, toast, {
         description: "无法更新消息，请重试",
-        variant: "destructive",
       });
     },
   });
@@ -179,35 +164,38 @@ export function MiddleColumn() {
     mutationFn: (messageId: string) => deleteMessage(currentRoomId, messageId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["messages", currentRoomId] });
+      handleMutationSuccess(toast, { title: "消息已删除" });
+    },
+    onError: (error) => {
+      handleMutationError(error, toast, {
+        description: "无法删除消息，请重试",
+      });
     },
   });
 
   const handleSend = useCallback(
     (content: string) => {
-      if (editingMessage) {
-        updateMessageContent(editingMessage.id, content);
-        setEditingMessage(null);
-      } else {
-        addMessage(content);
-      }
+      editingMessage
+        ? (updateMessageContent(editingMessage.id, content),
+          setEditingMessage(null))
+        : addMessage(content);
     },
     [editingMessage, updateMessageContent, addMessage],
   );
 
-  const handleEdit = useCallback((message: Message) => {
-    setEditingMessage(message);
-  }, []);
+  const handleEdit = useCallback(
+    (message: Message) => setEditingMessage(message),
+    [],
+  );
 
   const handleCancelEdit = () => {
     setEditingMessage(null);
   };
 
   const handleDelete = (messageId: string) => {
-    if (showDeleteConfirmation) {
-      setDeleteCandidateId(messageId);
-    } else {
-      markMessageForDeletion(messageId);
-    }
+    showDeleteConfirmation
+      ? setDeleteCandidateId(messageId)
+      : markMessageForDeletion(messageId);
   };
 
   return (
