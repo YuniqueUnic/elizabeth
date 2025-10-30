@@ -46,8 +46,11 @@ export function TopBar() {
   const setShowDeleteConfirmation = useAppStore(
     (state) => state.setShowDeleteConfirmation,
   );
-  const includeMetadataInExport = useAppStore(
-    (state) => state.includeMetadataInExport,
+  const includeMetadataInCopy = useAppStore(
+    (state) => state.includeMetadataInCopy,
+  );
+  const includeMetadataInDownload = useAppStore(
+    (state) => state.includeMetadataInDownload,
   );
   const { toast } = useToast();
   const [
@@ -108,7 +111,7 @@ export function TopBar() {
     const selectedMessagesList = messages
       .filter((m) => selectedMessages.has(m.id))
       .map((m, index) => {
-        if (includeMetadataInExport) {
+        if (includeMetadataInCopy) {
           const messageNumber = messages.findIndex((msg) => msg.id === m.id) +
             1;
           return `### 消息 #${messageNumber}\n**用户:** ${
@@ -139,7 +142,7 @@ export function TopBar() {
     const selectedMessagesList = messages
       .filter((m) => selectedMessages.has(m.id))
       .map((m, index) => {
-        if (includeMetadataInExport) {
+        if (includeMetadataInDownload) {
           const messageNumber = messages.findIndex((msg) => msg.id === m.id) +
             1;
           return `### 消息 #${messageNumber}\n**用户:** ${
