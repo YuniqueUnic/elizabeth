@@ -130,7 +130,7 @@ pub async fn list_contents(
     State(app_state): State<Arc<AppState>>,
 ) -> HandlerResult<Vec<RoomContentView>> {
     // Validate room name using the new validation framework
-    RoomNameValidator::validate(&name)?;
+    RoomNameValidator::validate_identifier(&name)?;
 
     let verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
     let room_id = room_id_or_error(&verified.claims)?;
@@ -178,7 +178,7 @@ pub async fn prepare_upload(
     Json(payload): Json<UploadPreparationRequest>,
 ) -> HandlerResult<UploadPreparationResponse> {
     // Validate room name using the new validation framework
-    RoomNameValidator::validate(&name)?;
+    RoomNameValidator::validate_identifier(&name)?;
 
     if payload.files.is_empty() {
         return Err(AppError::validation("No files provided"));
@@ -291,7 +291,7 @@ pub async fn upload_contents(
     mut multipart: Multipart,
 ) -> HandlerResult<UploadContentResponse> {
     // Validate room name using the new validation framework
-    RoomNameValidator::validate(&name)?;
+    RoomNameValidator::validate_identifier(&name)?;
 
     if query.reservation_id <= 0 {
         return Err(AppError::validation("Invalid reservation id"));
@@ -549,7 +549,7 @@ pub async fn delete_contents(
     Json(payload): Json<DeleteContentRequest>,
 ) -> HandlerResult<DeleteContentResponse> {
     // Validate room name using the new validation framework
-    RoomNameValidator::validate(&name)?;
+    RoomNameValidator::validate_identifier(&name)?;
 
     if payload.ids.is_empty() {
         return Err(AppError::validation("No content id provided"));
@@ -637,7 +637,7 @@ pub async fn download_content(
     State(app_state): State<Arc<AppState>>,
 ) -> Result<Response, AppError> {
     // Validate room name using the new validation framework
-    RoomNameValidator::validate(&name)?;
+    RoomNameValidator::validate_identifier(&name)?;
 
     let verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
     ensure_permission(
@@ -767,7 +767,7 @@ pub async fn update_content(
     Json(payload): Json<UpdateContentRequest>,
 ) -> HandlerResult<UpdateContentResponse> {
     // Validate room name using new validation framework
-    RoomNameValidator::validate(&name)?;
+    RoomNameValidator::validate_identifier(&name)?;
 
     // Validate content_id
     if content_id <= 0 {
