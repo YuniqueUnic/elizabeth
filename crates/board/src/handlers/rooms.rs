@@ -261,8 +261,37 @@ pub async fn delete(
     }
 
     // 房间存在且未过期，执行删除
+    // 1. 获取房间的所有内容以删除关联的文件
+    if let Some(room_id) = room.id {
+        let content_repo = SqliteRoomContentRepository::new(app_state.db_pool.clone());
+        let contents = content_repo
+            .list_by_room(room_id)
+            .await
+            .map_err(|e| AppError::internal(format!("Failed to list room contents: {}", e)))?;
+
+        // 2. 删除文件系统中的文件
+        for content in &contents {
+            if let Some(path) = &content.path {
+                tokio::fs::remove_file(path).await.ok();
+            }
+        }
+
+        // 3. 删除数据库中的内容记录
+        content_repo
+            .delete_by_room_id(room_id)
+            .await
+            .map_err(|e| AppError::internal(format!("Failed to delete room contents: {}", e)))?;
+    }
+
+    // 4. 最后删除房间记录（此时内容已清理）
     match repository.delete(&name).await {
-        Ok(true) => Ok(HttpResponse::Ok().message("Room deleted successfully")),
+        Ok(true) => {
+            logrs::info!(
+                "Room {} deleted successfully with all content cleaned up",
+                name
+            );
+            Ok(HttpResponse::Ok().message("Room deleted successfully"))
+        }
         Ok(false) => Err(AppError::room_not_found(&name)),
         Err(e) => Err(AppError::internal(format!("Failed to delete room: {}", e))),
     }
@@ -331,12 +360,34 @@ pub async fn issue_token(
     if room.current_times_entered >= room.max_times_entered {
         // Reset room by deleting its content and resetting its state
         let content_repo = SqliteRoomContentRepository::new(app_state.db_pool.clone());
-        content_repo
-            .delete_by_room_id(room.id.unwrap())
-            .await
-            .map_err(|e| AppError::internal(format!("Failed to clear room content: {}", e)))?;
+
+        // 1. 获取房间的所有内容
+        if let Some(room_id) = room.id {
+            let contents = content_repo
+                .list_by_room(room_id)
+                .await
+                .map_err(|e| AppError::internal(format!("Failed to list room contents: {}", e)))?;
+
+            // 2. 删除文件系统中的文件
+            for content in &contents {
+                if let Some(path) = &content.path {
+                    tokio::fs::remove_file(path).await.ok();
+                }
+            }
+
+            // 3. 删除数据库中的内容记录
+            content_repo
+                .delete_by_room_id(room_id)
+                .await
+                .map_err(|e| AppError::internal(format!("Failed to clear room content: {}", e)))?;
+        }
+
         room.current_size = 0;
         room.current_times_entered = 0;
+        logrs::info!(
+            "Room {} reached max view count, content cleared and counters reset",
+            room.slug
+        );
     }
 
     repository

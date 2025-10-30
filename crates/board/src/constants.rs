@@ -3,8 +3,8 @@
 //! 此模块统一管理所有应用程序级别的常量，避免常量分散在各个文件中。
 
 pub mod room {
-    /// 房间默认最大内容大小 (10MB)
-    pub const DEFAULT_MAX_ROOM_CONTENT_SIZE: i64 = 10 * 1024 * 1024;
+    /// 房间默认最大内容大小 (50MB)
+    pub const DEFAULT_MAX_ROOM_CONTENT_SIZE: i64 = 50 * 1024 * 1024;
 
     /// 房间默认最大进入次数
     pub const DEFAULT_MAX_TIMES_ENTER_ROOM: i64 = 100;
@@ -45,7 +45,7 @@ pub mod auth {
     pub const DEFAULT_JWT_SERCET: &str = "default-secret-change-in-production"; // pragma: allowlist secret
 
     /// 默认 JWT 过期时间（秒）- 2 小时
-    pub const DEFAULT_TTL_SECONDS: i64 = 7200;
+    pub const DEFAULT_TTL_SECONDS: i64 = 2 * 60 * 60;
 
     /// JWT leeway 时间（秒）- 允许的时间偏差
     pub const DEFAULT_LEEWAY_SECONDS: i64 = 5;
@@ -68,6 +68,9 @@ pub mod upload {
 
     /// 最大文件块大小
     pub const MAX_CHUNK_SIZE: usize = 1024 * 1024; // 1MB
+
+    /// 默认 multipart 请求体上限（字节）
+    pub const MAX_MULTIPART_BODY_SIZE: usize = 100 * 1024 * 1024; // 100MB
 
     /// 允许的文件扩展名
     pub const ALLOWED_EXTENSIONS: &[&str] = &[

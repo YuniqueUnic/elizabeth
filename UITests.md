@@ -15,10 +15,10 @@ reset-db)
 and if you want to kill/restart/start/status backend/frontend service, please
 use manage_services.sh to control
 
-backend: /Users/unic/dev/projs/rs/elizabeth/crates/board frontend:
-/Users/unic/dev/projs/rs/elizabeth/web database:
-/Users/unic/dev/projs/rs/elizabeth/app.db service manage script:
-/Users/unic/dev/projs/rs/elizabeth/manage_services.sh
+- backend: /Users/unic/dev/projs/rs/elizabeth/crates/board
+- frontend: /Users/unic/dev/projs/rs/elizabeth/web
+- database: /Users/unic/dev/projs/rs/elizabeth/app.db
+- service manage script: /Users/unic/dev/projs/rs/elizabeth/manage_services.sh
 
 you always stuck during exec bash cmd. recommend to use desktop-commander to do
 such things which has timeout parameter can avoid such situation.
