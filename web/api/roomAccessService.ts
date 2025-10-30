@@ -9,7 +9,12 @@
  */
 
 import { API_ENDPOINTS } from "../lib/config";
-import { api, getRoomToken, setRoomToken, getStoredTokens } from "../lib/utils/api";
+import {
+  api,
+  getRoomToken,
+  getStoredTokens,
+  setRoomToken,
+} from "../lib/utils/api";
 import { getValidToken } from "./authService";
 import { parsePermissions } from "../lib/types";
 import type { RoomDetails } from "../lib/types";
@@ -396,7 +401,6 @@ async function getRoomDetailsWithToken(
 function isTokenExpired(tokenInfo: { expiresAt: string }): boolean {
   return new Date(tokenInfo.expiresAt) <= new Date();
 }
-
 
 export default {
   checkRoomAvailability,

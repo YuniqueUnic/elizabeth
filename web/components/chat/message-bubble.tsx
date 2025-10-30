@@ -88,12 +88,14 @@ export function MessageBubble(
       } ${message.isPendingDelete ? "opacity-50" : ""}`}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      data-testid={`message-item-${message.id}`}
     >
       {showCheckbox && (
         <div className="absolute left-2 top-2">
           <Checkbox
             checked={isSelected}
             onCheckedChange={() => toggleMessageSelection(message.id)}
+            data-testid={`message-checkbox-${message.id}`}
           />
         </div>
       )}
@@ -103,6 +105,7 @@ export function MessageBubble(
         className={`message-content prose prose-sm dark:prose-invert max-w-none ${
           showCheckbox ? "ml-6" : ""
         } ${message.isPendingDelete ? "line-through" : ""}`}
+        data-testid={`message-content-${message.id}`}
       >
         <MarkdownRenderer content={message.content} />
       </div>
@@ -112,6 +115,7 @@ export function MessageBubble(
         className={`mt-2 flex items-center justify-between text-xs text-muted-foreground ${
           showCheckbox ? "ml-6" : ""
         }`}
+        data-testid={`message-meta-${message.id}`}
       >
         <span>
           #{messageNumber} · {message.user || "匿名"}
@@ -125,17 +129,29 @@ export function MessageBubble(
       <div className="absolute left-8 top-0 -translate-y-1/2 transform">
         <div className="flex gap-1">
           {isEditing && (
-            <Badge variant="default" className="text-xs bg-blue-500">
+            <Badge
+              variant="default"
+              className="text-xs bg-blue-500"
+              data-testid={`message-editing-badge-${message.id}`}
+            >
               正在编辑
             </Badge>
           )}
           {message.isNew && !isEditing && (
-            <Badge variant="outline" className="text-xs">
+            <Badge
+              variant="outline"
+              className="text-xs"
+              data-testid={`message-unsaved-badge-${message.id}`}
+            >
               未保存
             </Badge>
           )}
           {message.isDirty && !isEditing && (
-            <Badge variant="outline" className="text-xs">
+            <Badge
+              variant="outline"
+              className="text-xs"
+              data-testid={`message-edited-badge-${message.id}`}
+            >
               已编辑
             </Badge>
           )}

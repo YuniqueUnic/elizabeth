@@ -87,6 +87,7 @@ export function EnhancedMarkdownEditor({
         hideToolbar={false}
         textareaProps={{
           placeholder: placeholder || "输入消息...",
+          "data-testid": "message-input-textarea",
           onKeyDown: (e) => {
             if (
               sendOnEnter && e.key === "Enter" && !e.shiftKey && !e.ctrlKey &&

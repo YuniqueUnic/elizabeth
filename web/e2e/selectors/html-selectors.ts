@@ -14,12 +14,13 @@ export const htmlSelectors = {
             capacity: "text=/房间占用/",
         },
         buttons: {
-            copy: 'button:has-text("复制选中消息") >> nth=0',
-            download: 'button:has-text("下载导出选中消息") >> nth=0',
-            save: 'button:has-text("保存") >> nth=0',
-            delete: 'button:has-text("删除") >> nth=0',
-            help: 'button:has-text("帮助") >> nth=0',
-            settings: 'button:has-text("设置") >> nth=0',
+            // ✅ 改为使用 data-testid
+            copy: '[data-testid="copy-messages-btn"]',
+            download: '[data-testid="download-messages-btn"]',
+            save: '[data-testid="save-messages-btn"]',
+            delete: '[data-testid="delete-messages-btn"]',
+            help: '[data-testid="help-btn"]',
+            settings: '[data-testid="settings-btn"]',
             theme: 'button:has-text("跟随系统") >> nth=0',
         },
     },
@@ -116,13 +117,14 @@ export const htmlSelectors = {
             emptyState: 'text="暂无消息"',
 
             message: {
-                container: '[role="listitem"]',
-                content: "paragraph",
-                meta: "text=/匿名/",
-                timestamp: "text=/刚刚 | 分钟前 | 小时前/",
-                unsavedBadge: 'text="未保存"',
-                editedBadge: 'text="已编辑"',
-                editingBadge: 'text="编辑中"',
+                // ✅ 改为使用 data-testid，格式：message-item-{id}
+                container: '[data-testid^="message-item-"]',
+                checkbox: '[data-testid^="message-checkbox-"]',
+                content: '[data-testid^="message-content-"]',
+                meta: '[data-testid^="message-meta-"]',
+                unsavedBadge: '[data-testid^="message-unsaved-badge-"]',
+                editedBadge: '[data-testid^="message-edited-badge-"]',
+                editingBadge: '[data-testid^="message-editing-badge-"]',
                 pendingDeleteBadge: 'text="待删除"',
             },
         },
@@ -150,7 +152,8 @@ export const htmlSelectors = {
                 helpBtn: 'button:has-text("Open help")',
             },
 
-            input: 'textarea, [role="textbox"]',
+            // ✅ 改为使用 data-testid
+            input: '[data-testid="message-input-textarea"]',
 
             actions: {
                 expandBtn: 'button:has-text("展开编辑器")',
