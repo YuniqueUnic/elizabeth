@@ -14,10 +14,12 @@ interface MessageListProps {
   onEdit: (message: Message) => void;
   onDelete: (messageId: string) => void;
   onRevert: (messageId: string) => void;
+  editingMessageId: string | null;
 }
 
 export function MessageList(
-  { messages, isLoading, onEdit, onDelete, onRevert }: MessageListProps,
+  { messages, isLoading, onEdit, onDelete, onRevert, editingMessageId }:
+    MessageListProps,
 ) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const selectedMessages = useAppStore((state) => state.selectedMessages);
@@ -103,6 +105,7 @@ export function MessageList(
                   onDelete={onDelete}
                   onRevert={onRevert}
                   showCheckbox={true}
+                  isEditing={editingMessageId === message.id}
                 />
               ))
             )}
