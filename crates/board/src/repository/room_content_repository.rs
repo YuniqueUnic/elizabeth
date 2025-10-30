@@ -17,6 +17,7 @@ pub trait IRoomContentRepository: Send + Sync {
     async fn update(&self, room_content: &RoomContent) -> Result<RoomContent>;
     async fn list_by_room(&self, room_id: i64) -> Result<Vec<RoomContent>>;
     async fn delete_by_ids(&self, room_id: i64, content_ids: &[i64]) -> Result<u64>;
+    async fn delete_by_room_id(&self, room_id: i64) -> Result<u64>;
     async fn total_size_by_room(&self, room_id: i64) -> Result<i64>;
     async fn delete(&self, room_name: &str) -> Result<bool>;
 }
@@ -197,6 +198,14 @@ impl IRoomContentRepository for SqliteRoomContentRepository {
         query_builder.push(")");
 
         let result = query_builder.build().execute(&*self.pool).await?;
+        Ok(result.rows_affected())
+    }
+
+    async fn delete_by_room_id(&self, room_id: i64) -> Result<u64> {
+        let result = sqlx::query!("DELETE FROM room_contents WHERE room_id = ?", room_id)
+            .execute(&*self.pool)
+            .await?;
+
         Ok(result.rows_affected())
     }
 
