@@ -17,6 +17,14 @@
 并且去除冗余的程序逻辑和 logs. 保持项目代码的 KISS, LISP,
 函数化，模块化，可组合性
 
+please use desktop-manager to kill process and start process when you need, do
+not use shell by yourself for process handling. and please use correct command
+to run backend server and frontend, if addr in use, please kill related process
+firstly, and then use desktop-manager to start process in background.
+
+you you should only use manage_services.sh to manage backend and frontend
+services, and you should lookup related log file when you encounter issues.
+
 ## 项目配置
 
 后端：/Users/unic/dev/projs/rs/elizabeth/crates/board
