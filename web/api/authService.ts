@@ -182,6 +182,7 @@ export async function revokeRoomToken(
 export async function getValidToken(roomName: string): Promise<string | null> {
   const tokenInfo = getRoomToken(roomName);
 
+  // If no token exists, return null and let caller handle getting one
   if (!tokenInfo) {
     return null;
   }
@@ -208,6 +209,7 @@ export async function getValidToken(roomName: string): Promise<string | null> {
         return null;
       }
     } else {
+      // No refresh token available, clear and return null
       clearRoomToken(roomName);
       return null;
     }

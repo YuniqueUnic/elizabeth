@@ -191,7 +191,7 @@ test.describe("消息系统功能测试", () => {
 
             // 尝试选择消息（点击 checkbox）
             const firstCheckbox = roomPage.page.locator(
-                'input[type="checkbox"]',
+                '[role="checkbox"]',
             ).first();
             const isVisible = await firstCheckbox.isVisible().catch(() =>
                 false

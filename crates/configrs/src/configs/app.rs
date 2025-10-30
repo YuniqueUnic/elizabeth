@@ -88,7 +88,7 @@ pub struct StorageConfig {
 #[derive(Merge, Debug, Clone, SmartDefault, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct RoomConfig {
-    #[default(10 * 1024 * 1024)]
+    #[default(50 * 1024 * 1024)]
     #[merge(strategy = overwrite)]
     pub max_size: i64,
     #[default(100)]
@@ -99,7 +99,7 @@ pub struct RoomConfig {
 #[derive(Merge, Debug, Clone, SmartDefault, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct UploadConfig {
-    #[default(10)]
+    #[default(3600)]
     #[merge(strategy = overwrite)]
     pub reservation_ttl_seconds: i64,
 }
@@ -257,7 +257,7 @@ mod tests {
         assert_eq!(cfg.storage.root, "storage/rooms");
         assert_eq!(cfg.room.max_size, 10 * 1024 * 1024);
         assert_eq!(cfg.room.max_times_entered, 100);
-        assert_eq!(cfg.upload.reservation_ttl_seconds, 10);
+        assert_eq!(cfg.upload.reservation_ttl_seconds, 3600);
 
         // Test middleware defaults
         assert_eq!(cfg.middleware.tracing.enabled, true);

@@ -165,11 +165,11 @@ export const htmlSelectors = {
 
     // ==================== 右侧边栏（文件管理）====================
     rightSidebar: {
-        container: "complementary >> nth=1",
+        container: "aside",
 
         header: {
             title: 'heading:has-text("文件管理")',
-            uploadBtn: 'button:has-text("上传文件")',
+            uploadBtn: 'button[title="上传文件"]',
         },
 
         fileManager: {
@@ -181,25 +181,38 @@ export const htmlSelectors = {
             },
 
             fileList: {
-                container: '[role="list"]',
+                container: "div.space-y-2",
                 emptyState: 'text="暂无文件"',
 
                 fileItem: {
-                    container: '[role="listitem"]',
-                    checkbox: "checkbox",
-                    name: "text=/.*/",
-                    size: "text=/B|KB|MB/",
+                    // 文件卡片是一个 div，包含边框
+                    container:
+                        "div.group.relative.flex.items-center.gap-3.rounded-lg.border",
+
+                    // 复选框
+                    checkbox: "[role='checkbox']",
+
+                    // 文件名元素
+                    name: ".file-name",
+
+                    // 文件大小
+                    size: ".text-xs.text-muted-foreground",
+
+                    // 操作按钮
                     actions: {
-                        download: "button >> nth=0",
-                        delete: "button >> nth=1",
+                        // 删除按钮是 group-hover 显示的，使用 Trash2 图标
+                        delete: "button[title='删除文件']",
+                        preview:
+                            "div.flex.flex-1.items-center.gap-3.cursor-pointer",
                     },
                 },
             },
 
             uploadZone: {
-                container: '[cursor="pointer"]',
-                input: 'input[type="file"]',
-                icon: "img",
+                // 上传区域在底部
+                container: ".p-4.pt-2",
+                input: "input[type='file']",
+                icon: "img, svg",
                 text: 'text="拖拽文件到此处或点击上传"',
             },
         },

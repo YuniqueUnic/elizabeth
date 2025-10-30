@@ -5,7 +5,7 @@ pub mod request_id;
 pub mod security;
 pub mod tracing;
 
-use axum::Router;
+use axum::{Router, extract::DefaultBodyLimit};
 
 /// Re-export middleware configuration types from configrs
 pub use configrs::{
@@ -20,6 +20,9 @@ pub fn apply(middleware_config: &MiddlewareConfig, router: axum::Router) -> axum
     let router = compression::apply_compression_layer(&middleware_config.compression, router);
     let router = cors::apply_cors_layer(&middleware_config.cors, router);
     let router = security::apply_security_layer(&middleware_config.security, router);
+    let router = router.layer(DefaultBodyLimit::max(
+        crate::constants::upload::MAX_MULTIPART_BODY_SIZE,
+    ));
 
     rate_limit::apply_rate_limit_layer(&middleware_config.rate_limit, router)
 }

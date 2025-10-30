@@ -8,6 +8,7 @@
 import { API_ENDPOINTS } from "../lib/config";
 import { api } from "../lib/utils/api";
 import { getValidToken } from "./authService";
+import type { backendContentToFileItem } from "../lib/types";
 
 // ============================================================================
 // Chunked Upload Types
@@ -48,7 +49,7 @@ export interface ChunkedUploadPreparationResponse {
   files: Array<{
     name: string;
     size: number;
-    mime?: string;
+    mime: string;
     chunk_size: number;
     total_chunks: number;
     file_hash?: string;
@@ -59,6 +60,22 @@ export interface ChunkData {
   chunk_index: number;
   data: ArrayBuffer;
   is_last: boolean;
+}
+
+export interface FileMergeRequest {
+  reservation_id: string;
+  final_hash: string;
+}
+
+export interface FileMergeResponse {
+  reservation_id: string;
+  merged_files: Array<{
+    file_name: string;
+    file_size: number;
+    file_hash: string;
+    content_id: number;
+  }>;
+  message: string;
 }
 
 // ============================================================================
@@ -79,7 +96,7 @@ export async function uploadFileChunked(
   file: File,
   options: ChunkedUploadOptions = {},
   token?: string,
-): Promise<void> {
+): Promise<FileMergeResponse> {
   const {
     chunkSize = 1024 * 1024, // 1MB default
     maxRetries = 3,
@@ -165,6 +182,27 @@ export async function uploadFileChunked(
       throw chunkError;
     }
   }
+
+  // Calculate final file hash
+  const fileHash = await calculateSHA256Hash(file);
+
+  console.log(`[uploadFileChunked] 所有chunks上传完成，准备调用complete API`);
+
+  // Step 3: Complete the chunked upload by merging all chunks
+  const completeRequest: FileMergeRequest = {
+    reservation_id: reservationId,
+    final_hash: fileHash,
+  };
+
+  const completeResponse = await api.post<FileMergeResponse>(
+    API_ENDPOINTS.chunkedUpload.complete(roomName),
+    completeRequest,
+    { token: authToken },
+  );
+
+  console.log(`[uploadFileChunked] 文件合并完成:`, completeResponse);
+
+  return completeResponse;
 }
 
 /**
@@ -293,6 +331,26 @@ export async function completeChunkedUpload(
 // ============================================================================
 // Utility Functions
 // ============================================================================
+
+/**
+ * Calculate SHA256 hash of data
+ */
+async function calculateSHA256Hash(data: ArrayBuffer | Blob): Promise<string> {
+  let buffer: ArrayBuffer;
+
+  if (data instanceof Blob) {
+    buffer = await data.arrayBuffer();
+  } else {
+    buffer = data;
+  }
+
+  const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map((b) => b.toString(16).padStart(2, "0")).join(
+    "",
+  );
+  return hashHex;
+}
 
 /**
  * Format file size for display

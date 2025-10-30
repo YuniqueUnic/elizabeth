@@ -175,6 +175,94 @@ export class RoomPage extends BasePage {
     }
 
     /**
+     * 上传文件
+     * 使用示例：await roomPage.uploadFile('path/to/file.txt')
+     */
+    async uploadFile(filePath: string): Promise<void> {
+        // 获取文件输入元素
+        const fileInput = this.page.locator(
+            htmlSelectors.rightSidebar.fileManager.uploadZone.input,
+        );
+
+        // 设置文件
+        await fileInput.setInputFiles(filePath);
+
+        // 等待上传完成
+        await this.page.waitForTimeout(2000);
+    }
+
+    /**
+     * 上传多个文件
+     */
+    async uploadMultipleFiles(filePaths: string[]): Promise<void> {
+        for (const filePath of filePaths) {
+            await this.uploadFile(filePath);
+            await this.page.waitForTimeout(500);
+        }
+    }
+
+    /**
+     * 获取文件列表
+     */
+    async getFileList(): Promise<string[]> {
+        const fileItems = this.page.locator(
+            htmlSelectors.rightSidebar.fileManager.fileList.fileItem.container,
+        );
+        const count = await fileItems.count();
+        const files: string[] = [];
+
+        for (let i = 0; i < count; i++) {
+            const item = fileItems.nth(i);
+            const name = await item.locator(".file-name").textContent();
+            if (name) {
+                files.push(name.trim());
+            }
+        }
+
+        return files;
+    }
+
+    /**
+     * 删除文件
+     */
+    async deleteFile(fileName: string): Promise<void> {
+        // 查找文件项
+        const fileItems = this.page.locator(
+            htmlSelectors.rightSidebar.fileManager.fileList.fileItem.container,
+        );
+        const count = await fileItems.count();
+
+        for (let i = 0; i < count; i++) {
+            const item = fileItems.nth(i);
+            const name = await item.textContent();
+
+            if (name && name.includes(fileName)) {
+                // 点击删除按钮
+                const deleteBtn = item.locator(
+                    htmlSelectors.rightSidebar.fileManager.fileList.fileItem
+                        .actions.delete,
+                );
+                await deleteBtn.click();
+
+                // 等待确认对话框
+                await this.page.waitForTimeout(500);
+
+                // 点击确认
+                const confirmBtn = this.page.locator(
+                    htmlSelectors.dialogs.deleteConfirmation.confirmBtn,
+                );
+                await confirmBtn.click();
+
+                // 等待删除完成
+                await this.page.waitForTimeout(1000);
+                return;
+            }
+        }
+
+        throw new Error(`File not found: ${fileName}`);
+    }
+
+    /**
      * ==================== 高级操作方法 ====================
      */
 
@@ -342,7 +430,9 @@ export class RoomPage extends BasePage {
 
         try {
             // 首先确保页面已准备好
-            await this.page.waitForLoadState("domcontentloaded", { timeout: 15000 }).catch(() => {
+            await this.page.waitForLoadState("domcontentloaded", {
+                timeout: 15000,
+            }).catch(() => {
                 console.warn("DOM 加载超时，继续");
             });
 
@@ -350,9 +440,11 @@ export class RoomPage extends BasePage {
             await this.page.waitForTimeout(1000);
 
             // 检查是否可以找到任何主要容器
-            const hasContent = await this.page.locator("body").evaluate((body) => {
-                return body.textContent && body.textContent.length > 100;
-            });
+            const hasContent = await this.page.locator("body").evaluate(
+                (body) => {
+                    return body.textContent && body.textContent.length > 100;
+                },
+            );
 
             if (!hasContent) {
                 throw new Error("Page content not loaded properly");
@@ -361,7 +453,13 @@ export class RoomPage extends BasePage {
             // 等待左侧边栏（使用多个选择器进行冗余检查）
             console.log("等待左侧边栏...");
             let sidebarLoaded = false;
-            for (const selector of ["aside", "complementary", "[role='complementary']"]) {
+            for (
+                const selector of [
+                    "aside",
+                    "complementary",
+                    "[role='complementary']",
+                ]
+            ) {
                 try {
                     await this.page.locator(selector).first()
                         .waitFor({
