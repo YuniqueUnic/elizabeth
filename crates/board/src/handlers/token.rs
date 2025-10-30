@@ -22,7 +22,7 @@ pub async fn verify_room_token(
     token_str: &str,
 ) -> AppResult<VerifiedRoomToken> {
     // 验证房间名称
-    RoomNameValidator::validate(room_name)?;
+    RoomNameValidator::validate_identifier(room_name)?;
 
     // 验证令牌格式
     TokenValidator::validate_token_format(token_str)?;

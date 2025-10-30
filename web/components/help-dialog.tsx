@@ -11,21 +11,21 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
+    BookCopy,
+    Clock,
     Copy,
     Download,
-    Save,
-    Trash2,
-    HelpCircle,
-    Settings,
-    Clock,
-    Lock,
     Eye,
-    KeyRound,
-    Share2,
-    QrCode,
-    Pencil,
-    BookCopy,
+    HelpCircle,
     Icon,
+    KeyRound,
+    Lock,
+    Pencil,
+    QrCode,
+    Save,
+    Settings,
+    Share2,
+    Trash2,
 } from "lucide-react";
 
 interface HelpSectionProps {
@@ -60,7 +60,7 @@ const HelpItem: React.FC<HelpItemProps> = ({ title, icon: Icon, children }) => (
             <Icon className="w-4 h-4 mr-2 text-muted-foreground" />
             {title}
         </h4>
-        <p className="text-sm text-muted-foreground pl-6">{children}</p>
+        <div className="text-sm text-muted-foreground pl-6">{children}</div>
     </div>
 );
 

@@ -13,7 +13,8 @@ use crate::errors::{AppError, AppResult};
 use crate::models::{Room, RoomToken, permission::RoomPermission};
 use crate::permissions::PermissionBuilder;
 use crate::repository::{
-    IRoomRepository, IRoomTokenRepository, SqliteRoomRepository, SqliteRoomTokenRepository,
+    IRoomContentRepository, IRoomRepository, IRoomTokenRepository, SqliteRoomContentRepository,
+    SqliteRoomRepository, SqliteRoomTokenRepository,
 };
 use crate::services::RoomTokenClaims;
 use crate::state::AppState;
@@ -186,6 +187,9 @@ pub async fn find(
 
     match repository.find_by_name(&name).await? {
         Some(room) => {
+            if room.is_expired() {
+                return Err(AppError::authentication("Room has expired"));
+            }
             if room.can_enter() {
                 Ok(Json(room))
             } else {
@@ -289,7 +293,7 @@ pub async fn issue_token(
     RoomNameValidator::validate_identifier(&name)?;
 
     let mut previous_jti = None;
-    let room = if let Some(token) = payload.token.as_deref() {
+    let mut room = if let Some(token) = payload.token.as_deref() {
         // 验证令牌格式
         TokenValidator::validate_token_format(token)?;
 
@@ -319,6 +323,26 @@ pub async fn issue_token(
     if !room.can_enter() {
         return Err(AppError::authentication("Room cannot be entered"));
     }
+
+    // Decrement view count
+    room.current_times_entered += 1;
+
+    let repository = SqliteRoomRepository::new(app_state.db_pool.clone());
+    if room.current_times_entered >= room.max_times_entered {
+        // Reset room by deleting its content and resetting its state
+        let content_repo = SqliteRoomContentRepository::new(app_state.db_pool.clone());
+        content_repo
+            .delete_by_room_id(room.id.unwrap())
+            .await
+            .map_err(|e| AppError::internal(format!("Failed to clear room content: {}", e)))?;
+        room.current_size = 0;
+        room.current_times_entered = 0;
+    }
+
+    repository
+        .update(&room)
+        .await
+        .map_err(|e| AppError::internal(format!("Failed to update room view count: {}", e)))?;
 
     let (token, claims) = app_state
         .token_service()
