@@ -1,7 +1,7 @@
 // Global state management using Zustand
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import type { Message, Theme, TokenInfo } from "./types";
+import type { LocalMessage, Message, Theme, TokenInfo } from "./types";
 import { getRoomToken } from "./utils/api";
 import { hasValidToken } from "../api/authService";
 import {
@@ -10,14 +10,6 @@ import {
   postMessage,
   updateMessage,
 } from "@/api/messageService";
-
-// Extend the Message type to include local state for unsaved changes
-export type LocalMessage = Message & {
-  isNew?: boolean;
-  isDirty?: boolean;
-  isPendingDelete?: boolean;
-  originalContent?: string; // To allow reverting edits
-};
 
 interface AppState {
   // Theme management

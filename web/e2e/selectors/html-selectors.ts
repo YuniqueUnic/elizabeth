@@ -39,30 +39,31 @@ export const htmlSelectors = {
 
             expirationTime: {
                 label: 'text="过期时间"',
-                select: 'heading:has-text("房间设置") ~ div combobox',
+                select:
+                    'text=房间设置 >> .. >> button[data-slot="select-trigger"]',
                 options: {
-                    oneMinute: 'option:has-text("1 分钟")',
-                    tenMinutes: 'option:has-text("10 分钟")',
-                    oneHour: 'option:has-text("1 小时")',
-                    twelveHours: 'option:has-text("12 小时")',
-                    oneDay: 'option:has-text("1 天")',
-                    oneWeek: 'option:has-text("1 周")',
-                    never: 'option:has-text("永不过期")',
+                    oneMinute: 'role=option[name="1 分钟"]',
+                    tenMinutes: 'role=option[name="10 分钟"]',
+                    oneHour: 'role=option[name="1 小时"]',
+                    twelveHours: 'role=option[name="12 小时"]',
+                    oneDay: 'role=option[name="1 天"]',
+                    oneWeek: 'role=option[name="1 周"]',
+                    never: 'role=option[name="永不过期"]',
                 },
             },
 
             password: {
                 label: 'text="房间密码"',
-                input: 'input[placeholder*="密码"]',
+                input: "text=房间密码 >> .. >> input",
                 toggleBtn: "button >> nth=1",
             },
 
             maxViewCount: {
                 label: 'text="最大查看次数"',
-                input: "spinbutton",
+                input: 'text=最大查看次数 >> .. >> input[type="number"]',
             },
 
-            saveBtn: 'button:has-text("保存设置")',
+            saveBtn: 'text=房间设置 >> .. >> button:has-text("保存设置")',
         },
 
         // 房间权限部分
@@ -70,14 +71,14 @@ export const htmlSelectors = {
             section: 'heading:has-text("房间权限")',
 
             buttons: {
-                preview: 'button:has-text("预览")',
-                edit: 'button:has-text("编辑")',
-                share: 'button:has-text("分享")',
-                delete: 'button:has-text("删除")',
+                preview: 'text=房间权限 >> .. >> button:has-text("预览")',
+                edit: 'text=房间权限 >> .. >> button:has-text("编辑")',
+                share: 'text=房间权限 >> .. >> button:has-text("分享")',
+                delete: 'text=房间权限 >> .. >> button:has-text("删除")',
             },
 
             hint: "text=/提示：/",
-            saveBtn: 'button:has-text("保存权限")',
+            saveBtn: 'text=房间权限 >> .. >> button:has-text("保存权限")',
         },
 
         // 分享房间部分
@@ -87,8 +88,8 @@ export const htmlSelectors = {
             qrCode: 'img[alt="Room QR Code"]',
 
             buttons: {
-                getLink: 'button:has-text("获取链接")',
-                download: 'button:has-text("下载")',
+                getLink: 'text=分享房间 >> .. >> button:has-text("获取链接")',
+                download: 'text=分享房间 >> .. >> button:has-text("下载")',
             },
 
             roomUrl: "text=/http:/",
@@ -99,7 +100,7 @@ export const htmlSelectors = {
             section: 'heading:has-text("容量使用")',
             progressBar: "progressbar",
             // 使用 paragraph 而不是 text 正则，更稳定
-            info: 'heading:has-text("容量使用") ~ paragraph',
+            info: "text=容量使用 >> .. >> p",
         },
     },
 
@@ -176,8 +177,8 @@ export const htmlSelectors = {
             info: "text=/共.*个文件/",
 
             buttons: {
-                selectAllBtn: "button >> nth=0",
-                invertBtn: "button >> nth=1",
+                selectAllBtn: 'css=aside button[title*="全选"]',
+                invertBtn: 'css=aside button[title="反选"]',
             },
 
             fileList: {
@@ -190,7 +191,7 @@ export const htmlSelectors = {
                         "div.group.relative.flex.items-center.gap-3.rounded-lg.border",
 
                     // 复选框
-                    checkbox: "[role='checkbox']",
+                    checkbox: "[data-slot='checkbox']",
 
                     // 文件名元素
                     name: ".file-name",

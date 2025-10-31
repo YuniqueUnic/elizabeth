@@ -1,60 +1,129 @@
 "use client";
 
 import * as React from "react";
-import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 
 import { cn } from "@/lib/utils";
 
-function TooltipProvider({
-  delayDuration = 0,
-  ...props
-}: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+type TooltipContextValue = {
+  hidden?: boolean;
+};
+
+const TooltipContext = React.createContext<TooltipContextValue>({});
+
+interface TooltipProviderProps {
+  children: React.ReactNode;
+  delayDuration?: number;
+}
+
+function TooltipProvider({ children }: TooltipProviderProps) {
+  return <>{children}</>;
+}
+
+interface TooltipProps extends React.HTMLAttributes<HTMLSpanElement> {
+  hidden?: boolean;
+}
+
+function Tooltip({ children, hidden, className, ...props }: TooltipProps) {
   return (
-    <TooltipPrimitive.Provider
-      data-slot="tooltip-provider"
-      delayDuration={delayDuration}
-      {...props}
-    />
+    <TooltipContext.Provider value={{ hidden }}>
+      <span
+        data-slot="tooltip"
+        className={cn("relative inline-flex", className)}
+        {...props}
+      >
+        {children}
+      </span>
+    </TooltipContext.Provider>
   );
 }
 
-function Tooltip({
-  ...props
-}: React.ComponentProps<typeof TooltipPrimitive.Root>) {
+interface TooltipTriggerProps extends React.HTMLAttributes<HTMLSpanElement> {
+  asChild?: boolean;
+}
+
+function TooltipTrigger(
+  { asChild, children, className, ...props }: TooltipTriggerProps,
+) {
+  if (asChild && React.isValidElement(children)) {
+    const child = children as React.ReactElement<any>;
+    return React.cloneElement(child, {
+      ...props,
+      className: cn(child.props.className, className),
+      "data-slot": "tooltip-trigger",
+    });
+  }
+
   return (
-    <TooltipProvider>
-      <TooltipPrimitive.Root data-slot="tooltip" {...props} />
-    </TooltipProvider>
+    <span data-slot="tooltip-trigger" className={className} {...props}>
+      {children}
+    </span>
   );
 }
 
-function TooltipTrigger({
-  ...props
-}: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
-  return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />;
+interface TooltipContentProps extends React.HTMLAttributes<HTMLDivElement> {
+  hidden?: boolean;
+  side?: "top" | "right" | "bottom" | "left";
+  align?: "start" | "center" | "end";
 }
 
 function TooltipContent({
   className,
-  sideOffset = 0,
   children,
+  hidden,
+  side,
+  align,
+  style,
   ...props
-}: React.ComponentProps<typeof TooltipPrimitive.Content>) {
+}: TooltipContentProps) {
+  const context = React.useContext(TooltipContext);
+  if (hidden ?? context.hidden) {
+    return null;
+  }
+
+  const positionStyles: React.CSSProperties = (() => {
+    switch (side) {
+      case "left":
+        return { right: "100%", top: "50%", transform: "translateY(-50%)" };
+      case "top":
+        return { bottom: "100%", left: "50%", transform: "translateX(-50%)" };
+      case "bottom":
+        return { top: "100%", left: "50%", transform: "translateX(-50%)" };
+      case "right":
+      default:
+        return { left: "100%", top: "50%", transform: "translateY(-50%)" };
+    }
+  })();
+
+  let alignStyles: React.CSSProperties = {};
+  if (side === "left" || side === "right") {
+    if (align === "start") {
+      alignStyles = { top: "0", transform: "translateY(0)" };
+    }
+    if (align === "end") {
+      alignStyles = { bottom: "0", top: "auto", transform: "translateY(0)" };
+    }
+  } else {
+    if (align === "start") {
+      alignStyles = { left: "0", transform: "translateX(0)" };
+    }
+    if (align === "end") {
+      alignStyles = { right: "0", left: "auto", transform: "translateX(0)" };
+    }
+  }
+
   return (
-    <TooltipPrimitive.Portal>
-      <TooltipPrimitive.Content
-        data-slot="tooltip-content"
-        sideOffset={sideOffset}
-        className={cn(
-          "bg-foreground text-background animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 w-fit origin-(--radix-tooltip-content-transform-origin) rounded-md px-3 py-1.5 text-xs text-balance",
-          className,
-        )}
-        {...props}
-      >
-        {children}
-        <TooltipPrimitive.Arrow className="bg-foreground fill-foreground z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px]" />
-      </TooltipPrimitive.Content>
-    </TooltipPrimitive.Portal>
+    <div
+      role="tooltip"
+      data-slot="tooltip-content"
+      className={cn(
+        "pointer-events-none absolute z-50 rounded-md bg-foreground px-3 py-1.5 text-xs text-background shadow-sm",
+        className,
+      )}
+      style={{ ...positionStyles, ...alignStyles, ...style }}
+      {...props}
+    >
+      {children}
+    </div>
   );
 }
 

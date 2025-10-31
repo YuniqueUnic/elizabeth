@@ -206,6 +206,8 @@ export function RoomPermissions({ permissions }: RoomPermissionsProps) {
               key={permission}
               onClick={() => handleToggle(permission, !isEnabled)}
               disabled={!canToggle && !isEnabled}
+              aria-pressed={isEnabled}
+              data-state={isEnabled ? "on" : "off"}
               className={`
                 inline-flex items-center justify-center rounded-full px-4 py-1.5 text-sm font-medium
                 transition-all cursor-pointer

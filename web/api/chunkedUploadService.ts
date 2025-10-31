@@ -8,7 +8,6 @@
 import { API_ENDPOINTS } from "../lib/config";
 import { api } from "../lib/utils/api";
 import { getValidToken } from "./authService";
-import type { backendContentToFileItem } from "../lib/types";
 
 // ============================================================================
 // Chunked Upload Types
@@ -186,8 +185,6 @@ export async function uploadFileChunked(
   // Calculate final file hash
   const fileHash = await calculateSHA256Hash(file);
 
-  console.log(`[uploadFileChunked] 所有chunks上传完成，准备调用complete API`);
-
   // Step 3: Complete the chunked upload by merging all chunks
   const completeRequest: FileMergeRequest = {
     reservation_id: reservationId,
@@ -199,8 +196,6 @@ export async function uploadFileChunked(
     completeRequest,
     { token: authToken },
   );
-
-  console.log(`[uploadFileChunked] 文件合并完成:`, completeResponse);
 
   return completeResponse;
 }

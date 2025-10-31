@@ -2163,3 +2163,32 @@ pnpm add @radix-ui/react-slider@1.2.1 heti@0.9.6 --force
 
 **实施日期**: 2025-10-27 **实施团队**: Elizabeth 开发团队 **版本**: 前端 v2.1.0
 **下次评估**: 2025-11-27
+
+## 最新进展（2025-10-31）
+
+### 前端类型与 UI 测试修复 ✅
+
+- 清理未使用的 Radix UI 组件，消除 Playwright 构建依赖缺失导致的
+  `pnpm tsc --noEmit` 报错
+- 更新 `web/lib/types.ts` 与 `lib/store.ts` 的消息类型定义，统一 `LocalMessage`
+  扩展字段
+- 为 `RoomPage`、`BaseElement` 等 Page Object
+  增强超时与可用性判断，避免测试在无效 DOM 上等待
+- 新增 `bootstrapRoom()` / `dismissToasts()` 等辅助方法，自动创建房间、注入
+  token 并关闭遮挡弹窗，提升测试稳定性
+- 重写 `sample-room-tests`
+  权限、设置相关断言，使其匹配后端真实约束（预览权限常开、编辑权限可显式启用）
+
+### Playwright UI 自动化通过 ✅
+
+- 执行 `pnpm playwright test --reporter=line` 全量 105 项用例全部通过
+- 单独回归 `sample-room-tests.spec.ts`，确保房间初始化逻辑在多场景下稳定复用
+- 记录新引入的调试日志（等待房间面板、消息输入框加载）以便快速定位前端加载瓶颈
+
+### 验证命令
+
+```
+pnpm tsc --noEmit --incremental false --tsBuildInfoFile /tmp/tsconfig.tsbuildinfo
+pnpm playwright test e2e/tests/sample-room-tests.spec.ts --reporter=line
+pnpm playwright test --reporter=line
+```
