@@ -172,7 +172,13 @@ export interface Message {
   fileName?: string;
   user?: string;
   isOwn?: boolean;
+  isNew?: boolean;
+  isDirty?: boolean;
+  isPendingDelete?: boolean;
+  originalContent?: string;
 }
+
+export type LocalMessage = Message;
 
 export interface FileItem {
   id: string;

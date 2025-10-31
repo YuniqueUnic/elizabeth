@@ -211,11 +211,20 @@ export class RoomPage extends BasePage {
         const count = await fileItems.count();
         const files: string[] = [];
 
+        const normalizeName = (raw: string): string => {
+            const trimmed = raw.trim();
+            const uuidPrefixPattern =
+                /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_/i;
+            return uuidPrefixPattern.test(trimmed)
+                ? trimmed.replace(uuidPrefixPattern, "")
+                : trimmed;
+        };
+
         for (let i = 0; i < count; i++) {
             const item = fileItems.nth(i);
             const name = await item.locator(".file-name").textContent();
             if (name) {
-                files.push(name.trim());
+                files.push(normalizeName(name));
             }
         }
 
@@ -244,22 +253,29 @@ export class RoomPage extends BasePage {
                 );
                 await deleteBtn.click();
 
-                // 等待确认对话框
-                await this.page.waitForTimeout(500);
-
-                // 点击确认
-                const confirmBtn = this.page.locator(
-                    htmlSelectors.dialogs.deleteConfirmation.confirmBtn,
-                );
-                await confirmBtn.click();
-
                 // 等待删除完成
-                await this.page.waitForTimeout(1000);
+                await item.waitFor({ state: "detached", timeout: 5000 }).catch(
+                    async () => {
+                        await this.page.waitForTimeout(1000);
+                    },
+                );
                 return;
             }
         }
 
         throw new Error(`File not found: ${fileName}`);
+    }
+
+    async clearAllFiles(): Promise<void> {
+        const files = await this.getFileList();
+        for (const file of files) {
+            try {
+                await this.deleteFile(file);
+                await this.page.waitForTimeout(200);
+            } catch (error) {
+                // 忽略未找到的文件
+            }
+        }
     }
 
     /**
@@ -324,42 +340,33 @@ export class RoomPage extends BasePage {
         share?: boolean;
         delete?: boolean;
     }): Promise<void> {
-        if (permissions.preview !== undefined) {
-            const isChecked = await this.roomPermissions.previewBtn
-                .getAttribute("aria-pressed");
-            if (isChecked === "false" && permissions.preview) {
-                await this.roomPermissions.previewBtn.click();
+        const toggleIfNeeded = async (
+            element: ButtonElement,
+            desired?: boolean,
+        ) => {
+            if (desired === undefined) return;
+            const attr = await element.getAttribute("aria-pressed");
+            const current = attr === "true";
+            if (current !== desired) {
+                await element.click();
             }
-        }
+        };
 
-        if (permissions.edit !== undefined) {
-            const isChecked = await this.roomPermissions.editBtn.getAttribute(
-                "aria-pressed",
-            );
-            if (isChecked === "false" && permissions.edit) {
-                await this.roomPermissions.editBtn.click();
-            }
-        }
+        await toggleIfNeeded(
+            this.roomPermissions.previewBtn,
+            permissions.preview,
+        );
+        await toggleIfNeeded(this.roomPermissions.editBtn, permissions.edit);
+        await toggleIfNeeded(this.roomPermissions.shareBtn, permissions.share);
+        await toggleIfNeeded(
+            this.roomPermissions.deleteBtn,
+            permissions.delete,
+        );
 
-        if (permissions.share !== undefined) {
-            const isChecked = await this.roomPermissions.shareBtn.getAttribute(
-                "aria-pressed",
-            );
-            if (isChecked === "false" && permissions.share) {
-                await this.roomPermissions.shareBtn.click();
-            }
+        const saveBtn = this.roomPermissions.saveBtn;
+        if (await saveBtn.isEnabled()) {
+            await saveBtn.click();
         }
-
-        if (permissions.delete !== undefined) {
-            const isChecked = await this.roomPermissions.deleteBtn.getAttribute(
-                "aria-pressed",
-            );
-            if (isChecked === "false" && permissions.delete) {
-                await this.roomPermissions.deleteBtn.click();
-            }
-        }
-
-        await this.roomPermissions.saveBtn.click();
     }
 
     /**
@@ -450,41 +457,32 @@ export class RoomPage extends BasePage {
                 throw new Error("Page content not loaded properly");
             }
 
-            // 等待左侧边栏（使用多个选择器进行冗余检查）
-            console.log("等待左侧边栏...");
-            let sidebarLoaded = false;
-            for (
-                const selector of [
-                    "aside",
-                    "complementary",
-                    "[role='complementary']",
-                ]
+            // 确保左侧边栏展开
+            const expandButton = this.page.locator(
+                'button[title="展开侧边栏"]',
+            );
+            if (
+                await expandButton.isVisible({ timeout: 2000 }).catch(() =>
+                    false
+                )
             ) {
-                try {
-                    await this.page.locator(selector).first()
-                        .waitFor({
-                            state: "visible",
-                            timeout: 10000,
-                        });
-                    sidebarLoaded = true;
-                    break;
-                } catch (e) {
-                    continue;
-                }
+                await expandButton.click();
+                await this.page.waitForTimeout(300);
             }
-            if (!sidebarLoaded) {
-                console.warn("左侧边栏未立即加载，继续");
-            }
-            console.log("左侧边栏加载成功（或跳过）");
 
-            // 等待中间列
-            console.log("等待中间列...");
-            await this.page.locator("main").first()
-                .waitFor({
-                    state: "visible",
-                    timeout: 15000,
-                });
-            console.log("中间列加载成功");
+            console.log("等待房间设置面板...");
+            await this.page.locator("text=房间设置").first().waitFor({
+                state: "visible",
+                timeout: 20000,
+            });
+
+            console.log("等待主内容区域...");
+            await this.page.locator("main").first().waitFor({
+                state: "visible",
+                timeout: 20000,
+            }).catch(() => {
+                console.warn("主内容区域未及时出现，继续");
+            });
 
             // 等待消息输入框（textarea）
             console.log("等待消息输入框...");

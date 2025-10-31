@@ -188,4 +188,6 @@ function useToast() {
   };
 }
 
+export type UseToastReturnType = ReturnType<typeof useToast>;
+
 export { toast, useToast };
