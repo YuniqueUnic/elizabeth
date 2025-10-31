@@ -11,12 +11,7 @@
 import { API_ENDPOINTS } from "../lib/config";
 import { api } from "../lib/utils/api";
 import { getAccessToken, getValidToken } from "./authService";
-import type {
-  backendContentToFileItem,
-  BackendRoomContent,
-  ContentType,
-  FileItem,
-} from "../lib/types";
+import type { BackendRoomContent, FileItem } from "../lib/types";
 import {
   backendContentToFileItem as convertFile,
   ContentType as CT,
@@ -44,16 +39,30 @@ export interface PrepareUploadResponse {
   }>;
 }
 
-export interface ChunkedUploadRequest {
-  reservation_id: string;
-  chunk_index: number;
-  data: ArrayBuffer;
-  is_last: boolean;
-}
-
 // ============================================================================
 // File Functions
 // ============================================================================
+
+const CHUNKED_UPLOAD_THRESHOLD = 5 * 1024 * 1024; // 5MB
+
+async function ensureToken(roomName: string, token?: string): Promise<string> {
+  if (token) return token;
+
+  const existing = await getValidToken(roomName);
+  if (existing) return existing;
+
+  const tokenResponse = await getAccessToken(roomName);
+  return tokenResponse.token;
+}
+
+function mapMimeToFileType(mime?: string): FileItem["type"] {
+  if (!mime) return "document";
+  if (mime.startsWith("image/")) return "image";
+  if (mime.startsWith("video/")) return "video";
+  if (mime === "application/pdf") return "pdf";
+  if (mime.startsWith("http")) return "link";
+  return "document";
+}
 
 /**
  * Get all files for a room
@@ -67,29 +76,13 @@ export async function getFilesList(
   roomName: string,
   token?: string,
 ): Promise<FileItem[]> {
-  let authToken = token || await getValidToken(roomName);
-
-  if (!authToken) {
-    // Token not available, try to get a new one
-    try {
-      const tokenResponse = await getAccessToken(roomName);
-      authToken = tokenResponse.token;
-    } catch (err) {
-      throw new Error("Authentication required to get files");
-    }
-  }
-
-  if (!authToken) {
-    throw new Error("Authentication required to get files");
-  }
+  const authToken = await ensureToken(roomName, token);
 
   const contents = await api.get<BackendRoomContent[]>(
     API_ENDPOINTS.content.base(roomName),
     undefined,
     { token: authToken },
   );
-
-  console.log(`[getFilesList] 查询 ${roomName}: 返回 ${contents.length}个内容`);
 
   // Filter for non-text content (files only) and convert to FileItem
   // Exclude text messages (ContentType.Text or text/plain files with message.txt pattern)
@@ -117,7 +110,6 @@ export async function getFilesList(
       new Date(a.uploadedAt || "").getTime()
     );
 
-  console.log(`[getFilesList] 过滤后 ${filtered.length}个文件`);
   return filtered;
 }
 
@@ -146,157 +138,88 @@ export async function uploadFile(
     }) => void;
   },
 ): Promise<FileItem> {
-  console.log(`[uploadFile] 开始上传：${file.name} (${file.size} bytes)`);
+  const authToken = await ensureToken(roomName, token);
+  const useChunkedUpload = options?.useChunkedUpload ??
+    file.size > CHUNKED_UPLOAD_THRESHOLD;
 
-  const CHUNKED_UPLOAD_THRESHOLD = 5 * 1024 * 1024; // 5MB
-  const shouldUseChunkedUpload = file.size > CHUNKED_UPLOAD_THRESHOLD;
-
-  if (shouldUseChunkedUpload) {
-    // Use chunked upload for large files
-    console.log(`[uploadFile] 使用 chunked 上传`);
+  if (useChunkedUpload) {
     const { uploadFileChunked } = await import("./chunkedUploadService");
-
-    let authToken = token || await getValidToken(roomName);
-    if (!authToken) {
-      try {
-        const { getAccessToken } = await import("./authService");
-        const tokenResponse = await getAccessToken(roomName);
-        authToken = tokenResponse.token;
-      } catch (err) {
-        console.error("Failed to get access token:", err);
-        throw new Error("Authentication required to upload files");
-      }
-    }
-
     const mergeResponse = await uploadFileChunked(
       roomName,
       file,
       {
-        onProgress: (progress) => {
-          options?.onProgress?.(progress);
-        },
-        onChunkComplete: () => {
-          // For now, we don't get intermediate results from chunked upload
-          // In a real implementation, you might want to track chunk completion
-        },
+        onProgress: (progress) => options?.onProgress?.(progress),
       },
       authToken,
     );
 
-    console.log(`[uploadFile] 文件合并完成，response:`, mergeResponse);
-
-    // Extract the merged file info from the response
-    if (
-      mergeResponse.merged_files && mergeResponse.merged_files.length > 0
-    ) {
-      const mergedFileInfo = mergeResponse.merged_files[0];
-
-      // Convert to FileItem format
-      const result: FileItem = {
-        id: mergedFileInfo.content_id.toString(),
-        name: mergedFileInfo.file_name,
-        size: mergedFileInfo.file_size,
-        type: "application/octet-stream",
-        createdAt: new Date().toISOString(),
-        url: `${
-          API_ENDPOINTS.content.base(roomName)
-        }/${mergedFileInfo.content_id}`,
-      };
-
-      console.log(`[uploadFile] 完成：返回 FileItem id=${result.id}`);
-      return result;
-    } else {
+    const mergedFile = mergeResponse.merged_files?.[0];
+    if (!mergedFile) {
       throw new Error("No merged files in response");
     }
-  } else {
-    // Use simple upload for small files
-    console.log(`[uploadFile] 使用 simple 上传，开始步骤...`);
-    let authToken = token || await getValidToken(roomName);
 
-    if (!authToken) {
-      try {
-        const { getAccessToken } = await import("./authService");
-        const tokenResponse = await getAccessToken(roomName);
-        authToken = tokenResponse.token;
-      } catch (err) {
-        console.error("Failed to get access token:", err);
-        throw new Error("Authentication required to upload files");
-      }
-    }
-
-    // Step 1: Prepare upload
-    console.log(`[uploadFile] Step 1: 准备上传...`);
-    const prepareRequest: PrepareUploadRequest = {
-      files: [{
-        name: file.name,
-        size: file.size,
-        mime: file.type,
-      }],
+    const timestamp = new Date().toISOString();
+    return {
+      id: mergedFile.content_id.toString(),
+      name: mergedFile.file_name,
+      thumbnailUrl: null,
+      size: mergedFile.file_size,
+      type: mapMimeToFileType(file.type),
+      mimeType: file.type || undefined,
+      createdAt: timestamp,
+      uploadedAt: timestamp,
+      url: `${API_ENDPOINTS.content.base(roomName)}/${mergedFile.content_id}`,
     };
+  }
 
-    const prepareResponse = await api.post<PrepareUploadResponse>(
+  const prepareRequest: PrepareUploadRequest = {
+    files: [{
+      name: file.name,
+      size: file.size,
+      mime: file.type,
+    }],
+  };
+
+  const prepareResponse = await api.post<PrepareUploadResponse>(
+    API_ENDPOINTS.content.prepare(roomName),
+    prepareRequest,
+    { token: authToken },
+  );
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const uploadOnce = async (reservationId: string) => {
+    const response = await api.post<
+      { uploaded: BackendRoomContent[]; current_size: number }
+    >(
+      `${API_ENDPOINTS.content.base(roomName)}?reservation_id=${reservationId}`,
+      formData,
+      { token: authToken },
+    );
+    return response.uploaded ?? [];
+  };
+
+  let uploadedContents: BackendRoomContent[];
+  try {
+    uploadedContents = await uploadOnce(prepareResponse.reservation_id);
+  } catch (err: any) {
+    if (err?.code !== 400) {
+      throw err;
+    }
+    const retryPrepare = await api.post<PrepareUploadResponse>(
       API_ENDPOINTS.content.prepare(roomName),
       prepareRequest,
       { token: authToken },
     );
-    console.log(
-      `[uploadFile] Step 1 完成：reservation_id=${prepareResponse.reservation_id}`,
-    );
-
-    // Step 2: Upload file data
-    console.log(`[uploadFile] Step 2: 上传文件数据...`);
-    const formData = new FormData();
-    formData.append("file", file);
-
-    // Attempt upload; if reservation 过期 (400) 则自动重新预留并重试一次
-    const doUpload = async (reservationId: string) => {
-      const response = await api.post<
-        { uploaded: BackendRoomContent[]; current_size: number }
-      >(
-        `${
-          API_ENDPOINTS.content.base(roomName)
-        }?reservation_id=${reservationId}`,
-        formData,
-        { token: authToken },
-      );
-      // 后端返回 {uploaded: [...], current_size: N}
-      return response.uploaded || [];
-    };
-
-    let uploadedContents: BackendRoomContent[];
-    try {
-      uploadedContents = await doUpload(prepareResponse.reservation_id);
-      console.log(
-        `[uploadFile] 上传成功，返回 ${uploadedContents.length}个内容`,
-      );
-      console.log(`[uploadFile] 返回数据:`, uploadedContents);
-    } catch (err: any) {
-      console.error(`[uploadFile] 上传失败:`, err);
-      // If Bad Request, likely reservation TTL expired; re-prepare once
-      if (err?.code === 400) {
-        console.log(`[uploadFile] 重试：reservation 过期，重新准备...`);
-        const retryPrepare = await api.post<PrepareUploadResponse>(
-          API_ENDPOINTS.content.prepare(roomName),
-          prepareRequest,
-          { token: authToken },
-        );
-        uploadedContents = await doUpload(retryPrepare.reservation_id);
-        console.log(
-          `[uploadFile] 重试成功，返回 ${uploadedContents.length}个内容`,
-        );
-      } else {
-        throw err;
-      }
-    }
-
-    if (uploadedContents.length === 0) {
-      throw new Error("Failed to upload file");
-    }
-
-    const result = convertFile(uploadedContents[0]);
-    console.log(`[uploadFile] 完成：返回 FileItem id=${result.id}`);
-    return result;
+    uploadedContents = await uploadOnce(retryPrepare.reservation_id);
   }
+
+  if (uploadedContents.length === 0) {
+    throw new Error("Failed to upload file");
+  }
+
+  return convertFile(uploadedContents[0]);
 }
 
 /**
@@ -311,11 +234,7 @@ export async function deleteFile(
   fileId: string,
   token?: string,
 ): Promise<void> {
-  const authToken = token || await getValidToken(roomName);
-
-  if (!authToken) {
-    throw new Error("Authentication required to delete files");
-  }
+  const authToken = await ensureToken(roomName, token);
 
   // Backend expects token in query parameter AND ids in both query and body
   const idsParam = parseInt(fileId, 10);
@@ -339,11 +258,7 @@ export async function deleteFiles(
   fileIds: string[],
   token?: string,
 ): Promise<void> {
-  const authToken = token || await getValidToken(roomName);
-
-  if (!authToken) {
-    throw new Error("Authentication required to delete files");
-  }
+  const authToken = await ensureToken(roomName, token);
 
   const numericIds = fileIds.map((id) => parseInt(id, 10));
   const idsParam = numericIds.join(",");
@@ -371,18 +286,7 @@ export async function downloadFile(
   fileName: string,
   token?: string,
 ): Promise<void> {
-  let authToken = token || await getValidToken(roomName);
-
-  if (!authToken) {
-    try {
-      const { getAccessToken } = await import("./authService");
-      const tokenResponse = await getAccessToken(roomName);
-      authToken = tokenResponse.token;
-    } catch (err) {
-      console.error("Failed to get access token:", err);
-      throw new Error("Authentication required to download files");
-    }
-  }
+  const authToken = await ensureToken(roomName, token);
 
   const response = await api.get(
     `${API_ENDPOINTS.content.base(roomName)}/${fileId}`,
@@ -419,18 +323,7 @@ export async function downloadFilesBatch(
   fileIds: string[],
   token?: string,
 ): Promise<void> {
-  let authToken = token || await getValidToken(roomName);
-
-  if (!authToken) {
-    try {
-      const { getAccessToken } = await import("./authService");
-      const tokenResponse = await getAccessToken(roomName);
-      authToken = tokenResponse.token;
-    } catch (err) {
-      console.error("Failed to get access token:", err);
-      throw new Error("Authentication required to download files");
-    }
-  }
+  const authToken = await ensureToken(roomName, token);
 
   const response = await api.post(
     `${API_ENDPOINTS.content.base(roomName)}/download`,

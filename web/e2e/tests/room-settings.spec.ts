@@ -3,31 +3,101 @@
  * 测试房间设置、权限、密码、过期时间等功能
  */
 
-import { expect, test } from "@playwright/test";
+import { expect, type Locator, test } from "@playwright/test";
 import { RoomPage } from "../page-objects/room-page";
 
 const BASE_URL = "http://localhost:4001";
-const TEST_ROOM = "settings-test-room";
-const TEST_ROOM_URL = `${BASE_URL}/${TEST_ROOM}`;
+
+const API_BASE_URL = process.env.API_BASE_URL || "http://localhost:4092/api/v1";
+const TOKEN_STORAGE_KEY = "elizabeth_tokens";
+
+async function ensureRoomExists(roomName: string) {
+    const response = await fetch(
+        `${API_BASE_URL}/rooms/${encodeURIComponent(roomName)}`,
+        { method: "POST" },
+    );
+
+    console.log(
+        `[room-settings] ensureRoomExists ${roomName} -> ${response.status} ${response.statusText}`,
+    );
+
+    if (!response.ok && response.status !== 409) {
+        throw new Error(
+            `Failed to create room ${roomName}: ${response.status} ${response.statusText}`,
+        );
+    }
+}
+
+async function issueRoomToken(roomName: string) {
+    const response = await fetch(
+        `${API_BASE_URL}/rooms/${encodeURIComponent(roomName)}/tokens`,
+        {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+        },
+    );
+
+    if (!response.ok) {
+        const errorBody = await response.text().catch(() => "");
+        throw new Error(
+            `Failed to issue token for ${roomName}: ${response.status} ${response.statusText} ${errorBody}`,
+        );
+    }
+
+    const token = await response.json();
+    return {
+        token: token.token as string,
+        expiresAt: token.expires_at as string,
+    };
+}
 
 test.describe("房间设置功能测试", () => {
     let roomPage: RoomPage;
+    let currentRoom: string;
+    let currentRoomUrl: string;
 
     test.beforeEach(async ({ page }) => {
+        currentRoom = `settings-test-room-${Date.now()}-${
+            Math.floor(Math.random() * 1e6)
+        }`;
+        currentRoomUrl = `${BASE_URL}/${currentRoom}`;
+
+        await ensureRoomExists(currentRoom);
+        const token = await issueRoomToken(currentRoom);
+
+        await page.addInitScript(
+            ({ storageKey, roomName, tokenInfo }) => {
+                const existing = JSON.parse(
+                    window.localStorage.getItem(storageKey) || "{}",
+                );
+                existing[roomName] = tokenInfo;
+                window.localStorage.setItem(
+                    storageKey,
+                    JSON.stringify(existing),
+                );
+            },
+            {
+                storageKey: TOKEN_STORAGE_KEY,
+                roomName: currentRoom,
+                tokenInfo: token,
+            },
+        );
+
         roomPage = new RoomPage(page);
-        await roomPage.goto(TEST_ROOM_URL);
+        await roomPage.goto(currentRoomUrl);
         await roomPage.waitForRoomLoad();
     });
 
     test.describe("房间基础信息", () => {
         test("RS-001: 应该正确显示房间 URL", async () => {
             const url = roomPage.getRoomUrl();
-            expect(url).toContain(TEST_ROOM);
+            expect(url).toContain(currentRoom);
         });
 
         test("RS-002: 应该从 URL 中提取房间名称", async () => {
             const roomName = roomPage.getRoomName();
-            expect(roomName).toBe(TEST_ROOM);
+            expect(roomName).toBe(currentRoom);
         });
 
         test("RS-003: 应该显示容量信息", async () => {
@@ -197,7 +267,23 @@ test.describe("房间设置功能测试", () => {
 
     test.describe("权限管理", () => {
         test("RS-019: 应该可以切换预览权限", async () => {
-            const previewBtn = roomPage.roomPermissions.previewBtn;
+            const previewBtn = roomPage.roomPermissions.previewBtn.getLocator();
+            const editBtn = roomPage.roomPermissions.editBtn.getLocator();
+            const shareBtn = roomPage.roomPermissions.shareBtn.getLocator();
+            const deleteBtn = roomPage.roomPermissions.deleteBtn.getLocator();
+
+            const disableIfEnabled = async (locator: Locator) => {
+                const state = await locator.getAttribute("aria-pressed");
+                if (state === "true") {
+                    await locator.click();
+                    await roomPage.page.waitForTimeout(200);
+                }
+            };
+
+            await disableIfEnabled(deleteBtn);
+            await disableIfEnabled(shareBtn);
+            await disableIfEnabled(editBtn);
+
             const initialState = await previewBtn.getAttribute("aria-pressed");
 
             await previewBtn.click();
@@ -214,7 +300,7 @@ test.describe("房间设置功能测试", () => {
             const state = await roomPage.roomPermissions.editBtn.getAttribute(
                 "aria-pressed",
             );
-            expect(["true", "false"]).toContain(state);
+            expect(state).toMatch(/^(true|false)$/);
         });
 
         test("RS-021: 应该可以切换分享权限", async () => {
@@ -224,7 +310,7 @@ test.describe("房间设置功能测试", () => {
             const state = await roomPage.roomPermissions.shareBtn.getAttribute(
                 "aria-pressed",
             );
-            expect(["true", "false"]).toContain(state);
+            expect(state).toMatch(/^(true|false)$/);
         });
 
         test("RS-022: 应该可以切换删除权限", async () => {
@@ -234,7 +320,7 @@ test.describe("房间设置功能测试", () => {
             const state = await roomPage.roomPermissions.deleteBtn.getAttribute(
                 "aria-pressed",
             );
-            expect(["true", "false"]).toContain(state);
+            expect(state).toMatch(/^(true|false)$/);
         });
 
         test("RS-023: 应该可以保存权限设置", async () => {
@@ -255,10 +341,10 @@ test.describe("房间设置功能测试", () => {
 
         test("RS-024: 应该支持所有权限组合", async () => {
             const combinations = [
-                { preview: true, edit: true, share: true, delete: true },
-                { preview: true, edit: true, share: false, delete: false },
                 { preview: true, edit: false, share: false, delete: false },
                 { preview: false, edit: false, share: false, delete: false },
+                { preview: true, edit: true, share: false, delete: false },
+                { preview: true, edit: true, share: true, delete: true },
             ];
 
             for (const combo of combinations.slice(0, 2)) {

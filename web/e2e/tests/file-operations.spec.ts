@@ -5,6 +5,7 @@
 
 import { expect, test } from "@playwright/test";
 import { RoomPage } from "../page-objects/room-page";
+import htmlSelectors from "../selectors/html-selectors";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -45,6 +46,7 @@ test.describe("文件操作测试", () => {
         roomPage = new RoomPage(page);
         await roomPage.goto(TEST_ROOM_URL);
         await roomPage.waitForRoomLoad();
+        await roomPage.clearAllFiles();
     });
 
     test.afterAll(() => {
@@ -140,7 +142,7 @@ test.describe("文件操作测试", () => {
 
         // 查找文件复选框并点击
         const checkboxes = page.locator(
-            '[role="checkbox"]',
+            `${htmlSelectors.rightSidebar.fileManager.fileList.fileItem.container} ${htmlSelectors.rightSidebar.fileManager.fileList.fileItem.checkbox}`,
         );
         const count = await checkboxes.count();
         if (count > 0) {
@@ -162,7 +164,7 @@ test.describe("文件操作测试", () => {
 
         // 验证所有复选框都被选中
         const checkboxes = roomPage.page.locator(
-            '[role="checkbox"]',
+            `${htmlSelectors.rightSidebar.fileManager.fileList.fileItem.container} ${htmlSelectors.rightSidebar.fileManager.fileList.fileItem.checkbox}`,
         );
         let allChecked = true;
         const count = await checkboxes.count();
@@ -196,7 +198,7 @@ test.describe("文件操作测试", () => {
 
         // 检查文件列表是否可见
         const fileItems = page.locator(
-            '[role="listitem"]',
+            htmlSelectors.rightSidebar.fileManager.fileList.fileItem.container,
         );
         expect(await fileItems.count()).toBeGreaterThan(0);
     });

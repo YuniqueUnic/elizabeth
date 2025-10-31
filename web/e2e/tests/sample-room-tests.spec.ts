@@ -3,20 +3,103 @@
  * 演示如何使用 PageObject 和链式调用进行 UI 测试
  */
 
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { RoomPage } from "../page-objects/room-page";
 
 const BASE_URL = "http://localhost:4001";
-const TEST_ROOM = "playwright-test-room";
-const TEST_ROOM_URL = `${BASE_URL}/${TEST_ROOM}`;
+const API_BASE_URL = process.env.API_BASE_URL || "http://localhost:4092/api/v1";
+const TOKEN_STORAGE_KEY = "elizabeth_tokens";
+
+async function ensureRoomExists(roomName: string) {
+    const response = await fetch(
+        `${API_BASE_URL}/rooms/${encodeURIComponent(roomName)}`,
+        { method: "POST" },
+    );
+
+    if (!response.ok && response.status !== 409) {
+        throw new Error(
+            `Failed to create room ${roomName}: ${response.status} ${response.statusText}`,
+        );
+    }
+}
+
+async function issueRoomToken(roomName: string) {
+    const response = await fetch(
+        `${API_BASE_URL}/rooms/${encodeURIComponent(roomName)}/tokens`,
+        {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+        },
+    );
+
+    if (!response.ok) {
+        const errorBody = await response.text().catch(() => "");
+        throw new Error(
+            `Failed to issue token for ${roomName}: ${response.status} ${response.statusText} ${errorBody}`,
+        );
+    }
+
+    const token = await response.json();
+    return {
+        token: token.token as string,
+        expiresAt: token.expires_at as string,
+    };
+}
+
+async function bootstrapRoom(page: Page) {
+    const roomName = `playwright-test-room-${Date.now()}-${
+        Math.floor(Math.random() * 1e6)
+    }`;
+    const roomUrl = `${BASE_URL}/${roomName}`;
+
+    await ensureRoomExists(roomName);
+    const token = await issueRoomToken(roomName);
+
+    await page.addInitScript(
+        ({ storageKey, roomName, tokenInfo }) => {
+            const existing = JSON.parse(
+                window.localStorage.getItem(storageKey) || "{}",
+            );
+            existing[roomName] = tokenInfo;
+            window.localStorage.setItem(storageKey, JSON.stringify(existing));
+        },
+        {
+            storageKey: TOKEN_STORAGE_KEY,
+            roomName,
+            tokenInfo: token,
+        },
+    );
+
+    const roomPage = new RoomPage(page);
+    await roomPage.goto(roomUrl);
+    await roomPage.waitForRoomLoad();
+
+    return { roomPage, roomName, roomUrl };
+}
+
+async function dismissToasts(page: Page) {
+    const toastItems = page.locator(
+        '[role="region"][aria-label="Notifications (F8)"] li',
+    );
+    if ((await toastItems.count()) === 0) return;
+
+    await page.keyboard.press("Escape").catch(() => {});
+    await toastItems.waitFor({ state: "detached", timeout: 2000 }).catch(
+        () => {},
+    );
+}
 
 test.describe("Elizabeth Room UI Tests", () => {
     let roomPage: RoomPage;
+    let currentRoom: string;
+    let currentRoomUrl: string;
 
     test.beforeEach(async ({ page }) => {
-        roomPage = new RoomPage(page);
-        await roomPage.goto(TEST_ROOM_URL);
-        await roomPage.waitForRoomLoad();
+        const setup = await bootstrapRoom(page);
+        roomPage = setup.roomPage;
+        currentRoom = setup.roomName;
+        currentRoomUrl = setup.roomUrl;
     });
 
     // ==================== 消息系统测试 ====================
@@ -140,39 +223,39 @@ test.describe("Elizabeth Room UI Tests", () => {
 
     // ==================== 权限管理测试 ====================
 
-    test("TC009: Should toggle preview permission", async () => {
-        // 点击预览权限按钮
-        await roomPage.roomPermissions.previewBtn.click();
-        await roomPage.page.waitForTimeout(200);
+    test("TC009: Preview permission should stay enabled", async () => {
+        const state = await roomPage.roomPermissions.previewBtn.getAttribute(
+            "aria-pressed",
+        );
+        expect(state).toBe("true");
 
-        // 验证按钮状态改变
-        const previewBtn = roomPage.roomPermissions.previewBtn.getLocator();
-        const ariaPressed = await previewBtn.getAttribute("aria-pressed");
-        expect(ariaPressed).toBe("true" || "false"); // 状态改变
+        const isEnabled = await roomPage.roomPermissions.previewBtn.isEnabled();
+        expect(isEnabled).toBe(true);
     });
 
-    test("TC010: Should toggle edit permission", async () => {
-        // 点击编辑权限按钮
-        await roomPage.roomPermissions.editBtn.click();
-        await roomPage.page.waitForTimeout(200);
+    test("TC010: Should enable edit permission", async () => {
+        await roomPage.setRoomPermissions({
+            preview: true,
+            edit: true,
+            share: false,
+            delete: false,
+        });
 
-        // 验证按钮状态
-        const ariaPressed = await roomPage.roomPermissions.editBtn
-            .getLocator()
-            .getAttribute("aria-pressed");
-        expect(ariaPressed).toBeTruthy();
+        const after = await roomPage.roomPermissions.editBtn.getAttribute(
+            "aria-pressed",
+        );
+        expect(after).toBe("true");
     });
 
     test("TC011: Should toggle share permission", async () => {
-        // 点击分享权限按钮
+        const shareBtn = roomPage.roomPermissions.shareBtn.getLocator();
+        const before = await shareBtn.getAttribute("aria-pressed");
+
         await roomPage.roomPermissions.shareBtn.click();
         await roomPage.page.waitForTimeout(200);
 
-        // 验证按钮状态
-        const ariaPressed = await roomPage.roomPermissions.shareBtn
-            .getLocator()
-            .getAttribute("aria-pressed");
-        expect(ariaPressed).toBeTruthy();
+        const after = await shareBtn.getAttribute("aria-pressed");
+        expect(after).not.toBe(before);
     });
 
     test("TC012: Should save permissions", async () => {
@@ -199,12 +282,12 @@ test.describe("Elizabeth Room UI Tests", () => {
 
     test("TC013: Should display room URL correctly", async () => {
         const roomUrl = roomPage.getRoomUrl();
-        expect(roomUrl).toContain(TEST_ROOM);
+        expect(roomUrl).toContain(currentRoom);
     });
 
     test("TC014: Should get room name from URL", async () => {
         const roomName = roomPage.getRoomName();
-        expect(roomName).toBe(TEST_ROOM);
+        expect(roomName).toBe(currentRoom);
     });
 
     test("TC015: Should get capacity information", async () => {
@@ -272,11 +355,7 @@ test.describe("Elizabeth Room UI Tests", () => {
 
 test.describe("End-to-End Room Scenarios", () => {
     test("E2E-001: Complete room setup workflow", async ({ page }) => {
-        const roomPage = new RoomPage(page);
-
-        // 1. 导航到房间
-        await roomPage.goto(TEST_ROOM_URL);
-        await roomPage.waitForRoomLoad();
+        const { roomPage, roomName } = await bootstrapRoom(page);
 
         // 2. 配置房间设置
         await roomPage.fillRoomSettings({
@@ -294,6 +373,8 @@ test.describe("End-to-End Room Scenarios", () => {
             delete: false,
         });
 
+        await dismissToasts(roomPage.page);
+
         // 4. 发送消息
         await roomPage.sendMessage("E2E Test Message 1");
         await roomPage.sendMessage("E2E Test Message 2");
@@ -306,15 +387,12 @@ test.describe("End-to-End Room Scenarios", () => {
         expect(messageCount).toBe(2);
 
         // 7. 验证房间 URL
-        const roomName = roomPage.getRoomName();
-        expect(roomName).toBe(TEST_ROOM);
+        const resolvedRoomName = roomPage.getRoomName();
+        expect(resolvedRoomName).toBe(roomName);
     });
 
     test("E2E-002: Message lifecycle workflow", async ({ page }) => {
-        const roomPage = new RoomPage(page);
-
-        await roomPage.goto(TEST_ROOM_URL);
-        await roomPage.waitForRoomLoad();
+        const { roomPage } = await bootstrapRoom(page);
 
         // 1. 发送消息
         await roomPage.sendMessage("Lifecycle test message");

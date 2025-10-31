@@ -10,11 +10,16 @@ export interface ElementOptions {
     waitForElement?: boolean;
 }
 
+type ResolvedElementOptions = {
+    timeout: number;
+    waitForElement: boolean;
+};
+
 export class BaseElement {
     protected page: Page;
     protected selector: string;
     protected locator: Locator;
-    protected options: ElementOptions;
+    protected options: ResolvedElementOptions;
 
     constructor(page: Page, selector: string, options: ElementOptions = {}) {
         this.page = page;
@@ -168,7 +173,12 @@ export class BaseElement {
      * 检查元素是否启用
      */
     async isEnabled(): Promise<boolean> {
-        return !(await this.isDisabled());
+        try {
+            return await this.locator.isEnabled();
+        } catch (error) {
+            console.warn("isEnabled 检查失败", error);
+            return false;
+        }
     }
 
     /**

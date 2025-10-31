@@ -1,8 +1,6 @@
 use axum::{
     Json,
     extract::{Multipart, Path, Query, State},
-    http::StatusCode,
-    response::IntoResponse,
 };
 use chrono::{NaiveDateTime, Utc};
 use hex;
@@ -18,10 +16,7 @@ use crate::{
         chunk_upload::{
             ChunkStatus, FileMergeRequest, FileMergeResponse, MergedFileInfo, RoomChunkUpload,
         },
-        upload_reservation::{
-            ChunkedUploadPreparationRequest, RoomUploadReservation, UploadFileDescriptor,
-            UploadStatus,
-        },
+        upload_reservation::{ChunkedUploadPreparationRequest, UploadFileDescriptor, UploadStatus},
     },
     repository::room_chunk_upload_repository::{
         IRoomChunkUploadRepository, SqliteRoomChunkUploadRepository,
@@ -127,44 +122,16 @@ pub async fn prepare_chunked_upload(
     // 计算总预留大小
     let total_reserved_size: i64 = payload.files.iter().map(|f| f.size).sum();
 
-    // 检查房间是否可以上传
     if !room.can_add_content(total_reserved_size) {
         return Err(HttpResponse::Forbidden().message("房间空间不足或无上传权限"));
     }
 
-    // 生成预留 ID 和上传令牌
     let upload_token = Uuid::new_v4().to_string();
     let expires_at = Utc::now().naive_utc() + app_state.upload_reservation_ttl();
-
-    // 计算总预留大小
-    let total_reserved_size: i64 = payload.files.iter().map(|f| f.size).sum();
-
-    // 创建文件清单 JSON
     let file_manifest = serde_json::to_string(&payload.files).map_err(|e| {
         HttpResponse::InternalServerError().message(format!("序列化文件清单失败：{}", e))
     })?;
 
-    // 创建预留记录
-    let reservation = RoomUploadReservation {
-        id: None,
-        room_id: room.id.expect("房间 ID 不能为空"),
-        token_jti: upload_token.clone(),
-        file_manifest: file_manifest.clone(),
-        reserved_size: total_reserved_size,
-        reserved_at: Utc::now().naive_utc(),
-        expires_at,
-        consumed_at: None,
-        created_at: Utc::now().naive_utc(),
-        updated_at: Utc::now().naive_utc(),
-        chunked_upload: Some(true),
-        total_chunks: None, // 将在下面计算
-        uploaded_chunks: Some(0),
-        file_hash: None,
-        chunk_size: None,
-        upload_status: Some(UploadStatus::Pending),
-    };
-
-    // 保存预留记录到数据库
     let reservation_repository =
         SqliteRoomUploadReservationRepository::new(app_state.db_pool.clone());
 
@@ -188,7 +155,7 @@ pub async fn prepare_chunked_upload(
     }
 
     // 使用现有的 reserve_upload 方法创建预留记录
-    let (mut saved_reservation, _) = reservation_repository
+    let (saved_reservation, _) = reservation_repository
         .reserve_upload(
             &room,
             &upload_token,
@@ -220,10 +187,6 @@ pub async fn prepare_chunked_upload(
     .execute(app_state.db_pool.as_ref())
     .await
     .map_err(|e| HttpResponse::InternalServerError().message(format!("更新预留记录失败：{}", e)))?;
-
-    // 更新 saved_reservation 对象以反映数据库中的更改
-    saved_reservation.chunked_upload = Some(true);
-    saved_reservation.total_chunks = Some(total_chunks);
 
     // 构建响应
     let response = ChunkedUploadPreparationResponse {
@@ -433,6 +396,7 @@ pub async fn upload_chunk(
 
     let reservation =
         reservation.ok_or_else(|| HttpResponse::NotFound().message("预留记录不存在"))?;
+    let reservation_id = reservation.id.expect("预留 ID 不能为空");
 
     // 验证预留记录是否有效
     if reservation.expires_at < Utc::now().naive_utc() {
@@ -460,10 +424,7 @@ pub async fn upload_chunk(
     // 检查分块是否已存在
     let chunk_repository = SqliteRoomChunkUploadRepository::new(app_state.db_pool.clone());
     let existing_chunk = chunk_repository
-        .find_by_reservation_and_index(
-            reservation.id.expect("预留 ID 不能为空"),
-            chunk_index.into(),
-        )
+        .find_by_reservation_and_index(reservation_id, chunk_index.into())
         .await
         .map_err(|e| {
             HttpResponse::InternalServerError().message(format!("查询分块记录失败：{}", e))
@@ -488,10 +449,7 @@ pub async fn upload_chunk(
     }
 
     // 创建临时存储目录
-    let temp_dir = format!(
-        "/tmp/elizabeth/chunks/{}/",
-        reservation.id.expect("预留 ID 不能为空")
-    );
+    let temp_dir = format!("/tmp/elizabeth/chunks/{reservation_id}/");
     fs::create_dir_all(&temp_dir).await.map_err(|e| {
         HttpResponse::InternalServerError().message(format!("创建临时目录失败：{}", e))
     })?;
@@ -509,7 +467,7 @@ pub async fn upload_chunk(
     // 创建分块记录
     let chunk_record = RoomChunkUpload {
         id: None,
-        reservation_id: reservation.id.expect("预留 ID 不能为空"),
+        reservation_id,
         chunk_index: chunk_index.into(),
         chunk_size: chunk_size.into(),
         chunk_hash: Some(calculated_hash.clone()),
@@ -519,13 +477,13 @@ pub async fn upload_chunk(
     };
 
     // 保存分块记录到数据库
-    let saved_chunk = chunk_repository.create(chunk_record).await.map_err(|e| {
+    chunk_repository.create(chunk_record).await.map_err(|e| {
         HttpResponse::InternalServerError().message(format!("创建分块记录失败：{}", e))
     })?;
 
     // 更新预留记录的上传进度
     let uploaded_chunks = chunk_repository
-        .count_by_reservation_id(reservation.id.expect("预留 ID 不能为空"))
+        .count_by_reservation_id(reservation_id)
         .await
         .map_err(|e| {
             HttpResponse::InternalServerError().message(format!("统计已上传分块数失败：{}", e))
@@ -533,29 +491,11 @@ pub async fn upload_chunk(
 
     // 更新预留记录
     reservation_repository
-        .update_uploaded_chunks(
-            reservation.id.expect("预留 ID 不能为空"),
-            uploaded_chunks as i64,
-        )
+        .update_uploaded_chunks(reservation_id, uploaded_chunks as i64)
         .await
         .map_err(|e| {
             HttpResponse::InternalServerError().message(format!("更新上传进度失败：{}", e))
         })?;
-
-    // 检查是否所有分块都已上传
-    let total_chunks = reservation.total_chunks.unwrap_or(0) as usize;
-    if uploaded_chunks >= total_chunks as i64 && total_chunks > 0 {
-        println!(
-            "[DEBUG] 所有 chunks 已上传 ({}/{})",
-            uploaded_chunks, total_chunks
-        );
-        // 自动触发 auto-complete 逻辑（在后台）
-        // 这避免了需要前端调用 complete API
-        let _ = tokio::spawn(async move {
-            // 注意：这在后台运行，不会影响当前请求的响应
-            println!("[DEBUG] 后台自动合并任务已启动");
-        });
-    }
 
     // 构建响应
     let response = ChunkUploadResponse {
