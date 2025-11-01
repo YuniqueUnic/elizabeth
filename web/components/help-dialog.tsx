@@ -69,7 +69,7 @@ export function HelpDialog({ children }: { children: React.ReactNode }) {
         <Dialog>
             <DialogTrigger asChild>{children}</DialogTrigger>
             <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
-                <DialogHeader className="flex-shrink-0">
+                <DialogHeader className="shrink-0">
                     <DialogTitle>帮助文档</DialogTitle>
                     <DialogDescription>
                         Elizabeth 使用指南和功能说明

@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT EXISTS(SELECT 1 FROM rooms WHERE slug = ?)",
+  "describe": {
+    "columns": [
+      {
+        "name": "EXISTS(SELECT 1 FROM rooms WHERE slug = ?)",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "52563526ae3d598347ae7b461a48b70e5eefc4e96bc42729ec7af405c189f563"
+}

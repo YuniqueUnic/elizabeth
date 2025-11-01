@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE rooms SET current_size = current_size + ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "fd546c0038d18be3b41b74ef5b7438607e870e8e4dd5b9358d26c9f0369a67fb"
+}

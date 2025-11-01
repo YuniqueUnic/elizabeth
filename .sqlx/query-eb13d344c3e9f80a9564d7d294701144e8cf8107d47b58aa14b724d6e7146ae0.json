@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT COUNT(*) as count\n            FROM room_chunk_uploads\n            WHERE reservation_id = ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "count",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "eb13d344c3e9f80a9564d7d294701144e8cf8107d47b58aa14b724d6e7146ae0"
+}

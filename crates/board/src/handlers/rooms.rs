@@ -502,15 +502,19 @@ pub async fn update_permissions(
         return Err(AppError::permission_denied("Permission denied by token"));
     }
 
+    // 构建新权限，DELETE 权限自动包含所有其他权限（管理员权限）
     let mut builder = PermissionBuilder::new();
-    if payload.edit {
-        builder = builder.with_edit();
-    }
-    if payload.share {
-        builder = builder.with_share();
-    }
     if payload.delete {
-        builder = builder.with_delete();
+        // DELETE 权限 = 管理员权限，自动包含所有权限
+        builder = builder.with_all();
+    } else {
+        // 非管理员权限，按需添加
+        if payload.edit {
+            builder = builder.with_edit();
+        }
+        if payload.share {
+            builder = builder.with_share();
+        }
     }
     let new_permission = builder.build();
 

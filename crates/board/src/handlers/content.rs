@@ -344,13 +344,13 @@ pub async fn upload_contents(
         }
     }
 
-    let storage_dir = ensure_room_storage(app_state.storage_root().as_ref(), &verified.room.slug)
+    let storage_dir = ensure_room_storage(app_state.storage_root().as_ref(), room_id)
         .await
         .map_err(|e| AppError::internal(format!("Failed to prepare storage directory: {e}")))?;
 
     struct TempUpload {
-        name: String,
-        path: PathBuf,
+        original_name: String, // 原始文件名（用于显示和下载）
+        path: PathBuf,         // 磁盘上的文件路径（UUID-based）
         size: i64,
         mime: Option<String>,
     }
@@ -388,9 +388,18 @@ pub async fn upload_contents(
             )));
         }
 
+        // 使用 UUID 作为文件名，保留原始扩展名
         let safe_file_name = sanitize_filename::sanitize(&file_name);
-        let unique_segment = Uuid::new_v4().to_string();
-        let file_path = storage_dir.join(format!("{unique_segment}_{safe_file_name}"));
+        let extension = std::path::Path::new(&safe_file_name)
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or("");
+        let unique_filename = if extension.is_empty() {
+            Uuid::new_v4().to_string()
+        } else {
+            format!("{}.{}", Uuid::new_v4(), extension)
+        };
+        let file_path = storage_dir.join(&unique_filename);
         let mut temp_file = fs::File::create(&file_path)
             .await
             .map_err(|e| AppError::internal(format!("Cannot create file: {e}")))?;
@@ -425,7 +434,7 @@ pub async fn upload_contents(
             .map(|m| m.to_string());
 
         staged.push(TempUpload {
-            name: file_name,
+            original_name: file_name,
             path: file_path,
             size,
             mime,
@@ -458,6 +467,7 @@ pub async fn upload_contents(
             text: None,
             url: None,
             path: None,
+            file_name: Some(temp.original_name.clone()), // 保存原始文件名
             size: None,
             mime_type: None,
             created_at: now,
@@ -497,7 +507,7 @@ pub async fn upload_contents(
     let actual_manifest: Vec<UploadFileDescriptor> = staged
         .iter()
         .map(|temp| UploadFileDescriptor {
-            name: temp.name.clone(),
+            name: temp.original_name.clone(),
             size: temp.size,
             mime: temp.mime.clone(),
             chunk_size: None, // 普通上传不支持分块
@@ -666,10 +676,13 @@ pub async fn download_content(
         .await
         .map_err(|_| AppError::not_found("File missing on disk"))?;
 
-    let file_name = Path::new(&path)
-        .file_name()
-        .map(|s| s.to_string_lossy().to_string())
-        .unwrap_or_else(|| "download.bin".to_string());
+    // 使用数据库中的原始文件名，如果不存在则从路径提取
+    let file_name = content.file_name.clone().unwrap_or_else(|| {
+        Path::new(&path)
+            .file_name()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_else(|| "download.bin".to_string())
+    });
 
     let stream = ReaderStream::new(file);
     let body = Body::from_stream(stream);
@@ -716,9 +729,9 @@ fn ensure_permission(
     Ok(())
 }
 
-async fn ensure_room_storage(base_dir: &Path, room_name: &str) -> Result<PathBuf, std::io::Error> {
-    let safe = sanitize_filename::sanitize(room_name);
-    let dir = base_dir.join(safe);
+/// 确保房间存储目录存在，使用 room_id 作为目录名
+async fn ensure_room_storage(base_dir: &Path, room_id: i64) -> Result<PathBuf, std::io::Error> {
+    let dir = base_dir.join(room_id.to_string());
     fs::create_dir_all(&dir).await?;
     Ok(dir)
 }

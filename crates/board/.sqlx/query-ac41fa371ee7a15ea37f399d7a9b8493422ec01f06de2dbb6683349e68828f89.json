@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            INSERT INTO rooms (\n                name, slug, password, status, max_size, current_size,\n                max_times_entered, current_times_entered, expire_at,\n                created_at, updated_at, permission\n            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 12
+    },
+    "nullable": []
+  },
+  "hash": "ac41fa371ee7a15ea37f399d7a9b8493422ec01f06de2dbb6683349e68828f89"
+}

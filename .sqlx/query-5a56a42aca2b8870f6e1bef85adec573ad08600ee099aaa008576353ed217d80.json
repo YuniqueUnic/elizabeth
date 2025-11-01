@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            INSERT INTO room_chunk_uploads\n                (reservation_id, chunk_index, chunk_size, chunk_hash, upload_status, created_at, updated_at)\n            VALUES (?, ?, ?, ?, ?, ?, ?)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "5a56a42aca2b8870f6e1bef85adec573ad08600ee099aaa008576353ed217d80"
+}
