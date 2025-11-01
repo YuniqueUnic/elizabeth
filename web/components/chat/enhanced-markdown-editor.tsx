@@ -94,12 +94,29 @@ export function EnhancedMarkdownEditor({
         textareaProps={{
           placeholder: placeholder || "输入消息...",
           onKeyDown: (e: any) => {
+            const currentValue = (e.target as HTMLTextAreaElement).value;
+
+            // sendOnEnter 为 true: Enter 发送，Shift+Enter 换行
             if (
               sendOnEnter && e.key === "Enter" && !e.shiftKey && !e.ctrlKey &&
               !e.metaKey
             ) {
               e.preventDefault();
-              const currentValue = (e.target as HTMLTextAreaElement).value;
+              if (currentValue.trim()) {
+                onChange(currentValue.trim());
+                // Trigger send via custom event
+                const sendEvent = new CustomEvent("sendMessage", {
+                  detail: { content: currentValue.trim() },
+                });
+                window.dispatchEvent(sendEvent);
+              }
+            }
+
+            // sendOnEnter 为 false: Ctrl/Cmd+Enter发送
+            if (
+              !sendOnEnter && e.key === "Enter" && (e.ctrlKey || e.metaKey)
+            ) {
+              e.preventDefault();
               if (currentValue.trim()) {
                 onChange(currentValue.trim());
                 // Trigger send via custom event

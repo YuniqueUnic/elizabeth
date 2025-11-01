@@ -66,11 +66,9 @@ export function MessageBubble(
   };
 
   const handleDelete = () => {
+    // 只调用 onDelete，不显示 toast
+    // toast 会在实际删除操作完成后由父组件显示
     onDelete(message.id);
-    toast({
-      title: "消息已删除",
-      description: "消息已从聊天记录中删除",
-    });
   };
 
   const handleMouseEnter = () => {

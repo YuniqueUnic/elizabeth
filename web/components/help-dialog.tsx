@@ -68,15 +68,15 @@ export function HelpDialog({ children }: { children: React.ReactNode }) {
     return (
         <Dialog>
             <DialogTrigger asChild>{children}</DialogTrigger>
-            <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col">
-                <DialogHeader>
+            <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
+                <DialogHeader className="flex-shrink-0">
                     <DialogTitle>帮助文档</DialogTitle>
                     <DialogDescription>
                         Elizabeth 使用指南和功能说明
                     </DialogDescription>
                 </DialogHeader>
 
-                <ScrollArea className="flex-1 pr-4 -mr-4">
+                <ScrollArea className="flex-1 pr-4 -mr-4 overflow-y-auto">
                     <div className="space-y-8 py-4 pr-4">
                         <HelpSection title="顶部工具栏" icon={Settings}>
                             <HelpItem title="复制按钮" icon={Copy}>
