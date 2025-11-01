@@ -862,6 +862,7 @@ pub async fn complete_file_merge(
                         text: None,
                         url: Some(file_name.clone()),
                         path: Some(final_storage_path.clone()),
+                        file_name: Some(file_name.clone()), // 保存原始文件名
                         size: Some(file_manifest[0].size),
                         mime_type: Some(mime_type),
                         created_at: now,

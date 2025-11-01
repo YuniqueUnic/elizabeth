@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM room_tokens WHERE room_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "7983cd2d033f14627d6f7eeb949633923967197a1186dc0a007d378eb108bf8d"
+}

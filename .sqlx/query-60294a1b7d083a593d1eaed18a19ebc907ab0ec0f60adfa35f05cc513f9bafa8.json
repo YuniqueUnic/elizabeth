@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            UPDATE room_upload_reservations\n            SET consumed_at = ?, updated_at = CURRENT_TIMESTAMP\n            WHERE id = ?\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "60294a1b7d083a593d1eaed18a19ebc907ab0ec0f60adfa35f05cc513f9bafa8"
+}

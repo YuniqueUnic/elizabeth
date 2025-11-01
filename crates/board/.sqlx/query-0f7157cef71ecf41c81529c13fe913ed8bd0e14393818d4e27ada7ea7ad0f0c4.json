@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n            SELECT\n                id,\n                room_id,\n                content_type as \"content_type: ContentType\",\n                text,\n                url,\n                path,\n                size,\n                mime_type,\n                created_at,\n                updated_at\n            FROM room_contents\n            WHERE id = ?\n            ",
+  "query": "\n            SELECT\n                id,\n                room_id,\n                content_type as \"content_type: ContentType\",\n                text,\n                url,\n                path,\n                file_name,\n                size,\n                mime_type,\n                created_at,\n                updated_at\n            FROM room_contents\n            WHERE id = ?\n            ",
   "describe": {
     "columns": [
       {
@@ -34,23 +34,28 @@
         "type_info": "Text"
       },
       {
-        "name": "size",
+        "name": "file_name",
         "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "size",
+        "ordinal": 7,
         "type_info": "Integer"
       },
       {
         "name": "mime_type",
-        "ordinal": 7,
+        "ordinal": 8,
         "type_info": "Text"
       },
       {
         "name": "created_at",
-        "ordinal": 8,
+        "ordinal": 9,
         "type_info": "Datetime"
       },
       {
         "name": "updated_at",
-        "ordinal": 9,
+        "ordinal": 10,
         "type_info": "Datetime"
       }
     ],
@@ -64,11 +69,12 @@
       true,
       true,
       true,
+      true,
       false,
       true,
       false,
       false
     ]
   },
-  "hash": "f2926658df9f380074b49dbcb03e8793fb7a00fc97763b2e67bfc37814252b4f"
+  "hash": "0f7157cef71ecf41c81529c13fe913ed8bd0e14393818d4e27ada7ea7ad0f0c4"
 }

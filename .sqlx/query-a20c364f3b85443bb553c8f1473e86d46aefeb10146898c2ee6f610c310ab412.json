@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT\n                id,\n                reservation_id,\n                chunk_index,\n                chunk_size,\n                chunk_hash,\n                upload_status as \"upload_status: ChunkStatus\",\n                created_at,\n                updated_at\n            FROM room_chunk_uploads\n            WHERE reservation_id = ?\n            ORDER BY chunk_index\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "reservation_id",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "chunk_index",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "chunk_size",
+        "ordinal": 3,
+        "type_info": "Integer"
+      },
+      {
+        "name": "chunk_hash",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "upload_status: ChunkStatus",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 6,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "updated_at",
+        "ordinal": 7,
+        "type_info": "Datetime"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "a20c364f3b85443bb553c8f1473e86d46aefeb10146898c2ee6f610c310ab412"
+}

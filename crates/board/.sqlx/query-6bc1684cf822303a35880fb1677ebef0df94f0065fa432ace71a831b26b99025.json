@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            UPDATE room_refresh_tokens\n            SET is_revoked = TRUE\n            WHERE access_token_jti = ? AND is_revoked = FALSE\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "6bc1684cf822303a35880fb1677ebef0df94f0065fa432ace71a831b26b99025"
+}
