@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT id, reserved_size\n            FROM room_upload_reservations\n            WHERE room_id = ? AND consumed_at IS NULL AND expires_at <= ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "reserved_size",
+        "ordinal": 1,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      true,
+      false
+    ]
+  },
+  "hash": "e6c6be418eba2ab6fbd31c24d42ecb2a7d43bd11aceacb1b0204f5081bc34b67"
+}

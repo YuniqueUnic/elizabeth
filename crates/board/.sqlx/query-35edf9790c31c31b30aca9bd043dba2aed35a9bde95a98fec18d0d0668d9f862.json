@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            UPDATE room_refresh_tokens\n            SET is_revoked = TRUE\n            WHERE expires_at <= ? AND is_revoked = FALSE\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "35edf9790c31c31b30aca9bd043dba2aed35a9bde95a98fec18d0d0668d9f862"
+}

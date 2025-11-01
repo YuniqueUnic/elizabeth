@@ -21,9 +21,10 @@ pub struct RoomContent {
     pub id: Option<i64>,
     pub room_id: i64,
     pub content_type: ContentType,
-    pub text: Option<String>, // The text content
-    pub url: Option<String>,  // The URL to the content
-    pub path: Option<String>, // The saved path to the content on server disk
+    pub text: Option<String>,      // The text content
+    pub url: Option<String>,       // The URL to the content
+    pub path: Option<String>, // The saved path to the content on server disk (UUID-based filename)
+    pub file_name: Option<String>, // The original file name (for display and download)
     pub size: Option<i64>, // The size of the content, maybe the usize is better but the SQLite does not support u64
     pub mime_type: Option<String>,
     pub created_at: NaiveDateTime,
@@ -48,6 +49,7 @@ impl RoomContent {
             text: None,
             url: None,
             path: None,
+            file_name: None,
             size: None,
             mime_type: None,
         }

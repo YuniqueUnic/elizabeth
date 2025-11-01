@@ -1,0 +1,92 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT\n                id,\n                name,\n                slug,\n                password,\n                status as \"status: RoomStatus\",\n                max_size,\n                current_size,\n                max_times_entered,\n                current_times_entered,\n                expire_at,\n                created_at,\n                updated_at,\n                permission as \"permission: RoomPermission\"\n            FROM rooms\n            WHERE slug = ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "slug",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "password",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "status: RoomStatus",
+        "ordinal": 4,
+        "type_info": "Integer"
+      },
+      {
+        "name": "max_size",
+        "ordinal": 5,
+        "type_info": "Integer"
+      },
+      {
+        "name": "current_size",
+        "ordinal": 6,
+        "type_info": "Integer"
+      },
+      {
+        "name": "max_times_entered",
+        "ordinal": 7,
+        "type_info": "Integer"
+      },
+      {
+        "name": "current_times_entered",
+        "ordinal": 8,
+        "type_info": "Integer"
+      },
+      {
+        "name": "expire_at",
+        "ordinal": 9,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 10,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "updated_at",
+        "ordinal": 11,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "permission: RoomPermission",
+        "ordinal": 12,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "537e4a732a71b3ba7769b20f072e2e91e6da787cec74008ba9a123a908a33ee4"
+}

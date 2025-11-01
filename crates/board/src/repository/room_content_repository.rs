@@ -48,6 +48,7 @@ impl SqliteRoomContentRepository {
                 text,
                 url,
                 path,
+                file_name,
                 size,
                 mime_type,
                 created_at,
@@ -92,15 +93,16 @@ impl IRoomContentRepository for SqliteRoomContentRepository {
         let result = sqlx::query!(
             r#"
             INSERT INTO room_contents
-                (room_id, content_type, text, url, path, size, mime_type, created_at, updated_at)
+                (room_id, content_type, text, url, path, file_name, size, mime_type, created_at, updated_at)
             VALUES
-                (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
             room_content.room_id,
             room_content.content_type,
             room_content.text,
             room_content.url,
             room_content.path,
+            room_content.file_name,
             room_content.size,
             room_content.mime_type,
             now,
@@ -130,7 +132,7 @@ impl IRoomContentRepository for SqliteRoomContentRepository {
             r#"
             UPDATE room_contents SET
                 room_id = ?, content_type = ?, text = ?,
-                url = ?, path = ?, size = ?, mime_type = ?,
+                url = ?, path = ?, file_name = ?, size = ?, mime_type = ?,
                 updated_at = ?
             WHERE id = ?
             "#,
@@ -139,6 +141,7 @@ impl IRoomContentRepository for SqliteRoomContentRepository {
             room_content.text,
             room_content.url,
             room_content.path,
+            room_content.file_name,
             room_content.size,
             room_content.mime_type,
             now,
@@ -164,6 +167,7 @@ impl IRoomContentRepository for SqliteRoomContentRepository {
                 text,
                 url,
                 path,
+                file_name,
                 size,
                 mime_type,
                 created_at,
