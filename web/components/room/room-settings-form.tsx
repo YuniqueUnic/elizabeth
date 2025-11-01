@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -33,16 +33,52 @@ const EXPIRY_OPTIONS = [
   { label: "永不过期", value: "never", ms: 0 },
 ];
 
+// 根据过期时间计算最接近的选项
+function getExpiryOptionFromDate(expiresAt: string | null | undefined): string {
+  if (!expiresAt) return "never";
+
+  const expireTime = new Date(expiresAt).getTime();
+  const now = Date.now();
+  const diff = expireTime - now;
+
+  // 如果已经过期或即将过期，返回最短的选项
+  if (diff <= 0) return "1min";
+
+  // 找到最接近的选项
+  let closestOption = EXPIRY_OPTIONS[0];
+  let minDiff = Math.abs(diff - closestOption.ms);
+
+  for (const option of EXPIRY_OPTIONS) {
+    if (option.ms === 0) continue; // 跳过"永不过期"
+    const currentDiff = Math.abs(diff - option.ms);
+    if (currentDiff < minDiff) {
+      minDiff = currentDiff;
+      closestOption = option;
+    }
+  }
+
+  return closestOption.value;
+}
+
 export function RoomSettingsForm({ roomDetails }: RoomSettingsFormProps) {
   const currentRoomId = useAppStore((state) => state.currentRoomId);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { can } = useRoomPermissions();
 
-  const [expiryOption, setExpiryOption] = useState("1day");
-  const [password, setPassword] = useState(roomDetails.settings.password || "");
+  const [expiryOption, setExpiryOption] = useState(() =>
+    getExpiryOptionFromDate(roomDetails.settings.expiresAt)
+  );
+  const [password, setPassword] = useState(roomDetails.password || "");
   const [showPassword, setShowPassword] = useState(false);
   const [maxViews, setMaxViews] = useState(roomDetails.settings.maxViews);
+
+  // 当 roomDetails 更新时，同步更新状态
+  useEffect(() => {
+    setExpiryOption(getExpiryOptionFromDate(roomDetails.settings.expiresAt));
+    setPassword(roomDetails.password || "");
+    setMaxViews(roomDetails.settings.maxViews);
+  }, [roomDetails]);
 
   // 只有拥有删除权限的用户才能修改房间设置
   const canModifySettings = can.delete;
@@ -71,9 +107,15 @@ export function RoomSettingsForm({ roomDetails }: RoomSettingsFormProps) {
 
   const handleSave = () => {
     const option = EXPIRY_OPTIONS.find((opt) => opt.value === expiryOption);
-    const expiresAt = option?.ms === 0
-      ? null
-      : new Date(Date.now() + (option?.ms || 0)).toISOString().slice(0, 23);
+
+    // 计算过期时间，格式化为 NaiveDateTime (YYYY-MM-DDTHH:MM:SS.ffffff)
+    let expiresAt: string | null = null;
+    if (option && option.ms > 0) {
+      const expireDate = new Date(Date.now() + option.ms);
+      // 格式化为 ISO 8601 格式，但去掉时区信息（NaiveDateTime）
+      // 格式：YYYY-MM-DDTHH:MM:SS.ffffff
+      expiresAt = expireDate.toISOString().replace("Z", "").slice(0, 26);
+    }
 
     updateMutation.mutate({
       expiresAt: expiresAt ?? undefined,
