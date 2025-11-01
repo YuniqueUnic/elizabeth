@@ -58,7 +58,7 @@ export function FileCard(
         {/* File Info */}
         <div className="file-name-wrapper min-w-0 flex-1">
           <p
-            className="file-name text-sm font-medium wrap-break-word"
+            className="file-name text-sm font-medium truncate"
             title={file.name}
           >
             {file.name}

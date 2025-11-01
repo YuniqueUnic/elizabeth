@@ -17,6 +17,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { updateRoomPermissions, updateRoomSettings } from "@/api/roomService";
 import { useAppStore } from "@/lib/store";
 import { useToast } from "@/hooks/use-toast";
+import { useRoomPermissions } from "@/hooks/use-room-permissions";
 
 interface RoomSettingsFormProps {
   roomDetails: RoomDetails;
@@ -36,11 +37,15 @@ export function RoomSettingsForm({ roomDetails }: RoomSettingsFormProps) {
   const currentRoomId = useAppStore((state) => state.currentRoomId);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { can } = useRoomPermissions();
 
   const [expiryOption, setExpiryOption] = useState("1day");
   const [password, setPassword] = useState(roomDetails.settings.password || "");
   const [showPassword, setShowPassword] = useState(false);
   const [maxViews, setMaxViews] = useState(roomDetails.settings.maxViews);
+
+  // 只有拥有删除权限的用户才能修改房间设置
+  const canModifySettings = can.delete;
 
   const updateMutation = useMutation({
     mutationFn: (settings: {
@@ -82,9 +87,19 @@ export function RoomSettingsForm({ roomDetails }: RoomSettingsFormProps) {
       <div>
         <h3 className="mb-3 text-sm font-semibold">房间设置</h3>
 
+        {!canModifySettings && (
+          <p className="text-xs text-muted-foreground mb-3 p-2 bg-muted rounded-md">
+            只有房间管理员（拥有删除权限）可以修改房间设置
+          </p>
+        )}
+
         <div className="space-y-2 mt-2">
           <Label htmlFor="expires-at">过期时间</Label>
-          <Select value={expiryOption} onValueChange={setExpiryOption}>
+          <Select
+            value={expiryOption}
+            onValueChange={setExpiryOption}
+            disabled={!canModifySettings}
+          >
             <SelectTrigger className="w-full">
               <SelectValue placeholder="选择过期时间" />
             </SelectTrigger>
@@ -108,6 +123,7 @@ export function RoomSettingsForm({ roomDetails }: RoomSettingsFormProps) {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="设置房间密码"
+              disabled={!canModifySettings}
             />
             <Button
               type="button"
@@ -115,6 +131,7 @@ export function RoomSettingsForm({ roomDetails }: RoomSettingsFormProps) {
               size="icon"
               className="absolute right-0 top-0 h-full"
               onClick={() => setShowPassword(!showPassword)}
+              disabled={!canModifySettings}
             >
               {showPassword
                 ? <EyeOff className="h-4 w-4" />
@@ -132,13 +149,14 @@ export function RoomSettingsForm({ roomDetails }: RoomSettingsFormProps) {
             value={maxViews}
             onChange={(e) => setMaxViews(Number(e.target.value))}
             min={1}
+            disabled={!canModifySettings}
           />
         </div>
 
         <Button
           onClick={handleSave}
           className="mt-4 w-full"
-          disabled={updateMutation.isPending}
+          disabled={updateMutation.isPending || !canModifySettings}
         >
           {updateMutation.isPending ? "保存中..." : "保存设置"}
         </Button>
