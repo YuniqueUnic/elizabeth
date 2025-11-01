@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -41,6 +41,7 @@ export function RightSidebar() {
 
   const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: files = [], isLoading } = useQuery({
     queryKey: ["files", roomName],
@@ -131,10 +132,26 @@ export function RightSidebar() {
             variant="ghost"
             size="icon"
             title="上传文件"
-            disabled={uploadMutation.isPending}
+            disabled={uploadMutation.isPending || !can.edit}
+            onClick={() => fileInputRef.current?.click()}
           >
             <Upload className="h-4 w-4" />
           </Button>
+          {/* 隐藏的文件输入元素 */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              const files = Array.from(e.target.files || []);
+              if (files.length > 0) {
+                handleUpload(files);
+                // 清空 input 以允许重复上传同一文件
+                e.target.value = "";
+              }
+            }}
+          />
         </div>
 
         <div className="flex items-center justify-between border-b bg-muted/50 px-4 py-2">

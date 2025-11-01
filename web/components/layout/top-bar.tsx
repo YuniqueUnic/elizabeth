@@ -185,8 +185,9 @@ export function TopBar() {
         {/* Room Status */}
         {roomDetails && (
           <div className="hidden sm:block ml-4 text-sm text-muted-foreground truncate max-w-[150px] md:max-w-none">
-            房间占用：{roomDetails.currentSize.toFixed(1)} /{" "}
-            {roomDetails.maxSize} MB
+            房间占用：{(roomDetails.currentSize / (1024 * 1024)).toFixed(1)} /
+            {" "}
+            {(roomDetails.maxSize / (1024 * 1024)).toFixed(1)} MB
           </div>
         )}
       </div>
