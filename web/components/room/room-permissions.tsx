@@ -123,13 +123,26 @@ export function RoomPermissions({ permissions }: RoomPermissionsProps) {
             description: "房间权限已成功更新",
           });
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Failed to update permissions and navigate:", error);
-        toast({
-          title: "更新失败",
-          description: "无法保存权限并导航，请手动刷新页面。",
-          variant: "destructive",
-        });
+
+        // 检查是否是房间过期或未授权错误
+        if (
+          error.message?.includes("Unauthorized") ||
+          error.message?.includes("401")
+        ) {
+          toast({
+            title: "房间可能已过期",
+            description: "权限已更新，但房间可能已过期。请刷新页面重新进入。",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "更新失败",
+            description: "无法保存权限并导航，请手动刷新页面。",
+            variant: "destructive",
+          });
+        }
       }
     },
     onError: () => {

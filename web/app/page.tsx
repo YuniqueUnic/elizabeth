@@ -148,6 +148,11 @@ export default function HomePage() {
                   setRoomName(e.target.value);
                   setError(null);
                 }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && roomName.trim() && !loading) {
+                    handleCreateRoom();
+                  }
+                }}
                 placeholder="例如：project-alpha"
                 disabled={loading}
                 autoFocus
@@ -166,6 +171,11 @@ export default function HomePage() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && roomName.trim() && !loading) {
+                    handleCreateRoom();
+                  }
+                }}
                 placeholder="留空表示不设置密码"
                 disabled={loading}
               />

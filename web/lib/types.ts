@@ -163,6 +163,7 @@ export interface RoomDetails {
   settings: RoomSettings;
   permissions: RoomPermission[];
   createdAt: string;
+  password?: string | null; // Room password (for display in settings)
 }
 
 export interface Message {
@@ -262,10 +263,12 @@ export function backendRoomToRoomDetails(room: BackendRoom): RoomDetails {
     settings: {
       expiresAt: room.expire_at,
       passwordProtected: room.password !== null && room.password !== "",
+      password: room.password,
       maxViews: room.max_times_entered,
     },
     permissions: parsePermissions(room.permission),
     createdAt: room.created_at,
+    password: room.password,
   };
 }
 
