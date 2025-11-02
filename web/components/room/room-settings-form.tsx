@@ -18,6 +18,7 @@ import { updateRoomPermissions, updateRoomSettings } from "@/api/roomService";
 import { useAppStore } from "@/lib/store";
 import { useToast } from "@/hooks/use-toast";
 import { useRoomPermissions } from "@/hooks/use-room-permissions";
+import { getAccessToken } from "@/api/authService";
 
 interface RoomSettingsFormProps {
   roomDetails: RoomDetails;
@@ -91,8 +92,9 @@ export function RoomSettingsForm({ roomDetails }: RoomSettingsFormProps) {
       password?: string | null;
       expiresAt?: string | null;
       maxViews?: number;
+      passwordChanged?: boolean; // Track if password was changed
     }) => updateRoomSettings(currentRoomId, settings),
-    onSuccess: async (updatedRoom) => {
+    onSuccess: async (updatedRoom, variables) => {
       // 方法 1: 直接更新缓存数据，而不是失效缓存
       queryClient.setQueryData(["room", currentRoomId], updatedRoom);
 
@@ -102,15 +104,40 @@ export function RoomSettingsForm({ roomDetails }: RoomSettingsFormProps) {
         type: "active",
       });
 
+      // ✅ FIX: If password was changed, automatically refresh JWT with new password
+      if (variables.passwordChanged && variables.password) {
+        try {
+          console.log(
+            "[RoomSettingsForm] Password changed, refreshing JWT with new password",
+          );
+          await getAccessToken(currentRoomId, variables.password);
+          console.log("[RoomSettingsForm] JWT refreshed successfully");
+        } catch (error) {
+          console.error("[RoomSettingsForm] Failed to refresh JWT:", error);
+          toast({
+            title: "警告",
+            description: "密码已更新，但 JWT 刷新失败。请刷新页面重新登录。",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+
       toast({
         title: "设置已保存",
         description: "房间设置已成功更新",
       });
     },
-    onError: () => {
+    onError: (error: any) => {
+      // ✅ FIX: Provide clearer error messages
+      const errorMessage = error?.message || "无法保存房间设置，请重试";
+      const isAuthError = error?.status === 401 || error?.status === 403;
+
       toast({
         title: "保存失败",
-        description: "无法保存房间设置，请重试",
+        description: isAuthError
+          ? "认证失败，请刷新页面重新登录"
+          : errorMessage,
         variant: "destructive",
       });
     },
@@ -131,10 +158,16 @@ export function RoomSettingsForm({ roomDetails }: RoomSettingsFormProps) {
       expiresAt = expireDate.toISOString().replace("Z", "");
     }
 
+    // ✅ FIX: Detect if password was changed
+    const newPassword = password.length > 0 ? password : null;
+    const oldPassword = roomDetails.password || null;
+    const passwordChanged = newPassword !== oldPassword;
+
     updateMutation.mutate({
       expiresAt: expiresAt ?? undefined,
-      password: password.length > 0 ? password : null,
+      password: newPassword,
       maxViews,
+      passwordChanged,
     });
   };
 

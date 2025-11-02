@@ -104,7 +104,7 @@ export async function getFilesList(
       }
       return true;
     })
-    .map(convertFile)
+    .map((content) => convertFile(content, roomName)) // ✅ FIX: Pass roomName to generate download URLs
     .sort((a, b) =>
       new Date(b.uploadedAt || "").getTime() -
       new Date(a.uploadedAt || "").getTime()

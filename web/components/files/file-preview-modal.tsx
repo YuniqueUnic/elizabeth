@@ -73,12 +73,15 @@ export function FilePreviewModal(
   };
 
   const handleCopyLink = () => {
-    navigator.clipboard.writeText(
-      file.url || `https://elizabeth.app/files/${file.id}`,
-    );
+    // ✅ FIX: Copy the actual download URL with full domain
+    const downloadUrl = file.url
+      ? `${window.location.origin}${file.url}`
+      : `${window.location.origin}/api/v1/rooms/${currentRoomId}/contents/${file.id}`;
+
+    navigator.clipboard.writeText(downloadUrl);
     toast({
       title: "链接已复制",
-      description: "文件链接已复制到剪贴板",
+      description: "文件下载链接已复制到剪贴板",
     });
   };
 
@@ -220,6 +223,7 @@ export function FilePreviewModal(
               fileUrl={file.url}
               fileName={file.name}
               mimeType={file.mimeType}
+              roomName={currentRoomId}
             />
           )}
 
