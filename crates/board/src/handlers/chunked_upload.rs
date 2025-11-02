@@ -809,7 +809,38 @@ pub async fn complete_file_merge(
                     }
 
                     let file_name = &file_manifest[0].name;
-                    let final_storage_path = format!("{}{}", storage_dir, file_name);
+
+                    // ✅ FIX: Handle filename conflicts by adding suffix
+                    let safe_file_name = sanitize_filename::sanitize(file_name);
+                    let mut final_filename = safe_file_name.clone();
+                    let mut counter = 1;
+                    let mut final_storage_path = format!("{}{}", storage_dir, final_filename);
+
+                    while std::path::Path::new(&final_storage_path).exists() {
+                        // Extract base name and extension
+                        let path = std::path::Path::new(&safe_file_name);
+                        let stem = path
+                            .file_stem()
+                            .and_then(|s| s.to_str())
+                            .unwrap_or(&safe_file_name);
+                        let extension = path.extension().and_then(|s| s.to_str()).unwrap_or("");
+
+                        // Create new filename with counter
+                        final_filename = if extension.is_empty() {
+                            format!("{}({})", stem, counter)
+                        } else {
+                            format!("{}({}).{}", stem, counter, extension)
+                        };
+
+                        final_storage_path = format!("{}{}", storage_dir, final_filename);
+                        counter += 1;
+
+                        // Prevent infinite loop
+                        if counter > 1000 {
+                            return Err(HttpResponse::InternalServerError()
+                                .message("Too many files with the same name"));
+                        }
+                    }
 
                     // 移动合并后的文件到最终位置
                     fs::rename(&final_file_path, &final_storage_path)

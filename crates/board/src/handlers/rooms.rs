@@ -353,8 +353,27 @@ pub async fn issue_token(
         return Err(AppError::authentication("Room cannot be entered"));
     }
 
-    // Decrement view count
-    room.current_times_entered += 1;
+    // ✅ FIX: Only increment view count for NEW entries
+    // If previous_jti is None, this is a new entry (first time or after token expiry)
+    // If previous_jti is Some, this is a token refresh/replacement, don't count it
+    let should_increment_view_count = previous_jti.is_none();
+
+    if should_increment_view_count {
+        room.current_times_entered += 1;
+        logrs::info!(
+            "Room {} view count incremented to {}/{}",
+            room.slug,
+            room.current_times_entered,
+            room.max_times_entered
+        );
+    } else {
+        logrs::debug!(
+            "Room {} token refresh, view count not incremented (current: {}/{})",
+            room.slug,
+            room.current_times_entered,
+            room.max_times_entered
+        );
+    }
 
     let repository = SqliteRoomRepository::new(app_state.db_pool.clone());
     if room.current_times_entered >= room.max_times_entered {
@@ -390,10 +409,13 @@ pub async fn issue_token(
         );
     }
 
-    repository
-        .update(&room)
-        .await
-        .map_err(|e| AppError::internal(format!("Failed to update room view count: {}", e)))?;
+    // Only update room if view count was incremented or room was reset
+    if should_increment_view_count || room.current_times_entered == 0 {
+        repository
+            .update(&room)
+            .await
+            .map_err(|e| AppError::internal(format!("Failed to update room view count: {}", e)))?;
+    }
 
     let (token, claims) = app_state
         .token_service()

@@ -28,6 +28,8 @@ import type {
 
 export interface IssueTokenRequest {
   password?: string;
+  token?: string; // Existing token for refresh (avoids incrementing view count)
+  with_refresh_token?: boolean; // Request refresh token pair
   permission?: number;
   ttl_seconds?: number;
   max_uses?: number;
@@ -43,6 +45,8 @@ export interface IssueTokenResponse {
   uses: number;
   expires_at: string;
   created_at: string;
+  refresh_token?: string; // Optional refresh token
+  refresh_token_expires_at?: string; // Optional refresh token expiry
 }
 
 export interface RefreshTokenRequest {
@@ -64,14 +68,24 @@ export interface RefreshTokenResponse extends BackendTokenResponse {
  * @param password - Optional password for the room
  * @param options - Additional token options (permission, ttl, max_uses, expires_at)
  * @returns Token information including the JWT token
+ *
+ * Note: If an existing valid token is found in storage, it will be passed to the backend
+ * to avoid incrementing the room's view count. This ensures that page refreshes and
+ * token renewals don't count as new room entries.
  */
 export async function getAccessToken(
   roomName: string,
   password?: string,
   options?: Omit<IssueTokenRequest, "password">,
 ): Promise<IssueTokenResponse> {
+  // Check if we have an existing token for this room
+  const existingToken = getRoomToken(roomName);
+
   const requestBody: IssueTokenRequest = {
     password,
+    // Pass existing token if available (for token refresh without incrementing view count)
+    token: existingToken?.token,
+    with_refresh_token: true, // Always request refresh token
     ...options,
   };
 
@@ -84,6 +98,7 @@ export async function getAccessToken(
   const tokenInfo: TokenInfo = {
     token: response.token,
     expiresAt: response.expires_at,
+    refreshToken: response.refresh_token,
   };
 
   setRoomToken(roomName, tokenInfo);
