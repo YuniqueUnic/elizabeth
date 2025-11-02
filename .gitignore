@@ -19,3 +19,4 @@
 *.db-wal
 deno/main.ts
 chrome*
+docs-prompt
