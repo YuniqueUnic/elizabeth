@@ -317,9 +317,9 @@ export function backendContentToFileItem(
     !fileUrl && roomName &&
     (contentType === ContentType.File || contentType === ContentType.Image)
   ) {
-    // Construct download URL: /api/v1/rooms/{roomName}/contents/{contentId}
-    // The token will be added by the API client
-    fileUrl = `/api/v1/rooms/${roomName}/contents/${content.id}`;
+    // Construct download URL: /rooms/{roomName}/contents/{contentId}
+    // The API client will add the base URL and token
+    fileUrl = `/rooms/${roomName}/contents/${content.id}`;
   }
 
   return {

@@ -311,12 +311,12 @@ export async function downloadFile(
 
 /**
  * Batch download files
- * Creates a ZIP file containing multiple files
+ * Downloads multiple files one by one (backend doesn't support ZIP yet)
  *
  * @param roomName - The name of the room
  * @param fileIds - Array of file IDs to download
  * @param token - Optional token for authentication
- * @returns Promise that resolves when download is triggered
+ * @returns Promise that resolves when all downloads are triggered
  */
 export async function downloadFilesBatch(
   roomName: string,
@@ -325,25 +325,27 @@ export async function downloadFilesBatch(
 ): Promise<void> {
   const authToken = await ensureToken(roomName, token);
 
-  const response = await api.post(
-    `${API_ENDPOINTS.content.base(roomName)}/download`,
-    { file_ids: fileIds.map((id) => parseInt(id, 10)) },
-    {
-      token: authToken,
-      responseType: "blob", // Important for file downloads
-    },
-  );
+  // ✅ FIX: Get file list to retrieve file names
+  const files = await getFilesList(roomName, authToken);
+  const fileMap = new Map(files.map((f) => [f.id, f.name]));
 
-  // Create download link for the ZIP file
-  const blob = new Blob([response], { type: "application/zip" });
-  const url = window.URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `elizabeth_files_${Date.now()}.zip`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  window.URL.revokeObjectURL(url);
+  // Download files one by one instead of creating a ZIP
+  for (const fileId of fileIds) {
+    try {
+      const fileName = fileMap.get(fileId) || `file_${fileId}`;
+
+      // Use the downloadFile function which properly handles file names
+      await downloadFile(roomName, fileId, fileName, authToken);
+
+      // Small delay between downloads to avoid overwhelming the browser
+      if (fileIds.indexOf(fileId) < fileIds.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+    } catch (error) {
+      console.error(`Failed to download file ${fileId}:`, error);
+      // Continue with other files even if one fails
+    }
+  }
 }
 
 // Legacy compatibility exports (for existing components)
