@@ -14,69 +14,16 @@ services:
       # Persist database and storage
       - backend-data:/app/data
       - backend-storage:/app/storage
+      # Mount configuration file template (read-only)
+      - ./backend.yaml:/config/backend.yaml:ro
     environment:
-      # Server Configuration
-      ELIZABETH__APP__SERVER__ADDR: 0.0.0.0
-      ELIZABETH__APP__SERVER__PORT: 4092
-
-      # Database Configuration
-      ELIZABETH__APP__DATABASE__URL: sqlite:/app/data/app.db
-      ELIZABETH__APP__DATABASE__MAX_CONNECTIONS: ${DB_MAX_CONNECTIONS:-20}
-      ELIZABETH__APP__DATABASE__MIN_CONNECTIONS: ${DB_MIN_CONNECTIONS:-5}
-
-      # Storage Configuration
-      ELIZABETH__APP__STORAGE__ROOT: /app/storage/rooms
-
-      # JWT Configuration
-      ELIZABETH__APP__JWT__SECRET: ${JWT_SECRET:-please-change-this-secret-in-production-min-32-chars}
-      ELIZABETH__APP__JWT__TTL_SECONDS: ${JWT_TTL_SECONDS:-7200}
-      ELIZABETH__APP__JWT__LEEWAY_SECONDS: ${JWT_LEEWAY_SECONDS:-5}
-      ELIZABETH__APP__JWT__REFRESH_TTL_SECONDS: ${JWT_REFRESH_TTL_SECONDS:-604800}
-      ELIZABETH__APP__JWT__MAX_REFRESH_COUNT: ${JWT_MAX_REFRESH_COUNT:-10}
-      ELIZABETH__APP__JWT__CLEANUP_INTERVAL_SECONDS: ${JWT_CLEANUP_INTERVAL_SECONDS:-86400}
-      ELIZABETH__APP__JWT__ENABLE_REFRESH_TOKEN_ROTATION: ${JWT_ENABLE_REFRESH_TOKEN_ROTATION:-true}
-
-      # Room Configuration
-      ELIZABETH__APP__ROOM__MAX_SIZE: ${ROOM_MAX_SIZE:-52428800}
-      ELIZABETH__APP__ROOM__MAX_TIMES_ENTERED: ${ROOM_MAX_TIMES_ENTERED:-100}
-
-      # Upload Configuration
-      ELIZABETH__APP__UPLOAD__RESERVATION_TTL_SECONDS: ${UPLOAD_RESERVATION_TTL_SECONDS:-3600}
-
-      # Logging Configuration
-      ELIZABETH__APP__LOGGING__LEVEL: ${LOG_LEVEL:-info}
-
-      # Middleware Configuration
-      ELIZABETH__APP__MIDDLEWARE__TRACING__ENABLED: ${MIDDLEWARE_TRACING_ENABLED:-true}
-      ELIZABETH__APP__MIDDLEWARE__TRACING__LEVEL: ${MIDDLEWARE_TRACING_LEVEL:-info}
-      ELIZABETH__APP__MIDDLEWARE__TRACING__INCLUDE_HEADERS: ${MIDDLEWARE_TRACING_INCLUDE_HEADERS:-false}
-      ELIZABETH__APP__MIDDLEWARE__TRACING__INCLUDE_BODY: ${MIDDLEWARE_TRACING_INCLUDE_BODY:-false}
-
-      ELIZABETH__APP__MIDDLEWARE__REQUEST_ID__ENABLED: ${MIDDLEWARE_REQUEST_ID_ENABLED:-true}
-      ELIZABETH__APP__MIDDLEWARE__REQUEST_ID__HEADER_NAME: ${MIDDLEWARE_REQUEST_ID_HEADER_NAME:-X-Request-Id}
-      ELIZABETH__APP__MIDDLEWARE__REQUEST_ID__GENERATE_IF_MISSING: ${MIDDLEWARE_REQUEST_ID_GENERATE_IF_MISSING:-true}
-
-      ELIZABETH__APP__MIDDLEWARE__COMPRESSION__ENABLED: ${MIDDLEWARE_COMPRESSION_ENABLED:-true}
-      ELIZABETH__APP__MIDDLEWARE__COMPRESSION__MIN_CONTENT_LENGTH: ${MIDDLEWARE_COMPRESSION_MIN_CONTENT_LENGTH:-1024}
-
-      ELIZABETH__APP__MIDDLEWARE__CORS__ENABLED: ${MIDDLEWARE_CORS_ENABLED:-true}
-      ELIZABETH__APP__MIDDLEWARE__CORS__ALLOWED_ORIGINS: ${MIDDLEWARE_CORS_ALLOWED_ORIGINS:-*}
-      ELIZABETH__APP__MIDDLEWARE__CORS__ALLOWED_METHODS: ${MIDDLEWARE_CORS_ALLOWED_METHODS:-GET,POST,PUT,DELETE,OPTIONS}
-      ELIZABETH__APP__MIDDLEWARE__CORS__ALLOWED_HEADERS: ${MIDDLEWARE_CORS_ALLOWED_HEADERS:-*}
-      ELIZABETH__APP__MIDDLEWARE__CORS__ALLOW_CREDENTIALS: ${MIDDLEWARE_CORS_ALLOW_CREDENTIALS:-false}
-      ELIZABETH__APP__MIDDLEWARE__CORS__MAX_AGE: ${MIDDLEWARE_CORS_MAX_AGE:-3600}
-
-      ELIZABETH__APP__MIDDLEWARE__SECURITY__ENABLED: ${MIDDLEWARE_SECURITY_ENABLED:-true}
-      ELIZABETH__APP__MIDDLEWARE__SECURITY__CONTENT_TYPE_OPTIONS: ${MIDDLEWARE_SECURITY_CONTENT_TYPE_OPTIONS:-true}
-      ELIZABETH__APP__MIDDLEWARE__SECURITY__FRAME_OPTIONS: ${MIDDLEWARE_SECURITY_FRAME_OPTIONS:-DENY}
-      ELIZABETH__APP__MIDDLEWARE__SECURITY__XSS_PROTECTION: ${MIDDLEWARE_SECURITY_XSS_PROTECTION:-1; mode=block}
-      ELIZABETH__APP__MIDDLEWARE__SECURITY__STRICT_TRANSPORT_SECURITY: ${MIDDLEWARE_SECURITY_STRICT_TRANSPORT_SECURITY:-max-age=31536000; includeSubDomains}
-      ELIZABETH__APP__MIDDLEWARE__SECURITY__REFERRER_POLICY: ${MIDDLEWARE_SECURITY_REFERRER_POLICY:-strict-origin-when-cross-origin}
-
-      ELIZABETH__APP__MIDDLEWARE__RATE_LIMIT__ENABLED: ${MIDDLEWARE_RATE_LIMIT_ENABLED:-true}
-      ELIZABETH__APP__MIDDLEWARE__RATE_LIMIT__PER_SECOND: ${MIDDLEWARE_RATE_LIMIT_PER_SECOND:-10}
-      ELIZABETH__APP__MIDDLEWARE__RATE_LIMIT__BURST_SIZE: ${MIDDLEWARE_RATE_LIMIT_BURST_SIZE:-20}
-      ELIZABETH__APP__MIDDLEWARE__RATE_LIMIT__CLEANUP_INTERVAL_SECONDS: ${MIDDLEWARE_RATE_LIMIT_CLEANUP_INTERVAL_SECONDS:-60}
+      # Environment variables that work with the CLI system
+      LISTEN_ADDR: 0.0.0.0
+      PORT: 4092
+      JWT_SECRET: ${JWT_SECRET:-please-change-this-secret-in-production-min-32-chars}
+      DATABASE_URL: sqlite:/app/data/app.db
+      # Test environment variable override
+      CONFIG_FILE: /config/backend.yaml
     networks:
       - elizabeth-network
     healthcheck:
@@ -94,7 +41,7 @@ services:
       context: .
       dockerfile: Dockerfile.frontend
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4092/api/v1}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://elizabeth-backend:4092/api/v1}
         NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:4001}
     container_name: elizabeth-frontend
     restart: unless-stopped
@@ -102,7 +49,7 @@ services:
       - "${FRONTEND_PORT:-4001}:4001"
     environment:
       # Runtime environment variables
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4092/api/v1}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://elizabeth-backend:4092/api/v1}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:4001}
       NODE_ENV: production
       PORT: 4001
@@ -113,7 +60,13 @@ services:
       backend:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:4001/', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://localhost:4001/', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})",
+        ]
       interval: 30s
       timeout: 3s
       retries: 3

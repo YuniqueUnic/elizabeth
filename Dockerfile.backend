@@ -51,12 +51,21 @@ COPY --from=builder /app/target/release/board /app/board
 # Copy migrations directory (needed for sqlx migrations at runtime)
 COPY --from=builder /app/crates/board/migrations /app/migrations
 
+# Copy entrypoint script
+COPY entrypoint.sh /app/entrypoint.sh
+
+# Configuration file will be mounted via docker-compose.yml
+
 # Create necessary directories with proper permissions
 RUN mkdir -p /app/data /app/storage/rooms && \
-    chown -R elizabeth:elizabeth /app
+    chown -R elizabeth:elizabeth /app && \
+    chmod +x /app/entrypoint.sh
 
 # Switch to non-root user
 USER elizabeth
+
+# Set entrypoint
+ENTRYPOINT ["/app/entrypoint.sh"]
 
 # Expose the application port
 EXPOSE 4092
@@ -73,4 +82,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD ["/bin/sh", "-c", "sqlite3 /app/data/app.db 'SELECT 1;' || exit 1"]
 
 # Run the application
-CMD ["/app/board", "run"]
+CMD ["/app/board", "run","--config-file","backend.yaml"]
