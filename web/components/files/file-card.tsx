@@ -2,10 +2,39 @@
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { FileText, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import type { FileItem } from "@/lib/types";
 import { useAppStore } from "@/lib/store";
 import { formatFileSize } from "@/lib/utils/format";
+import { defaultStyles, FileIcon } from "react-file-icon";
+
+// Helper function to get file extension
+function getFileExtension(filename: string): string {
+  const parts = filename.split(".");
+  if (parts.length > 1) {
+    return parts[parts.length - 1].toLowerCase();
+  }
+  return "";
+}
+
+// Helper function to get file icon props
+function getFileIconProps(filename: string) {
+  const ext = getFileExtension(filename);
+
+  // Check if we have default styles for this extension
+  if (ext && defaultStyles[ext as keyof typeof defaultStyles]) {
+    return {
+      extension: ext,
+      ...defaultStyles[ext as keyof typeof defaultStyles],
+    };
+  }
+
+  // Fallback to generic document icon
+  return {
+    extension: ext || "file",
+    type: "document" as const,
+  };
+}
 
 interface FileCardProps {
   file: FileItem;
@@ -22,7 +51,7 @@ export function FileCard(
 
   return (
     <div
-      className={`group relative flex items-center gap-3 rounded-lg border p-3 transition-all ${
+      className={`group relative flex items-center gap-3 rounded-lg border p-2 transition-all ${
         isSelected
           ? "border-primary border-2 bg-primary/5 shadow-sm"
           : "border-border bg-card hover:bg-accent/50"
@@ -42,17 +71,9 @@ export function FileCard(
         className="flex flex-1 items-center gap-3 cursor-pointer"
         onClick={() => onClick(file)}
       >
-        {/* Thumbnail or Icon */}
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-muted">
-          {file.thumbnailUrl
-            ? (
-              <img
-                src={file.thumbnailUrl || "/placeholder.svg"}
-                alt={file.name}
-                className="h-full w-full rounded-md object-cover"
-              />
-            )
-            : <FileText className="h-6 w-6 text-muted-foreground" />}
+        {/* File Type Icon */}
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center">
+          <FileIcon {...getFileIconProps(file.name)} />
         </div>
 
         {/* File Info */}

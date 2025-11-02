@@ -12,6 +12,8 @@ import {
   Code2,
   Copy,
   Eye,
+  Moon,
+  Sun,
 } from "lucide-react";
 import { api } from "@/lib/utils/api";
 import { Button } from "@/components/ui/button";
@@ -157,24 +159,24 @@ function getLanguage(fileName: string): string {
 // Common programming languages for syntax highlighting
 const SUPPORTED_LANGUAGES = [
   { value: "auto", label: "自动检测" },
+  { value: "c", label: "C" },
+  { value: "go", label: "Go" },
+  { value: "rust", label: "Rust" },
+  { value: "bash", label: "Bash/Shell" },
+  { value: "dart", label: "Dart" },
   { value: "javascript", label: "JavaScript" },
   { value: "typescript", label: "TypeScript" },
   { value: "jsx", label: "React JSX" },
   { value: "tsx", label: "React TSX" },
   { value: "python", label: "Python" },
-  { value: "rust", label: "Rust" },
   { value: "java", label: "Java" },
   { value: "cpp", label: "C++" },
-  { value: "c", label: "C" },
   { value: "csharp", label: "C#" },
-  { value: "go", label: "Go" },
   { value: "ruby", label: "Ruby" },
   { value: "php", label: "PHP" },
   { value: "swift", label: "Swift" },
   { value: "kotlin", label: "Kotlin" },
   { value: "scala", label: "Scala" },
-  { value: "dart", label: "Dart" },
-  { value: "bash", label: "Bash/Shell" },
   { value: "powershell", label: "PowerShell" },
   { value: "sql", label: "SQL" },
   { value: "json", label: "JSON" },
@@ -331,7 +333,7 @@ export function FileContentPreview(
             onClick={() => setDarkTheme(!darkTheme)}
             title="切换主题"
           >
-            {darkTheme ? "🌙" : "☀️"}
+            {darkTheme ? <Moon /> : <Sun />}
           </Button>
         )}
         <Button
