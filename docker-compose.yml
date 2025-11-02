@@ -11,27 +11,22 @@ services:
     ports:
       - "${BACKEND_PORT:-4092}:4092"
     volumes:
-      # Persist database and storage
-      - backend-data:/app/data
-      - backend-storage:/app/storage
-      # Mount configuration file template (read-only)
-      - ./backend.yaml:/config/backend.yaml:ro
+      # Persist database and storage using bind mounts with proper permissions
+      - ./data:/app/data:rw
+      - ./storage:/app/storage:rw
+      # Mount configuration file template (read-only, but avoid potential conflicts)
+      - ./backend.yaml:/app/config/backend.yaml:ro
     environment:
-      # Environment variables that work with the CLI system
-      LISTEN_ADDR: 0.0.0.0
-      PORT: 4092
+      # Core environment variables - JWT secret for security
       JWT_SECRET: ${JWT_SECRET:-please-change-this-secret-in-production-min-32-chars}
-      DATABASE_URL: sqlite:/app/data/app.db
-      # Test environment variable override
-      CONFIG_FILE: /config/backend.yaml
     networks:
       - elizabeth-network
-    healthcheck:
-      test: ["CMD", "sqlite3", "/app/data/app.db", "SELECT 1;"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
+    # healthcheck:
+    #   test: ["CMD", "curl", "-f", "http://localhost:4092/api/v1/health"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 3
+    #   start_period: 10s
 
   # ============================================================================
   # Frontend Service (Next.js)
@@ -57,8 +52,7 @@ services:
     networks:
       - elizabeth-network
     depends_on:
-      backend:
-        condition: service_healthy
+      - backend
     healthcheck:
       test:
         [
@@ -80,10 +74,6 @@ networks:
     driver: bridge
 
 # ============================================================================
-# Volumes
+# Volumes (using bind mounts instead of named volumes)
 # ============================================================================
-volumes:
-  backend-data:
-    driver: local
-  backend-storage:
-    driver: local
+# Local directories ./data and ./storage will be created automatically
