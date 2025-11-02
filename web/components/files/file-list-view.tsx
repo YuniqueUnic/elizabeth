@@ -22,7 +22,7 @@ export function FileListView(
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1">
       {files.map((file) => (
         <FileCard
           key={file.id}

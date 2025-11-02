@@ -6,6 +6,8 @@ import { useQuery } from "@tanstack/react-query";
 import { getQRCodeImage, getShareLink } from "@/api/shareService";
 import { useEffect, useState } from "react";
 import { useTheme } from "@/lib/hooks/use-theme";
+import Zoom from "react-medium-image-zoom";
+import "react-medium-image-zoom/dist/styles.css";
 
 interface RoomSharingProps {
   roomId: string;
@@ -59,15 +61,17 @@ export function RoomSharing({ roomId }: RoomSharingProps) {
       {qrCodeUrl
         ? (
           <div className="flex justify-center rounded-lg border border-border bg-background p-4">
-            <img
-              src={qrCodeUrl}
-              alt="Room QR Code"
-              className="h-40 w-40"
-              onError={(e) => {
-                console.error("Failed to load QR code:", e);
-                e.currentTarget.src = "/placeholder.svg";
-              }}
-            />
+            <Zoom>
+              <img
+                src={qrCodeUrl}
+                alt="Room QR Code"
+                className="h-40 w-40 cursor-zoom-in"
+                onError={(e) => {
+                  console.error("Failed to load QR code:", e);
+                  e.currentTarget.src = "/placeholder.svg";
+                }}
+              />
+            </Zoom>
           </div>
         )
         : (
