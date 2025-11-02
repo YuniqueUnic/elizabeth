@@ -1,11 +1,11 @@
 # ============================================================================
-# Multi-stage Dockerfile for Elizabeth Backend (Rust)
+# Optimized Multi-stage Dockerfile for Elizabeth Backend (Rust)
 # ============================================================================
 
 # ----------------------------------------------------------------------------
-# Stage 1: Builder - Build the Rust application
+# Stage 1: Base Builder - Cache Rust dependencies separately
 # ----------------------------------------------------------------------------
-FROM rust:1.90-slim-bookworm AS builder
+FROM rust:1.90-slim-bookworm AS base-builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
@@ -17,69 +17,80 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /app
 
-# Copy workspace configuration
+# Copy workspace configuration first (these change less frequently)
 COPY Cargo.toml Cargo.lock ./
 COPY rust-toolchain.toml ./
 
-# Copy all crates
-COPY crates/ ./crates/
+# Copy all crate Cargo.toml files for dependency resolution
+COPY crates/configrs/Cargo.toml ./crates/configrs/
+COPY crates/logrs/Cargo.toml ./crates/logrs/
+COPY crates/board/Cargo.toml ./crates/board/
 
-# Build the application in release mode
-# This will compile all dependencies and the application
-RUN cargo build --release -p elizabeth-board
+# Create dummy source files to cache dependencies
+RUN mkdir -p crates/board/src crates/configrs/src crates/logrs/src crates/configrs/src/configs && \
+    echo "fn main() {}" > crates/board/src/main.rs && \
+    echo "pub mod config;" > crates/board/src/lib.rs && \
+    echo "mod configs;\nmod error;\nmod merge;" > crates/configrs/src/lib.rs && \
+    echo "mod logger;" > crates/logrs/src/lib.rs && \
+    echo "pub mod app;" > crates/configrs/src/configs/mod.rs && \
+    echo "// dummy app config" > crates/configrs/src/configs/app.rs && \
+    echo "// dummy logger" > crates/logrs/src/logger.rs && \
+    echo "// dummy error" > crates/configrs/src/error.rs && \
+    echo "// dummy merge" > crates/configrs/src/merge.rs
+
+# Build dependencies only (this layer will be cached)
+RUN cargo build --release -p elizabeth-board && \
+    rm -rf crates/board/src crates/configrs/src crates/logrs/src
 
 # ----------------------------------------------------------------------------
-# Stage 2: Runtime - Create minimal runtime image
+# Stage 2: Binary Builder - Build the actual Rust application
+# ----------------------------------------------------------------------------
+FROM base-builder AS binary-builder
+
+# Copy actual source code (this layer changes more frequently)
+COPY crates/ ./crates/
+
+# Build the application with cached dependencies
+RUN touch crates/board/src/main.rs && \
+    cargo build --release -p elizabeth-board
+
+# ----------------------------------------------------------------------------
+# Stage 3: Runtime - Minimal runtime image with the binary
 # ----------------------------------------------------------------------------
 FROM debian:bookworm-slim AS runtime
 
-# Install runtime dependencies
+# Install runtime dependencies only
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     sqlite3 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Create app user for security
+# Create app user with proper UID/GID for host compatibility
 RUN useradd -m -u 1000 -s /bin/bash elizabeth
 
 # Set working directory
 WORKDIR /app
 
-# Copy the compiled binary from builder
-COPY --from=builder /app/target/release/board /app/board
-
-# Copy migrations directory (needed for sqlx migrations at runtime)
-COPY --from=builder /app/crates/board/migrations /app/migrations
-
-# Copy entrypoint script
-COPY entrypoint.sh /app/entrypoint.sh
-
-# Configuration file will be mounted via docker-compose.yml
+# Copy the compiled binary and migrations from builder
+COPY --from=binary-builder /app/target/release/board /app/board
+COPY --from=binary-builder /app/crates/board/migrations /app/migrations
 
 # Create necessary directories with proper permissions
 RUN mkdir -p /app/data /app/storage/rooms && \
-    chown -R elizabeth:elizabeth /app && \
-    chmod +x /app/entrypoint.sh
+    chown -R elizabeth:elizabeth /app
 
 # Switch to non-root user
 USER elizabeth
 
-# Set entrypoint
-ENTRYPOINT ["/app/entrypoint.sh"]
-
 # Expose the application port
 EXPOSE 4092
 
-# Environment variables with defaults
-ENV ELIZABETH__APP__SERVER__ADDR=0.0.0.0 \
-    ELIZABETH__APP__SERVER__PORT=4092 \
-    ELIZABETH__APP__DATABASE__URL=sqlite:/app/data/app.db \
-    ELIZABETH__APP__STORAGE__ROOT=/app/storage/rooms \
-    ELIZABETH__APP__LOGGING__LEVEL=info
+# No default environment variables - using backend.yaml for configuration
 
-# Health check
+# Health check that verifies database accessibility
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD ["/bin/sh", "-c", "sqlite3 /app/data/app.db 'SELECT 1;' || exit 1"]
 
-# Run the application
-CMD ["/app/board", "run","--config-file","backend.yaml"]
+# Default command - can be overridden for different operations
+CMD ["/app/board", "run", "--config-file", "/app/config/backend.yaml"]
