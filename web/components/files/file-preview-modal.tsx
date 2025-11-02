@@ -36,6 +36,7 @@ export function FilePreviewModal(
   const { toast } = useToast();
   const currentRoomId = useAppStore((state) => state.currentRoomId);
   const [showIframe, setShowIframe] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   if (!file) return null;
 
@@ -103,9 +104,38 @@ export function FilePreviewModal(
     }
   };
 
+  // Get authenticated image URL
+  const getAuthenticatedUrl = (url?: string) => {
+    if (!url) return undefined;
+
+    // If it's a relative URL, it needs authentication and full URL
+    if (url.startsWith("/")) {
+      const token = localStorage.getItem(`elizabeth_token_${currentRoomId}`);
+      if (token) {
+        const tokenData = JSON.parse(token);
+        // Build full URL: http://localhost:4092/api/v1 + /rooms/... + ?token=...
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL ||
+          "http://localhost:4092/api/v1";
+        return `${baseUrl}${url}?token=${tokenData.token}`;
+      }
+    }
+    return url;
+  };
+
+  const imageUrl = getAuthenticatedUrl(file.url);
+  const videoUrl = getAuthenticatedUrl(file.url);
+
+  console.log("Image URL:", imageUrl, "Original:", file.url);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+      <DialogContent
+        className={`${
+          isFullscreen
+            ? "max-w-[98vw] w-[98vw] max-h-[98vh] h-[98vh]"
+            : "max-w-4xl max-h-[90vh]"
+        } flex flex-col transition-all`}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
             <div className="flex-1 truncate pr-4">
@@ -144,20 +174,24 @@ export function FilePreviewModal(
 
         {/* Preview Content */}
         <div className="flex-1 overflow-auto">
-          {isImage && (
+          {isImage && imageUrl && (
             <div className="flex items-center justify-center p-4">
               <img
-                src={file.thumbnailUrl || file.url || "/placeholder.svg"}
+                src={imageUrl}
                 alt={file.name}
                 className="max-w-full max-h-[60vh] object-contain rounded-lg"
+                onError={(e) => {
+                  console.error("Image load error:", e);
+                  e.currentTarget.src = "/placeholder.svg";
+                }}
               />
             </div>
           )}
 
-          {isVideo && (
+          {isVideo && videoUrl && (
             <div className="flex items-center justify-center p-4">
               <video
-                src={file.url}
+                src={videoUrl}
                 controls
                 className="max-w-full max-h-[60vh] rounded-lg"
               >
@@ -224,6 +258,7 @@ export function FilePreviewModal(
               fileName={file.name}
               mimeType={file.mimeType}
               roomName={currentRoomId}
+              onFullscreenToggle={setIsFullscreen}
             />
           )}
 
