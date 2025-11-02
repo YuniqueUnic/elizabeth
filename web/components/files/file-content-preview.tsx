@@ -12,8 +12,6 @@ import {
   Code2,
   Copy,
   Eye,
-  Maximize2,
-  Minimize2,
 } from "lucide-react";
 import { api } from "@/lib/utils/api";
 import { Button } from "@/components/ui/button";
@@ -195,8 +193,7 @@ const SUPPORTED_LANGUAGES = [
 ];
 
 export function FileContentPreview(
-  { fileUrl, fileName, mimeType, roomName, onFullscreenToggle }:
-    FileContentPreviewProps,
+  { fileUrl, fileName }: FileContentPreviewProps,
 ) {
   const { toast } = useToast();
   const [content, setContent] = useState<string | null>(null);
@@ -204,7 +201,6 @@ export function FileContentPreview(
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [darkTheme, setDarkTheme] = useState(true);
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [markdownPreviewMode, setMarkdownPreviewMode] = useState(true); // true = preview, false = code
 
   const fileType = getFileType(fileName);
@@ -268,13 +264,6 @@ export function FileContentPreview(
         variant: "destructive",
       });
     }
-  };
-
-  // Handle fullscreen toggle
-  const handleFullscreenToggle = () => {
-    const newFullscreen = !isFullscreen;
-    setIsFullscreen(newFullscreen);
-    onFullscreenToggle?.(newFullscreen);
   };
 
   // Toolbar component
@@ -354,16 +343,6 @@ export function FileContentPreview(
           {copied
             ? <Check className="h-4 w-4" />
             : <Copy className="h-4 w-4" />}
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleFullscreenToggle}
-          title={isFullscreen ? "退出全屏" : "全屏查看"}
-        >
-          {isFullscreen
-            ? <Minimize2 className="h-4 w-4" />
-            : <Maximize2 className="h-4 w-4" />}
         </Button>
       </div>
     </div>

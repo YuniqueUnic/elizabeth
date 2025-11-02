@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { codeToHtml, type BundledLanguage, type BundledTheme } from "shiki";
+import { type BundledLanguage, type BundledTheme, codeToHtml } from "shiki";
 
 interface CodeBlockProps {
   code: string;
@@ -30,8 +30,8 @@ export function CodeBlock({
 
         // Map theme to Shiki theme names
         const shikiTheme: BundledTheme = theme === "dark"
-          ? "vitesse-dark"
-          : "vitesse-light";
+          ? "github-dark"
+          : "github-light";
 
         // Normalize language name
         const normalizedLang = normalizeLanguage(language);
@@ -39,8 +39,20 @@ export function CodeBlock({
         const highlighted = await codeToHtml(code, {
           lang: normalizedLang as BundledLanguage,
           theme: shikiTheme,
-          structure: "inline",
-          decorations: showLineNumbers ? undefined : [],
+          transformers: showLineNumbers
+            ? [{
+              line(node, line) {
+                node.properties["data-line"] = line;
+                this.addClassToHast(node, "line");
+              },
+              pre(node) {
+                this.addClassToHast(node, "shiki-pre");
+              },
+              code(node) {
+                this.addClassToHast(node, "shiki-code");
+              },
+            }]
+            : [],
         });
 
         if (!cancelled) {
@@ -50,8 +62,17 @@ export function CodeBlock({
       } catch (error) {
         console.error("Failed to highlight code:", error);
         if (!cancelled) {
-          // Fallback to plain text
-          setHtml(`<pre><code>${escapeHtml(code)}</code></pre>`);
+          // Fallback to plain text with proper formatting
+          const escapedCode = escapeHtml(code);
+          const lines = escapedCode.split("\n");
+          const lineNumbersHtml = showLineNumbers
+            ? lines.map((line, i) =>
+              `<span class="line" data-line="${i + 1}">${line}</span>`
+            ).join("\n")
+            : escapedCode;
+          setHtml(
+            `<pre class="shiki-pre"><code class="shiki-code">${lineNumbersHtml}</code></pre>`,
+          );
           setLoading(false);
         }
       }
@@ -78,7 +99,7 @@ export function CodeBlock({
 
   return (
     <div
-      className={`shiki-code-block ${className}`}
+      className={`shiki-wrapper ${className}`}
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );
