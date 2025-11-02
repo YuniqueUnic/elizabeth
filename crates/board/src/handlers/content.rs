@@ -388,18 +388,38 @@ pub async fn upload_contents(
             )));
         }
 
-        // 使用 UUID 作为文件名，保留原始扩展名
+        // ✅ FIX: Use original filename, handle conflicts by adding suffix
         let safe_file_name = sanitize_filename::sanitize(&file_name);
-        let extension = std::path::Path::new(&safe_file_name)
-            .extension()
-            .and_then(|s| s.to_str())
-            .unwrap_or("");
-        let unique_filename = if extension.is_empty() {
-            Uuid::new_v4().to_string()
-        } else {
-            format!("{}.{}", Uuid::new_v4(), extension)
-        };
-        let file_path = storage_dir.join(&unique_filename);
+
+        // Find a unique filename by adding (1), (2), etc. if file exists
+        let mut final_filename = safe_file_name.clone();
+        let mut counter = 1;
+        let mut file_path = storage_dir.join(&final_filename);
+
+        while file_path.exists() {
+            // Extract base name and extension
+            let path = std::path::Path::new(&safe_file_name);
+            let stem = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or(&safe_file_name);
+            let extension = path.extension().and_then(|s| s.to_str()).unwrap_or("");
+
+            // Create new filename with counter
+            final_filename = if extension.is_empty() {
+                format!("{}({})", stem, counter)
+            } else {
+                format!("{}({}).{}", stem, counter, extension)
+            };
+
+            file_path = storage_dir.join(&final_filename);
+            counter += 1;
+
+            // Prevent infinite loop
+            if counter > 1000 {
+                return Err(AppError::internal("Too many files with the same name"));
+            }
+        }
         let mut temp_file = fs::File::create(&file_path)
             .await
             .map_err(|e| AppError::internal(format!("Cannot create file: {e}")))?;
