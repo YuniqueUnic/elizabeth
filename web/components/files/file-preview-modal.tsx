@@ -23,6 +23,7 @@ import { useAppStore } from "@/lib/store";
 import { downloadFile } from "@/api/fileService";
 import { FileContentPreview } from "./file-content-preview";
 import { API_BASE_URL } from "@/lib/config";
+import { getRoomTokenString } from "@/lib/utils/api";
 
 interface FilePreviewModalProps {
   file: FileItem | null;
@@ -111,20 +112,14 @@ export function FilePreviewModal(
 
     // If it's a relative URL, it needs authentication and full URL
     if (url.startsWith("/")) {
-      const tokenKey = `elizabeth_token_${currentRoomId}`;
-      const tokenStr = localStorage.getItem(tokenKey);
+      // ✅ FIX: Use getRoomTokenString to get token from unified storage
+      const token = getRoomTokenString(currentRoomId);
 
-      if (tokenStr) {
-        try {
-          const tokenData = JSON.parse(tokenStr);
-          // Use API_BASE_URL from config instead of process.env
-          const fullUrl = `${API_BASE_URL}${url}?token=${tokenData.token}`;
-          console.log("Generated authenticated URL:", fullUrl);
-          return fullUrl;
-        } catch (error) {
-          console.error("Failed to parse token:", error);
-          return undefined;
-        }
+      if (token) {
+        // Build full URL: http://localhost:4092/api/v1 + /rooms/... + ?token=...
+        const fullUrl = `${API_BASE_URL}${url}?token=${token}`;
+        console.log("Generated authenticated URL:", fullUrl);
+        return fullUrl;
       } else {
         console.warn("No token found for room:", currentRoomId);
         return undefined;
@@ -141,7 +136,7 @@ export function FilePreviewModal(
       <DialogContent
         className={`${
           isFullscreen
-            ? "!max-w-[98vw] !w-[98vw] !max-h-[98vh] !h-[98vh]"
+            ? "max-w-[98vw]! w-[98vw]! max-h-[98vh]! h-[98vh]!"
             : "max-w-4xl max-h-[90vh]"
         } flex flex-col transition-all duration-300`}
       >
@@ -197,7 +192,7 @@ export function FilePreviewModal(
               <img
                 src={imageUrl}
                 alt={file.name}
-                className="max-w-full max-h-[60vh] object-contain rounded-lg"
+                className="max-w-full max-h-[75vh] object-contain rounded-lg"
                 onLoad={() => {
                   console.log("Image loaded successfully:", imageUrl);
                 }}
@@ -220,7 +215,7 @@ export function FilePreviewModal(
               <video
                 src={videoUrl}
                 controls
-                className="max-w-full max-h-[60vh] rounded-lg"
+                className="max-w-full max-h-[75vh] rounded-lg"
               >
                 您的浏览器不支持视频播放
               </video>
@@ -228,7 +223,7 @@ export function FilePreviewModal(
           )}
 
           {isPdf && (
-            <div className="h-[60vh]">
+            <div className="h-[75vh]">
               <iframe
                 src={file.url}
                 className="w-full h-full border-0 rounded-lg"
@@ -260,7 +255,7 @@ export function FilePreviewModal(
           )}
 
           {isLink && showIframe && (
-            <div className="relative h-[60vh]">
+            <div className="relative h-[75vh]">
               <Button
                 variant="outline"
                 size="sm"
