@@ -1,0 +1,74 @@
+/* Shiki Code Block Styles */
+
+.shiki-wrapper {
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.shiki-wrapper .shiki-pre {
+  margin: 0;
+  padding: 1rem;
+  overflow-x: auto;
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  font-size: 0.875rem;
+  line-height: 1.7;
+  tab-size: 2;
+  -moz-tab-size: 2;
+}
+
+.shiki-wrapper .shiki-code {
+  display: block;
+  counter-reset: line;
+}
+
+.shiki-wrapper .line {
+  display: inline-block;
+  width: 100%;
+  position: relative;
+  padding-left: 3.5rem;
+}
+
+.shiki-wrapper .line::before {
+  content: attr(data-line);
+  position: absolute;
+  left: 0;
+  width: 3rem;
+  text-align: right;
+  padding-right: 1rem;
+  color: var(--shiki-line-number-color, #6e7681);
+  user-select: none;
+}
+
+.shiki-wrapper .line:hover {
+  background-color: var(--shiki-line-highlight-bg, rgba(255, 255, 255, 0.05));
+}
+
+/* Preserve whitespace and indentation */
+.shiki-wrapper pre,
+.shiki-wrapper code {
+  white-space: pre;
+  word-spacing: normal;
+  word-break: normal;
+  word-wrap: normal;
+  -moz-tab-size: 2;
+  -o-tab-size: 2;
+  tab-size: 2;
+}
+
+/* Dark theme adjustments */
+.dark .shiki-wrapper .line::before {
+  color: #6e7681;
+}
+
+.dark .shiki-wrapper .line:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Light theme adjustments */
+.light .shiki-wrapper .line::before {
+  color: #57606a;
+}
+
+.light .shiki-wrapper .line:hover {
+  background-color: rgba(0, 0, 0, 0.03);
+}

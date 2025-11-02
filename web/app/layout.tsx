@@ -2,6 +2,7 @@ import type React from "react";
 import type { Metadata } from "next";
 
 import "./globals.css";
+import "./shiki.css";
 import { Providers } from "@/components/providers";
 import { Toaster } from "@/components/ui/toaster";
 import { FontSizeManager } from "@/components/font-size-manager";
