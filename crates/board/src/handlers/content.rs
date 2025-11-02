@@ -53,11 +53,15 @@ pub struct RoomContentView {
 
 impl From<RoomContent> for RoomContentView {
     fn from(value: RoomContent) -> Self {
-        let file_name = value.path.as_ref().and_then(|path| {
-            Path::new(path)
-                .file_name()
-                .map(|s| s.to_string_lossy().to_string())
+        // ✅ FIX: Use file_name from database instead of extracting from path
+        let file_name = value.file_name.clone().or_else(|| {
+            value.path.as_ref().and_then(|path| {
+                Path::new(path)
+                    .file_name()
+                    .map(|s| s.to_string_lossy().to_string())
+            })
         });
+
         Self {
             id: value.id.unwrap_or_default(),
             content_type: value.content_type,
