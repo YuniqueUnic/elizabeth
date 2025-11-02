@@ -37,7 +37,10 @@ const EXPIRY_OPTIONS = [
 function getExpiryOptionFromDate(expiresAt: string | null | undefined): string {
   if (!expiresAt) return "never";
 
-  const expireTime = new Date(expiresAt).getTime();
+  // 后端返回的是 NaiveDateTime (UTC 时间，无时区标记)
+  // 需要手动添加 'Z' 后缀来表示这是 UTC 时间
+  const expiresAtUTC = expiresAt.endsWith("Z") ? expiresAt : expiresAt + "Z";
+  const expireTime = new Date(expiresAtUTC).getTime();
   const now = Date.now();
   const diff = expireTime - now;
 
@@ -89,8 +92,16 @@ export function RoomSettingsForm({ roomDetails }: RoomSettingsFormProps) {
       expiresAt?: string | null;
       maxViews?: number;
     }) => updateRoomSettings(currentRoomId, settings),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["room", currentRoomId] });
+    onSuccess: async (updatedRoom) => {
+      // 方法 1: 直接更新缓存数据，而不是失效缓存
+      queryClient.setQueryData(["room", currentRoomId], updatedRoom);
+
+      // 方法 2: 同时失效缓存并立即重新获取
+      await queryClient.refetchQueries({
+        queryKey: ["room", currentRoomId],
+        type: "active",
+      });
+
       toast({
         title: "设置已保存",
         description: "房间设置已成功更新",
@@ -109,12 +120,15 @@ export function RoomSettingsForm({ roomDetails }: RoomSettingsFormProps) {
     const option = EXPIRY_OPTIONS.find((opt) => opt.value === expiryOption);
 
     // 计算过期时间，格式化为 NaiveDateTime (YYYY-MM-DDTHH:MM:SS.ffffff)
+    // 注意：后端使用 UTC 时间进行比较，所以这里必须发送 UTC 时间
     let expiresAt: string | null = null;
     if (option && option.ms > 0) {
-      const expireDate = new Date(Date.now() + option.ms);
-      // 格式化为 ISO 8601 格式，但去掉时区信息（NaiveDateTime）
-      // 格式：YYYY-MM-DDTHH:MM:SS.ffffff
-      expiresAt = expireDate.toISOString().replace("Z", "").slice(0, 26);
+      // 使用 UTC 时间计算过期时间
+      const now = new Date();
+      const expireDate = new Date(now.getTime() + option.ms);
+      // toISOString() 返回 UTC 时间，格式：YYYY-MM-DDTHH:MM:SS.sssZ
+      // 去掉末尾的 'Z' 得到 NaiveDateTime 格式
+      expiresAt = expireDate.toISOString().replace("Z", "");
     }
 
     updateMutation.mutate({

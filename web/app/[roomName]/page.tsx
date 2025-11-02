@@ -47,12 +47,22 @@ export default function RoomPage() {
       setCurrentRoomId(roomName);
 
       // 2. Check for a valid, non-expired token for this identifier.
-      if (hasValidToken(roomName)) {
+      const hasToken = hasValidToken(roomName);
+      console.log(`[RoomPage] Checking token for ${roomName}:`, hasToken);
+
+      if (hasToken) {
+        console.log(
+          `[RoomPage] Valid token found for ${roomName}, skipping authentication`,
+        );
         if (!isCancelled) {
           setLoading(false);
         }
         return;
       }
+
+      console.log(
+        `[RoomPage] No valid token for ${roomName}, initiating authentication`,
+      );
 
       // 3. If no valid token, try to access the room to see if it's public,
       //    password-protected, or requires a special slug.

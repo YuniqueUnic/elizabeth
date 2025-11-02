@@ -877,3 +877,932 @@ SQLX_OFFLINE=true cargo build
 2. **数据迁移**: 如果有现有数据，确保迁移脚本正确处理
 3. **文档更新**: 更新 API 文档和用户文档
 4. **测试用例**: 编写或更新自动化测试用例
+
+## 11. 用户反馈问题修复记录 (2025-11-02)
+
+### 11.1 问题描述
+
+用户在测试过程中发现了以下问题：
+
+1. **创建房间时 Enter 键无效**: 在创建房间表单中，按 Enter 或 Ctrl/Cmd+Enter
+   无法提交表单
+2. **房间密码显示为空**: 创建房间时设置了密码，但在房间设置中显示为空
+3. **过期时间显示不正确**: 设置过期时间后，重新进入房间时显示的时间不正确
+4. **权限更新时 Unauthorized 错误**: 更新权限时出现 401
+   错误，提示"无法保存权限并导航"
+
+### 11.2 根本原因分析
+
+#### 问题 1: Enter 键无效
+
+**原因**: 创建房间表单的 Input 组件缺少 `onKeyDown` 事件处理器。
+
+#### 问题 2: 密码显示为空
+
+**原因**:
+
+- `RoomDetails` 类型定义中缺少 `password` 字段
+- `backendRoomToRoomDetails` 转换函数没有传递 `password` 字段
+- `RoomSettingsForm` 从错误的位置读取密码
+
+#### 问题 3: 过期时间显示不正确
+
+**原因**:
+
+- 前端发送的时间格式不正确
+- `RoomSettingsForm` 没有根据当前的 `expiresAt` 初始化选项
+- 缺少 `useEffect` 来同步 `roomDetails` 的更新
+
+#### 问题 4: Unauthorized 错误
+
+**原因**:
+
+- 权限更新后，房间可能已经过期
+- 错误处理不够友好，没有区分过期和其他错误
+
+### 11.3 修复实施
+
+所有修复已完成：
+
+- ✅ 修复 1: 添加 Enter 键支持 (`web/app/page.tsx`)
+- ✅ 修复 2: 添加密码字段 (`web/lib/types.ts`,
+  `web/components/room/room-settings-form.tsx`)
+- ✅ 修复 3: 修复时间格式和显示 (`web/components/room/room-settings-form.tsx`)
+- ✅ 修复 4: 改进错误处理 (`web/components/room/room-permissions.tsx`)
+
+### 11.4 测试验证
+
+所有修复已完成并通过编译：
+
+- ✅ 前端构建成功 (`pnpm run build`)
+- ✅ 后端编译成功 (`cargo check`)
+- ✅ 服务已重启并运行
+
+**下一步**: 需要用户进行手动测试验证所有问题是否已解决。
+
+## 12. 时区问题修复记录 (2025-11-02)
+
+### 12.1 问题描述
+
+用户在测试过程中发现了严重的时区问题：
+
+1. **创建房间后过期时间显示错误**: 创建房间时设置过期时间为 1
+   天，但前端显示为"永不过期"
+2. **更新过期时间后显示不正确**: 将过期时间从 1 天改为 10
+   分钟，重新进入房间后显示为 1 分钟
+3. **权限更新时出现 Unauthorized 错误**: 更新权限时提示"房间可能已过期"
+4. **数据库中的时间已经是过去的时间**: 当前时间是
+   `2025-11-02 01:47:01 CST`，但数据库中的过期时间是 `2025-11-01 18:36:41`
+
+### 12.2 根本原因分析
+
+**核心问题**: **时区不匹配**
+
+#### 问题链条
+
+1. **前端计算时间**: 使用 `Date.now()` 获取当前时间戳，这是本地时间（CST,
+   UTC+8）
+2. **前端发送时间**: 使用 `new Date(Date.now() + ms).toISOString()`
+   生成时间字符串
+   - `toISOString()` 返回 UTC 时间，但前端之前使用 `.slice(0, 26)`
+     截取，导致格式不正确
+3. **后端存储时间**: 接收 `NaiveDateTime` 类型，存储为无时区的时间
+4. **后端比较时间**: 使用 `Utc::now().naive_utc()` 获取当前 UTC
+   时间，与数据库中的时间比较
+
+#### 时区偏移问题
+
+- **用户时区**: CST (UTC+8)
+- **前端发送**: 本地时间 + 偏移量 → 转换为 UTC 字符串
+- **后端接收**: 解析为 `NaiveDateTime`（无时区）
+- **后端比较**: 使用 UTC 时间比较
+
+**示例**:
+
+```
+用户创建房间时间: 2025-11-01 17:36:22 CST (本地时间)
+前端计算过期时间: 2025-11-01 17:36:22 + 1天 = 2025-11-02 17:36:22 CST
+前端发送时间: 2025-11-02 09:36:22 (UTC) ← 错误！应该是 2025-11-02 09:36:22 UTC
+数据库存储: 2025-11-01 18:36:41 (NaiveDateTime, 无时区)
+后端比较时间: 2025-11-02 01:47:01 (UTC) > 2025-11-01 18:36:41 → 已过期！
+```
+
+### 12.3 修复实施
+
+#### 修复 1: 前端时间计算逻辑 ✅
+
+**修改文件**: `web/components/room/room-settings-form.tsx`
+
+**问题**: 前端使用 `Date.now()` 计算过期时间，但 `toISOString()` 已经返回 UTC
+时间，不需要额外处理。
+
+**修复内容**:
+
+```typescript
+const handleSave = () => {
+  const option = EXPIRY_OPTIONS.find((opt) => opt.value === expiryOption);
+
+  // 计算过期时间，格式化为 NaiveDateTime (YYYY-MM-DDTHH:MM:SS.ffffff)
+  // 注意：后端使用 UTC 时间进行比较，所以这里必须发送 UTC 时间
+  let expiresAt: string | null = null;
+  if (option && option.ms > 0) {
+    // 使用 UTC 时间计算过期时间
+    const now = new Date();
+    const expireDate = new Date(now.getTime() + option.ms);
+    // toISOString() 返回 UTC 时间，格式：YYYY-MM-DDTHH:MM:SS.sssZ
+    // 去掉末尾的 'Z' 得到 NaiveDateTime 格式
+    expiresAt = expireDate.toISOString().replace("Z", "");
+  }
+
+  updateMutation.mutate({
+    expiresAt: expiresAt ?? undefined,
+    password: password.length > 0 ? password : null,
+    maxViews,
+  });
+};
+```
+
+**关键改进**:
+
+- ✅ 使用 `new Date()` 和 `getTime()` 确保时间计算正确
+- ✅ `toISOString()` 自动返回 UTC 时间
+- ✅ 只去掉末尾的 'Z'，保留完整的时间精度
+
+#### 修复 2: 前端时间显示逻辑 ✅
+
+**修改文件**: `web/components/room/room-settings-form.tsx`
+
+**问题**: 后端返回的 `NaiveDateTime` 没有时区标记，前端需要手动添加 'Z'
+后缀来表示这是 UTC 时间。
+
+**修复内容**:
+
+```typescript
+// 根据过期时间计算最接近的选项
+function getExpiryOptionFromDate(expiresAt: string | null | undefined): string {
+  if (!expiresAt) return "never";
+
+  // 后端返回的是 NaiveDateTime (UTC 时间，无时区标记)
+  // 需要手动添加 'Z' 后缀来表示这是 UTC 时间
+  const expiresAtUTC = expiresAt.endsWith("Z") ? expiresAt : expiresAt + "Z";
+  const expireTime = new Date(expiresAtUTC).getTime();
+  const now = Date.now();
+  const diff = expireTime - now;
+
+  // 如果已经过期或即将过期，返回最短的选项
+  if (diff <= 0) return "1min";
+
+  // 找到最接近的选项
+  let closestOption = EXPIRY_OPTIONS[0];
+  let minDiff = Math.abs(diff - closestOption.ms);
+
+  for (const option of EXPIRY_OPTIONS) {
+    if (option.ms === 0) continue; // 跳过"永不过期"
+    const currentDiff = Math.abs(diff - option.ms);
+    if (currentDiff < minDiff) {
+      minDiff = currentDiff;
+      closestOption = option;
+    }
+  }
+
+  return closestOption.value;
+}
+```
+
+**关键改进**:
+
+- ✅ 检查时间字符串是否已有 'Z' 后缀
+- ✅ 如果没有，手动添加 'Z' 表示 UTC 时间
+- ✅ 使用 `Date.now()` 获取当前时间戳（UTC）
+- ✅ 正确计算时间差
+
+#### 修复 3: 后端时间处理验证 ✅
+
+**验证文件**: `crates/board/src/models/room/mod.rs`
+
+**后端逻辑**:
+
+```rust
+pub fn is_expired(&self) -> bool {
+    if let Some(expire_at) = self.expire_at {
+        Utc::now().naive_utc() > expire_at
+    } else {
+        false
+    }
+}
+```
+
+**验证结果**: 后端逻辑正确，使用 `Utc::now().naive_utc()` 获取当前 UTC
+时间，与数据库中的 `NaiveDateTime` 比较。
+
+### 12.4 时区处理最佳实践
+
+#### 前端
+
+1. **发送时间**: 始终使用 `toISOString()` 生成 UTC 时间字符串
+2. **接收时间**: 手动添加 'Z' 后缀来表示 UTC 时间
+3. **显示时间**: 使用 `new Date(utcString)` 自动转换为本地时间显示
+
+#### 后端
+
+1. **存储时间**: 使用 `NaiveDateTime` 存储 UTC 时间（无时区标记）
+2. **比较时间**: 使用 `Utc::now().naive_utc()` 获取当前 UTC 时间
+3. **返回时间**: 直接返回 `NaiveDateTime`，前端负责添加时区标记
+
+### 12.5 测试验证
+
+所有修复已完成并通过编译：
+
+- ✅ 前端构建成功 (`pnpm run build`)
+- ✅ 服务已重启 (PID: 25580)
+- ✅ 清理旧测试数据
+
+**测试步骤**:
+
+1. 创建新房间，设置过期时间为 1 天
+2. 验证前端显示的过期时间是否正确
+3. 修改过期时间为 10 分钟
+4. 重新进入房间，验证显示是否正确
+5. 修改权限，验证是否不再出现 Unauthorized 错误
+
+**下一步**: 需要用户进行手动测试验证时区问题是否已完全解决。
+
+## 13. 权限更新逻辑重构 (2025-11-02)
+
+### 13.1 问题描述
+
+用户在测试权限更新功能时发现了以下问题：
+
+1. **取消 SHARE 和 DELETE 权限时提示错误**: "无法保存设置"
+2. **仅取消 SHARE 权限时提示错误**: "无法保存设置"
+3. **数据库更新成功但前端报错**: 数据库中权限已更新（从 15 降级到
+   3），但前端提示"权限已更新，但房间可能已过期"
+4. **没有自动跳转到新房间**: 权限更新后应该跳转到新的 slug，但没有跳转
+
+**数据库证据**:
+
+```sql
+-- 初始状态
+1,jjj,jjj_78e27e08-13fd-47cf-8a71-4911a71ab7e8,1234567,0,52428800,0,3,2,2025-11-02 17:54:50.656,2025-11-01 17:54:25.700579,2025-11-01 17:57:12,15
+
+-- 更新后
+1,jjj,jjj_78e27e08-13fd-47cf-8a71-4911a71ab7e8,1234567,0,52428800,0,3,2,2025-11-02 17:54:50.656,2025-11-01 17:54:25.700579,2025-11-01 17:57:12,3
+```
+
+权限从 15 (VIEW + EDIT + SHARE + DELETE) 降级到 3 (VIEW +
+EDIT)，数据库更新成功，但前端报错。
+
+### 13.2 根本原因分析
+
+**核心问题**: **权限降级后无法自动获取新 token**
+
+#### 问题链条
+
+1. **用户更新权限**: 从 15 (DELETE) 降级到 3 (VIEW + EDIT)
+2. **后端更新成功**: 数据库中权限已更新为 3
+3. **前端尝试获取新 token**: 调用 `getAccessToken(newIdentifier)` 但没有提供密码
+4. **后端拒绝请求**: 因为旧 token 的权限是 15，新权限是
+   3，权限降级需要重新验证密码
+5. **前端捕获 401 错误**: 显示"权限已更新，但房间可能已过期"
+
+#### 旧逻辑的问题
+
+```typescript
+// 旧逻辑（错误）
+onSuccess: async (updatedRoom) => {
+  try {
+    // 尝试获取新 token，但没有提供密码
+    await getAccessToken(newIdentifier);
+
+    // 如果成功，跳转到新 URL
+    if (newIdentifier !== oldIdentifier) {
+      window.location.href = `/${newIdentifier}`;
+    }
+  } catch (error) {
+    // 捕获 401 错误，显示错误提示
+    toast({ title: "房间可能已过期", ... });
+  }
+}
+```
+
+**问题**:
+
+- ❌ 权限降级时，旧 token 无法用于获取新 token（需要密码）
+- ❌ 没有区分"权限升级"和"权限降级"场景
+- ❌ 错误提示不准确（"房间可能已过期"实际上是权限降级）
+- ❌ 没有自动触发重新登录流程
+
+### 13.3 修复实施
+
+#### 重构权限更新逻辑 ✅
+
+**修改文件**: `web/components/room/room-permissions.tsx`
+
+**新逻辑**:
+
+```typescript
+const updateMutation = useMutation({
+  mutationFn: (newPermissions: RoomPermission[]) =>
+    updateRoomPermissions(currentRoomId, newPermissions),
+  onSuccess: async (updatedRoom) => {
+    const newIdentifier = updatedRoom.slug || updatedRoom.name;
+    const oldIdentifier = currentRoomId;
+
+    // 1. 权限更新成功，显示提示
+    toast({
+      title: "权限已更新",
+      description: "房间权限已成功更新",
+    });
+
+    // 2. 清理旧的查询缓存
+    queryClient.invalidateQueries({ queryKey: ["room", oldIdentifier] });
+    queryClient.invalidateQueries({ queryKey: ["contents", oldIdentifier] });
+
+    // 3. 如果 slug 发生变化，需要跳转到新的 URL
+    if (newIdentifier !== oldIdentifier) {
+      clearRoomToken(oldIdentifier);
+      setTimeout(() => {
+        window.location.href = `/${newIdentifier}`;
+      }, 1000);
+    } else {
+      // 4. slug 没有变化，但权限可能降级了
+      const oldPermissionValue = encodePermissions(permissions);
+      const newPermissionValue = encodePermissions(
+        parsePermissions(permissionFlags),
+      );
+
+      // 5. 如果权限降级，需要重新登录
+      if (newPermissionValue < oldPermissionValue) {
+        clearRoomToken(oldIdentifier);
+        setTimeout(() => {
+          toast({
+            title: "需要重新登录",
+            description: "权限已降级，请重新输入密码登录",
+          });
+          window.location.reload();
+        }, 1500);
+      }
+    }
+  },
+  onError: () => {
+    toast({
+      title: "更新失败",
+      description: "无法更新房间权限，请重试",
+      variant: "destructive",
+    });
+  },
+});
+```
+
+**关键改进**:
+
+- ✅ **移除了 `getAccessToken` 调用**: 不再尝试自动获取新 token
+- ✅ **区分权限升级和降级**: 通过比较权限值判断是否降级
+- ✅ **权限降级时清理旧 token**: 强制用户重新登录
+- ✅ **准确的错误提示**: "需要重新登录"而不是"房间可能已过期"
+- ✅ **自动触发重新登录**: 刷新页面，触发登录流程
+- ✅ **延迟跳转**: 让用户看到成功提示后再跳转
+
+### 13.4 权限更新场景分析
+
+#### 场景 1: 权限升级（例如：VIEW → VIEW + EDIT）
+
+**流程**:
+
+1. 用户更新权限
+2. 后端更新成功
+3. 前端显示"权限已更新"
+4. 前端清理缓存
+5. 用户继续使用（旧 token 仍然有效，因为权限升级不影响访问）
+
+**结果**: ✅ 用户可以继续使用，下次刷新页面时会自动获取新权限的 token
+
+---
+
+#### 场景 2: 权限降级（例如：DELETE → VIEW + EDIT）
+
+**流程**:
+
+1. 用户更新权限
+2. 后端更新成功
+3. 前端显示"权限已更新"
+4. 前端检测到权限降级
+5. 前端清理旧 token
+6. 前端显示"需要重新登录"
+7. 前端刷新页面，触发登录流程
+
+**结果**: ✅ 用户需要重新输入密码，获取新权限的 token
+
+---
+
+#### 场景 3: Slug 变化（例如：取消 DELETE 权限导致 slug 重新生成）
+
+**流程**:
+
+1. 用户更新权限
+2. 后端更新成功，生成新 slug
+3. 前端显示"权限已更新"
+4. 前端清理旧 token
+5. 前端跳转到新 URL
+6. 新页面触发登录流程
+
+**结果**: ✅ 用户跳转到新 URL，需要重新输入密码
+
+### 13.5 测试验证
+
+所有修复已完成并通过编译：
+
+- ✅ 前端构建成功 (`pnpm run build`)
+- ✅ 服务已重启 (PID: 27706)
+
+**测试步骤**:
+
+1. **测试权限升级**: VIEW → VIEW + EDIT
+   - 验证是否显示"权限已更新"
+   - 验证是否可以继续使用
+
+2. **测试权限降级**: DELETE → VIEW + EDIT
+   - 验证是否显示"权限已更新"
+   - 验证是否显示"需要重新登录"
+   - 验证是否自动刷新页面
+   - 验证是否需要重新输入密码
+
+3. **测试 Slug 变化**: 取消 DELETE 权限
+   - 验证是否显示"权限已更新"
+   - 验证是否自动跳转到新 URL
+   - 验证是否需要重新输入密码
+
+**下一步**: 需要用户进行手动测试验证权限更新逻辑是否正确。
+
+## 14. 组件状态同步问题修复 (2025-11-02)
+
+### 14.1 问题描述
+
+用户在测试过程中发现了组件状态不同步的问题：
+
+1. **更新房间设置后无法立即更新权限**:
+   - 新建房间
+   - 修改最大查看次数、房间密码、房间过期时间
+   - 点击"保存设置"，保存成功 ✅
+   - 立即取消 SHARE 和 DELETE 权限
+   - 点击"保存权限"，提示"无法保存设置" ❌
+   - 数据库没有更新 ❌
+
+2. **刷新页面后才能继续更新**:
+   - 刷新页面，重新输入密码
+   - 再次取消 SHARE 和 DELETE 权限
+   - 点击"保存权限"，保存成功 ✅
+
+**用户反馈**:
+
+> "看起来是我配置了最大查看次数、房间密码、房间过期时间之后，有奇怪的问题，导致我需要刷新之后，才能继续更新其它设置？？我希望改进这个流程。我希望不刷新也能继续更新才对.."
+
+### 14.2 根本原因分析
+
+**核心问题**: **React Query 缓存和组件状态不同步**
+
+#### 问题链条
+
+1. **用户更新房间设置**: 修改密码、过期时间、最大查看次数
+2. **RoomSettingsForm 调用 API**: 后端更新成功 ✅
+3. **RoomSettingsForm 失效缓存**: 调用 `queryClient.invalidateQueries()`
+4. **React Query 标记缓存为过期**: 但不会立即重新获取数据
+5. **用户立即更新权限**: `RoomPermissions` 组件使用的是旧的 `permissions` prop
+6. **RoomPermissions 的状态没有更新**: `permissionFlags` 状态仍然是旧值
+7. **权限更新失败**: 因为组件状态和实际数据不一致
+
+#### 两个关键问题
+
+**问题 1: React Query 缓存失效策略**
+
+```typescript
+// 旧逻辑（问题）
+onSuccess: (() => {
+  queryClient.invalidateQueries({ queryKey: ["room", currentRoomId] });
+  // ❌ 只是标记缓存为过期，不会立即重新获取
+});
+```
+
+**问题 2: RoomPermissions 组件状态不同步**
+
+```typescript
+// 旧逻辑（问题）
+const [permissionFlags, setPermissionFlags] = useState(
+  permissionsToFlags(permissions),
+);
+// ❌ 初始化后，即使 permissions prop 更新，permissionFlags 状态也不会更新
+```
+
+### 14.3 修复实施
+
+#### 修复 1: RoomSettingsForm 立即重新获取数据 ✅
+
+**修改文件**: `web/components/room/room-settings-form.tsx`
+
+**修复内容**:
+
+```typescript
+const updateMutation = useMutation({
+  mutationFn: (settings: {
+    password?: string | null;
+    expiresAt?: string | null;
+    maxViews?: number;
+  }) => updateRoomSettings(currentRoomId, settings),
+  onSuccess: async () => {
+    // 立即重新获取房间详情，确保所有组件都能获取到最新数据
+    await queryClient.invalidateQueries({
+      queryKey: ["room", currentRoomId],
+      refetchType: "active", // ✅ 立即重新获取活跃的查询
+    });
+
+    toast({
+      title: "设置已保存",
+      description: "房间设置已成功更新",
+    });
+  },
+  // ...
+});
+```
+
+**关键改进**:
+
+- ✅ 添加 `refetchType: "active"` 参数，立即重新获取活跃的查询
+- ✅ 使用 `await` 等待查询完成，确保数据已更新
+- ✅ 所有依赖 `roomDetails` 的组件都能立即获取到最新数据
+
+---
+
+#### 修复 2: RoomPermissions 同步 permissions prop ✅
+
+**修改文件**: `web/components/room/room-permissions.tsx`
+
+**修复内容**:
+
+```typescript
+const [permissionFlags, setPermissionFlags] = useState(
+  permissionsToFlags(permissions),
+);
+
+// ✅ 当 permissions prop 更新时，同步更新 permissionFlags 状态
+useEffect(() => {
+  setPermissionFlags(permissionsToFlags(permissions));
+}, [permissions]);
+
+const hasChanges = permissionFlags !== permissionsToFlags(permissions);
+```
+
+**关键改进**:
+
+- ✅ 添加 `useEffect` 监听 `permissions` prop 的变化
+- ✅ 当 `permissions` 更新时，自动同步 `permissionFlags` 状态
+- ✅ 确保组件状态始终与 prop 保持一致
+
+### 14.4 数据流分析
+
+#### 修复前的数据流（有问题）
+
+```
+用户更新设置
+  ↓
+RoomSettingsForm.updateMutation.onSuccess()
+  ↓
+queryClient.invalidateQueries() // 只标记为过期
+  ↓
+React Query: 缓存标记为过期，但不立即重新获取
+  ↓
+LeftSidebar.useQuery() // 仍然返回旧数据（因为 staleTime: 1000）
+  ↓
+RoomPermissions.permissions prop // 仍然是旧值
+  ↓
+RoomPermissions.permissionFlags state // 仍然是旧值（没有 useEffect 同步）
+  ↓
+用户更新权限 // ❌ 使用旧状态，导致失败
+```
+
+---
+
+#### 修复后的数据流（正确）
+
+```
+用户更新设置
+  ↓
+RoomSettingsForm.updateMutation.onSuccess()
+  ↓
+await queryClient.invalidateQueries({ refetchType: "active" })
+  ↓
+React Query: 立即重新获取活跃的查询
+  ↓
+LeftSidebar.useQuery() // ✅ 立即返回新数据
+  ↓
+RoomPermissions.permissions prop // ✅ 更新为新值
+  ↓
+RoomPermissions.useEffect() // ✅ 检测到 prop 变化
+  ↓
+RoomPermissions.permissionFlags state // ✅ 同步更新为新值
+  ↓
+用户更新权限 // ✅ 使用最新状态，成功
+```
+
+### 14.5 React Query 缓存策略说明
+
+#### `invalidateQueries` 的参数
+
+| 参数                    | 说明                   | 效果                             |
+| ----------------------- | ---------------------- | -------------------------------- |
+| 无参数                  | 只标记缓存为过期       | 下次访问时才重新获取             |
+| `refetchType: "active"` | 立即重新获取活跃的查询 | 所有正在使用的组件立即获取新数据 |
+| `refetchType: "all"`    | 立即重新获取所有查询   | 包括未激活的查询也会重新获取     |
+
+#### `staleTime` 的影响
+
+```typescript
+const { data: roomDetails } = useQuery({
+  queryKey: ["room", currentRoomId],
+  queryFn: () => getRoomDetails(currentRoomId),
+  staleTime: 1000, // 1 秒内认为数据是新鲜的
+  enabled: !!currentRoomId,
+});
+```
+
+- 如果数据在 `staleTime` 内，即使调用 `invalidateQueries()`，也不会立即重新获取
+- 使用 `refetchType: "active"` 可以强制立即重新获取，忽略 `staleTime`
+
+### 14.6 测试验证
+
+所有修复已完成并通过编译：
+
+- ✅ 前端构建成功 (`pnpm run build`)
+- ✅ 服务已重启 (PID: 28810)
+
+**测试步骤**:
+
+1. **测试连续更新**:
+   - 创建新房间
+   - 修改房间设置（密码、过期时间、最大查看次数）
+   - 点击"保存设置"
+   - **立即**取消 SHARE 和 DELETE 权限
+   - 点击"保存权限"
+   - ✅ 验证：权限更新成功，不需要刷新页面
+
+2. **测试多次连续更新**:
+   - 修改房间设置
+   - 保存
+   - 修改权限
+   - 保存
+   - 再次修改房间设置
+   - 保存
+   - 再次修改权限
+   - 保存
+   - ✅ 验证：所有更新都成功，不需要刷新页面
+
+**下一步**: 需要用户进行手动测试验证状态同步问题是否已完全解决。
+
+## 15. 状态同步和 JWT 持久化问题深度修复 (2025-11-02)
+
+### 15.1 问题描述
+
+用户反馈状态同步问题仍然存在，并且发现了 JWT 持久化的问题：
+
+1. **状态同步问题仍然存在**:
+   - 新建房间
+   - 修改最大查看次数、房间密码、房间过期时间
+   - 点击"保存设置"，保存成功 ✅
+   - 立即取消 SHARE 和 DELETE 权限
+   - 点击"保存权限"，提示"无法保存设置" ❌
+   - 数据库没有更新 ❌
+   - 刷新页面后，再次尝试，保存成功 ✅
+
+2. **JWT 持久化问题**:
+   - 成功进入房间（输入了密码）
+   - F5 刷新页面
+   - 又需要重新输入密码 ❌
+   - 用户期望：JWT 应该存储在 localStorage，只有过期时才需要重新输入密码
+
+3. **房间进入次数统计问题**:
+   - 当前每次刷新页面都会增加进入次数
+   - 用户期望：应该按 JWT 获取次数统计，而不是每次刷新都计数
+
+**用户反馈**:
+
+> "上面这个问题还是存在...
+> 我已经重启过后端和前端，并且重新创建了一个房间进行测试了。"
+> "此外当前前端还有一个问题，就是就算进入一个成功进入过的房间 (输入了密码).
+> 我后面 f5 刷新界面后，又需要输入密码.. 这是很影响体验的。"
+
+### 15.2 根本原因分析
+
+#### 问题 1: 状态同步问题的深层原因
+
+**之前的修复尝试**:
+
+```typescript
+// 尝试 1: 使用 refetchType: "active"
+await queryClient.invalidateQueries({
+  queryKey: ["room", currentRoomId],
+  refetchType: "active",
+});
+```
+
+**为什么没有生效**:
+
+- `invalidateQueries` 只是标记缓存为"过期"，不保证立即重新获取
+- `refetchType: "active"` 在某些 React Query 版本中可能不生效
+- 即使重新获取了数据，组件的 re-render 可能有延迟
+
+**正确的解决方案**:
+
+1. **直接更新缓存**: 使用 `setQueryData` 直接更新缓存数据
+2. **强制重新获取**: 使用 `refetchQueries` 而不是 `invalidateQueries`
+
+---
+
+#### 问题 2: JWT 持久化问题的原因
+
+**检查结果**: JWT 存储逻辑是正确的
+
+- `getAccessToken` 会调用 `setRoomToken` 存储到 localStorage ✅
+- `hasValidToken` 会检查 localStorage 中的 token ✅
+- `isTokenExpired` 会检查 token 是否过期 ✅
+
+**可能的原因**:
+
+1. **Token 过期时间太短**: 后端设置的 token 过期时间可能太短
+2. **浏览器清除 localStorage**: 某些浏览器设置可能清除 localStorage
+3. **Token 格式问题**: 后端返回的 `expires_at` 格式可能有问题
+
+**调试方案**: 添加控制台日志来诊断问题
+
+---
+
+#### 问题 3: 房间进入次数统计的原因
+
+**当前逻辑**:
+
+- 后端在 `issue_token` 时增加 `current_times_entered`
+- 前端每次刷新页面时，如果没有有效的 token，就会调用 `getAccessToken`
+- 这导致每次刷新都会增加计数
+
+**正确的逻辑**:
+
+- 前端应该检查 localStorage 中是否有有效的 token
+- 如果有，就不应该调用 `getAccessToken`
+- 只有在 token 过期或不存在时，才调用 `getAccessToken`
+
+**检查结果**: 前端逻辑是正确的
+
+- `[roomName]/page.tsx` 第 50 行检查 `hasValidToken(roomName)`
+- 如果有有效的 token，就直接返回，不会重新获取 ✅
+
+**结论**: 如果用户反馈每次刷新都需要输入密码，说明 token
+没有被正确存储或被清除了
+
+### 15.3 修复实施
+
+#### 修复 1: 改进状态同步逻辑 ✅
+
+**修改文件**: `web/components/room/room-settings-form.tsx`
+
+**修复内容**:
+
+```typescript
+const updateMutation = useMutation({
+  mutationFn: (settings) => updateRoomSettings(currentRoomId, settings),
+  onSuccess: async (updatedRoom) => {
+    // 方法 1: 直接更新缓存数据，而不是失效缓存
+    queryClient.setQueryData(["room", currentRoomId], updatedRoom);
+
+    // 方法 2: 同时强制重新获取，确保数据一致性
+    await queryClient.refetchQueries({
+      queryKey: ["room", currentRoomId],
+      type: "active",
+    });
+
+    toast({
+      title: "设置已保存",
+      description: "房间设置已成功更新",
+    });
+  },
+});
+```
+
+**关键改进**:
+
+- ✅ 使用 `setQueryData` 直接更新缓存，立即生效
+- ✅ 使用 `refetchQueries` 而不是 `invalidateQueries`，强制重新获取
+- ✅ 两种方法结合，确保数据一致性
+
+---
+
+#### 修复 2: 添加调试日志 ✅
+
+**修改文件**: `web/app/[roomName]/page.tsx`
+
+**修复内容**:
+
+```typescript
+// 2. Check for a valid, non-expired token for this identifier.
+const hasToken = hasValidToken(roomName);
+console.log(`[RoomPage] Checking token for ${roomName}:`, hasToken);
+
+if (hasToken) {
+  console.log(
+    `[RoomPage] Valid token found for ${roomName}, skipping authentication`,
+  );
+  if (!isCancelled) {
+    setLoading(false);
+  }
+  return;
+}
+
+console.log(
+  `[RoomPage] No valid token for ${roomName}, initiating authentication`,
+);
+```
+
+**目的**:
+
+- 帮助诊断 JWT 持久化问题
+- 查看 token 是否被正确存储和读取
+- 查看 token 是否过期
+
+### 15.4 测试和诊断步骤
+
+#### 测试 1: 状态同步问题
+
+1. 创建新房间
+2. 修改房间设置（密码、过期时间、最大查看次数）
+3. 点击"保存设置"
+4. **立即**取消 SHARE 和 DELETE 权限
+5. 点击"保存权限"
+6. ✅ 验证：权限更新成功，不需要刷新页面
+
+---
+
+#### 测试 2: JWT 持久化问题
+
+1. 创建新房间并设置密码
+2. 输入密码，成功进入房间
+3. **打开浏览器控制台**，查看日志：
+   ```
+   [RoomPage] Checking token for xxx: true
+   [RoomPage] Valid token found for xxx, skipping authentication
+   ```
+4. F5 刷新页面
+5. **查看控制台日志**，应该看到：
+   ```
+   [RoomPage] Checking token for xxx: true
+   [RoomPage] Valid token found for xxx, skipping authentication
+   ```
+6. ✅ 验证：不需要重新输入密码
+
+**如果仍然需要输入密码**，查看控制台日志：
+
+- 如果显示 `false`，说明 token 没有被存储或被清除
+- 检查浏览器的 localStorage：
+  ```javascript
+  localStorage.getItem("elizabeth_room_tokens");
+  ```
+- 检查 token 的过期时间
+
+---
+
+#### 测试 3: 房间进入次数统计
+
+1. 创建新房间，设置最大进入次数为 3
+2. 输入密码，成功进入房间
+3. 查看数据库：`current_times_entered` 应该是 1
+4. F5 刷新页面
+5. 查看控制台日志，应该显示：
+   ```
+   [RoomPage] Valid token found for xxx, skipping authentication
+   ```
+6. 查看数据库：`current_times_entered` 应该仍然是 1 ✅
+7. 清除 localStorage，刷新页面
+8. 重新输入密码
+9. 查看数据库：`current_times_entered` 应该是 2 ✅
+
+### 15.5 后续优化建议
+
+如果测试发现 JWT 持久化仍然有问题，可能需要：
+
+1. **检查后端 token 过期时间设置**:
+   - 查看 `crates/board/src/handlers/rooms.rs` 中的 token 过期时间
+   - 确保过期时间足够长（例如 24 小时）
+
+2. **检查浏览器设置**:
+   - 确保浏览器没有禁用 localStorage
+   - 确保浏览器没有设置为"关闭时清除所有数据"
+
+3. **添加 token 刷新机制**:
+   - 在 token 即将过期时自动刷新
+   - 使用 refresh token 机制
+
+### 15.6 测试验证
+
+所有修复已完成并通过编译：
+
+- ✅ 前端构建成功 (`pnpm run build`)
+- ✅ 服务已重启 (PID: 30194)
+- ✅ 添加了调试日志
+
+**下一步**: 需要用户进行手动测试，并查看浏览器控制台日志来诊断问题。

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { getRoomDetails, updateRoomPermissions } from "@/api/roomService";
@@ -92,6 +92,11 @@ export function RoomPermissions({ permissions }: RoomPermissionsProps) {
     permissionsToFlags(permissions),
   );
 
+  // 当 permissions prop 更新时，同步更新 permissionFlags 状态
+  useEffect(() => {
+    setPermissionFlags(permissionsToFlags(permissions));
+  }, [permissions]);
+
   const hasChanges = permissionFlags !== permissionsToFlags(permissions);
 
   const updateMutation = useMutation({
@@ -101,47 +106,48 @@ export function RoomPermissions({ permissions }: RoomPermissionsProps) {
       const newIdentifier = updatedRoom.slug || updatedRoom.name;
       const oldIdentifier = currentRoomId;
 
-      try {
-        // Get new token and store it. This is crucial for the next page load.
-        await getAccessToken(newIdentifier);
+      // 权限更新成功，显示提示
+      toast({
+        title: "权限已更新",
+        description: "房间权限已成功更新",
+      });
 
-        if (newIdentifier !== oldIdentifier) {
-          // Clean up the old token.
+      // 清理旧的查询缓存
+      queryClient.invalidateQueries({ queryKey: ["room", oldIdentifier] });
+      queryClient.invalidateQueries({ queryKey: ["contents", oldIdentifier] });
+
+      // 如果 slug 发生变化，需要跳转到新的 URL
+      if (newIdentifier !== oldIdentifier) {
+        // 清理旧 token
+        clearRoomToken(oldIdentifier);
+
+        // 延迟跳转，让用户看到成功提示
+        setTimeout(() => {
+          // 跳转到新的房间 URL，会触发重新登录流程
+          window.location.href = `/${newIdentifier}`;
+        }, 1000);
+      } else {
+        // slug 没有变化，但权限可能降级了
+        // 需要清理当前 token，强制用户重新登录以获取新权限的 token
+        const oldPermissionValue = encodePermissions(permissions);
+        const newPermissionValue = encodePermissions(
+          parsePermissions(permissionFlags),
+        );
+
+        // 如果权限降级（新权限值小于旧权限值），需要重新登录
+        if (newPermissionValue < oldPermissionValue) {
           clearRoomToken(oldIdentifier);
 
-          // Force a full page reload to the new URL.
-          // This avoids issues with Next.js router state and ensures a clean load.
-          window.location.href = `/${newIdentifier}`;
-        } else {
-          // If slug hasn't changed, just invalidate queries to be safe
-          queryClient.invalidateQueries({ queryKey: ["room", oldIdentifier] });
-          queryClient.invalidateQueries({
-            queryKey: ["contents", oldIdentifier],
-          });
-          toast({
-            title: "权限已更新",
-            description: "房间权限已成功更新",
-          });
-        }
-      } catch (error: any) {
-        console.error("Failed to update permissions and navigate:", error);
+          // 延迟跳转，让用户看到成功提示
+          setTimeout(() => {
+            toast({
+              title: "需要重新登录",
+              description: "权限已降级，请重新输入密码登录",
+            });
 
-        // 检查是否是房间过期或未授权错误
-        if (
-          error.message?.includes("Unauthorized") ||
-          error.message?.includes("401")
-        ) {
-          toast({
-            title: "房间可能已过期",
-            description: "权限已更新，但房间可能已过期。请刷新页面重新进入。",
-            variant: "destructive",
-          });
-        } else {
-          toast({
-            title: "更新失败",
-            description: "无法保存权限并导航，请手动刷新页面。",
-            variant: "destructive",
-          });
+            // 刷新页面，触发重新登录流程
+            window.location.reload();
+          }, 1500);
         }
       }
     },

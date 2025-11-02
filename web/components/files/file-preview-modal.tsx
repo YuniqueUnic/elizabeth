@@ -21,6 +21,7 @@ import { formatFileSize } from "@/lib/utils/format";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/lib/store";
 import { downloadFile } from "@/api/fileService";
+import { FileContentPreview } from "./file-content-preview";
 
 interface FilePreviewModalProps {
   file: FileItem | null;
@@ -44,6 +45,11 @@ export function FilePreviewModal(
   const isVideo = file.type === "video" ||
     file.name.match(/\.(mp4|webm|ogg)$/i);
   const isPdf = file.name.match(/\.pdf$/i);
+
+  // Check if file is a text-based file that can be previewed
+  const isTextFile = file.name.match(
+    /\.(md|markdown|txt|log|json|xml|html|css|js|jsx|ts|tsx|py|java|c|cpp|cs|go|rs|rb|php|swift|kt|scala|sh|bash|yml|yaml|toml|sql|csv|ini|conf|cfg|env)$/i,
+  );
 
   const handleDownload = async () => {
     try {
@@ -208,7 +214,16 @@ export function FilePreviewModal(
             </div>
           )}
 
-          {!isImage && !isVideo && !isPdf && !isLink && (
+          {/* Text file preview (Markdown, code, plain text) */}
+          {isTextFile && file.url && (
+            <FileContentPreview
+              fileUrl={file.url}
+              fileName={file.name}
+              mimeType={file.mimeType}
+            />
+          )}
+
+          {!isImage && !isVideo && !isPdf && !isLink && !isTextFile && (
             <div className="flex flex-col items-center justify-center p-8 text-muted-foreground">
               <p>无法预览此文件类型</p>
               <p className="text-sm mt-2">请下载文件以查看内容</p>
