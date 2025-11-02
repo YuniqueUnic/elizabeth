@@ -179,6 +179,97 @@ clean-all: clean
     echo "✅ 完全清理完成"
 
 
+# === 🐳 Docker 部署任务 ===
+
+# 🚀 一键部署 Elizabeth (Docker)
+docker-deploy:
+    @echo "🚀 开始部署 Elizabeth..."
+    ./scripts/deploy.sh
+
+# 🏗️ 构建 Docker 镜像
+docker-build:
+    @echo "🏗️ 构建 Docker 镜像..."
+    docker-compose build --no-cache
+
+# ▶️ 启动 Docker 服务
+docker-up:
+    @echo "▶️ 启动 Docker 服务..."
+    docker-compose up -d
+
+# ⏹️ 停止 Docker 服务
+docker-down:
+    @echo "⏹️ 停止 Docker 服务..."
+    docker-compose down
+
+# 🔄 重启 Docker 服务
+docker-restart:
+    @echo "🔄 重启 Docker 服务..."
+    docker-compose restart
+
+# 📊 查看 Docker 服务状态
+docker-status:
+    @echo "📊 Docker 服务状态:"
+    docker-compose ps
+
+# 📜 查看 Docker 日志
+docker-logs service="":
+    #!/usr/bin/env bash
+    if [ -z "{{service}}" ]; then
+        echo "📜 查看所有服务日志..."
+        docker-compose logs -f
+    else
+        echo "📜 查看 {{service}} 服务日志..."
+        docker-compose logs -f {{service}}
+    fi
+
+# 💾 备份 Docker 数据
+docker-backup:
+    @echo "💾 备份 Docker 数据..."
+    ./scripts/backup.sh
+
+# 🔙 恢复 Docker 数据
+docker-restore backup_name:
+    @echo "🔙 恢复 Docker 数据: {{backup_name}}"
+    ./scripts/restore.sh {{backup_name}}
+
+# 🧹 清理 Docker 资源
+docker-clean:
+    @echo "🧹 清理 Docker 资源..."
+    docker-compose down -v
+    docker system prune -f
+
+# 🔍 进入后端容器
+docker-shell-backend:
+    @echo "🔍 进入后端容器..."
+    docker-compose exec backend sh
+
+# 🔍 进入前端容器
+docker-shell-frontend:
+    @echo "🔍 进入前端容器..."
+    docker-compose exec frontend sh
+
+# 📦 初始化 Docker 环境
+docker-init:
+    #!/usr/bin/env bash
+    if [ ! -f .env ]; then
+        echo "📦 创建 .env 文件..."
+        cp .env.docker .env
+        echo "⚠️  请编辑 .env 文件并设置 JWT_SECRET!"
+        echo "💡 生成密钥: openssl rand -base64 48"
+    else
+        echo "✅ .env 文件已存在"
+    fi
+
+# 🔧 验证 Docker 配置
+docker-validate:
+    @echo "🔧 验证 Docker 配置..."
+    docker-compose config
+
+# 📈 查看 Docker 资源使用
+docker-stats:
+    @echo "📈 Docker 资源使用情况:"
+    docker stats --no-stream
+
 # === 🔤 命令别名 ===
 alias f := fmt            # 格式化代码
 alias c := check          # 编译检查
@@ -188,3 +279,11 @@ alias m := migrate        # 执行数据库迁移
 alias d := dev            # 开发完整流程
 alias dq := dev-quick     # 快速检查
 alias i := info           # 显示项目信息
+
+# Docker 别名
+alias dd := docker-deploy         # 部署
+alias db := docker-build          # 构建
+alias du := docker-up             # 启动
+alias ds := docker-status         # 状态
+alias dl := docker-logs           # 日志
+alias dc := docker-clean          # 清理

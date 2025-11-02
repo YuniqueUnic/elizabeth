@@ -1,0 +1,82 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+docs/
+docs-prompt/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Rust
+target/
+**/*.rs.bk
+Cargo.lock
+
+# Database (will be created in container)
+*.db
+*.db-shm
+*.db-wal
+app.db*
+
+# Logs
+*.log
+*.log.*
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+dist/
+build/
+
+# Storage (will be created in container)
+storage/
+
+# Chrome data (not needed)
+chromedata/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Service management
+manage_services.sh
+backend.pid
+frontend.pid
+
+# Development tools
+bacon.toml
+rust-toolchain.toml
+rustfmt.toml
+typos.toml
+justfile
+context.yaml
+CLAUDE.md
+CHANGELOG.md
+
+# Frontend specific
+web/node_modules/
+web/.next/
+web/out/
+web/.turbo/
+web/tsconfig.tsbuildinfo
+web/pnpm-lock.yaml
+web/package-lock.json
+web/yarn.lock
+web/e2e/
+web/playwright.config.ts
