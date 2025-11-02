@@ -159,13 +159,14 @@ export function RoomSettingsForm({ roomDetails }: RoomSettingsFormProps) {
     }
 
     // ✅ FIX: Detect if password was changed
-    const newPassword = password.length > 0 ? password : null;
-    const oldPassword = roomDetails.password || null;
+    // Send empty string "" to clear password, not null
+    const newPassword = password.trim();
+    const oldPassword = roomDetails.password || "";
     const passwordChanged = newPassword !== oldPassword;
 
     updateMutation.mutate({
       expiresAt: expiresAt ?? undefined,
-      password: newPassword,
+      password: newPassword, // Send empty string to clear password
       maxViews,
       passwordChanged,
     });

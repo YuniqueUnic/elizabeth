@@ -22,6 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/lib/store";
 import { downloadFile } from "@/api/fileService";
 import { FileContentPreview } from "./file-content-preview";
+import { API_BASE_URL } from "@/lib/config";
 
 interface FilePreviewModalProps {
   file: FileItem | null;
@@ -110,13 +111,23 @@ export function FilePreviewModal(
 
     // If it's a relative URL, it needs authentication and full URL
     if (url.startsWith("/")) {
-      const token = localStorage.getItem(`elizabeth_token_${currentRoomId}`);
-      if (token) {
-        const tokenData = JSON.parse(token);
-        // Build full URL: http://localhost:4092/api/v1 + /rooms/... + ?token=...
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL ||
-          "http://localhost:4092/api/v1";
-        return `${baseUrl}${url}?token=${tokenData.token}`;
+      const tokenKey = `elizabeth_token_${currentRoomId}`;
+      const tokenStr = localStorage.getItem(tokenKey);
+
+      if (tokenStr) {
+        try {
+          const tokenData = JSON.parse(tokenStr);
+          // Use API_BASE_URL from config instead of process.env
+          const fullUrl = `${API_BASE_URL}${url}?token=${tokenData.token}`;
+          console.log("Generated authenticated URL:", fullUrl);
+          return fullUrl;
+        } catch (error) {
+          console.error("Failed to parse token:", error);
+          return undefined;
+        }
+      } else {
+        console.warn("No token found for room:", currentRoomId);
+        return undefined;
       }
     }
     return url;
@@ -125,16 +136,14 @@ export function FilePreviewModal(
   const imageUrl = getAuthenticatedUrl(file.url);
   const videoUrl = getAuthenticatedUrl(file.url);
 
-  console.log("Image URL:", imageUrl, "Original:", file.url);
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className={`${
           isFullscreen
-            ? "max-w-[98vw] w-[98vw] max-h-[98vh] h-[98vh]"
+            ? "!max-w-[98vw] !w-[98vw] !max-h-[98vh] !h-[98vh]"
             : "max-w-4xl max-h-[90vh]"
-        } flex flex-col transition-all`}
+        } flex flex-col transition-all duration-300`}
       >
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
@@ -166,6 +175,15 @@ export function FilePreviewModal(
             </Button>
           )}
           <div className="flex-1" />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsFullscreen(!isFullscreen)}
+            title={isFullscreen ? "退出全屏" : "全屏查看"}
+          >
+            <Maximize2 className="h-4 w-4 mr-2" />
+            {isFullscreen ? "退出全屏" : "全屏"}
+          </Button>
           <Button variant="outline" size="sm" onClick={handleDelete}>
             <Trash2 className="h-4 w-4 mr-2" />
             删除
@@ -180,11 +198,20 @@ export function FilePreviewModal(
                 src={imageUrl}
                 alt={file.name}
                 className="max-w-full max-h-[60vh] object-contain rounded-lg"
+                onLoad={() => {
+                  console.log("Image loaded successfully:", imageUrl);
+                }}
                 onError={(e) => {
-                  console.error("Image load error:", e);
+                  console.error("Image load error for URL:", imageUrl);
+                  console.error("Error event:", e);
                   e.currentTarget.src = "/placeholder.svg";
                 }}
               />
+            </div>
+          )}
+          {isImage && !imageUrl && (
+            <div className="flex items-center justify-center p-4 text-muted-foreground">
+              <p>无法生成图片 URL（缺少 token 或 URL）</p>
             </div>
           )}
 
