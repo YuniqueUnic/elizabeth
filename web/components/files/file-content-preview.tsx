@@ -8,11 +8,14 @@ import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
+import { api } from "@/lib/utils/api";
+import { useAppStore } from "@/lib/store";
 
 interface FileContentPreviewProps {
   fileUrl: string;
   fileName: string;
   mimeType?: string;
+  roomName: string; // ✅ ADD: Need roomName to get token
 }
 
 // Detect file type from extension
@@ -24,15 +27,57 @@ function getFileType(fileName: string): string {
 
   // Code files
   const codeExtensions = [
-    "js", "jsx", "ts", "tsx", "py", "java", "c", "cpp", "cs", "go", "rs", "rb",
-    "php", "swift", "kt", "scala", "sh", "bash", "zsh", "fish", "ps1",
-    "html", "css", "scss", "sass", "less", "xml", "json", "yaml", "yml", "toml",
-    "sql", "graphql", "proto", "dockerfile", "makefile", "cmake",
+    "js",
+    "jsx",
+    "ts",
+    "tsx",
+    "py",
+    "java",
+    "c",
+    "cpp",
+    "cs",
+    "go",
+    "rs",
+    "rb",
+    "php",
+    "swift",
+    "kt",
+    "scala",
+    "sh",
+    "bash",
+    "zsh",
+    "fish",
+    "ps1",
+    "html",
+    "css",
+    "scss",
+    "sass",
+    "less",
+    "xml",
+    "json",
+    "yaml",
+    "yml",
+    "toml",
+    "sql",
+    "graphql",
+    "proto",
+    "dockerfile",
+    "makefile",
+    "cmake",
   ];
   if (codeExtensions.includes(ext)) return "code";
 
   // Plain text files
-  const textExtensions = ["txt", "log", "csv", "tsv", "ini", "conf", "cfg", "env"];
+  const textExtensions = [
+    "txt",
+    "log",
+    "csv",
+    "tsv",
+    "ini",
+    "conf",
+    "cfg",
+    "env",
+  ];
   if (textExtensions.includes(ext)) return "text";
 
   return "unknown";
@@ -85,7 +130,9 @@ function getLanguage(fileName: string): string {
   return languageMap[ext] || "text";
 }
 
-export function FileContentPreview({ fileUrl, fileName, mimeType }: FileContentPreviewProps) {
+export function FileContentPreview(
+  { fileUrl, fileName, mimeType, roomName }: FileContentPreviewProps,
+) {
   const [content, setContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -99,7 +146,11 @@ export function FileContentPreview({ fileUrl, fileName, mimeType }: FileContentP
         setLoading(true);
         setError(null);
 
-        const response = await fetch(fileUrl);
+        // ✅ FIX: Use API client to automatically add token
+        // The fileUrl is a relative path like /api/v1/rooms/{roomName}/contents/{id}
+        // We need to fetch it with authentication
+        const response = await api.getRaw(fileUrl);
+
         if (!response.ok) {
           throw new Error(`Failed to fetch file: ${response.statusText}`);
         }
@@ -108,7 +159,9 @@ export function FileContentPreview({ fileUrl, fileName, mimeType }: FileContentP
         setContent(text);
       } catch (err) {
         console.error("Failed to load file content:", err);
-        setError(err instanceof Error ? err.message : "Failed to load file content");
+        setError(
+          err instanceof Error ? err.message : "Failed to load file content",
+        );
       } finally {
         setLoading(false);
       }
@@ -162,22 +215,24 @@ export function FileContentPreview({ fileUrl, fileName, mimeType }: FileContentP
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{
-            code({ node, inline, className, children, ...props }) {
+            code({ className, children, ...props }) {
               const match = /language-(\w+)/.exec(className || "");
-              return !inline && match ? (
-                <SyntaxHighlighter
-                  style={vscDarkPlus}
-                  language={match[1]}
-                  PreTag="div"
-                  {...props}
-                >
-                  {String(children).replace(/\n$/, "")}
-                </SyntaxHighlighter>
-              ) : (
-                <code className={className} {...props}>
-                  {children}
-                </code>
-              );
+              const isInline = !match;
+              return !isInline
+                ? (
+                  <SyntaxHighlighter
+                    style={vscDarkPlus as any}
+                    language={match[1]}
+                    PreTag="div"
+                  >
+                    {String(children).replace(/\n$/, "")}
+                  </SyntaxHighlighter>
+                )
+                : (
+                  <code className={className} {...props}>
+                    {children}
+                  </code>
+                );
             },
           }}
         >

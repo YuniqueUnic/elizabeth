@@ -418,6 +418,51 @@ export const api = {
   },
 
   /**
+   * Make a GET request and return raw Response object
+   * Useful for fetching files or when you need to handle the response manually
+   */
+  getRaw: async (
+    path: string,
+    params?: Record<string, string | number | boolean>,
+    options?: RequestOptions,
+  ): Promise<Response> => {
+    const {
+      token,
+      skipTokenInjection = false,
+      ...fetchOptions
+    } = options || {};
+
+    let url = buildURL(path, params);
+
+    // Extract room name from path for token refresh logic
+    const roomMatch = path.match(/\/rooms\/([^\/]+)/);
+    const roomName = roomMatch ? decodeURIComponent(roomMatch[1]) : null;
+
+    // Inject token if not skipped
+    if (!skipTokenInjection && token) {
+      url = injectToken(url, token);
+    } else if (!skipTokenInjection && roomName && !token) {
+      // Try to get token from storage for this room
+      url = injectToken(url, undefined, roomName);
+    }
+
+    const response = await fetch(url, {
+      ...fetchOptions,
+      method: "GET",
+    });
+
+    if (!response.ok) {
+      throw new APIError(
+        `Request failed: ${response.statusText}`,
+        response.status,
+        response,
+      );
+    }
+
+    return response;
+  },
+
+  /**
    * Make a POST request
    */
   post: <T = any>(

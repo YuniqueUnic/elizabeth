@@ -263,7 +263,7 @@ export function backendRoomToRoomDetails(room: BackendRoom): RoomDetails {
     settings: {
       expiresAt: room.expire_at,
       passwordProtected: room.password !== null && room.password !== "",
-      password: room.password,
+      password: room.password ?? undefined,
       maxViews: room.max_times_entered,
     },
     permissions: parsePermissions(room.permission),
@@ -297,6 +297,7 @@ export function backendContentToMessage(content: BackendRoomContent): Message {
  */
 export function backendContentToFileItem(
   content: BackendRoomContent,
+  roomName?: string,
 ): FileItem {
   // Be defensive: some responses may not include content_type immediately
   const rawType = (content as any).content_type ?? (content as any).contentType;
@@ -308,13 +309,26 @@ export function backendContentToFileItem(
     [ContentType.Url]: "link",
   };
 
+  // ✅ FIX: Generate download URL for file content
+  // For file/image content, we need to construct the download URL
+  // For URL content, use the stored URL directly
+  let fileUrl = content.url;
+  if (
+    !fileUrl && roomName &&
+    (contentType === ContentType.File || contentType === ContentType.Image)
+  ) {
+    // Construct download URL: /api/v1/rooms/{roomName}/contents/{contentId}
+    // The token will be added by the API client
+    fileUrl = `/api/v1/rooms/${roomName}/contents/${content.id}`;
+  }
+
   return {
     id: String(content.id),
     name: content.file_name || "Unnamed",
     thumbnailUrl: null, // Backend doesn't provide thumbnails
     size: content.size || undefined,
     type: typeMap[contentType],
-    url: content.url || undefined,
+    url: fileUrl ?? undefined,
     mimeType: content.mime_type || undefined,
     createdAt: content.created_at,
     uploadedAt: content.created_at,
