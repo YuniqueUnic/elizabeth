@@ -39,6 +39,12 @@ export interface PrepareUploadResponse {
   }>;
 }
 
+export interface UploadUrlRequest {
+  url: string;
+  name: string;
+  description?: string;
+}
+
 // ============================================================================
 // File Functions
 // ============================================================================
@@ -348,11 +354,56 @@ export async function downloadFilesBatch(
   }
 }
 
+/**
+ * Upload a URL as content to a room
+ *
+ * @param roomName - The name of the room
+ * @param data - URL upload data (url, name, description)
+ * @param token - Optional authentication token
+ * @returns Promise resolving to the created content
+ */
+export async function uploadUrl(
+  roomName: string,
+  data: UploadUrlRequest,
+  token?: string,
+): Promise<FileItem> {
+  const authToken = await ensureToken(roomName, token);
+
+  // Step 1: Create a minimal text content as placeholder
+  // We'll create a tiny text file to get a content_id
+  const placeholderText = `URL: ${data.url}`;
+  const placeholderBlob = new Blob([placeholderText], { type: "text/plain" });
+  const placeholderFile = new File([placeholderBlob], data.name, {
+    type: "text/plain",
+  });
+
+  // Step 2: Upload the placeholder file
+  const uploadedContent = await uploadFile(
+    roomName,
+    placeholderFile,
+    authToken,
+  );
+
+  // Step 3: Update the content to URL type
+  const updateResponse = await api.put<{ updated: BackendRoomContent }>(
+    `${API_ENDPOINTS.content.byId(roomName, uploadedContent.id)}`,
+    {
+      url: data.url,
+      mime_type: data.description || "text/html",
+    },
+    { token: authToken },
+  );
+
+  // Convert and return
+  return convertFile(updateResponse.updated, roomName);
+}
+
 // Legacy compatibility exports (for existing components)
 // getFilesList is already exported above
 export default {
   getFilesList,
   uploadFile,
+  uploadUrl,
   deleteFile,
   deleteFiles,
   downloadFile,

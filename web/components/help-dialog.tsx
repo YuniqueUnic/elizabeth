@@ -110,8 +110,7 @@ export function HelpDialog({ children }: { children: React.ReactNode }) {
                                 为房间设置密码保护。启用后，访问房间时需要输入密码。
                             </HelpItem>
                             <HelpItem title="最大查看次数" icon={Eye}>
-                                设置房间的最大访问次数。达到次数后，房间内容会被清空并重置。范围：1-1000
-                                次。
+                                设置房间的最大访问次数。达到次数后，房间内容会被清空并重置。
                             </HelpItem>
                             <HelpItem title="房间权限" icon={KeyRound}>
                                 设置当前用户对房间的权限：

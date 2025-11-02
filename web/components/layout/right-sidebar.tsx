@@ -7,13 +7,25 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { FileListView } from "@/components/files/file-list-view";
 import { FileUploadZone } from "@/components/files/file-upload-zone";
 import { FilePreviewModal } from "@/components/files/file-preview-modal";
-import { CheckSquare, Download, Repeat, Square, Upload } from "lucide-react";
+import {
+  type UrlUploadData,
+  UrlUploadDialog,
+} from "@/components/files/url-upload-dialog";
+import {
+  CheckSquare,
+  Download,
+  Link as LinkIcon,
+  Repeat,
+  Square,
+  Upload,
+} from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   deleteFile,
   downloadFilesBatch,
   getFilesList,
   uploadFile,
+  uploadUrl,
 } from "@/api/fileService";
 import { useAppStore } from "@/lib/store";
 import { useToast } from "@/hooks/use-toast";
@@ -41,6 +53,7 @@ export function RightSidebar() {
 
   const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [urlDialogOpen, setUrlDialogOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: files = [], isLoading } = useQuery({
@@ -88,6 +101,24 @@ export function RightSidebar() {
     },
   });
 
+  const uploadUrlMutation = useMutation({
+    mutationFn: (data: UrlUploadData) => uploadUrl(roomName, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["files", roomName] });
+      queryClient.invalidateQueries({ queryKey: ["room", currentRoomId] });
+      handleMutationSuccess(toast, {
+        title: "链接已添加",
+        description: "URL 已成功添加到房间",
+      });
+      setUrlDialogOpen(false);
+    },
+    onError: (error) => {
+      handleMutationError(error, toast, {
+        description: "添加链接失败，请重试",
+      });
+    },
+  });
+
   const handleUpload = async (acceptedFiles: File[]) => {
     for (const file of acceptedFiles) {
       await uploadMutation.mutateAsync(file);
@@ -128,15 +159,26 @@ export function RightSidebar() {
         {/* Header */}
         <div className="flex h-12 items-center justify-between border-b px-4">
           <h2 className="font-semibold">文件管理</h2>
-          <Button
-            variant="ghost"
-            size="icon"
-            title="上传文件"
-            disabled={uploadMutation.isPending || !can.edit}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <Upload className="h-4 w-4" />
-          </Button>
+          <div className="flex gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              title="添加链接"
+              disabled={uploadUrlMutation.isPending || !can.edit}
+              onClick={() => setUrlDialogOpen(true)}
+            >
+              <LinkIcon className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              title="上传文件"
+              disabled={uploadMutation.isPending || !can.edit}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload className="h-4 w-4" />
+            </Button>
+          </div>
           {/* 隐藏的文件输入元素 */}
           <input
             ref={fileInputRef}
@@ -188,7 +230,7 @@ export function RightSidebar() {
 
         {/* Content */}
         <ScrollArea className="flex-1 h-0">
-          <div className="p-4 space-y-4">
+          <div className="p-2 space-y-4">
             {isLoading
               ? (
                 <div className="text-center text-sm text-muted-foreground">
@@ -244,6 +286,13 @@ export function RightSidebar() {
         open={previewOpen}
         onOpenChange={setPreviewOpen}
         onDelete={handleDelete}
+      />
+
+      <UrlUploadDialog
+        open={urlDialogOpen}
+        onOpenChange={setUrlDialogOpen}
+        onSubmit={(data) => uploadUrlMutation.mutate(data)}
+        isUploading={uploadUrlMutation.isPending}
       />
     </>
   );

@@ -8,22 +8,31 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import {
-  Copy,
-  Download,
-  ExternalLink,
-  Maximize2,
-  Trash2,
-  X,
-} from "lucide-react";
+import { Copy, Download, ExternalLink, Maximize2, Trash2 } from "lucide-react";
 import type { FileItem } from "@/lib/types";
 import { formatFileSize } from "@/lib/utils/format";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/lib/store";
 import { downloadFile } from "@/api/fileService";
 import { FileContentPreview } from "./file-content-preview";
+import dynamic from "next/dynamic";
+import { ImageViewer } from "./image-viewer";
+import { UrlViewer } from "./url-viewer";
 import { API_BASE_URL } from "@/lib/config";
 import { getRoomTokenString } from "@/lib/utils/api";
+
+// Dynamic import for PDFViewer to avoid SSR issues with DOMMatrix
+const PDFViewer = dynamic(
+  () => import("./pdf-viewer").then((mod) => mod.PDFViewer),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center h-full">
+        <p className="text-muted-foreground">加载 PDF 查看器...</p>
+      </div>
+    ),
+  },
+);
 
 interface FilePreviewModalProps {
   file: FileItem | null;
@@ -37,7 +46,6 @@ export function FilePreviewModal(
 ) {
   const { toast } = useToast();
   const currentRoomId = useAppStore((state) => state.currentRoomId);
-  const [showIframe, setShowIframe] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   if (!file) return null;
@@ -130,6 +138,7 @@ export function FilePreviewModal(
 
   const imageUrl = getAuthenticatedUrl(file.url);
   const videoUrl = getAuthenticatedUrl(file.url);
+  const pdfUrl = getAuthenticatedUrl(file.url);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -140,137 +149,105 @@ export function FilePreviewModal(
             : "max-w-4xl max-h-[90vh]"
         } flex flex-col transition-all duration-300`}
       >
-        <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
-            <div className="flex-1 truncate pr-4">
-              <div className="file-name" title={file.name}>
-                {file.name}
+        <DialogHeader className="space-y-2 pb-2">
+          <DialogTitle asChild>
+            <div className="space-y-2">
+              {/* File Info Row - Compact */}
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="truncate font-semibold" title={file.name}>
+                  {file.name}
+                </div>
+                <div className="text-sm font-normal text-muted-foreground whitespace-nowrap">
+                  {file.size ? formatFileSize(file.size) : ""}
+                </div>
               </div>
-              <div className="text-sm font-normal text-muted-foreground">
-                {file.size ? formatFileSize(file.size) : ""}
+
+              {/* Toolbar Row */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleDelete}
+                  className="h-8"
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  <span className="hidden sm:inline">删除</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDownload}
+                  className="h-8"
+                >
+                  <Download className="h-4 w-4 mr-1" />
+                  <span className="hidden sm:inline">下载</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCopyLink}
+                  className="h-8"
+                >
+                  <Copy className="h-4 w-4 mr-1" />
+                  <span className="hidden sm:inline">复制链接</span>
+                </Button>
+                <div className="flex-1" />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsFullscreen(!isFullscreen)}
+                  title={isFullscreen ? "退出全屏" : "全屏查看"}
+                  className="h-8"
+                >
+                  <Maximize2 className="h-4 w-4 mr-1" />
+                  <span className="hidden sm:inline">
+                    {isFullscreen ? "退出全屏" : "全屏"}
+                  </span>
+                </Button>
               </div>
             </div>
           </DialogTitle>
         </DialogHeader>
 
-        {/* Toolbar */}
-        <div className="flex items-center gap-2 border-b pb-3">
-          <Button variant="outline" size="sm" onClick={handleDownload}>
-            <Download className="h-4 w-4 mr-2" />
-            下载
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleCopyLink}>
-            <Copy className="h-4 w-4 mr-2" />
-            复制链接
-          </Button>
-          {isLink && (
-            <Button variant="outline" size="sm" onClick={handleOpenInNewTab}>
-              <ExternalLink className="h-4 w-4 mr-2" />
-              新标签页打开
-            </Button>
-          )}
-          <div className="flex-1" />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsFullscreen(!isFullscreen)}
-            title={isFullscreen ? "退出全屏" : "全屏查看"}
-          >
-            <Maximize2 className="h-4 w-4 mr-2" />
-            {isFullscreen ? "退出全屏" : "全屏"}
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleDelete}>
-            <Trash2 className="h-4 w-4 mr-2" />
-            删除
-          </Button>
-        </div>
-
         {/* Preview Content */}
         <div className="flex-1 overflow-auto">
+          {/* Image Preview with Enhanced Viewer */}
           {isImage && imageUrl && (
-            <div className="flex items-center justify-center p-4">
-              <img
-                src={imageUrl}
-                alt={file.name}
-                className="max-w-full max-h-[75vh] object-contain rounded-lg"
-                onLoad={() => {
-                  console.log("Image loaded successfully:", imageUrl);
-                }}
-                onError={(e) => {
-                  console.error("Image load error for URL:", imageUrl);
-                  console.error("Error event:", e);
-                  e.currentTarget.src = "/placeholder.svg";
-                }}
-              />
-            </div>
+            <ImageViewer
+              src={imageUrl}
+              alt={file.name}
+              className="max-w-full max-h-full object-contain"
+            />
           )}
           {isImage && !imageUrl && (
-            <div className="flex items-center justify-center p-4 text-muted-foreground">
+            <div className="flex items-center justify-center h-full p-4 text-muted-foreground">
               <p>无法生成图片 URL（缺少 token 或 URL）</p>
             </div>
           )}
 
+          {/* Video Preview */}
           {isVideo && videoUrl && (
-            <div className="flex items-center justify-center p-4">
+            <div className="flex items-center justify-center h-full p-4">
               <video
                 src={videoUrl}
                 controls
-                className="max-w-full max-h-[75vh] rounded-lg"
+                className="max-w-full max-h-full rounded-lg"
               >
                 您的浏览器不支持视频播放
               </video>
             </div>
           )}
 
-          {isPdf && (
-            <div className="h-[75vh]">
-              <iframe
-                src={file.url}
-                className="w-full h-full border-0 rounded-lg"
-                title={file.name}
-              />
-            </div>
-          )}
+          {/* PDF Preview with Enhanced Viewer */}
+          {isPdf && pdfUrl && <PDFViewer url={pdfUrl} />}
 
-          {isLink && !showIframe && (
-            <div className="flex flex-col items-center justify-center p-8 space-y-4">
-              <ExternalLink className="h-16 w-16 text-muted-foreground" />
-              <div className="text-center">
-                <p className="text-lg font-medium mb-2">外部链接</p>
-                <p className="text-sm text-muted-foreground mb-4 break-all max-w-md">
-                  {file.url}
-                </p>
-                <div className="flex gap-2">
-                  <Button onClick={() => setShowIframe(true)}>
-                    <Maximize2 className="h-4 w-4 mr-2" />
-                    在此处加载
-                  </Button>
-                  <Button variant="outline" onClick={handleOpenInNewTab}>
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    新标签页打开
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {isLink && showIframe && (
-            <div className="relative h-[75vh]">
-              <Button
-                variant="outline"
-                size="sm"
-                className="absolute top-2 right-2 z-10 bg-transparent"
-                onClick={() => setShowIframe(false)}
-              >
-                <X className="h-4 w-4 mr-2" />
-                关闭预览
-              </Button>
-              <iframe
-                src={file.url}
-                className="w-full h-full border-0 rounded-lg"
-                title={file.name}
-              />
-            </div>
+          {/* URL/Link Preview with Enhanced Viewer */}
+          {isLink && file.url && (
+            <UrlViewer
+              url={file.url}
+              name={file.name}
+              description={file.mimeType}
+            />
           )}
 
           {/* Text file preview (Markdown, code, plain text) */}
