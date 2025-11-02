@@ -3,13 +3,13 @@ app:
     addr: 0.0.0.0
     port: 4092
   logging:
-    level: debug
+    level: info
   database:
-    url: sqlite:app.db
+    url: sqlite:/app/data/app.db
     max_connections: 20
     min_connections: 5
   storage:
-    root: storage/rooms
+    root: /app/storage/rooms
   jwt:
     secret: elizabethelizabethelizabethelizabethelizabeth # pragma: allowlist secret
     ttl_seconds: 7200

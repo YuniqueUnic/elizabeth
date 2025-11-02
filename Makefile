@@ -53,7 +53,20 @@ docker-deploy:
 
 docker-build:
 	@echo "🏗️ Building Docker images..."
-	@docker-compose build --no-cache
+	@docker-compose build
+
+# Optimized build commands for development
+docker-build-binary:
+	@echo "🔨 Building Rust binary (cached)..."
+	@docker build --target binary-builder -t elizabeth-backend-binary:latest .
+
+docker-build-backend:
+	@echo "🐳 Building backend container with cached binary..."
+	@docker build --target runtime -t elizabeth-backend:latest .
+
+docker-rebuild-binary:
+	@echo "🔄 Force rebuilding Rust binary (no cache)..."
+	@docker build --target binary-builder --no-cache -t elizabeth-backend-binary:latest .
 
 docker-up:
 	@echo "▶️ Starting Docker services..."

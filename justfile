@@ -189,7 +189,35 @@ docker-deploy:
 # 🏗️ 构建 Docker 镜像
 docker-build:
     @echo "🏗️ 构建 Docker 镜像..."
-    docker-compose build --no-cache
+    docker-compose build
+
+# 🔨 构建优化的 Rust 二进制（缓存依赖）
+docker-build-binary:
+    @echo "🔨 构建优化的 Rust 二进制（缓存依赖）..."
+    docker build --target binary-builder -f Dockerfile.backend -t elizabeth-backend-binary:latest .
+
+# 🐳 构建后端容器（使用缓存的二进制）
+docker-build-backend:
+    @echo "🐳 构建后端容器（使用缓存的二进制）..."
+    docker build --target runtime -f Dockerfile.backend -t elizabeth-backend:latest .
+
+# 🔄 强制重新构建 Rust 二进制（无缓存）
+docker-rebuild-binary:
+    @echo "🔄 强制重新构建 Rust 二进制（无缓存）..."
+    docker build --target binary-builder -f Dockerfile.backend --no-cache -t elizabeth-backend-binary:latest .
+
+# ⚡ 快速开发构建（仅二进制）
+docker-dev-build: docker-build-binary docker-build-backend
+
+# 🚀 完整构建和部署
+docker-deploy-optimized: docker-build-binary docker-build-backend docker-up
+    @echo "🚀 优化部署完成"
+
+# 🎯 开发快速启动（代码变更后使用）
+docker-dev-restart: docker-rebuild-binary
+    @echo "🔄 重新构建 Rust 二进制完成..."
+    docker-compose restart backend
+    @echo "🎯 开发快速重启完成"
 
 # ▶️ 启动 Docker 服务
 docker-up:
@@ -287,3 +315,10 @@ alias du := docker-up             # 启动
 alias ds := docker-status         # 状态
 alias dl := docker-logs           # 日志
 alias dc := docker-clean          # 清理
+
+# 优化构建别名
+alias ddb := docker-build-binary      # 构建二进制
+alias dcb := docker-build-backend     # 构建后端
+alias ddr := docker-rebuild-binary   # 重新构建二进制
+alias ddu := docker-dev-restart      # 开发重启
+alias ddo := docker-deploy-optimized  # 优化部署
