@@ -1,90 +1,54 @@
 # Elizabeth
 
-Elizabeth 是一个基于 Rust
-的文件分享和协作平台项目，旨在提供简单、安全、高效的文件共享解决方案。
+Elizabeth 是一个现代化的、以房间为中心的文件分享与协作平台，采用 Rust + Next.js
+技术栈构建，提供简单、安全、高效的文件共享解决方案。
 
-## 项目配置
+## 核心理念
 
-后端：/Users/unic/dev/projs/rs/elizabeth/crates/board
+**"以房间为中心" (Room-centric)**，而不是传统的"以用户为中心"。
 
-- 启动命令：`cargo run -p elizabeth-board -- run`
-- 配置文件：`~/.config/elizabeth/config.yaml`
-- API 文档：http://127.0.0.1:4092/api/v1/scalar
-- 服务端口：4092
+- 🔓 **无用户系统**: 无需注册登录，通过房间进行身份验证
+- 🏠 **房间即身份**: 用户通过进入一个"房间"来完成身份验证
+- 🔒 **安全优先**: 提供全链路加密支持，包括传输安全 (TLS) 和存储安全
+- ⏱️ **临时性与可控性**:
+  所有共享都发生在"房间"内，房间本身是临时的，可以被精细控制
 
-前端：/Users/unic/dev/projs/rs/elizabeth/web
+## 核心特性
 
-- 启动命令：`pnpm dev --port 4001`
-- 访问地址：http://localhost:4001
-- 服务端口：4001
+### 房间管理
 
-rust 后端也使用 bacon run 进行了 hot-reload 自动构建，前端也是使用 pnpm dev
---port 4001 进行了 hot-reload 自动构建。
+- ✅ **创建房间**: 支持设置密码、过期时间、访问次数限制
+- ✅ **房间权限**: 灵活的权限控制（编辑、下载、预览）
+- ✅ **房间设置**: 可配置房间大小限制、进入次数限制
+- ✅ **Token 认证**: 基于 JWT 的房间访问令牌系统
+- ✅ **自动过期**: 支持房间自动过期和清理
 
-## 项目概述
+### 内容管理
 
-Elizabeth
-项目致力于构建一个现代化的文件分享系统，支持多种文件类型、实时协作和高级安全特性。项目采用模块化设计，使用
-Rust 语言确保高性能和内存安全。
+- ✅ **文件上传**: 支持单文件和批量文件上传
+- ✅ **分块上传**: 支持大文件分块上传，断点续传
+- ✅ **文件下载**: 支持单文件和批量下载
+- ✅ **内容预览**: 支持多种文件类型预览
+- ✅ **内容编辑**: 支持文本内容在线编辑
+- ✅ **URL 分享**: 支持通过 URL 分享内容
 
-### 核心特性
+### 协作功能
 
-- 🚀 **高性能**: 基于 Rust 的高性能文件处理
-- 🔒 **安全性**: 内存安全和数据加密
-- 📁 **多格式支持**: 文本、图片、代码片段等多种文件类型
-- 🌐 **Web 界面**: 现代化的用户界面
-- ☁️ **云存储**: 集成 Cloudflare R2 等 S3 兼容存储
-- 🏠 **Room 系统**: 支持密码保护的房间系统，实现安全的内容分享
+- ✅ **实时协作**: 支持 Markdown 的消息系统
+- ✅ **消息编辑**: 可编辑历史消息
+- ✅ **文件共享**: 房间内成员共享文件
+- ✅ **权限管理**: 细粒度的权限控制
 
-### Room CRUD 功能
+### 用户体验
 
-项目已实现完整的 Room CRUD (Create, Read, Update, Delete) 功能：
-
-- ✅ **创建房间**: 支持设置密码、过期时间、访问限制
-- ✅ **查询房间**: 按名称或 ID 查询房间信息
-- ✅ **更新房间**: 修改房间配置和权限设置
-- ✅ **删除房间**: 安全删除房间及其相关内容
-- ✅ **权限控制**: 支持编辑、下载、预览权限管理
-- ✅ **过期管理**: 自动处理过期房间
-
-## 项目结构
-
-```
-elizabeth/
-├── crates/
-│   └── board/           # 核心板块功能
-│       ├── src/
-│       │   ├── models/          # 数据模型
-│       │   ├── repository/      # 数据访问层
-│       │   ├── handlers/        # HTTP处理层
-│       │   ├── route/           # 路由定义
-│       │   ├── db/              # 数据库模块
-│       │   └── tests/           # 测试模块
-│       └── migrations/          # 数据库迁移文件
-├── docs/
-│   ├── research.md      # 研究和设计文档
-│   ├── database-implementation.md  # 数据库实现文档
-│   ├── room-crud-testing.md       # Room CRUD 测试报告
-│   ├── room-crud-refactor.md      # Room CRUD 重构文档
-│   ├── architecture.md            # 项目架构文档
-│   ├── api-reference.md           # API 参考文档
-│   ├── room-crud-implementation.md # Room CRUD 实现文档
-│   ├── development-guide.md       # 开发指南
-│   ├── release-plz.md   # 发布系统文档
-│   ├── github-actions.md # CI/CD 文档
-│   └── Tasks.md          # 项目任务跟踪
-├── .github/
-│   └── workflows/
-│       └── release-plz.yml # 自动发布工作流
-├── .release-plz.toml    # release-plz 配置
-├── CHANGELOG.md         # 变更日志
-├── Cargo.toml          # 项目配置
-└── README.md           # 项目说明
-```
+- ✅ **响应式设计**: 适配各种屏幕尺寸
+- ✅ **主题切换**: 支持暗色/亮色/跟随系统三种主题模式
+- ✅ **拖拽上传**: 支持拖拽文件上传
+- ✅ **批量操作**: 支持批量下载、删除等操作
 
 ## 技术栈
 
-### 后端技术
+### 后端 (Rust)
 
 - **Rust 1.90+**: 核心编程语言
 - **Axum 0.8.6**: 异步 Web 框架
@@ -92,58 +56,207 @@ elizabeth/
 - **SQLite**: 轻量级数据库
 - **Tokio**: 异步运行时
 - **Serde**: 序列化/反序列化
-- **Utoipa**: OpenAPI 文档生成
+- **Utoipa**: OpenAPI 文档自动生成
+- **JWT**: 基于 JSON Web Token 的认证
+
+### 前端 (Next.js)
+
+- **Next.js 16**: React 框架，支持 App Router
+- **React 19**: UI 库
+- **TypeScript**: 类型安全
+- **shadcn/ui**: UI 组件库
+- **Tailwind CSS v4**: 样式框架
+- **Zustand**: 状态管理
+- **TanStack Query**: 数据请求和缓存
+- **react-markdown**: Markdown 渲染
+- **react-dropzone**: 文件拖拽上传
 
 ### 架构模式
 
+#### 后端架构
+
 - **Repository 模式**: 数据访问层抽象
-- **分层架构**: 模型、仓库、处理器、路由清晰分离
-- **依赖注入**: 使用 Axum State 管理依赖
-- **错误处理**: 统一的错误处理机制
+- **Service 层**: 业务逻辑封装
+- **Handler 层**: HTTP 请求处理
+- **中间件系统**:
+  - CORS 跨域支持
+  - 请求 ID 追踪
+  - 安全头设置
+  - 压缩支持
+  - 限流保护
+  - 请求追踪
+
+#### 前端架构
+
+- **App Router**: Next.js 13+ 路由系统
+- **组件化设计**: 可复用的 React 组件
+- **状态管理**: Zustand 全局状态
+- **API 层**: 统一的 API 服务层
+- **类型安全**: 完整的 TypeScript 类型定义
+
+## 项目结构
+
+```
+elizabeth/
+├── crates/                    # Rust 后端
+│   ├── board/                 # 主应用程序
+│   │   ├── src/
+│   │   │   ├── handlers/      # HTTP 请求处理器
+│   │   │   │   ├── rooms.rs   # 房间管理
+│   │   │   │   ├── content.rs # 内容管理
+│   │   │   │   ├── chunked_upload.rs # 分块上传
+│   │   │   │   ├── auth.rs    # 认证
+│   │   │   │   └── refresh_token.rs # 令牌刷新
+│   │   │   ├── models/        # 数据模型
+│   │   │   ├── repository/    # 数据访问层
+│   │   │   ├── route/         # 路由定义
+│   │   │   ├── services/      # 业务逻辑
+│   │   │   ├── middleware/    # 中间件
+│   │   │   └── validation/    # 数据验证
+│   │   └── tests/             # 集成测试
+│   ├── configrs/              # 配置管理
+│   └── axum-responses/        # HTTP 响应工具
+├── web/                       # Next.js 前端
+│   ├── app/                   # App Router
+│   ├── components/            # React 组件
+│   │   ├── layout/            # 布局组件
+│   │   ├── chat/              # 聊天组件
+│   │   ├── files/             # 文件管理组件
+│   │   ├── room/              # 房间设置组件
+│   │   └── ui/                # 基础 UI 组件
+│   ├── lib/                   # 工具库
+│   │   ├── api/               # API 服务层
+│   │   ├── store.ts           # 状态管理
+│   │   ├── types.ts           # 类型定义
+│   │   └── hooks/             # 自定义 Hooks
+│   └── public/                # 静态资源
+├── migrations/                # 数据库迁移
+├── docs/                      # 项目文档
+│   ├── DEPLOYMENT.md          # 部署文档
+│   └── DOCKER_QUICK_START.md  # Docker 快速开始
+├── scripts/                   # 部署脚本
+│   ├── deploy.sh              # 部署脚本
+│   ├── backup.sh              # 备份脚本
+│   └── restore.sh             # 恢复脚本
+├── docker-compose.yml         # Docker Compose 配置
+├── Dockerfile.backend         # 后端 Docker 镜像
+├── Dockerfile.frontend        # 前端 Docker 镜像
+├── justfile                   # Just 任务定义
+└── Makefile                   # Make 任务定义（备选）
+```
 
 ## 快速开始
 
-### 环境要求
+### 🐳 Docker 部署（推荐）
+
+使用 Docker 是最简单的部署方式，无需安装 Rust 和 Node.js 环境。
+
+#### 前置要求
+
+- Docker 20.10+
+- Docker Compose 2.0+
+- Just (可选，用于简化命令)
+
+#### 一键部署
+
+```bash
+# 1. 克隆仓库
+git clone https://github.com/yuniqueunic/elizabeth.git
+cd elizabeth
+
+# 2. 初始化配置
+just docker-init
+# 或者: cp .env.docker .env
+
+# 3. 编辑 .env 文件，设置 JWT_SECRET
+openssl rand -base64 48  # 生成安全密钥
+# 将生成的密钥设置到 .env 文件中的 JWT_SECRET
+
+# 4. 一键部署
+just docker-deploy
+# 或者: ./scripts/deploy.sh
+
+# 5. 访问应用
+# 前端: http://localhost:4001
+# 后端 API: http://localhost:4092/api/v1
+# API 文档: http://localhost:4092/api/v1/scalar
+```
+
+#### 常用 Docker 命令
+
+```bash
+# 使用 Just (推荐)
+just docker-status          # 查看服务状态
+just docker-logs            # 查看日志
+just docker-logs backend    # 查看后端日志
+just docker-backup          # 备份数据
+just docker-restart         # 重启服务
+just docker-down            # 停止服务
+
+# 或使用 Docker Compose
+docker-compose ps           # 查看状态
+docker-compose logs -f      # 查看日志
+docker-compose restart      # 重启服务
+docker-compose down         # 停止服务
+```
+
+详细的 Docker 部署文档请参考：
+
+- [Docker 快速开始指南](./docs/DOCKER_QUICK_START.md)
+- [完整部署文档](./docs/DEPLOYMENT.md)
+
+### 💻 本地开发环境
+
+如果需要进行开发，可以在本地搭建开发环境。
+
+#### 环境要求
 
 - Rust 1.90+
+- Node.js 20+
+- pnpm 8+
 - Git
 - SQLite 3
+- Just (可选)
 
-### 安装和构建
+#### 安装和构建
 
 1. **克隆仓库**
    ```bash
-   git clone https://github.com/your-username/elizabeth.git
+   git clone https://github.com/yuniqueunic/elizabeth.git
    cd elizabeth
    ```
 
-2. **构建项目**
+2. **后端设置**
    ```bash
-   cargo build --release
+   # 初始化数据库
+   just migrate
+   # 或者：cargo sqlx migrate run
+
+   # 运行后端
+   just run
+   # 或者：cargo run -p elizabeth-board -- run
    ```
 
-3. **运行项目**
+3. **前端设置**
    ```bash
-   cargo run
+   cd web
+   pnpm install
+   pnpm dev --port 4001
    ```
 
-   服务将在 `http://127.0.0.1:8080` 启动
+4. **访问应用**
+   - 前端：http://localhost:4001
+   - 后端 API: http://localhost:4092/api/v1
+   - API 文档：http://localhost:4092/api/v1/scalar
 
-### 开发环境设置
+#### 开发环境设置
 
-1. **安装开发依赖**
-   ```bash
-   cargo install --dev release-plz
-   cargo install --dev git-cliff
-   cargo install --dev cargo-semver-checks
-   ```
-
-2. **运行测试**
+1. **运行测试**
    ```bash
    cargo test
    ```
 
-3. **检查代码格式**
+2. **检查代码格式**
    ```bash
    cargo fmt --check
    cargo clippy -- -D warnings
@@ -151,85 +264,197 @@ elizabeth/
 
 ## API 文档
 
-### Room CRUD API
+项目提供完整的 RESTful API，所有 API 都有完整的 OpenAPI 文档。
 
-项目提供完整的 Room CRUD REST API，支持以下操作：
+### API 基础信息
 
-#### 创建房间
+- **API 前缀**: `/api/v1`
+- **默认端口**: `4092`
+- **API 文档**: `http://localhost:4092/api/v1/scalar`
 
-```http
-POST /api/v1/rooms/{name}?password={password}
-```
+### 主要 API 端点
 
-#### 查询房间
+#### 状态检查
 
-```http
-GET /api/v1/rooms/{name}
-```
+- `GET /api/v1/health` - 健康检查
+- `GET /api/v1/status` - 服务状态
 
-#### 删除房间
+#### 房间管理
 
-```http
-DELETE /api/v1/rooms/{name}
-```
+- `POST /api/v1/rooms/{name}` - 创建房间
+- `GET /api/v1/rooms/{name}` - 查询房间
+- `DELETE /api/v1/rooms/{name}` - 删除房间
+- `PUT /api/v1/rooms/{name}/permissions` - 更新房间权限
+- `PUT /api/v1/rooms/{name}/settings` - 更新房间设置
+
+#### Token 管理
+
+- `POST /api/v1/rooms/{name}/tokens` - 签发房间 Token
+- `GET /api/v1/rooms/{name}/tokens` - 列出房间 Token
+- `POST /api/v1/rooms/{name}/tokens/validate` - 验证 Token
+- `DELETE /api/v1/rooms/{name}/tokens/{jti}` - 撤销 Token
+
+#### 内容管理
+
+- `GET /api/v1/rooms/{name}/contents` - 列出房间内容
+- `POST /api/v1/rooms/{name}/contents/prepare` - 准备上传
+- `POST /api/v1/rooms/{name}/contents` - 上传内容
+- `PUT /api/v1/rooms/{name}/contents/{id}` - 更新内容
+- `DELETE /api/v1/rooms/{name}/contents` - 删除内容
+- `GET /api/v1/rooms/{name}/contents/{id}/download` - 下载内容
+
+#### 分块上传
+
+- `POST /api/v1/rooms/{name}/chunked-uploads/prepare` - 准备分块上传
+- `POST /api/v1/rooms/{name}/chunked-uploads/{upload_id}/chunks/{chunk_index}` -
+  上传分块
+- `GET /api/v1/rooms/{name}/chunked-uploads/{upload_id}/status` - 查询上传状态
+- `POST /api/v1/rooms/{name}/chunked-uploads/{upload_id}/merge` - 合并文件
+
+#### 刷新令牌
+
+- `POST /api/v1/refresh-token` - 刷新访问令牌
+- `DELETE /api/v1/refresh-token` - 撤销刷新令牌
+- `DELETE /api/v1/refresh-token/cleanup` - 清理过期令牌
 
 ### OpenAPI 文档
 
-启动服务后，可以通过以下地址访问 API 文档：
+启动服务后，可以通过以下地址访问交互式 API 文档：
 
-- Swagger UI: `http://127.0.0.1:8080/swagger-ui/`
-- OpenAPI JSON: `http://127.0.0.1:8080/api-docs/openapi.json`
+- **Scalar UI**: `http://localhost:4092/api/v1/scalar`
 
-## 使用示例
+### 使用示例
 
-### 创建房间
+#### 1. 创建房间
 
 ```bash
 # 创建带密码的房间
-curl -X POST "http://127.0.0.1:8080/api/v1/rooms/myroom?password=secret123"
+curl -X POST "http://localhost:4092/api/v1/rooms/myroom?password=secret123"
 ```
 
-### 查询房间
+#### 2. 签发 Token
 
 ```bash
-# 查询房间信息
-curl -X GET "http://127.0.0.1:8080/api/v1/rooms/myroom"
+# 使用密码签发 Token
+curl -X POST "http://localhost:4092/api/v1/rooms/myroom/tokens" \
+  -H "Content-Type: application/json" \
+  -d '{"password": "secret123", "with_refresh_token": true}' # pragma: allowlist secret
 ```
 
-### 删除房间
+#### 3. 上传文件
 
 ```bash
-# 删除房间
-curl -X DELETE "http://127.0.0.1:8080/api/v1/rooms/myroom"
+# 准备上传
+curl -X POST "http://localhost:4092/api/v1/rooms/myroom/contents/prepare" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"files": [{"file_name": "test.txt", "size": 1024, "mime_type": "text/plain"}]}'
+
+# 上传文件
+curl -X POST "http://localhost:4092/api/v1/rooms/myroom/contents?token=YOUR_TOKEN" \
+  -F "files=@test.txt"
 ```
+
+#### 4. 列出房间内容
+
+```bash
+curl -X GET "http://localhost:4092/api/v1/rooms/myroom/contents?token=YOUR_TOKEN"
+```
+
+#### 5. 下载文件
+
+```bash
+curl -X GET "http://localhost:4092/api/v1/rooms/myroom/contents/1/download?token=YOUR_TOKEN" \
+  -o downloaded_file.txt
+```
+
+## 配置管理
+
+### 后端配置
+
+后端使用分层配置系统，支持多种配置来源：
+
+1. **默认配置**: 代码中的默认值
+2. **配置文件**: `~/.config/elizabeth/config.yaml`
+3. **环境变量**: `ELIZABETH__APP__*` 前缀
+
+配置示例：
+
+```yaml
+app:
+  server:
+    addr: 127.0.0.1
+    port: 4092
+  logging:
+    level: info
+  database:
+    url: sqlite:app.db
+    max_connections: 20
+  storage:
+    root: ./storage/rooms
+  jwt:
+    secret: your-secret-key-min-32-chars
+    ttl_seconds: 7200
+    refresh_ttl_seconds: 604800
+  room:
+    max_size: 52428800 # 50MB
+    max_times_entered: 100
+  middleware:
+    cors:
+      enabled: true
+      allowed_origins: "*"
+    rate_limit:
+      enabled: false
+      per_second: 10
+```
+
+### 前端配置
+
+前端使用环境变量配置：
+
+```bash
+# .env.local
+NEXT_PUBLIC_API_URL=http://localhost:4092/api/v1
+NEXT_PUBLIC_APP_URL=http://localhost:4001
+```
+
+### Docker 配置
+
+Docker 部署时，所有配置通过 `.env` 文件管理。详见
+[Docker 快速开始](./docs/DOCKER_QUICK_START.md)。
 
 ## 数据库设计
 
-### 房间表 (rooms)
+项目使用 SQLite 数据库，包含以下主要表：
 
-| 字段                  | 类型     | 描述                               |
-| --------------------- | -------- | ---------------------------------- |
-| id                    | INTEGER  | 主键，自增                         |
-| name                  | TEXT     | 房间名称，唯一                     |
-| password              | TEXT     | 房间密码（可选）                   |
-| status                | INTEGER  | 房间状态（0:开放，1:锁定，2:关闭） |
-| max_size              | INTEGER  | 最大文件大小（字节）               |
-| current_size          | INTEGER  | 当前文件大小（字节）               |
-| max_times_entered     | INTEGER  | 最大进入次数                       |
-| current_times_entered | INTEGER  | 当前进入次数                       |
-| expire_at             | DATETIME | 过期时间（可选）                   |
-| created_at            | DATETIME | 创建时间                           |
-| updated_at            | DATETIME | 更新时间                           |
-| allow_edit            | BOOLEAN  | 允许编辑                           |
-| allow_download        | BOOLEAN  | 允许下载                           |
-| allow_preview         | BOOLEAN  | 允许预览                           |
+### 核心表
 
-详细的数据库设计请参考
-[`docs/database-implementation.md`](./docs/database-implementation.md)。
+- **rooms**: 房间信息
+- **room_contents**: 房间内容（文件、文本、URL）
+- **room_tokens**: 房间访问令牌
+- **room_refresh_tokens**: 刷新令牌
+- **room_chunk_uploads**: 分块上传记录
+- **room_upload_reservations**: 上传预留记录
+
+### 数据库迁移
+
+使用 SQLx 进行数据库迁移管理：
+
+```bash
+# 运行迁移
+just migrate
+# 或者: cargo sqlx migrate run
+
+# 创建新迁移
+cargo sqlx migrate add <migration_name>
+
+# 回滚迁移
+cargo sqlx migrate revert
+```
 
 ## 测试
 
-### 运行测试
+### 后端测试
 
 ```bash
 # 运行所有测试
@@ -238,17 +463,40 @@ cargo test
 # 运行特定测试模块
 cargo test room_repository_tests
 cargo test api_integration_tests
+
+# 运行测试并显示输出
+cargo test -- --nocapture
+
+# 使用 just 运行测试
+just test
+```
+
+### 前端测试
+
+```bash
+cd web
+
+# 运行测试
+pnpm test
+
+# 运行测试并监听变化
+pnpm test:watch
 ```
 
 ### 测试覆盖
 
-- ✅ Repository 单元测试（8/8 通过）
-- ✅ 数据库操作测试
-- ⚠️ API 集成测试（待修复）
-- ✅ 手动 API 测试验证
+#### 后端
 
-详细的测试报告请参考
-[`docs/room-crud-testing.md`](./docs/room-crud-testing.md)。
+- ✅ Repository 单元测试
+- ✅ 数据库操作测试
+- ✅ API 集成测试
+- ✅ 业务逻辑测试
+
+#### 前端
+
+- ✅ 组件测试
+- ✅ API 服务测试
+- ✅ 状态管理测试
 
 ## 发布系统
 
@@ -303,10 +551,34 @@ git commit -m "feat(api)!: change user endpoint response format"
 
 ### 代码规范
 
-- 使用 `cargo fmt` 格式化代码
-- 使用 `cargo clippy` 进行代码检查
-- 遵循 Rust 官方编码规范
-- 编写单元测试和集成测试
+#### 后端 (Rust)
+
+```bash
+# 格式化代码
+cargo fmt
+
+# 代码检查
+cargo clippy -- -D warnings
+
+# 使用 just
+just fmt
+just clippy
+```
+
+#### 前端 (TypeScript)
+
+```bash
+cd web
+
+# 格式化代码
+pnpm format
+
+# 代码检查
+pnpm lint
+
+# 类型检查
+pnpm type-check
+```
 
 ### 分支策略
 
@@ -324,54 +596,116 @@ git commit -m "feat(api)!: change user endpoint response format"
 5. 代码审查通过后合并
 6. 等待自动创建发布 PR
 
-详细的开发指南请参考
-[`docs/development-guide.md`](./docs/development-guide.md)。
+### 常用命令
+
+使用 `just` 简化开发流程：
+
+```bash
+# 查看所有可用命令
+just --list
+
+# 后端开发
+just run              # 运行后端服务
+just test             # 运行测试
+just migrate          # 运行数据库迁移
+just reset-db         # 重置数据库
+
+# 前端开发
+just web-dev          # 运行前端开发服务器
+just web-build        # 构建前端
+
+# Docker 部署
+just docker-deploy    # 一键部署
+just docker-status    # 查看状态
+just docker-logs      # 查看日志
+just docker-backup    # 备份数据
+```
 
 ## 项目架构
 
-### 整体架构
+### 后端架构
 
-项目采用分层架构模式，包含以下层次：
+采用分层架构模式：
 
-1. **路由层** (Route): 定义 API 端点和路由规则
-2. **处理层** (Handler): 处理 HTTP 请求和响应
-3. **仓库层** (Repository): 数据访问抽象
-4. **模型层** (Model): 数据模型定义
+```
+┌─────────────────────────────────────┐
+│         Route Layer (路由层)         │
+│  - API 端点定义                      │
+│  - 中间件配置                        │
+└──────────────┬──────────────────────┘
+               │
+┌──────────────▼──────────────────────┐
+│        Handler Layer (处理层)        │
+│  - HTTP 请求处理                     │
+│  - 参数验证                          │
+│  - 响应构建                          │
+└──────────────┬──────────────────────┘
+               │
+┌──────────────▼──────────────────────┐
+│       Service Layer (服务层)         │
+│  - 业务逻辑                          │
+│  - Token 管理                        │
+│  - 权限验证                          │
+└──────────────┬──────────────────────┘
+               │
+┌──────────────▼──────────────────────┐
+│     Repository Layer (仓库层)        │
+│  - 数据访问抽象                      │
+│  - SQL 查询                          │
+└──────────────┬──────────────────────┘
+               │
+┌──────────────▼──────────────────────┐
+│         Model Layer (模型层)         │
+│  - 数据模型定义                      │
+│  - 类型定义                          │
+└─────────────────────────────────────┘
+```
 
-### 模块说明
+### 前端架构
 
-- **models**: 定义数据模型和 API 响应模型
-- **repository**: 实现数据访问逻辑，使用 Repository 模式
-- **handlers**: 处理 HTTP 请求，包含业务逻辑
-- **route**: 定义 API 路由和中间件
-- **db**: 数据库连接和配置管理
+采用组件化设计：
 
-详细的架构说明请参考 [`docs/architecture.md`](./docs/architecture.md)。
+```
+┌─────────────────────────────────────┐
+│         App Router (路由)            │
+│  - 页面路由                          │
+│  - 布局定义                          │
+└──────────────┬──────────────────────┘
+               │
+┌──────────────▼──────────────────────┐
+│      Components (组件层)             │
+│  - 布局组件                          │
+│  - 业务组件                          │
+│  - UI 组件                           │
+└──────────────┬──────────────────────┘
+               │
+┌──────────────▼──────────────────────┐
+│         API Layer (API 层)           │
+│  - API 服务                          │
+│  - 数据请求                          │
+│  - 缓存管理                          │
+└──────────────┬──────────────────────┘
+               │
+┌──────────────▼──────────────────────┐
+│        Store (状态管理)              │
+│  - 全局状态                          │
+│  - 本地存储                          │
+└─────────────────────────────────────┘
+```
 
 ## 文档
 
-### 核心文档
+### 部署文档
 
-- [`docs/research.md`](./docs/research.md) - 研究和设计文档
-- [`docs/database-implementation.md`](./docs/database-implementation.md) -
-  数据库实现详细文档
-- [`docs/room-crud-implementation.md`](./docs/room-crud-implementation.md) -
-  Room CRUD 功能实现文档
-- [`docs/room-crud-testing.md`](./docs/room-crud-testing.md) - Room CRUD
-  测试报告
-- [`docs/room-crud-refactor.md`](./docs/room-crud-refactor.md) - Room CRUD
-  重构文档
-- [`docs/architecture.md`](./docs/architecture.md) - 项目架构文档
-- [`docs/api-reference.md`](./docs/api-reference.md) - API 参考文档
-- [`docs/development-guide.md`](./docs/development-guide.md) - 开发指南
+- [`docs/DOCKER_QUICK_START.md`](./docs/DOCKER_QUICK_START.md) - Docker
+  快速开始指南
+- [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md) - 完整部署文档
 
-### 工具文档
+### 开发文档
 
-- [`docs/release-plz.md`](./docs/great-blog/release-plz.md) - 发布系统详细文档
-- [`docs/github-actions.md`](./docs/great-blog/github-actions.md) - GitHub
-  Actions 配置文档
+- [`README.md`](./README.md) - 项目主文档（本文档）
+- [`web/README.md`](./web/README.md) - 前端项目文档
 - [`CHANGELOG.md`](./CHANGELOG.md) - 项目变更日志
-- [`docs/Tasks.md`](./docs/Tasks.md) - 项目任务跟踪
 
 ## 贡献指南
 
@@ -392,36 +726,74 @@ git commit -m "feat(api)!: change user endpoint response format"
 - ⚡ 性能优化
 - 🧪 测试覆盖
 
+### 开发环境设置
+
+```bash
+# 1. Fork 并克隆项目
+git clone https://github.com/yuniqueunic/elizabeth.git
+cd elizabeth
+
+# 2. 安装依赖
+# 后端
+cargo build
+
+# 前端
+cd web
+pnpm install
+
+# 3. 运行开发环境
+# 后端
+just run
+
+# 前端
+just web-dev
+
+# 4. 运行测试
+just test
+```
+
 ## 许可证
 
 本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件。
-
-## 联系方式
-
-- 项目主页：https://github.com/your-username/elizabeth
-- 问题反馈：https://github.com/your-username/elizabeth/issues
-- 讨论区：https://github.com/your-username/elizabeth/discussions
 
 ## 致谢
 
 感谢所有为 Elizabeth 项目做出贡献的开发者和社区成员！
 
-### 主要依赖
+### 主要技术栈
 
-- [release-plz](https://release-plz.ieni.dev/) - 自动化发布工具
-- [git-cliff](https://github.com/orhun/git-cliff) - Changelog 生成工具
-- [cargo-semver-checks](https://github.com/obi1kenobi/cargo-semver-checks) -
-  语义化版本检查
+#### 后端
+
 - [Axum](https://github.com/tokio-rs/axum) - 异步 Web 框架
 - [SQLx](https://github.com/launchbadge/sqlx) - 异步 SQL 工具包
+- [Tokio](https://tokio.rs/) - 异步运行时
+- [Utoipa](https://github.com/juhaku/utoipa) - OpenAPI 文档生成
+
+#### 前端
+
+- [Next.js](https://nextjs.org/) - React 框架
+- [shadcn/ui](https://ui.shadcn.com/) - UI 组件库
+- [Tailwind CSS](https://tailwindcss.com/) - CSS 框架
+- [Zustand](https://github.com/pmndrs/zustand) - 状态管理
+- [TanStack Query](https://tanstack.com/query) - 数据请求
+
+#### 开发工具
+
+- [Just](https://github.com/casey/just) - 命令运行器
+- [Docker](https://www.docker.com/) - 容器化部署
+- [release-plz](https://release-plz.ieni.dev/) - 自动化发布
 
 ### 相关项目
 
-- [microbin](https://github.com/szabodanika/microbin) - 灵感来源之一
+- [microbin](https://github.com/szabodanika/microbin) - 灵感来源
 - [cloudflare-drop](https://github.com/oustn/cloudflare-drop) - 参考项目
 
 ---
 
+<div align="center">
+
 **Elizabeth** - 让文件分享变得简单而强大 🚀
 
-最后更新：2025-10-14
+[开始使用](#快速开始) • [API 文档](#api-文档) • [贡献指南](#贡献指南)
+
+</div>

@@ -107,3 +107,4 @@ repos:
         entry: "Blocking .env files from being committed"
         language: fail
         files: '^\.env(\.|$)'
+        exclude: '^\.env\.docker$'
