@@ -174,7 +174,8 @@ export async function updateRoomSettings(
   } = {};
 
   if (settings.password !== undefined) {
-    payload.password = settings.password;
+    // ✅ FIX: Send empty string to clear password, backend expects empty string not null
+    payload.password = settings.password === null ? "" : settings.password;
   }
 
   if (settings.expiresAt !== undefined) {

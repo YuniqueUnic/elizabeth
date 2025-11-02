@@ -3,21 +3,19 @@
 import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { vs } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AlertCircle,
   Check,
   ChevronDown,
+  Code2,
   Copy,
+  Eye,
   Maximize2,
   Minimize2,
 } from "lucide-react";
 import { api } from "@/lib/utils/api";
-import { useAppStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -26,6 +24,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { CodeBlock } from "@/components/ui/code-block";
 
 interface FileContentPreviewProps {
   fileUrl: string;
@@ -114,19 +113,26 @@ function getLanguage(fileName: string): string {
     java: "java",
     c: "c",
     cpp: "cpp",
+    cc: "cpp",
+    cxx: "cpp",
+    h: "cpp",
+    hpp: "cpp",
     cs: "csharp",
     go: "go",
     rs: "rust",
     php: "php",
     swift: "swift",
     kt: "kotlin",
+    kts: "kotlin",
     scala: "scala",
+    dart: "dart", // ✅ ADD: Dart support
     sh: "bash",
     bash: "bash",
     zsh: "bash",
     fish: "bash",
     ps1: "powershell",
     html: "html",
+    htm: "html",
     css: "css",
     scss: "scss",
     sass: "sass",
@@ -138,10 +144,13 @@ function getLanguage(fileName: string): string {
     toml: "toml",
     sql: "sql",
     graphql: "graphql",
+    gql: "graphql",
     proto: "protobuf",
     dockerfile: "dockerfile",
     makefile: "makefile",
     cmake: "cmake",
+    nginx: "nginx",
+    conf: "nginx",
   };
 
   return languageMap[ext] || "text";
@@ -152,6 +161,8 @@ const SUPPORTED_LANGUAGES = [
   { value: "auto", label: "自动检测" },
   { value: "javascript", label: "JavaScript" },
   { value: "typescript", label: "TypeScript" },
+  { value: "jsx", label: "React JSX" },
+  { value: "tsx", label: "React TSX" },
   { value: "python", label: "Python" },
   { value: "rust", label: "Rust" },
   { value: "java", label: "Java" },
@@ -164,14 +175,22 @@ const SUPPORTED_LANGUAGES = [
   { value: "swift", label: "Swift" },
   { value: "kotlin", label: "Kotlin" },
   { value: "scala", label: "Scala" },
-  { value: "bash", label: "Bash" },
+  { value: "dart", label: "Dart" },
+  { value: "bash", label: "Bash/Shell" },
+  { value: "powershell", label: "PowerShell" },
   { value: "sql", label: "SQL" },
   { value: "json", label: "JSON" },
   { value: "yaml", label: "YAML" },
+  { value: "toml", label: "TOML" },
   { value: "xml", label: "XML" },
   { value: "html", label: "HTML" },
   { value: "css", label: "CSS" },
+  { value: "scss", label: "SCSS" },
+  { value: "less", label: "Less" },
   { value: "markdown", label: "Markdown" },
+  { value: "dockerfile", label: "Dockerfile" },
+  { value: "nginx", label: "Nginx" },
+  { value: "graphql", label: "GraphQL" },
   { value: "text", label: "纯文本" },
 ];
 
@@ -186,6 +205,7 @@ export function FileContentPreview(
   const [copied, setCopied] = useState(false);
   const [darkTheme, setDarkTheme] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [markdownPreviewMode, setMarkdownPreviewMode] = useState(true); // true = preview, false = code
 
   const fileType = getFileType(fileName);
   const detectedLanguage = getLanguage(fileName);
@@ -302,7 +322,20 @@ export function FileContentPreview(
         )}
       </div>
       <div className="flex items-center gap-1">
-        {(fileType === "code" || fileType === "text") && (
+        {fileType === "markdown" && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setMarkdownPreviewMode(!markdownPreviewMode)}
+            title={markdownPreviewMode ? "查看代码" : "预览渲染"}
+          >
+            {markdownPreviewMode
+              ? <Code2 className="h-4 w-4" />
+              : <Eye className="h-4 w-4" />}
+          </Button>
+        )}
+        {(fileType === "code" || fileType === "text" ||
+          (fileType === "markdown" && !markdownPreviewMode)) && (
           <Button
             variant="ghost"
             size="sm"
@@ -375,34 +408,48 @@ export function FileContentPreview(
     return (
       <div className="flex flex-col h-full">
         <Toolbar />
-        <div className="prose prose-sm dark:prose-invert max-w-none p-6 overflow-auto flex-1">
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            components={{
-              code({ className, children, ...props }) {
-                const match = /language-(\w+)/.exec(className || "");
-                const isInline = !match;
-                return !isInline
-                  ? (
-                    <SyntaxHighlighter
-                      style={darkTheme ? (vscDarkPlus as any) : (vs as any)}
-                      language={match[1]}
-                      PreTag="div"
-                    >
-                      {String(children).replace(/\n$/, "")}
-                    </SyntaxHighlighter>
-                  )
-                  : (
-                    <code className={className} {...props}>
-                      {children}
-                    </code>
-                  );
-              },
-            }}
-          >
-            {content}
-          </ReactMarkdown>
-        </div>
+        {markdownPreviewMode
+          ? (
+            // Preview mode: Render Markdown
+            <div className="prose prose-sm dark:prose-invert max-w-none p-6 overflow-auto flex-1">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  code({ className, children, ...props }) {
+                    const match = /language-(\w+)/.exec(className || "");
+                    const isInline = !match;
+                    return !isInline
+                      ? (
+                        <CodeBlock
+                          code={String(children).replace(/\n$/, "")}
+                          language={match[1]}
+                          theme={darkTheme ? "dark" : "light"}
+                          showLineNumbers={false}
+                        />
+                      )
+                      : (
+                        <code className={className} {...props}>
+                          {children}
+                        </code>
+                      );
+                  },
+                }}
+              >
+                {content}
+              </ReactMarkdown>
+            </div>
+          )
+          : (
+            // Code mode: Show raw Markdown with syntax highlighting
+            <div className="p-4 overflow-auto flex-1">
+              <CodeBlock
+                code={content}
+                language="markdown"
+                theme={darkTheme ? "dark" : "light"}
+                showLineNumbers={true}
+              />
+            </div>
+          )}
       </div>
     );
   }
@@ -413,19 +460,12 @@ export function FileContentPreview(
       <div className="flex flex-col h-full">
         <Toolbar />
         <div className="p-4 overflow-auto flex-1">
-          <SyntaxHighlighter
+          <CodeBlock
+            code={content}
             language={language}
-            style={darkTheme ? vscDarkPlus : vs}
-            showLineNumbers
-            wrapLines
-            customStyle={{
-              margin: 0,
-              borderRadius: "0.5rem",
-              fontSize: "0.875rem",
-            }}
-          >
-            {content}
-          </SyntaxHighlighter>
+            theme={darkTheme ? "dark" : "light"}
+            showLineNumbers={true}
+          />
         </div>
       </div>
     );
