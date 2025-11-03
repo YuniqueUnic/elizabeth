@@ -1,96 +1,69 @@
 # ============================================================================
-# Optimized Multi-stage Dockerfile for Elizabeth Backend (Rust)
+# Optimized Multi-stage Dockerfile for Elizabeth Backend (Rust) with cargo-chef
 # ============================================================================
-
 # ----------------------------------------------------------------------------
-# Stage 1: Base Builder - Cache Rust dependencies separately
+# Stage 1: Chef Base - Setup cargo-chef for optimized dependency caching
 # ----------------------------------------------------------------------------
-FROM rust:1.90-slim-bookworm AS base-builder
-
-# Install build dependencies
-RUN apt-get update && apt-get install -y \
-    pkg-config \
-    libssl-dev \
-    sqlite3 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Set working directory
+FROM lukemathwalker/cargo-chef:latest-rust-1.90-slim-bookworm AS chef
 WORKDIR /app
 
-# Copy workspace configuration first (these change less frequently)
+# ----------------------------------------------------------------------------
+# Stage 2: Planner - Analyze project structure and generate build recipe
+# ----------------------------------------------------------------------------
+FROM chef AS planner
+# Copy only essential configuration files for recipe generation
 COPY Cargo.toml Cargo.lock ./
 COPY rust-toolchain.toml ./
-
-# Copy all crate Cargo.toml files for dependency resolution
-COPY crates/configrs/Cargo.toml ./crates/configrs/
-COPY crates/logrs/Cargo.toml ./crates/logrs/
-COPY crates/board/Cargo.toml ./crates/board/
-
-# Create dummy source files to cache dependencies
-RUN mkdir -p crates/board/src crates/configrs/src crates/logrs/src crates/configrs/src/configs && \
-    echo "fn main() {}" > crates/board/src/main.rs && \
-    echo "pub mod config;" > crates/board/src/lib.rs && \
-    echo "mod configs;\nmod error;\nmod merge;" > crates/configrs/src/lib.rs && \
-    echo "mod logger;" > crates/logrs/src/lib.rs && \
-    echo "pub mod app;" > crates/configrs/src/configs/mod.rs && \
-    echo "// dummy app config" > crates/configrs/src/configs/app.rs && \
-    echo "// dummy logger" > crates/logrs/src/logger.rs && \
-    echo "// dummy error" > crates/configrs/src/error.rs && \
-    echo "// dummy merge" > crates/configrs/src/merge.rs
-
-# Build dependencies only (this layer will be cached)
-RUN cargo build --release -p elizabeth-board && \
-    rm -rf crates/board/src crates/configrs/src crates/logrs/src
-
-# ----------------------------------------------------------------------------
-# Stage 2: Binary Builder - Build the actual Rust application
-# ----------------------------------------------------------------------------
-FROM base-builder AS binary-builder
-
-# Copy actual source code (this layer changes more frequently)
 COPY crates/ ./crates/
-
-# Build the application with cached dependencies
-RUN touch crates/board/src/main.rs && \
-    cargo build --release -p elizabeth-board
+# Generate the build recipe (this analyzes dependencies without building)
+RUN cargo chef prepare --recipe-path recipe.json
 
 # ----------------------------------------------------------------------------
-# Stage 3: Runtime - Minimal runtime image with the binary
+# Stage 3: Builder - Build dependencies and application with optimal caching
+# ----------------------------------------------------------------------------
+FROM chef AS builder
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+  pkg-config \
+  libssl-dev \
+  sqlite3 \
+  && rm -rf /var/lib/apt/lists/*
+
+# Copy the recipe from planner stage
+COPY --from=planner /app/recipe.json recipe.json
+# Build dependencies first (this layer is cached unless dependencies change)
+RUN cargo chef cook --release --recipe-path recipe.json
+
+# Copy source code and build the actual application
+COPY Cargo.toml Cargo.lock ./
+COPY rust-toolchain.toml ./
+COPY crates/ ./crates/
+# Build the application
+RUN cargo build --release -p elizabeth-board
+
+# ----------------------------------------------------------------------------
+# Stage 4: Runtime - Minimal runtime image with the binary
 # ----------------------------------------------------------------------------
 FROM debian:bookworm-slim AS runtime
-
 # Install runtime dependencies only
 RUN apt-get update && apt-get install -y \
-    ca-certificates \
-    sqlite3 \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Create app user with proper UID/GID for host compatibility
-RUN useradd -m -u 1000 -s /bin/bash elizabeth
+  ca-certificates \
+  sqlite3 \
+  curl \
+  && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
 
 # Copy the compiled binary and migrations from builder
-COPY --from=binary-builder /app/target/release/board /app/board
-COPY --from=binary-builder /app/crates/board/migrations /app/migrations
+COPY --from=builder /app/target/release/board /app/board
+COPY --from=builder /app/crates/board/migrations /app/migrations
 
-# Create necessary directories with proper permissions
-RUN mkdir -p /app/data /app/storage/rooms && \
-    chown -R elizabeth:elizabeth /app
-
-# Switch to non-root user
-USER elizabeth
+# Create necessary directories
+RUN mkdir -p /app/data /app/storage/rooms /app/config
 
 # Expose the application port
 EXPOSE 4092
 
-# No default environment variables - using backend.yaml for configuration
-
-# Health check that verifies database accessibility
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD ["/bin/sh", "-c", "sqlite3 /app/data/app.db 'SELECT 1;' || exit 1"]
-
-# Default command - can be overridden for different operations
-CMD ["/app/board", "run", "--config-file", "/app/config/backend.yaml"]
+# Use entrypoint script to handle volume mounting
+ENTRYPOINT ["/app/board","run","--config-file","/app/config/backend.yaml"]

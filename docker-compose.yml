@@ -6,27 +6,40 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
+      args:
+        USER_UID: 501
+        USER_GID: 20
     container_name: elizabeth-backend
     restart: unless-stopped
     ports:
       - "${BACKEND_PORT:-4092}:4092"
     volumes:
-      # Persist database and storage using bind mounts with proper permissions
-      - ./data:/app/data:rw
-      - ./storage:/app/storage:rw
-      # Mount configuration file template (read-only, but avoid potential conflicts)
-      - ./backend.yaml:/app/config/backend.yaml:ro
+      # Use dedicated host directories to avoid virtiofs mount contention on macOS (see Docker Desktop 4.34+ release notes)
+      - type: bind
+        source: ${PWD}/docker/backend/data
+        target: /app/data
+        bind:
+          create_host_path: true
+      - type: bind
+        source: ${PWD}/docker/backend/storage
+        target: /app/storage
+        bind:
+          create_host_path: true
+      # Configuration handled by environment variables and entrypoint script
+      - type: bind
+        source: ${PWD}/docker/backend/config/backend.yaml
+        target: /app/config/backend.yaml
     environment:
       # Core environment variables - JWT secret for security
       JWT_SECRET: ${JWT_SECRET:-please-change-this-secret-in-production-min-32-chars}
     networks:
       - elizabeth-network
-    # healthcheck:
-    #   test: ["CMD", "curl", "-f", "http://localhost:4092/api/v1/health"]
-    #   interval: 30s
-    #   timeout: 10s
-    #   retries: 3
-    #   start_period: 10s
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4092/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   # ============================================================================
   # Frontend Service (Next.js)
@@ -72,8 +85,3 @@ services:
 networks:
   elizabeth-network:
     driver: bridge
-
-# ============================================================================
-# Volumes (using bind mounts instead of named volumes)
-# ============================================================================
-# Local directories ./data and ./storage will be created automatically

@@ -20,3 +20,10 @@
 deno/main.ts
 chrome*
 docs-prompt
+docker/backend/data/**
+!docker/backend/data/
+!docker/backend/data/.gitkeep
+docker/backend/storage/**
+!docker/backend/storage/
+!docker/backend/storage/rooms/
+!docker/backend/storage/rooms/.gitkeep

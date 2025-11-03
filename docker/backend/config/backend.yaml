@@ -3,11 +3,12 @@ app:
     addr: 0.0.0.0
     port: 4092
   logging:
-    level: info
+    level: debug
   database:
-    url: sqlite:/app/data/app.db
+    url: sqlite:/app/data/app.db?mode=rwc
     max_connections: 20
-    min_connections: 5
+    min_connections: 1
+    journal_mode: delete
   storage:
     root: /app/storage/rooms
   jwt:

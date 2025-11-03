@@ -181,122 +181,59 @@ clean-all: clean
 
 # === 🐳 Docker 部署任务 ===
 
-# 🚀 一键部署 Elizabeth (Docker)
-docker-deploy:
-    @echo "🚀 开始部署 Elizabeth..."
-    ./scripts/deploy.sh
+# 缓存层构建
+docker-backend-cache:
+    @echo "🔧 构建后端 cache 层 (planner)..."
+    docker build --target planner -f Dockerfile.backend -t elizabeth-backend-cache:latest .
 
-# 🏗️ 构建 Docker 镜像
-docker-build:
-    @echo "🏗️ 构建 Docker 镜像..."
-    docker-compose build
+docker-frontend-cache:
+    @echo "🔧 构建前端 cache 层 (deps)..."
+    docker build --target deps -f Dockerfile.frontend -t elizabeth-frontend-cache:latest .
 
-# 🔨 构建优化的 Rust 二进制（缓存依赖）
-docker-build-binary:
-    @echo "🔨 构建优化的 Rust 二进制（缓存依赖）..."
-    docker build --target binary-builder -f Dockerfile.backend -t elizabeth-backend-binary:latest .
+# 二进制构建
+docker-backend-binary:
+    @echo "🔨 构建后端二进制 (builder)..."
+    docker build --target builder -f Dockerfile.backend -t elizabeth-backend-builder:latest .
 
-# 🐳 构建后端容器（使用缓存的二进制）
-docker-build-backend:
-    @echo "🐳 构建后端容器（使用缓存的二进制）..."
+docker-frontend-binary:
+    @echo "🔨 构建前端二进制 (builder)..."
+    docker build --target builder -f Dockerfile.frontend -t elizabeth-frontend-builder:latest .
+
+# 镜像构建
+docker-backend-image:
+    @echo "🐳 构建后端运行时镜像..."
     docker build --target runtime -f Dockerfile.backend -t elizabeth-backend:latest .
 
-# 🔄 强制重新构建 Rust 二进制（无缓存）
-docker-rebuild-binary:
-    @echo "🔄 强制重新构建 Rust 二进制（无缓存）..."
-    docker build --target binary-builder -f Dockerfile.backend --no-cache -t elizabeth-backend-binary:latest .
+docker-frontend-image:
+    @echo "🐳 构建前端运行时镜像..."
+    docker build --target runner -f Dockerfile.frontend -t elizabeth-frontend:latest .
 
-# ⚡ 快速开发构建（仅二进制）
-docker-dev-build: docker-build-binary docker-build-backend
+# 容器生命周期
+docker-backend-up:
+    @echo "▶️ 启动后端容器..."
+    ./scripts/docker_prepare_volumes.sh
+    docker compose up -d backend
 
-# 🚀 完整构建和部署
-docker-deploy-optimized: docker-build-binary docker-build-backend docker-up
-    @echo "🚀 优化部署完成"
+docker-frontend-up: docker-backend-up
+    @echo "▶️ 启动前端容器..."
+    docker compose up -d frontend
 
-# 🎯 开发快速启动（代码变更后使用）
-docker-dev-restart: docker-rebuild-binary
-    @echo "🔄 重新构建 Rust 二进制完成..."
-    docker-compose restart backend
-    @echo "🎯 开发快速重启完成"
+docker-backend-stop:
+    @echo "⏹️ 停止后端容器..."
+    docker compose stop backend
 
-# ▶️ 启动 Docker 服务
-docker-up:
-    @echo "▶️ 启动 Docker 服务..."
-    docker-compose up -d
+docker-frontend-stop:
+    @echo "⏹️ 停止前端容器..."
+    docker compose stop frontend
 
-# ⏹️ 停止 Docker 服务
-docker-down:
-    @echo "⏹️ 停止 Docker 服务..."
-    docker-compose down
+docker-backend-recreate:
+    @echo "🔄 重建后端容器..."
+    ./scripts/docker_prepare_volumes.sh
+    docker compose up -d --force-recreate backend
 
-# 🔄 重启 Docker 服务
-docker-restart:
-    @echo "🔄 重启 Docker 服务..."
-    docker-compose restart
-
-# 📊 查看 Docker 服务状态
-docker-status:
-    @echo "📊 Docker 服务状态:"
-    docker-compose ps
-
-# 📜 查看 Docker 日志
-docker-logs service="":
-    #!/usr/bin/env bash
-    if [ -z "{{service}}" ]; then
-        echo "📜 查看所有服务日志..."
-        docker-compose logs -f
-    else
-        echo "📜 查看 {{service}} 服务日志..."
-        docker-compose logs -f {{service}}
-    fi
-
-# 💾 备份 Docker 数据
-docker-backup:
-    @echo "💾 备份 Docker 数据..."
-    ./scripts/backup.sh
-
-# 🔙 恢复 Docker 数据
-docker-restore backup_name:
-    @echo "🔙 恢复 Docker 数据: {{backup_name}}"
-    ./scripts/restore.sh {{backup_name}}
-
-# 🧹 清理 Docker 资源
-docker-clean:
-    @echo "🧹 清理 Docker 资源..."
-    docker-compose down -v
-    docker system prune -f
-
-# 🔍 进入后端容器
-docker-shell-backend:
-    @echo "🔍 进入后端容器..."
-    docker-compose exec backend sh
-
-# 🔍 进入前端容器
-docker-shell-frontend:
-    @echo "🔍 进入前端容器..."
-    docker-compose exec frontend sh
-
-# 📦 初始化 Docker 环境
-docker-init:
-    #!/usr/bin/env bash
-    if [ ! -f .env ]; then
-        echo "📦 创建 .env 文件..."
-        cp .env.docker .env
-        echo "⚠️  请编辑 .env 文件并设置 JWT_SECRET!"
-        echo "💡 生成密钥: openssl rand -base64 48"
-    else
-        echo "✅ .env 文件已存在"
-    fi
-
-# 🔧 验证 Docker 配置
-docker-validate:
-    @echo "🔧 验证 Docker 配置..."
-    docker-compose config
-
-# 📈 查看 Docker 资源使用
-docker-stats:
-    @echo "📈 Docker 资源使用情况:"
-    docker stats --no-stream
+docker-frontend-recreate: docker-backend-recreate
+    @echo "🔄 重建前端容器..."
+    docker compose up -d --force-recreate frontend
 
 # === 🔤 命令别名 ===
 alias f := fmt            # 格式化代码
@@ -309,16 +246,15 @@ alias dq := dev-quick     # 快速检查
 alias i := info           # 显示项目信息
 
 # Docker 别名
-alias dd := docker-deploy         # 部署
-alias db := docker-build          # 构建
-alias du := docker-up             # 启动
-alias ds := docker-status         # 状态
-alias dl := docker-logs           # 日志
-alias dc := docker-clean          # 清理
-
-# 优化构建别名
-alias ddb := docker-build-binary      # 构建二进制
-alias dcb := docker-build-backend     # 构建后端
-alias ddr := docker-rebuild-binary   # 重新构建二进制
-alias ddu := docker-dev-restart      # 开发重启
-alias ddo := docker-deploy-optimized  # 优化部署
+alias dbc := docker-backend-cache
+alias dfc := docker-frontend-cache
+alias dbb := docker-backend-binary
+alias dfb := docker-frontend-binary
+alias dbi := docker-backend-image
+alias dfi := docker-frontend-image
+alias dbu := docker-backend-up
+alias dfu := docker-frontend-up
+alias dbs := docker-backend-stop
+alias dfs := docker-frontend-stop
+alias dbr := docker-backend-recreate
+alias dfr := docker-frontend-recreate

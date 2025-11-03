@@ -36,6 +36,7 @@ use crate::repository::room_refresh_token_repository::{
 use crate::services::{RoomTokenService, refresh_token_service::RefreshTokenService};
 use crate::state::AppState;
 use configrs::Config;
+use sqlx::sqlite::SqliteJournalMode;
 
 shadow!(build);
 
@@ -62,7 +63,10 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
     // 初始化数据库
     let db_settings = DbPoolSettings::new(cfg.app.database.url.clone())
         .with_max_connections(cfg.app.database.max_connections)
-        .with_min_connections(cfg.app.database.min_connections);
+        .with_min_connections(cfg.app.database.min_connections)
+        .with_journal_mode(parse_sqlite_journal_mode(
+            cfg.app.database.journal_mode.as_str(),
+        ));
     let db_pool = init_db(&db_settings).await?;
     run_migrations(&db_pool).await?;
     let db_pool = Arc::new(db_pool);
@@ -112,6 +116,24 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
     )
     .await
     .map_err(anyhow::Error::new)
+}
+
+fn parse_sqlite_journal_mode(value: &str) -> SqliteJournalMode {
+    match value.to_ascii_lowercase().as_str() {
+        "delete" => SqliteJournalMode::Delete,
+        "truncate" => SqliteJournalMode::Truncate,
+        "persist" => SqliteJournalMode::Persist,
+        "memory" => SqliteJournalMode::Memory,
+        "off" => SqliteJournalMode::Off,
+        "wal" | "" => SqliteJournalMode::Wal,
+        other => {
+            log::warn!(
+                "Unknown SQLite journal_mode '{}', fallback to WAL. Supported values: wal, delete, truncate, persist, memory, off.",
+                other
+            );
+            SqliteJournalMode::Wal
+        }
+    }
 }
 
 fn build_api_router(app_state: Arc<AppState>, cfg: &configrs::Config) -> (String, axum::Router) {

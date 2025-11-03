@@ -2,7 +2,7 @@
 
 > 本文档记录 Elizabeth 项目 Docker 部署功能的实现过程和技术细节。
 >
-> 创建时间：2025-11-02 最后更新：2025-11-02
+> 创建时间：2025-11-02 最后更新：2025-11-03
 
 ## 概述
 
@@ -16,6 +16,19 @@
 - 自动化部署脚本
 - Just/Make 任务集成
 
+### 2025-11-03 更新摘要
+
+- 为解决 macOS 上“Device busy or not
+  ready”报错，将后端数据、存储与配置改为绑定宿主机 `docker/backend/*`
+  目录，并新增 `scripts/docker_prepare_volumes.sh`
+  进行端口检测与目录准备；同时增加 `app.database.journal_mode` 配置并在 Docker
+  运行时改为 `DELETE`，避免 SQLite WAL 在绑定挂载上导致锁冲突。
+- 简化 `justfile` 与 `Makefile` 的 Docker 任务，仅保留
+  cache、二进制、镜像构建以及前后端容器的启动/停止/重建命令，保证 KISS 原则。
+- 更新 `docs/DOCKER_QUICK_START.md`，同步新的命令、挂载目录结构以及 gRPC FUSE
+  虚拟化切换建议（参考 HashCorp 支持文档）。
+- 清理旧的命名卷说明与一键部署脚本依赖，强调显式构建/启动流程以便排查问题。
+
 ## 实现的功能
 
 ### 1. Docker 镜像
@@ -25,7 +38,7 @@
 **特性：**
 
 - 多阶段构建，优化镜像大小
-- 基础镜像：`rust:1.83-slim-bookworm` (builder), `debian:bookworm-slim`
+- 基础镜像：`rust:1.90-slim-bookworm` (builder), `debian:bookworm-slim`
   (runtime)
 - 非 root 用户运行 (elizabeth:1000)
 - 健康检查：SQLite 数据库连接测试
@@ -42,7 +55,7 @@
 **特性：**
 
 - 三阶段构建：deps, builder, runner
-- 基础镜像：`node:20-alpine`
+- 基础镜像：`node:25-alpine`
 - Next.js standalone 输出模式
 - 非 root 用户运行 (nextjs:1001)
 - 暴露端口：4001
@@ -67,8 +80,9 @@
 
 **数据持久化：**
 
-- `backend-data`: SQLite 数据库存储
-- `backend-storage`: 文件存储
+- 通过 bind mount 挂载 `docker/backend/data`（SQLite 数据）与
+  `docker/backend/storage/rooms`
+- 配置文件 `docker/backend/config/backend.yaml` 随宿主机同步，便于外部编辑
 
 **健康检查：**
 
@@ -141,39 +155,27 @@
 
 #### Just 任务 (justfile)
 
-**部署任务：**
+**构建相关：**
 
-- `docker-deploy` (dd): 一键部署
-- `docker-build` (db): 构建镜像
-- `docker-up` (du): 启动服务
-- `docker-down`: 停止服务
-- `docker-restart`: 重启服务
+- `docker-backend-cache` (`dbc`): 构建后端依赖缓存 (planner)
+- `docker-frontend-cache` (`dfc`): 构建前端依赖缓存 (deps)
+- `docker-backend-binary` (`dbb`): 生成后端 builder 镜像
+- `docker-frontend-binary` (`dfb`): 生成前端 builder 镜像
+- `docker-backend-image` (`dbi`): 构建后端运行时镜像
+- `docker-frontend-image` (`dfi`): 构建前端运行时镜像
 
-**监控任务：**
+**容器生命周期：**
 
-- `docker-status` (ds): 查看状态
-- `docker-logs` (dl): 查看日志
-- `docker-stats`: 资源使用
-
-**维护任务：**
-
-- `docker-backup`: 备份数据
-- `docker-restore`: 恢复数据
-- `docker-clean` (dc): 清理资源
-
-**调试任务：**
-
-- `docker-shell-backend`: 进入后端容器
-- `docker-shell-frontend`: 进入前端容器
-- `docker-validate`: 验证配置
-
-**工具任务：**
-
-- `docker-init`: 初始化环境
+- `docker-backend-up` (`dbu`): 准备挂载目录后启动后端容器
+- `docker-frontend-up` (`dfu`): 启动前端容器（依赖后端就绪）
+- `docker-backend-stop` (`dbs`): 停止后端容器
+- `docker-frontend-stop` (`dfs`): 停止前端容器
+- `docker-backend-recreate` (`dbr`): 强制重建后端容器
+- `docker-frontend-recreate` (`dfr`): 强制重建前端容器
 
 #### Makefile (备选方案)
 
-为不使用 Just 的用户提供相同功能的 Makefile。
+Makefile 仅保留与 Just 相同的核心命令，方便未安装 Just 的环境调用。
 
 ### 6. 文档
 
@@ -221,7 +223,7 @@
 
 ```dockerfile
 # Stage 1: Builder
-FROM rust:1.83-slim-bookworm AS builder
+FROM rust:1.90-slim-bookworm AS builder
 # 构建应用
 
 # Stage 2: Runtime
@@ -233,15 +235,15 @@ FROM debian:bookworm-slim
 
 ```dockerfile
 # Stage 1: Dependencies
-FROM node:20-alpine AS deps
+FROM node:25-alpine AS deps
 # 安装依赖
 
 # Stage 2: Builder
-FROM node:20-alpine AS builder
+FROM node:25-alpine AS builder
 # 构建应用
 
 # Stage 3: Runner
-FROM node:20-alpine AS runner
+FROM node:25-alpine AS runner
 # 运行应用 (standalone 模式)
 ```
 
@@ -276,20 +278,23 @@ healthcheck:
 
 ### 数据持久化
 
-**卷定义：**
+**宿主机目录：**
 
-```yaml
-volumes:
-  backend-data:
-    driver: local
-  backend-storage:
-    driver: local
-```
+- `docker/backend/data` → `/app/data`（SQLite 数据库）
+- `docker/backend/storage` → `/app/storage`（业务文件 / 房间内容）
+- `docker/backend/config/backend.yaml` →
+  `/app/config/backend.yaml`（运行时配置）
 
-**挂载点：**
+**实现细节：**
 
-- Backend: `/app/data` (数据库), `/app/storage` (文件)
-- 使用命名卷确保数据持久化
+- Compose 使用 bind mount，并开启 `bind.create_host_path`
+  以在缺失时自动创建目录。
+- 新增
+  `scripts/docker_prepare_volumes.sh`：在启动容器前准备目录并检测端口占用，避免
+  SQLite 文件被宿主机锁定导致“Device busy or not ready”。
+- 数据与配置直接落在仓库内，方便版本管理与手动备份。
+- 后端配置新增 `app.database.journal_mode` 字段，默认仍为 `WAL`，而 Docker
+  专用配置改为 `DELETE`，解决 VirtioFS/gRPC FUSE 上的 WAL 兼容性问题。
 
 ### 环境变量映射
 
@@ -331,6 +336,10 @@ NEXT_PUBLIC_APP_URL=http://localhost:4001
 1. **SQLite 限制**: 不适合高并发场景，生产环境建议使用 PostgreSQL
 2. **单机部署**: 当前方案为单机部署，不支持水平扩展
 3. **文件存储**: 使用本地存储，未来可考虑对象存储
+4. **macOS VirtioFS**: Docker Desktop 4.34+ 在启用 VirtioFS 时可能出现 bind
+   mount“Device busy or not ready”，可切换到 gRPC FUSE 作为 workaround（参考
+   HashCorp
+   支持文档：<https://support.hashicorp.com/hc/en-us/articles/41463725654291-Nomad-on-macOS-Docker-Driver-Not-Detected-and-Nomad-Job-Fails-Due-to-Mount-Permission-Error>）
 
 ## 后续改进计划
 

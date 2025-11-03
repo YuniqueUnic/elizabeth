@@ -1,157 +1,85 @@
-# ============================================================================
-# Elizabeth Makefile
-# ============================================================================
-# Alternative to justfile for users who prefer make
-# For better experience, consider using just: https://github.com/casey/just
+.PHONY: help \
+        docker-backend-cache docker-frontend-cache \
+        docker-backend-binary docker-frontend-binary \
+        docker-backend-image docker-frontend-image \
+        docker-backend-up docker-frontend-up \
+        docker-backend-stop docker-frontend-stop \
+        docker-backend-recreate docker-frontend-recreate
 
-.PHONY: help docker-deploy docker-build docker-up docker-down docker-restart \
-        docker-status docker-logs docker-backup docker-restore docker-clean \
-        docker-shell-backend docker-shell-frontend docker-init docker-validate \
-        docker-stats
-
-# Default target
 help:
-	@echo "Elizabeth Docker Deployment Commands"
-	@echo "====================================="
-	@echo ""
-	@echo "Deployment:"
-	@echo "  make docker-deploy          - One-click deployment"
-	@echo "  make docker-build           - Build Docker images"
-	@echo "  make docker-up              - Start services"
-	@echo "  make docker-down            - Stop services"
-	@echo "  make docker-restart         - Restart services"
-	@echo ""
-	@echo "Monitoring:"
-	@echo "  make docker-status          - View service status"
-	@echo "  make docker-logs            - View all logs"
-	@echo "  make docker-logs-backend    - View backend logs"
-	@echo "  make docker-logs-frontend   - View frontend logs"
-	@echo "  make docker-stats           - View resource usage"
-	@echo ""
-	@echo "Maintenance:"
-	@echo "  make docker-backup          - Backup data"
-	@echo "  make docker-restore NAME=<backup_name> - Restore data"
-	@echo "  make docker-clean           - Clean up resources"
-	@echo ""
-	@echo "Debugging:"
-	@echo "  make docker-shell-backend   - Enter backend container"
-	@echo "  make docker-shell-frontend  - Enter frontend container"
-	@echo "  make docker-validate        - Validate configuration"
-	@echo ""
-	@echo "Setup:"
-	@echo "  make docker-init            - Initialize environment"
-	@echo ""
-	@echo "For more information, see docs/DOCKER_QUICK_START.md"
+	@echo "Elizabeth Docker Commands"
+	@echo "=========================="
+	@echo "Cache layers:"
+	@echo "  make docker-backend-cache    # Build backend cache (planner)"
+	@echo "  make docker-frontend-cache   # Build frontend cache (deps)"
+	@echo "Binaries:"
+	@echo "  make docker-backend-binary   # Build backend builder image"
+	@echo "  make docker-frontend-binary  # Build frontend builder image"
+	@echo "Images:"
+	@echo "  make docker-backend-image    # Build backend runtime image"
+	@echo "  make docker-frontend-image   # Build frontend runtime image"
+	@echo "Containers:"
+	@echo "  make docker-backend-up       # Start backend container"
+	@echo "  make docker-frontend-up      # Start frontend container"
+	@echo "  make docker-backend-stop     # Stop backend container"
+	@echo "  make docker-frontend-stop    # Stop frontend container"
+	@echo "  make docker-backend-recreate # Recreate backend container"
+	@echo "  make docker-frontend-recreate # Recreate frontend container"
 
-# ============================================================================
-# Deployment Commands
-# ============================================================================
+# Cache layers
 
-docker-deploy:
-	@echo "🚀 Deploying Elizabeth..."
-	@./scripts/deploy.sh
+docker-backend-cache:
+	@echo "🔧 构建后端 cache 层 (planner)..."
+	docker build --target planner -f Dockerfile.backend -t elizabeth-backend-cache:latest .
 
-docker-build:
-	@echo "🏗️ Building Docker images..."
-	@docker-compose build
+docker-frontend-cache:
+	@echo "🔧 构建前端 cache 层 (deps)..."
+	docker build --target deps -f Dockerfile.frontend -t elizabeth-frontend-cache:latest .
 
-# Optimized build commands for development
-docker-build-binary:
-	@echo "🔨 Building Rust binary (cached)..."
-	@docker build --target binary-builder -t elizabeth-backend-binary:latest .
+# Binaries
 
-docker-build-backend:
-	@echo "🐳 Building backend container with cached binary..."
-	@docker build --target runtime -t elizabeth-backend:latest .
+docker-backend-binary:
+	@echo "🔨 构建后端二进制 (builder)..."
+	docker build --target builder -f Dockerfile.backend -t elizabeth-backend-builder:latest .
 
-docker-rebuild-binary:
-	@echo "🔄 Force rebuilding Rust binary (no cache)..."
-	@docker build --target binary-builder --no-cache -t elizabeth-backend-binary:latest .
+docker-frontend-binary:
+	@echo "🔨 构建前端二进制 (builder)..."
+	docker build --target builder -f Dockerfile.frontend -t elizabeth-frontend-builder:latest .
 
-docker-up:
-	@echo "▶️ Starting Docker services..."
-	@docker-compose up -d
+# Runtime images
 
-docker-down:
-	@echo "⏹️ Stopping Docker services..."
-	@docker-compose down
+docker-backend-image:
+	@echo "🐳 构建后端运行时镜像..."
+	docker build --target runtime -f Dockerfile.backend -t elizabeth-backend:latest .
 
-docker-restart:
-	@echo "🔄 Restarting Docker services..."
-	@docker-compose restart
+docker-frontend-image:
+	@echo "🐳 构建前端运行时镜像..."
+	docker build --target runner -f Dockerfile.frontend -t elizabeth-frontend:latest .
 
-# ============================================================================
-# Monitoring Commands
-# ============================================================================
+# Container lifecycle
 
-docker-status:
-	@echo "📊 Docker service status:"
-	@docker-compose ps
+docker-backend-up:
+	@echo "▶️ 启动后端容器..."
+	./scripts/docker_prepare_volumes.sh
+	docker compose up -d backend
 
-docker-logs:
-	@echo "📜 Viewing all service logs..."
-	@docker-compose logs -f
+docker-frontend-up: docker-backend-up
+	@echo "▶️ 启动前端容器..."
+	docker compose up -d frontend
 
-docker-logs-backend:
-	@echo "📜 Viewing backend logs..."
-	@docker-compose logs -f backend
+docker-backend-stop:
+	@echo "⏹️ 停止后端容器..."
+	docker compose stop backend
 
-docker-logs-frontend:
-	@echo "📜 Viewing frontend logs..."
-	@docker-compose logs -f frontend
+docker-frontend-stop:
+	@echo "⏹️ 停止前端容器..."
+	docker compose stop frontend
 
-docker-stats:
-	@echo "📈 Docker resource usage:"
-	@docker stats --no-stream
+docker-backend-recreate:
+	@echo "🔄 重建后端容器..."
+	./scripts/docker_prepare_volumes.sh
+	docker compose up -d --force-recreate backend
 
-# ============================================================================
-# Maintenance Commands
-# ============================================================================
-
-docker-backup:
-	@echo "💾 Backing up Docker data..."
-	@./scripts/backup.sh
-
-docker-restore:
-	@if [ -z "$(NAME)" ]; then \
-		echo "❌ Error: Please specify backup name with NAME=<backup_name>"; \
-		echo "Example: make docker-restore NAME=elizabeth_backup_20240101_120000"; \
-		exit 1; \
-	fi
-	@echo "🔙 Restoring Docker data: $(NAME)"
-	@./scripts/restore.sh $(NAME)
-
-docker-clean:
-	@echo "🧹 Cleaning up Docker resources..."
-	@docker-compose down -v
-	@docker system prune -f
-
-# ============================================================================
-# Debugging Commands
-# ============================================================================
-
-docker-shell-backend:
-	@echo "🔍 Entering backend container..."
-	@docker-compose exec backend sh
-
-docker-shell-frontend:
-	@echo "🔍 Entering frontend container..."
-	@docker-compose exec frontend sh
-
-docker-validate:
-	@echo "🔧 Validating Docker configuration..."
-	@docker-compose config
-
-# ============================================================================
-# Setup Commands
-# ============================================================================
-
-docker-init:
-	@if [ ! -f .env ]; then \
-		echo "📦 Creating .env file..."; \
-		cp .env.docker .env; \
-		echo "⚠️  Please edit .env file and set JWT_SECRET!"; \
-		echo "💡 Generate secret: openssl rand -base64 48"; \
-	else \
-		echo "✅ .env file already exists"; \
-	fi
+docker-frontend-recreate: docker-backend-recreate
+	@echo "🔄 重建前端容器..."
+	docker compose up -d --force-recreate frontend
