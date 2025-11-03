@@ -11,8 +11,10 @@ services:
         USER_GID: 20
     container_name: elizabeth-backend
     restart: unless-stopped
-    ports:
-      - "${BACKEND_PORT:-4092}:4092"
+    # Remove port mapping to restrict backend access to internal network only
+    # Backend only accessible via elizabeth-backend:4092 within the Docker network
+    # ports:
+    #   - "${BACKEND_PORT:-4092}:4092"
     volumes:
       # Use dedicated host directories to avoid virtiofs mount contention on macOS (see Docker Desktop 4.34+ release notes)
       - type: bind
