@@ -30,23 +30,20 @@ cargo install just
 ### 方法一：使用 Just (推荐)
 
 ```bash
-# 1. 初始化环境配置
-just docker-init
+# 1. 构建镜像（首次部署或依赖更新时执行）
+just docker-backend-cache
+just docker-backend-image
+just docker-frontend-cache
+just docker-frontend-image
 
-# 2. 编辑 .env 文件，设置 JWT_SECRET
-# 生成安全的密钥
-openssl rand -base64 48
+# 2. 启动容器（会自动检查端口占用并准备挂载目录）
+just docker-backend-up
+just docker-frontend-up
 
-# 将生成的密钥设置到 .env 文件中的 JWT_SECRET
-
-# 3. 一键部署
-just docker-deploy
-
-# 4. 查看服务状态
-just docker-status
-
-# 5. 查看日志
-just docker-logs
+# 3. 查看状态 / 日志
+docker compose ps
+docker compose logs -f backend
+docker compose logs -f frontend
 ```
 
 ### 方法二：使用脚本
@@ -59,17 +56,19 @@ cp .env.docker .env
 openssl rand -base64 48
 # 将生成的密钥设置到 .env 文件中
 
-# 3. 运行部署脚本
-./scripts/deploy.sh
+# 3. 准备挂载目录与检测端口
+./scripts/docker_prepare_volumes.sh
 
-# 4. 查看状态
-docker-compose ps
+# 4. 构建并启动
+docker compose build backend frontend
+docker compose up -d backend frontend
 
-# 5. 查看日志
-docker-compose logs -f
+# 5. 查看状态 / 日志
+docker compose ps
+docker compose logs -f
 ```
 
-### 方法三：使用 Docker Compose
+### 方法三：纯 Docker Compose
 
 ```bash
 # 1. 初始化配置
@@ -78,11 +77,14 @@ cp .env.docker .env
 # 2. 编辑 .env 文件
 vim .env
 
-# 3. 构建并启动
-docker-compose up -d --build
+# 3. 准备挂载目录
+./scripts/docker_prepare_volumes.sh
 
-# 4. 查看状态
-docker-compose ps
+# 4. 构建并启动
+docker compose up -d --build backend frontend
+
+# 5. 查看状态
+docker compose ps
 ```
 
 ## 🎯 访问应用
@@ -101,66 +103,64 @@ docker-compose ps
 # 查看所有可用命令
 just --list
 
-# 部署相关
-just docker-deploy          # 一键部署
-just docker-build           # 构建镜像
-just docker-up              # 启动服务
-just docker-down            # 停止服务
-just docker-restart         # 重启服务
+# 构建缓存 / 二进制 / 镜像
+just docker-backend-cache   # 后端依赖缓存 (planner)
+just docker-frontend-cache  # 前端依赖缓存 (deps)
+just docker-backend-binary  # 后端 builder 镜像
+just docker-frontend-binary # 前端 builder 镜像
+just docker-backend-image   # 后端运行时镜像
+just docker-frontend-image  # 前端运行时镜像
 
-# 监控相关
-just docker-status          # 查看状态
-just docker-logs            # 查看所有日志
-just docker-logs backend    # 查看后端日志
-just docker-logs frontend   # 查看前端日志
-just docker-stats           # 查看资源使用
-
-# 维护相关
-just docker-backup          # 备份数据
-just docker-restore <name>  # 恢复数据
-just docker-clean           # 清理资源
-
-# 调试相关
-just docker-shell-backend   # 进入后端容器
-just docker-shell-frontend  # 进入前端容器
-just docker-validate        # 验证配置
+# 容器生命周期
+just docker-backend-up      # 启动后端容器
+just docker-frontend-up     # 启动前端容器
+just docker-backend-stop    # 停止后端容器
+just docker-frontend-stop   # 停止前端容器
+just docker-backend-recreate # 强制重建后端容器
+just docker-frontend-recreate # 强制重建前端容器
 
 # 别名
-just dd                     # = docker-deploy
-just db                     # = docker-build
-just du                     # = docker-up
-just ds                     # = docker-status
-just dl                     # = docker-logs
-just dc                     # = docker-clean
+just dbc  # = docker-backend-cache
+just dfc  # = docker-frontend-cache
+just dbb  # = docker-backend-binary
+just dfb  # = docker-frontend-binary
+just dbi  # = docker-backend-image
+just dfi  # = docker-frontend-image
+just dbu  # = docker-backend-up
+just dfu  # = docker-frontend-up
+just dbs  # = docker-backend-stop
+just dfs  # = docker-frontend-stop
+just dbr  # = docker-backend-recreate
+just dfr  # = docker-frontend-recreate
 ```
 
 ### Docker Compose 命令
 
 ```bash
-# 启动服务
-docker-compose up -d
+# 准备挂载目录
+./scripts/docker_prepare_volumes.sh
 
-# 停止服务
-docker-compose down
+# 启动服务
+docker compose up -d backend frontend
 
 # 重启服务
-docker-compose restart
+docker compose restart backend frontend
 
 # 查看状态
-docker-compose ps
+docker compose ps
 
 # 查看日志
-docker-compose logs -f
-docker-compose logs -f backend
-docker-compose logs -f frontend
+docker compose logs -f
+docker compose logs -f backend
+docker compose logs -f frontend
 
 # 进入容器
-docker-compose exec backend sh
-docker-compose exec frontend sh
+docker compose exec backend sh
+docker compose exec frontend sh
 
 # 重新构建
-docker-compose build --no-cache
-docker-compose up -d --build
+docker compose build --no-cache backend frontend
+docker compose up -d --build backend frontend
 ```
 
 ## 🔧 配置说明
@@ -198,15 +198,26 @@ MIDDLEWARE_CORS_ALLOWED_ORIGINS=*   # 生产环境改为具体域名
 
 完整配置说明请参考 `.env.docker` 文件中的注释。
 
+### Docker 数据挂载目录
+
+仓库已经预置以下可写目录，便于通过宿主机直接管理数据与配置：
+
+- `docker/backend/data`：持久化 SQLite 数据库文件
+- `docker/backend/storage/rooms`：房间内容与上传文件存储目录
+- `docker/backend/config/backend.yaml`：后端 Docker 运行时使用的配置文件
+- `app.database.journal_mode`：默认改为 `delete`，避免 SQLite WAL 在 macOS
+  VirtioFS/gRPC FUSE 上触发 `Device or resource busy`
+
+`just docker-backend-up` 与 `scripts/docker_prepare_volumes.sh`
+会自动创建缺失的目录，并在端口冲突时给出提示。若需要自定义配置，可直接编辑上述
+YAML 文件后重建容器。
+
 ## 💾 数据备份与恢复
 
 ### 备份数据
 
 ```bash
-# 使用 Just
-just docker-backup
-
-# 或使用脚本
+# 使用脚本备份
 ./scripts/backup.sh
 ```
 
@@ -218,10 +229,7 @@ just docker-backup
 # 查看可用的备份
 ls -la backups/
 
-# 使用 Just 恢复
-just docker-restore elizabeth_backup_20240101_120000
-
-# 或使用脚本
+# 通过脚本恢复
 ./scripts/restore.sh elizabeth_backup_20240101_120000
 ```
 
@@ -247,13 +255,14 @@ docker run --rm \
 
 ```bash
 # 查看详细日志
-just docker-logs
+docker compose logs -f backend
+docker compose logs -f frontend
 
 # 检查配置
-just docker-validate
+docker compose config
 
 # 检查容器状态
-docker-compose ps
+docker compose ps
 docker inspect elizabeth-backend
 docker inspect elizabeth-frontend
 ```
@@ -262,7 +271,7 @@ docker inspect elizabeth-frontend
 
 ```bash
 # 进入后端容器
-just docker-shell-backend
+docker compose exec backend sh
 
 # 检查数据库
 ls -la /app/data/
@@ -276,41 +285,59 @@ ls -la /app/migrations/
 
 ```bash
 # 检查网络连接
-docker-compose exec frontend ping backend
+docker compose exec frontend ping backend
 
 # 检查环境变量
-docker-compose exec frontend env | grep NEXT_PUBLIC
+docker compose exec frontend env | grep NEXT_PUBLIC
 
 # 测试后端 API
 curl http://localhost:4092/api/v1/health
 ```
 
+### macOS 出现“Device busy or not ready”
+
+1. 先运行 `./scripts/docker_prepare_volumes.sh`，脚本会检测端口 4092
+   是否被本地进程占用。
+2. 确认本地未同时运行 `cargo run -p elizabeth-board -- run` 等后端服务，以避免
+   SQLite 文件被锁定。
+3. 检查 `docker/backend/config/backend.yaml` 中 `app.database.journal_mode`
+   是否设为 `delete`（Docker 默认配置已经调整为该值，若改成 `wal` 极易复现
+   EBUSY）。修改后重启容器即可生效。
+4. 若仍然失败，可在 Docker Desktop → Settings → General 中将 _Virtualization
+   framework_ 切换为 **gRPC FUSE**，该方案已被 HashCorp 支持文档验证可缓解 macOS
+   上的挂载权限错误
+   [[来源](https://support.hashicorp.com/hc/en-us/articles/41463725654291-Nomad-on-macOS-Docker-Driver-Not-Detected-and-Nomad-Job-Fails-Due-to-Mount-Permission-Error)].
+
 ### 重置所有数据
 
 ```bash
 # 警告：这将删除所有数据！
-just docker-clean
+docker compose down -v
+rm -rf docker/backend/data/*
+rm -rf docker/backend/storage/rooms/*
 
 # 重新部署
-just docker-deploy
+./scripts/docker_prepare_volumes.sh
+docker compose up -d backend frontend
 ```
 
 ## 🔄 更新应用
 
 ```bash
 # 1. 备份当前数据
-just docker-backup
+./scripts/backup.sh
 
 # 2. 拉取最新代码
 git pull
 
 # 3. 重新构建并部署
-just docker-build
-just docker-down
-just docker-up
+just docker-backend-image
+just docker-frontend-image
+just docker-backend-recreate
+just docker-frontend-recreate
 
 # 或者一键更新
-just docker-deploy
+docker compose up -d --build backend frontend
 ```
 
 ## 📊 监控
@@ -318,10 +345,6 @@ just docker-deploy
 ### 查看资源使用
 
 ```bash
-# 使用 Just
-just docker-stats
-
-# 或使用 Docker 命令
 docker stats
 ```
 
@@ -329,7 +352,7 @@ docker stats
 
 ```bash
 # 查看服务状态
-just docker-status
+docker compose ps
 
 # 查看健康检查详情
 docker inspect elizabeth-backend | jq '.[0].State.Health'
@@ -394,8 +417,8 @@ JWT_SECRET=<your-secure-secret-key>
 
 如遇问题，请：
 
-1. 查看日志：`just docker-logs`
-2. 检查配置：`just docker-validate`
-3. 查看状态：`just docker-status`
+1. 查看日志：`docker compose logs -f`
+2. 检查配置：`docker compose config`
+3. 查看状态：`docker compose ps`
 4. 参考[完整部署文档](./DEPLOYMENT.md)
 5. 提交 Issue 到 GitHub

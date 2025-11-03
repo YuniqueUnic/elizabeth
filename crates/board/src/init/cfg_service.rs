@@ -60,7 +60,12 @@ fn merge_config_with_cli_args(
     merge_cli_arg!(cfg.app.jwt.secret, args.jwt_secret.clone());
     merge_cli_arg!(cfg.app.database.url, args.db_url.clone());
 
-    cfg_mgr.save(&cfg)?;
+    if let Err(e) = cfg_mgr.save(&cfg) {
+        log::warn!(
+            "Failed to persist merged configuration ({}). Continuing with in-memory config.",
+            e
+        );
+    }
 
     Ok(cfg)
 }

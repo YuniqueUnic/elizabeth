@@ -1,5 +1,3 @@
-use std::default;
-
 use smart_default::SmartDefault;
 
 use crate::merge::{Merge, overwrite, overwrite_not_empty_string};
@@ -48,6 +46,9 @@ pub struct DatabaseConfig {
     #[default(Some(5))]
     #[merge(strategy = overwrite)]
     pub min_connections: Option<u32>,
+    #[default("wal")]
+    #[merge(strategy = overwrite_not_empty_string)]
+    pub journal_mode: String,
 }
 
 #[derive(Merge, Debug, Clone, SmartDefault, serde::Deserialize, serde::Serialize)]
@@ -248,6 +249,7 @@ mod tests {
         assert_eq!(cfg.database.url, "sqlite:app.db");
         assert_eq!(cfg.database.max_connections, Some(20));
         assert_eq!(cfg.database.min_connections, Some(5));
+        assert_eq!(cfg.database.journal_mode.to_lowercase(), "wal");
         assert_eq!(cfg.jwt.secret, "secret");
         assert_eq!(cfg.jwt.ttl_seconds, 30 * 60);
         assert_eq!(cfg.jwt.refresh_ttl_seconds, 7 * 24 * 60 * 60);
@@ -285,6 +287,7 @@ mod tests {
                 url: "sqlite://test.db".into(),
                 max_connections: Some(50),
                 min_connections: None,
+                journal_mode: "delete".into(),
             },
             jwt: JwtConfig {
                 secret: "foobar".into(), // pragma: allowlist secret
@@ -313,6 +316,7 @@ mod tests {
         assert_eq!(left.database.url, "sqlite://test.db");
         assert_eq!(left.database.max_connections, Some(50));
         assert_eq!(left.database.min_connections, None);
+        assert_eq!(left.database.journal_mode, "delete");
         assert_eq!(left.jwt.secret, "foobar"); // pragma: allowlist secret
         assert_eq!(left.jwt.ttl_seconds, 120);
         assert_eq!(left.jwt.leeway_seconds, 2);
