@@ -2,7 +2,7 @@ use anyhow::Result;
 use logrs::{error, info};
 use sqlx::{
     Pool, Sqlite,
-    sqlite::{SqliteConnectOptions, SqlitePoolOptions},
+    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions},
 };
 use std::str::FromStr;
 
@@ -20,7 +20,7 @@ pub async fn init_db(settings: &DbPoolSettings) -> Result<DbPool> {
 
     let connect_options = SqliteConnectOptions::from_str(&settings.url)?
         .create_if_missing(true)
-        .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
+        .journal_mode(settings.journal_mode)
         .synchronous(sqlx::sqlite::SqliteSynchronous::Normal)
         .busy_timeout(std::time::Duration::from_secs(BUSY_TIMEOUT_SECS));
 
@@ -61,6 +61,7 @@ pub struct DbPoolSettings {
     pub url: String,
     pub max_connections: Option<u32>,
     pub min_connections: Option<u32>,
+    pub journal_mode: SqliteJournalMode,
 }
 
 impl Default for DbPoolSettings {
@@ -69,6 +70,7 @@ impl Default for DbPoolSettings {
             url: DEFAULT_DB_URL.to_string(),
             max_connections: Some(DEFAULT_MAX_CONNECTIONS),
             min_connections: Some(DEFAULT_MIN_CONNECTIONS),
+            journal_mode: SqliteJournalMode::Wal,
         }
     }
 }
@@ -88,6 +90,11 @@ impl DbPoolSettings {
 
     pub fn with_min_connections(mut self, min_connections: impl Into<Option<u32>>) -> Self {
         self.min_connections = min_connections.into();
+        self
+    }
+
+    pub fn with_journal_mode(mut self, journal_mode: SqliteJournalMode) -> Self {
+        self.journal_mode = journal_mode;
         self
     }
 
