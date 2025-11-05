@@ -51,7 +51,8 @@ services:
       context: .
       dockerfile: Dockerfile.frontend
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://elizabeth-backend:4092/api/v1}
+        # Build-time arguments - use relative path
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api/v1}
         NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:4001}
     container_name: elizabeth-frontend
     restart: unless-stopped
@@ -59,7 +60,10 @@ services:
       - "${FRONTEND_PORT:-4001}:4001"
     environment:
       # Runtime environment variables
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://elizabeth-backend:4092/api/v1}
+      # Public API URL for browser (relative path)
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api/v1}
+      # Internal API URL for Next.js server-side rewrites
+      INTERNAL_API_URL: ${INTERNAL_API_URL:-http://elizabeth-backend:4092/api/v1}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:4001}
       NODE_ENV: production
       PORT: 4001
