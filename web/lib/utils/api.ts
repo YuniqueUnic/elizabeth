@@ -5,8 +5,114 @@
  * including automatic token injection, error handling, and response normalization.
  */
 
-import { API_BASE_URL, REQUEST_CONFIG, TOKEN_CONFIG } from "../config";
+import {
+  API_BASE_URL,
+  API_BASE_ORIGIN,
+  INTERNAL_API_PATH,
+  INTERNAL_API_ORIGIN,
+  PUBLIC_APP_ORIGIN,
+  REQUEST_CONFIG,
+  TOKEN_CONFIG,
+} from "../config";
 import type { TokenInfo, TokenStorage } from "../types";
+
+const ABSOLUTE_URL_REGEX = /^https?:\/\//i;
+
+const composePath = (basePath: string, path: string): string => {
+  const normalizedBase = basePath.replace(/\/+$/, "");
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+
+  if (!normalizedBase) {
+    return normalizedPath;
+  }
+
+  if (
+    normalizedPath === normalizedBase ||
+    normalizedPath.startsWith(`${normalizedBase}/`) ||
+    normalizedPath.startsWith(`${normalizedBase}?`)
+  ) {
+    return normalizedPath;
+  }
+
+  return `${normalizedBase}${normalizedPath}`;
+};
+
+const resolveServerOrigin = (): string => {
+  if (INTERNAL_API_ORIGIN) {
+    return INTERNAL_API_ORIGIN;
+  }
+
+  if (API_BASE_ORIGIN) {
+    return API_BASE_ORIGIN;
+  }
+
+  if (PUBLIC_APP_ORIGIN) {
+    return PUBLIC_APP_ORIGIN;
+  }
+
+  const port = process.env.PORT || "4001";
+  return `http://127.0.0.1:${port}`;
+};
+
+const buildClientUrl = (path: string): string => {
+  const pathWithBase = composePath(API_BASE_URL, path);
+
+  if (
+    typeof window !== "undefined" &&
+    API_BASE_ORIGIN?.startsWith("http://") &&
+    window.location.protocol === "https:"
+  ) {
+    return pathWithBase;
+  }
+
+  if (API_BASE_ORIGIN) {
+    return `${API_BASE_ORIGIN}${pathWithBase}`;
+  }
+
+  return pathWithBase;
+};
+
+const buildServerUrl = (path: string): string => {
+  const basePath = INTERNAL_API_PATH || API_BASE_URL;
+  const origin = resolveServerOrigin();
+  const pathWithBase = composePath(basePath, path);
+  return `${origin}${pathWithBase}`;
+};
+
+const createURLObject = (input: string): URL => {
+  if (ABSOLUTE_URL_REGEX.test(input)) {
+    return new URL(input);
+  }
+
+  if (typeof window !== "undefined") {
+    return new URL(input, window.location.origin);
+  }
+
+  return new URL(input, resolveServerOrigin());
+};
+
+const appendParams = (
+  url: string,
+  params?: Record<string, string | number | boolean>,
+): string => {
+  if (!params || Object.keys(params).length === 0) {
+    return url;
+  }
+
+  const urlObj = createURLObject(url);
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) {
+      urlObj.searchParams.set(key, String(value));
+    }
+  });
+
+  if (ABSOLUTE_URL_REGEX.test(url)) {
+    return urlObj.toString();
+  }
+
+  return `${urlObj.pathname}${urlObj.search}${urlObj.hash}`;
+};
 
 // ============================================================================
 // Token Management
@@ -106,16 +212,14 @@ export async function refreshRoomToken(
   roomName: string,
 ): Promise<string | null> {
   try {
-    const response = await fetch(
-      `${API_BASE_URL}/rooms/${encodeURIComponent(roomName)}/tokens`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({}),
+    const tokenUrl = buildURL(`/rooms/${encodeURIComponent(roomName)}/tokens`);
+    const response = await fetch(tokenUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
       },
-    );
+      body: JSON.stringify({}),
+    });
 
     if (!response.ok) {
       return null;
@@ -182,39 +286,43 @@ function buildURL(
   path: string,
   params?: Record<string, string | number | boolean>,
 ): string {
-  const url = new URL(
-    path.startsWith("http") ? path : `${API_BASE_URL}${path}`,
-  );
-
-  if (params) {
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        url.searchParams.append(key, String(value));
-      }
-    });
+  if (ABSOLUTE_URL_REGEX.test(path)) {
+    return appendParams(path, params);
   }
 
-  return url.toString();
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const targetUrl = typeof window === "undefined"
+    ? buildServerUrl(normalizedPath)
+    : buildClientUrl(normalizedPath);
+
+  return appendParams(targetUrl, params);
 }
 
 /**
  * Inject token into request
  */
 function injectToken(url: string, token?: string, roomName?: string): string {
+  const applyToken = (inputUrl: string, tokenValue: string): string => {
+    const urlObj = createURLObject(inputUrl);
+    urlObj.searchParams.set("token", tokenValue);
+
+    if (ABSOLUTE_URL_REGEX.test(inputUrl)) {
+      return urlObj.toString();
+    }
+
+    return `${urlObj.pathname}${urlObj.search}${urlObj.hash}`;
+  };
+
   // If token is explicitly provided, use it
   if (token) {
-    const urlObj = new URL(url);
-    urlObj.searchParams.set("token", token);
-    return urlObj.toString();
+    return applyToken(url, token);
   }
 
   // Try to get token from storage if roomName is provided
   if (roomName) {
     const tokenInfo = getRoomToken(roomName);
     if (tokenInfo && !isTokenExpired(tokenInfo.expiresAt)) {
-      const urlObj = new URL(url);
-      urlObj.searchParams.set("token", tokenInfo.token);
-      return urlObj.toString();
+      return applyToken(url, tokenInfo.token);
     }
   }
 
