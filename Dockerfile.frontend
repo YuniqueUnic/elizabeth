@@ -32,11 +32,14 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY web/ ./
 
 # Set build-time environment variables
-ARG NEXT_PUBLIC_API_URL=http://localhost:4092/api/v1
+ARG NEXT_PUBLIC_API_URL=/api/v1
 ARG NEXT_PUBLIC_APP_URL=http://localhost:4001
+ARG INTERNAL_API_URL=http://elizabeth-backend:4092/api/v1
 
+# Make build-time variables available to the build process
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
+ENV INTERNAL_API_URL=${INTERNAL_API_URL}
 
 # Build the application
 RUN npm run build
