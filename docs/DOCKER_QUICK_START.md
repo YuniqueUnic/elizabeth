@@ -174,7 +174,8 @@ docker compose up -d --build backend frontend
 JWT_SECRET=your-secure-secret-key-here
 
 # 如果部署到公网，修改这些 URL
-NEXT_PUBLIC_API_URL=https://api.yourdomain.com/api/v1
+NEXT_PUBLIC_API_URL=/api/v1
+INTERNAL_API_URL=http://elizabeth-backend:4092/api/v1
 NEXT_PUBLIC_APP_URL=https://yourdomain.com
 ```
 

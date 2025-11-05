@@ -54,6 +54,7 @@ services:
         # Build-time arguments - use relative path
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api/v1}
         NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:4001}
+        INTERNAL_API_URL: ${INTERNAL_API_URL:-http://elizabeth-backend:4092/api/v1}
     container_name: elizabeth-frontend
     restart: unless-stopped
     ports:
