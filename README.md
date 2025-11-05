@@ -414,7 +414,8 @@ app:
 
 ```bash
 # .env.local
-NEXT_PUBLIC_API_URL=http://localhost:4092/api/v1
+NEXT_PUBLIC_API_URL=/api/v1
+INTERNAL_API_URL=http://localhost:4092/api/v1
 NEXT_PUBLIC_APP_URL=http://localhost:4001
 ```
 

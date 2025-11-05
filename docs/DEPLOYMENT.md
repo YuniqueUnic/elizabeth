@@ -36,7 +36,8 @@ cp .env.docker .env
 
 # 编辑 .env 文件，至少修改以下配置：
 # - JWT_SECRET: 修改为至少 32 字符的随机字符串
-# - NEXT_PUBLIC_API_URL: 如果部署到生产环境，修改为实际的后端 API URL
+# - NEXT_PUBLIC_API_URL: 建议保持为 /api/v1，确保浏览器请求通过前端代理
+# - INTERNAL_API_URL: 配置 Next.js 服务器访问后端的内部地址（Docker 默认 http://elizabeth-backend:4092/api/v1）
 # - NEXT_PUBLIC_APP_URL: 如果部署到生产环境，修改为实际的前端 URL
 ```
 
@@ -75,8 +76,11 @@ FRONTEND_PORT=4001         # 前端服务端口
 #### 前端配置
 
 ```bash
-# API URL - 后端 API 地址
-NEXT_PUBLIC_API_URL=http://localhost:4092/api/v1
+# 浏览器可见的 API 前缀 - 保持相对路径
+NEXT_PUBLIC_API_URL=/api/v1
+
+# Next.js 服务器访问后端的内部地址
+INTERNAL_API_URL=http://localhost:4092/api/v1
 
 # App URL - 前端公开访问地址
 NEXT_PUBLIC_APP_URL=http://localhost:4001
