@@ -73,7 +73,6 @@ web/.next/
 web/out/
 web/.turbo/
 web/tsconfig.tsbuildinfo
-web/pnpm-lock.yaml
 web/yarn.lock
 web/e2e/
 web/playwright.config.ts

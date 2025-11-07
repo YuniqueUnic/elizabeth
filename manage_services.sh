@@ -9,9 +9,19 @@ BACKEND_LOG_FILE="$BACKEND_DIR/backend.log"
 BACKEND_PID_FILE="$BACKEND_DIR/backend.pid"
 
 FRONTEND_DIR="/Users/unic/dev/projs/rs/elizabeth/web"
-FRONTEND_CMD="pnpm dev --port 4001"
+FRONTEND_BUILD_CMD="pnpm build"
+FRONTEND_CMD="node .next/standalone/server.js"
 FRONTEND_LOG_FILE="$FRONTEND_DIR/frontend.log"
 FRONTEND_PID_FILE="$FRONTEND_DIR/frontend.pid"
+
+
+ENV_FILE="$BACKEND_DIR/.env"
+if [ -f "$ENV_FILE" ]; then
+    # shellcheck disable=SC1090
+    set -a
+    source "$ENV_FILE"
+    set +a
+fi
 
 # --- Functions ---
 
@@ -70,9 +80,46 @@ start_frontend() {
         echo "Frontend is already running (PID: $(cat $FRONTEND_PID_FILE))."
         return
     fi
+
+    local public_api_url="${MANAGER_NEXT_PUBLIC_API_URL:-${NEXT_PUBLIC_API_URL:-/api/v1}}"
+    local internal_api_url="${MANAGER_INTERNAL_API_URL:-http://localhost:4092/api/v1}"
+    local app_url="${MANAGER_NEXT_PUBLIC_APP_URL:-${NEXT_PUBLIC_APP_URL:-http://localhost:4001}}"
+
     echo "Starting frontend..."
     cd "$FRONTEND_DIR" || exit 1
-    nohup $FRONTEND_CMD > "$FRONTEND_LOG_FILE" 2>&1 &
+
+    if [ "${MANAGER_SKIP_FRONTEND_BUILD:-0}" != "1" ]; then
+        echo "  Building frontend (production bundle)..."
+        if ! $FRONTEND_BUILD_CMD > "$FRONTEND_DIR/frontend.build.log" 2>&1; then
+            echo "Frontend build failed. Check $FRONTEND_DIR/frontend.build.log"
+            return 1
+        fi
+        local standalone_dir="$FRONTEND_DIR/.next/standalone"
+        local standalone_next_dir="$standalone_dir/.next"
+        if [ -d "$standalone_dir" ]; then
+            mkdir -p "$standalone_next_dir/static"
+            rsync -a --delete "$FRONTEND_DIR/.next/static/" "$standalone_next_dir/static/" >/dev/null 2>&1
+            if [ -d "$FRONTEND_DIR/public" ]; then
+                mkdir -p "$standalone_dir/public"
+                rsync -a --delete "$FRONTEND_DIR/public/" "$standalone_dir/public/" >/dev/null 2>&1
+            fi
+        else
+            echo "  WARNING: Standalone output not found at $standalone_dir"
+        fi
+    else
+        echo "  Skipping frontend build (MANAGER_SKIP_FRONTEND_BUILD=1)."
+    fi
+
+    echo "  NEXT_PUBLIC_API_URL=$public_api_url"
+    echo "  INTERNAL_API_URL=$internal_api_url"
+    echo "  NEXT_PUBLIC_APP_URL=$app_url"
+    NODE_ENV=production \
+    HOSTNAME=0.0.0.0 \
+    PORT=4001 \
+    NEXT_PUBLIC_API_URL="$public_api_url" \
+    INTERNAL_API_URL="$internal_api_url" \
+    NEXT_PUBLIC_APP_URL="$app_url" \
+        nohup $FRONTEND_CMD > "$FRONTEND_LOG_FILE" 2>&1 &
     echo $! > "$FRONTEND_PID_FILE"
     sleep 2 # Give it a moment to start
     if ps -p $(cat "$FRONTEND_PID_FILE") > /dev/null; then

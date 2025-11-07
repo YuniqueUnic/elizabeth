@@ -27,3 +27,8 @@ docker/backend/storage/**
 !docker/backend/storage/
 !docker/backend/storage/rooms/
 !docker/backend/storage/rooms/.gitkeep
+
+# Frontend runtime artifacts
+web/frontend.log
+web/frontend.build.log
+web/frontend.pid

@@ -77,46 +77,48 @@ impl ConfigManager {
             .try_parsing(true)
     }
 
-    fn file_source(file_path: &str) -> config::File<FileSourceFile, FileFormat> {
-        let default_file_path = Self::default_file_path(
-            DEFAULT_DIR_NAME,
-            DEFAULT_APP_NAME,
-            DEFAULT_CONFIG_FILE_NAME,
-            DEFAULT_CONFIG_FILE_EXTENSION,
-        );
-        if file_path == default_file_path.to_str().unwrap() {
-            return config::File::new(file_path, config::FileFormat::Yaml).required(false);
-        }
-        config::File::new(file_path, config::FileFormat::Yaml).required(true)
+    fn file_source(file_path: &str, required: bool) -> config::File<FileSourceFile, FileFormat> {
+        config::File::new(file_path, config::FileFormat::Yaml).required(required)
     }
 
     pub fn new() -> Self {
-        let default_file_path = Self::default_file_path(
-            DEFAULT_DIR_NAME,
-            DEFAULT_APP_NAME,
-            DEFAULT_CONFIG_FILE_NAME,
-            DEFAULT_CONFIG_FILE_EXTENSION,
-        );
-        let default_file_path = default_file_path.to_str().unwrap();
+        let default_file_path = Self::default_config_path();
+        let default_file_path = default_file_path
+            .to_str()
+            .expect("default config path must be valid UTF-8")
+            .to_owned();
         let config_rs = config::ConfigBuilder::<DefaultState>::default()
+            .add_source(Self::file_source(&default_file_path, false))
             .add_source(Self::env_source())
-            .add_source(Self::file_source(default_file_path))
             .build()
             .unwrap();
-        Self(config_rs, default_file_path.into())
+        Self(config_rs, default_file_path)
     }
 
     pub fn new_with_file(file_path: &str) -> Self {
         let config_rs = config::ConfigBuilder::<DefaultState>::default()
+            .add_source(Self::file_source(file_path, true))
             .add_source(Self::env_source())
-            .add_source(Self::file_source(file_path))
             .build()
             .unwrap();
         Self(config_rs, file_path.into())
     }
 
+    pub fn default_config_path() -> PathBuf {
+        Self::default_file_path(
+            DEFAULT_DIR_NAME,
+            DEFAULT_APP_NAME,
+            DEFAULT_CONFIG_FILE_NAME,
+            DEFAULT_CONFIG_FILE_EXTENSION,
+        )
+    }
+
     pub fn file_path(&self) -> &str {
         &self.1
+    }
+
+    pub fn file_exists(&self) -> bool {
+        PathBuf::from(&self.1).exists()
     }
 
     /// Load configuration from all sources (environment variables, files, etc.)
