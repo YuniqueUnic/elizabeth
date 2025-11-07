@@ -7,21 +7,26 @@
 # ----------------------------------------------------------------------------
 FROM node:25.1-alpine AS deps
 
-# Install libc6-compat for compatibility
-RUN apk add --no-cache libc6-compat
+# Install base utilities and pnpm (global)
+RUN apk add --no-cache libc6-compat bash && \
+    npm install -g pnpm
 
 WORKDIR /app
 
-# Copy package files
-COPY web/package.json web/package-lock.json* ./
+# Copy package files for reproducible installs
+COPY web/package.json web/pnpm-lock.yaml ./
 
-# Install dependencies using npm
-RUN npm ci --legacy-peer-deps
+# Install dependencies using pnpm to match local dev
+RUN pnpm install --frozen-lockfile
 
 # ----------------------------------------------------------------------------
 # Stage 2: Builder - Build the Next.js application
 # ----------------------------------------------------------------------------
 FROM node:25.1-alpine AS builder
+
+# Enable pnpm in builder stage as well
+RUN apk add --no-cache libc6-compat bash && \
+    npm install -g pnpm
 
 WORKDIR /app
 
@@ -41,8 +46,12 @@ ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 ENV INTERNAL_API_URL=${INTERNAL_API_URL}
 
-# Build the application
-RUN npm run build
+# Build the application with pnpm to ensure parity with local workflow
+RUN pnpm build && \
+    mkdir -p .next/standalone/.next/static && \
+    cp -R .next/static/. .next/standalone/.next/static/ && \
+    mkdir -p .next/standalone/public && \
+    cp -R public/. .next/standalone/public/
 
 # ----------------------------------------------------------------------------
 # Stage 3: Runner - Create minimal runtime image

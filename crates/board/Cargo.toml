@@ -89,6 +89,8 @@ futures = "0.3"
 
 [dev-dependencies]
 tower = "0.5"
+serial_test = "3"
+tempfile = "3"
 
 [build-dependencies]
 anyhow = { version = "1" }

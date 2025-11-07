@@ -174,40 +174,20 @@ impl SqliteRoomRepository {
     async fn reset_if_expired(&self, room: Room) -> Result<Option<Room>> {
         if room.is_expired() {
             if let Some(id) = room.id {
-                // 清空房间内容
+                // 清空房间内容后删除房间记录
                 sqlx::query("DELETE FROM room_contents WHERE room_id = ?")
                     .bind(id)
                     .execute(&*self.pool)
                     .await?;
 
-                // 重置房间状态：清空内容大小和访问次数
-                let now = Utc::now().naive_utc();
-                let mut reset_room = room.clone();
-                reset_room.current_size = 0;
-                reset_room.current_times_entered = 0;
-                // 保持 expire_at 不变，这样下次查询时仍然会检查过期状态
+                sqlx::query("DELETE FROM rooms WHERE id = ?")
+                    .bind(id)
+                    .execute(&*self.pool)
+                    .await?;
 
-                sqlx::query!(
-                    r#"
-                    UPDATE rooms SET
-                        current_size = 0,
-                        current_times_entered = 0,
-                        updated_at = ?
-                    WHERE id = ?
-                    "#,
-                    now,
-                    id
-                )
-                .execute(&*self.pool)
-                .await?;
+                logrs::info!("Purged expired room {}", room.slug);
 
-                logrs::info!(
-                    "Reset expired room {} - cleared content and reset counters",
-                    room.slug
-                );
-
-                // 返回重置后的房间，标记为不可进入但保留记录
-                return Ok(None); // 返回 None 表示房间不可访问，但数据已保存
+                return Ok(None);
             }
             Ok(None)
         } else {
