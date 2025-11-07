@@ -72,3 +72,21 @@ https://box.yunique.top 则是真实的环境了.(其背后是本地的 docker
 等字段正确解析并符合优先级规则，同时只在需要时写默认文件。 □
 补充/更新自动化测试（单元/集成）覆盖优先级、默认文件创建等场景，并本地运行测试验证。
 □ 整理验证结果并输出说明、局限与后续建议。
+
+frp-server 机器：你可以使用 ssh 功能来进行检索。ssh root@121.41.3.22 -p 10022 -i
+~/.ssh/id_ed25519_aliyun 然后这个是 frp-server 上的 nginx
+目录：/www/server/nginx 这里是 /www/wwwroot/box.yunique.top 然后这里是 frps
+的配置文件：/opt/1panel/apps/frps/frps/data/frps.toml 并且这个 frps 实际是通过
+docker 部署的，1Panel-frps-x40N, 这是容器名
+
+然后本地的 frpc 的配置文件位于：~/dev/frp/config.toml
+
+REPORT.md
+请你仔细阅读，你看看这个解决办法如何？是否有个更好的解决办法，请你思考然后解决这个问题。
+这个任务可能很大，请你使用 TodoManager 来拆分为一步步的 tasks, 一步步的推进。
+请你也积极使用 积极调用 sequential_thinking mcp 工具帮助你思考 积极调用 tavily
+搜索服务来获取最新的网络知识 积极调用 context7 帮你获取最新知识 积极调用 web
+search 相关功能帮你获取网络知识 积极调用 desktop-commander
+帮你处理文件及相关你也可以在需要的时候，自主调用 MCP
+工具，或者联网查询，从而更好的辅助你完成任务。
+请你按照上面的要求和需求，仔细阅读代码和理解需求，一步一步的任务完成。
