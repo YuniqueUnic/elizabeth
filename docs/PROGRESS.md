@@ -62,3 +62,38 @@ configuration. @niginx.conf this is the nginx main configuration.
 
 And if you encounter any issues, please use the web search or related tools to
 help you solve this problem correctly.
+
+## 2025-11-07 缓存问题修复进度
+
+- 删除首页 `_ts` 重定向，使用 Next.js `connection()` 与 `revalidate = 0`
+  强制动态渲染，避免构建期产出长期缓存的 HTML。
+- 在 `next.config.mjs` 中为根路径追加
+  `Cache-Control: no-store, max-age=0, must-revalidate`
+  响应头，阻止上游代理继续缓存旧页面。
+- 本地执行 `pnpm build` 与 `cargo check` 均通过，确认前后端构建流程正常。
+- 建议生产环境部署后对 frp/nginx 做一次缓存清理或重载，彻底清除历史 HTML。
+
+## 2025-11-08 首页返回旧 HTML 的修复补充
+
+- 移除 `next/server` 的 `connection()` 调用，避免 Next.js 在生产模式下写入 `_ts`
+  重定向逻辑。
+- 新增 `proxy.ts`（原 middleware），在代理层统一删除 `_ts`
+  查询参数，确保根路径始终命中最新 HTML。Next 16 对 `middleware`
+  文件名已废弃，升级到 `proxy` 以适配 Node Runtime。
+- 重新构建并发布 Docker 前端镜像，确认本地 `node .next/standalone/server.js`
+  与容器 `http://localhost:4001/` 请求均返回最新脚本清单。
+- 线上 `https://box.yunique.top` 首屏 HTML 脚本指向最新 chunk（如
+  `1dfffbc0d9c48c1c.js` 等），浏览器页面加载正常，按钮交互恢复。
+
+## 2025-11-08 Mixed Content 防护增强
+
+- 调整 `web/lib/utils/api.ts` 的
+  `buildClientUrl`，在浏览器环境检测协议降级与同域情况，强制返回相对路径，彻底消除
+  HTTPS 页面向 HTTP 源发起请求的可能。
+- 清理遗留的 `web/middleware.ts`，仅保留 Next.js 16 推荐的
+  `proxy.ts`，避免构建时出现“Both middleware and proxy detected”错误。
+- 本地复验 `pnpm build` 与 `cargo check`
+  均通过，确认前后端构建链路稳定；构建日志记录 `INTERNAL_API_URL`
+  警告，部署前需在环境变量中补足该值以启用 API rewrite。
+- 建议上线前同步更新部署脚本/`.env`，确保
+  `NEXT_PUBLIC_API_URL=/api/v1`、`INTERNAL_API_URL=http://elizabeth-backend:4092/api/v1`，并重新构建前端镜像，使新逻辑生效。

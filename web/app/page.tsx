@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 
 import HomePage from "@/app/_components/home-page";
 
@@ -10,18 +9,8 @@ export const metadata: Metadata = {
 };
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
-export default function Page({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>;
-}) {
-  const ts = searchParams?._ts;
-
-  if (!ts || Array.isArray(ts)) {
-    const nextTs = Date.now();
-    redirect(`/?_ts=${nextTs}`);
-  }
-
+export default function Page() {
   return <HomePage />;
 }
