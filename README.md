@@ -424,9 +424,31 @@ NEXT_PUBLIC_APP_URL=http://localhost:4001
 Docker 部署时，所有配置通过 `.env` 文件管理。详见
 [Docker 快速开始](./docs/DOCKER_QUICK_START.md)。
 
+#### 避免 HTTPS 混合内容
+
+- 浏览器侧 API 地址请使用相对路径：`NEXT_PUBLIC_API_URL=/api/v1`
+- Next.js
+  服务端转发内部地址：`INTERNAL_API_URL=http://elizabeth-backend:4092/api/v1`
+- 重新构建前端镜像确保打包产物不再包含 `http://`
+  明文后端地址：`docker compose build --no-cache frontend && docker compose up -d frontend`
+- 参考文档：[docs/https-proxy-unification.md](./docs/https-proxy-unification.md)
+
+#### 数据库选择（SQLite / PostgreSQL）
+
+- 默认 SQLite：`DATABASE_URL=sqlite:app.db` 将使用 `migrations/` 目录。
+- PostgreSQL：将 `DATABASE_URL` 设置为 `postgres://...` 时自动切换为
+  `migrations_pg/` 目录，并使用 `sqlx` Postgres 驱动。
+- 后端镜像需包含 postgres
+  特性（已启用）。切换数据库后请重新构建后端镜像并运行迁移。
+
 ## 数据库设计
 
 项目使用 SQLite 数据库，包含以下主要表：
+
+> PostgreSQL 支持正在引入中：请参阅
+> [docs/postgresql-support.md](./docs/postgresql-support.md)
+> 获取依赖、配置字段与 docker-compose 示例。当前默认仍为 SQLite，切换为
+> PostgreSQL 后需重建后端镜像并运行对应迁移。
 
 ### 核心表
 

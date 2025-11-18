@@ -142,6 +142,18 @@ mod tests {
 
     #[test]
     #[serial]
+    fn env_log_level_overrides_defaults() {
+        let (_temp_dir, _guard) = with_temp_home();
+        let _env_guard = EnvGuard::set(vec![("LOG_LEVEL", Some("debug".into()))]);
+
+        let args = cmd::CliArgs::default();
+        let cfg = init(&args).expect("config loaded");
+
+        assert_eq!(cfg.app.logging.level.to_lowercase(), "debug");
+    }
+
+    #[test]
+    #[serial]
     fn init_errors_when_custom_config_missing() {
         let temp = tempdir().expect("tempdir");
         let missing = temp.path().join("missing.yaml");

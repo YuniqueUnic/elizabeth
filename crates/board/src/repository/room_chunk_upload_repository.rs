@@ -1,21 +1,20 @@
+use anyhow::{anyhow, Result};
+use async_trait::async_trait;
+use chrono::Utc;
+use sqlx::{Any, AnyPool};
 use std::sync::Arc;
 
-use anyhow::{Result, anyhow};
-use async_trait::async_trait;
-
 use crate::db::DbPool;
-use crate::models::room::chunk_upload::{ChunkStatus, RoomChunkUpload};
+use crate::models::room::chunk_upload::{ChunkedUploadStatusResponse, RoomChunkUpload};
 
 #[async_trait]
 pub trait IRoomChunkUploadRepository: Send + Sync {
-    async fn create(&self, chunk: RoomChunkUpload) -> Result<RoomChunkUpload>;
-    async fn find_by_reservation_and_index(
-        &self,
-        reservation_id: i64,
-        chunk_index: i64,
-    ) -> Result<Option<RoomChunkUpload>>;
-    async fn find_by_reservation_id(&self, reservation_id: i64) -> Result<Vec<RoomChunkUpload>>;
-    async fn count_by_reservation_id(&self, reservation_id: i64) -> Result<i64>;
+    async fn create(&self, upload: &RoomChunkUpload) -> Result<RoomChunkUpload>;
+    async fn find_by_upload_id(&self, upload_id: &str) -> Result<Option<RoomChunkUpload>>;
+    async fn update_status(&self, upload_id: &str, uploaded_chunks: i64) -> Result<RoomChunkUpload>;
+    async fn finalize(&self, upload_id: &str) -> Result<RoomChunkUpload>;
+    async fn delete_by_room(&self, room_id: i64) -> Result<u64>;
+    async fn status(&self, upload_id: &str) -> Result<Option<ChunkedUploadStatusResponse>>;
 }
 
 pub struct SqliteRoomChunkUploadRepository {
@@ -26,131 +25,151 @@ impl SqliteRoomChunkUploadRepository {
     pub fn new(pool: Arc<DbPool>) -> Self {
         Self { pool }
     }
+
+    async fn fetch_by_id_or_err<'e, E>(executor: E, id: i64) -> Result<RoomChunkUpload>
+    where
+        E: sqlx::Executor<'e, Database = Any>,
+    {
+        sqlx::query_as::<_, RoomChunkUpload>(
+            r#"
+            SELECT id, room_id, upload_id, file_name, total_chunks, uploaded_chunks,
+                   size, mime_type, status as "status: _", created_at, updated_at
+            FROM room_chunk_uploads
+            WHERE id = ?
+            "#,
+        )
+        .bind(id)
+        .fetch_optional(executor)
+        .await?
+        .ok_or_else(|| anyhow!("chunk upload not found"))
+    }
 }
 
 #[async_trait]
 impl IRoomChunkUploadRepository for SqliteRoomChunkUploadRepository {
-    async fn create(&self, chunk: RoomChunkUpload) -> Result<RoomChunkUpload> {
-        let insert = sqlx::query!(
+    async fn create(&self, upload: &RoomChunkUpload) -> Result<RoomChunkUpload> {
+        let mut tx = self.pool.begin().await?;
+        let now = Utc::now().naive_utc();
+        let id: i64 = sqlx::query_scalar(
             r#"
-            INSERT INTO room_chunk_uploads
-                (reservation_id, chunk_index, chunk_size, chunk_hash, upload_status, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO room_chunk_uploads (
+                room_id, upload_id, file_name, total_chunks, uploaded_chunks,
+                size, mime_type, status, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            RETURNING id
             "#,
-            chunk.reservation_id,
-            chunk.chunk_index,
-            chunk.chunk_size,
-            chunk.chunk_hash,
-            chunk.upload_status,
-            chunk.created_at,
-            chunk.updated_at
         )
-        .execute(&*self.pool)
+        .bind(upload.room_id)
+        .bind(&upload.upload_id)
+        .bind(&upload.file_name)
+        .bind(upload.total_chunks)
+        .bind(upload.uploaded_chunks)
+        .bind(upload.size)
+        .bind(&upload.mime_type)
+        .bind(upload.status)
+        .bind(now)
+        .bind(now)
+        .fetch_one(&mut *tx)
         .await?;
 
-        let inserted_id = insert.last_insert_rowid();
-
-        let created_chunk = sqlx::query_as!(
-            RoomChunkUpload,
-            r#"
-            SELECT
-                id as "id: Option<i64>",
-                reservation_id,
-                chunk_index,
-                chunk_size,
-                chunk_hash,
-                upload_status as "upload_status: ChunkStatus",
-                created_at,
-                updated_at
-            FROM room_chunk_uploads
-            WHERE id = ?
-            "#,
-            inserted_id
-        )
-        .fetch_one(&*self.pool)
-        .await?;
-
-        // 修复类型转换问题
-        let created_chunk = RoomChunkUpload {
-            id: created_chunk.id,
-            reservation_id: created_chunk.reservation_id,
-            chunk_index: created_chunk.chunk_index,
-            chunk_size: created_chunk.chunk_size,
-            chunk_hash: created_chunk.chunk_hash,
-            upload_status: created_chunk.upload_status,
-            created_at: created_chunk.created_at,
-            updated_at: created_chunk.updated_at,
-        };
-
-        Ok(created_chunk)
+        let created = Self::fetch_by_id_or_err(&mut *tx, id).await?;
+        tx.commit().await?;
+        Ok(created)
     }
 
-    async fn find_by_reservation_and_index(
-        &self,
-        reservation_id: i64,
-        chunk_index: i64,
-    ) -> Result<Option<RoomChunkUpload>> {
-        let chunk = sqlx::query_as!(
-            RoomChunkUpload,
+    async fn find_by_upload_id(&self, upload_id: &str) -> Result<Option<RoomChunkUpload>> {
+        sqlx::query_as::<_, RoomChunkUpload>(
             r#"
-            SELECT
-                id,
-                reservation_id,
-                chunk_index,
-                chunk_size,
-                chunk_hash,
-                upload_status as "upload_status: ChunkStatus",
-                created_at,
-                updated_at
+            SELECT id, room_id, upload_id, file_name, total_chunks, uploaded_chunks,
+                   size, mime_type, status as "status: _", created_at, updated_at
             FROM room_chunk_uploads
-            WHERE reservation_id = ? AND chunk_index = ?
+            WHERE upload_id = ?
             "#,
-            reservation_id,
-            chunk_index
         )
+        .bind(upload_id)
         .fetch_optional(&*self.pool)
-        .await?;
-
-        Ok(chunk)
+        .await
     }
 
-    async fn count_by_reservation_id(&self, reservation_id: i64) -> Result<i64> {
-        let count = sqlx::query!(
+    async fn update_status(&self, upload_id: &str, uploaded_chunks: i64) -> Result<RoomChunkUpload> {
+        let mut tx = self.pool.begin().await?;
+        sqlx::query(
             r#"
-            SELECT COUNT(*) as count
-            FROM room_chunk_uploads
-            WHERE reservation_id = ?
+            UPDATE room_chunk_uploads
+            SET uploaded_chunks = ?, updated_at = ?
+            WHERE upload_id = ?
             "#,
-            reservation_id
         )
-        .fetch_one(&*self.pool)
+        .bind(uploaded_chunks)
+        .bind(Utc::now().naive_utc())
+        .bind(upload_id)
+        .execute(&mut *tx)
         .await?;
 
-        Ok(count.count)
+        let refreshed = sqlx::query_as::<_, RoomChunkUpload>(
+            r#"
+            SELECT id, room_id, upload_id, file_name, total_chunks, uploaded_chunks,
+                   size, mime_type, status as "status: _", created_at, updated_at
+            FROM room_chunk_uploads
+            WHERE upload_id = ?
+            "#,
+        )
+        .bind(upload_id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+        Ok(refreshed)
     }
 
-    async fn find_by_reservation_id(&self, reservation_id: i64) -> Result<Vec<RoomChunkUpload>> {
-        let chunks = sqlx::query_as!(
-            RoomChunkUpload,
+    async fn finalize(&self, upload_id: &str) -> Result<RoomChunkUpload> {
+        let mut tx = self.pool.begin().await?;
+        sqlx::query(
             r#"
-            SELECT
-                id,
-                reservation_id,
-                chunk_index,
-                chunk_size,
-                chunk_hash,
-                upload_status as "upload_status: ChunkStatus",
-                created_at,
-                updated_at
-            FROM room_chunk_uploads
-            WHERE reservation_id = ?
-            ORDER BY chunk_index
+            UPDATE room_chunk_uploads
+            SET status = 2, updated_at = ?
+            WHERE upload_id = ?
             "#,
-            reservation_id
         )
-        .fetch_all(&*self.pool)
+        .bind(Utc::now().naive_utc())
+        .bind(upload_id)
+        .execute(&mut *tx)
         .await?;
 
-        Ok(chunks)
+        let refreshed = sqlx::query_as::<_, RoomChunkUpload>(
+            r#"
+            SELECT id, room_id, upload_id, file_name, total_chunks, uploaded_chunks,
+                   size, mime_type, status as "status: _", created_at, updated_at
+            FROM room_chunk_uploads
+            WHERE upload_id = ?
+            "#,
+        )
+        .bind(upload_id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+        Ok(refreshed)
+    }
+
+    async fn delete_by_room(&self, room_id: i64) -> Result<u64> {
+        let result = sqlx::query("DELETE FROM room_chunk_uploads WHERE room_id = ?")
+            .bind(room_id)
+            .execute(&*self.pool)
+            .await?;
+        Ok(result.rows_affected())
+    }
+
+    async fn status(&self, upload_id: &str) -> Result<Option<ChunkedUploadStatusResponse>> {
+        sqlx::query_as::<_, ChunkedUploadStatusResponse>(
+            r#"
+            SELECT upload_id, total_chunks, uploaded_chunks, status as "status: _"
+            FROM room_chunk_uploads
+            WHERE upload_id = ?
+            "#,
+        )
+        .bind(upload_id)
+        .fetch_optional(&*self.pool)
+        .await
     }
 }

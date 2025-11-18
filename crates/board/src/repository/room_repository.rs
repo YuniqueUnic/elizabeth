@@ -1,12 +1,12 @@
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use chrono::{NaiveDateTime, Utc};
-use sqlx::{Executor, Sqlite};
+use sqlx::{Any, AnyPool, FromRow, Row};
 use std::sync::Arc;
 
 use crate::{
     db::DbPool,
-    models::{Room, RoomStatus, permission::RoomPermission},
+    models::{permission::RoomPermission, Room, RoomStatus},
 };
 
 #[async_trait]
@@ -22,6 +22,7 @@ pub trait IRoomRepository: Send + Sync {
     async fn delete_expired_before(&self, before: NaiveDateTime) -> Result<u64>;
 }
 
+/// 通用房间仓库（兼容 Sqlite / Postgres）
 pub struct SqliteRoomRepository {
     pool: Arc<DbPool>,
 }
@@ -33,10 +34,9 @@ impl SqliteRoomRepository {
 
     async fn fetch_room_optional_by_id<'e, E>(executor: E, id: i64) -> Result<Option<Room>>
     where
-        E: Executor<'e, Database = Sqlite>,
+        E: sqlx::Executor<'e, Database = Any>,
     {
-        let room = sqlx::query_as!(
-            Room,
+        sqlx::query_as::<_, Room>(
             r#"
             SELECT
                 id,
@@ -55,20 +55,20 @@ impl SqliteRoomRepository {
             FROM rooms
             WHERE id = ?
             "#,
-            id
         )
+        .bind(id)
         .fetch_optional(executor)
-        .await?;
-
-        Ok(room)
+        .await
     }
 
-    async fn fetch_room_optional_by_name<'e, E>(executor: E, name: &str) -> Result<Option<Room>>
+    async fn fetch_room_optional_by_slug<'e, E>(
+        executor: E,
+        slug: &str,
+    ) -> Result<Option<Room>>
     where
-        E: Executor<'e, Database = Sqlite>,
+        E: sqlx::Executor<'e, Database = Any>,
     {
-        let room = sqlx::query_as!(
-            Room,
+        sqlx::query_as::<_, Room>(
             r#"
             SELECT
                 id,
@@ -87,12 +87,10 @@ impl SqliteRoomRepository {
             FROM rooms
             WHERE slug = ?
             "#,
-            name
         )
+        .bind(slug)
         .fetch_optional(executor)
-        .await?;
-
-        Ok(room)
+        .await
     }
 
     async fn fetch_room_optional_by_display_name<'e, E>(
@@ -100,10 +98,9 @@ impl SqliteRoomRepository {
         name: &str,
     ) -> Result<Option<Room>>
     where
-        E: Executor<'e, Database = Sqlite>,
+        E: sqlx::Executor<'e, Database = Any>,
     {
-        let room = sqlx::query_as!(
-            Room,
+        sqlx::query_as::<_, Room>(
             r#"
             SELECT
                 id,
@@ -122,17 +119,15 @@ impl SqliteRoomRepository {
             FROM rooms
             WHERE name = ?
             "#,
-            name
         )
+        .bind(name)
         .fetch_optional(executor)
-        .await?;
-
-        Ok(room)
+        .await
     }
 
     async fn fetch_room_by_id_or_err<'e, E>(executor: E, id: i64) -> Result<Room>
     where
-        E: Executor<'e, Database = Sqlite>,
+        E: sqlx::Executor<'e, Database = Any>,
     {
         Self::fetch_room_optional_by_id(executor, id)
             .await?
@@ -141,10 +136,9 @@ impl SqliteRoomRepository {
 
     async fn fetch_expired_rooms<'e, E>(executor: E, before: NaiveDateTime) -> Result<Vec<Room>>
     where
-        E: Executor<'e, Database = Sqlite>,
+        E: sqlx::Executor<'e, Database = Any>,
     {
-        let rooms = sqlx::query_as!(
-            Room,
+        sqlx::query_as::<_, Room>(
             r#"
             SELECT
                 id,
@@ -163,18 +157,15 @@ impl SqliteRoomRepository {
             FROM rooms
             WHERE expire_at IS NOT NULL AND expire_at < ?
             "#,
-            before
         )
+        .bind(before)
         .fetch_all(executor)
-        .await?;
-
-        Ok(rooms)
+        .await
     }
 
     async fn reset_if_expired(&self, room: Room) -> Result<Option<Room>> {
         if room.is_expired() {
             if let Some(id) = room.id {
-                // 清空房间内容后删除房间记录
                 sqlx::query("DELETE FROM room_contents WHERE room_id = ?")
                     .bind(id)
                     .execute(&*self.pool)
@@ -186,7 +177,6 @@ impl SqliteRoomRepository {
                     .await?;
 
                 logrs::info!("Purged expired room {}", room.slug);
-
                 return Ok(None);
             }
             Ok(None)
@@ -200,7 +190,8 @@ impl SqliteRoomRepository {
 impl IRoomRepository for SqliteRoomRepository {
     async fn exists(&self, name: &str) -> Result<bool> {
         let exists: i64 =
-            sqlx::query_scalar!("SELECT EXISTS(SELECT 1 FROM rooms WHERE slug = ?)", name)
+            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM rooms WHERE slug = ?)")
+                .bind(name)
                 .fetch_one(&*self.pool)
                 .await?;
 
@@ -211,32 +202,32 @@ impl IRoomRepository for SqliteRoomRepository {
         let mut tx = self.pool.begin().await?;
         let now = Utc::now().naive_utc();
 
-        let insert_result = sqlx::query!(
+        let inserted_id: i64 = sqlx::query_scalar(
             r#"
             INSERT INTO rooms (
                 name, slug, password, status, max_size, current_size,
                 max_times_entered, current_times_entered, expire_at,
                 created_at, updated_at, permission
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            RETURNING id
             "#,
-            room.name,
-            room.slug,
-            room.password,
-            room.status,
-            room.max_size,
-            room.current_size,
-            room.max_times_entered,
-            room.current_times_entered,
-            room.expire_at,
-            now,
-            now,
-            room.permission,
         )
-        .execute(&mut *tx)
+        .bind(&room.name)
+        .bind(&room.slug)
+        .bind(&room.password)
+        .bind(room.status)
+        .bind(room.max_size)
+        .bind(room.current_size)
+        .bind(room.max_times_entered)
+        .bind(room.current_times_entered)
+        .bind(room.expire_at)
+        .bind(now)
+        .bind(now)
+        .bind(room.permission)
+        .fetch_one(&mut *tx)
         .await?;
 
-        let room_id = insert_result.last_insert_rowid();
-        let created_room = Self::fetch_room_by_id_or_err(&mut *tx, room_id).await?;
+        let created_room = Self::fetch_room_by_id_or_err(&mut *tx, inserted_id).await?;
 
         tx.commit().await?;
         self.reset_if_expired(created_room)
@@ -245,7 +236,7 @@ impl IRoomRepository for SqliteRoomRepository {
     }
 
     async fn find_by_name(&self, name: &str) -> Result<Option<Room>> {
-        let room = Self::fetch_room_optional_by_name(&*self.pool, name).await?;
+        let room = Self::fetch_room_optional_by_slug(&*self.pool, name).await?;
         if let Some(room) = room {
             self.reset_if_expired(room).await
         } else {
@@ -278,26 +269,26 @@ impl IRoomRepository for SqliteRoomRepository {
         let mut tx = self.pool.begin().await?;
         let now = Utc::now().naive_utc();
 
-        sqlx::query!(
+        sqlx::query(
             r#"
             UPDATE rooms SET
                 password = ?, status = ?, max_size = ?, current_size = ?,
-            max_times_entered = ?, current_times_entered = ?, expire_at = ?,
-            updated_at = ?, permission = ?, slug = ?
-        WHERE id = ?
+                max_times_entered = ?, current_times_entered = ?, expire_at = ?,
+                updated_at = ?, permission = ?, slug = ?
+            WHERE id = ?
             "#,
-            room.password,
-            room.status,
-            room.max_size,
-            room.current_size,
-            room.max_times_entered,
-            room.current_times_entered,
-            room.expire_at,
-            now,
-            room.permission,
-            room.slug,
-            room_id
         )
+        .bind(&room.password)
+        .bind(room.status)
+        .bind(room.max_size)
+        .bind(room.current_size)
+        .bind(room.max_times_entered)
+        .bind(room.current_times_entered)
+        .bind(room.expire_at)
+        .bind(now)
+        .bind(room.permission)
+        .bind(&room.slug)
+        .bind(room_id)
         .execute(&mut *tx)
         .await?;
 
@@ -310,7 +301,8 @@ impl IRoomRepository for SqliteRoomRepository {
     }
 
     async fn delete(&self, name: &str) -> Result<bool> {
-        let result = sqlx::query!("DELETE FROM rooms WHERE slug = ?", name)
+        let result = sqlx::query("DELETE FROM rooms WHERE slug = ?")
+            .bind(name)
             .execute(&*self.pool)
             .await?;
 
@@ -319,17 +311,14 @@ impl IRoomRepository for SqliteRoomRepository {
 
     async fn list_expired(&self) -> Result<Vec<Room>> {
         let now = Utc::now().naive_utc();
-
         Self::fetch_expired_rooms(&*self.pool, now).await
     }
 
     async fn delete_expired_before(&self, before: NaiveDateTime) -> Result<u64> {
-        let result = sqlx::query!(
-            "DELETE FROM rooms WHERE expire_at IS NOT NULL AND expire_at < ?",
-            before
-        )
-        .execute(&*self.pool)
-        .await?;
+        let result = sqlx::query("DELETE FROM rooms WHERE expire_at IS NOT NULL AND expire_at < ?")
+            .bind(before)
+            .execute(&*self.pool)
+            .await?;
 
         Ok(result.rows_affected())
     }

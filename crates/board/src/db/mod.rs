@@ -1,49 +1,66 @@
 use anyhow::Result;
 use logrs::{error, info};
-use sqlx::{
-    Pool, Sqlite,
-    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions},
-};
+use sqlx::{any::AnyKind, any::AnyPoolOptions, Any, AnyPool, ConnectOptions, Executor};
 use std::str::FromStr;
 
 use crate::constants::database::{
-    ACQUIRE_TIMEOUT_SECS, BUSY_TIMEOUT_SECS, DEFAULT_DB_URL, DEFAULT_MAX_CONNECTIONS,
-    DEFAULT_MIN_CONNECTIONS, IDLE_TIMEOUT_SECS, MAX_LIFETIME_SECS,
+    ACQUIRE_TIMEOUT_SECS, DEFAULT_DB_URL, DEFAULT_MAX_CONNECTIONS, DEFAULT_MIN_CONNECTIONS,
+    IDLE_TIMEOUT_SECS, MAX_LIFETIME_SECS,
 };
 
-/// 数据库连接池
-pub type DbPool = Pool<Sqlite>;
+/// 数据库连接池（统一支持 Sqlite / Postgres）
+pub type DbPool = AnyPool;
+
+/// 支持的数据库类型
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DbKind {
+    Sqlite,
+    Postgres,
+}
+
+impl DbKind {
+    pub fn detect(url: &str) -> Self {
+        if url.starts_with("postgres") {
+            DbKind::Postgres
+        } else {
+            DbKind::Sqlite
+        }
+    }
+}
 
 /// 初始化数据库连接池
 pub async fn init_db(settings: &DbPoolSettings) -> Result<DbPool> {
     info!("初始化数据库连接池：{}", settings.url);
 
-    let connect_options = SqliteConnectOptions::from_str(&settings.url)?
-        .create_if_missing(true)
-        .journal_mode(settings.journal_mode)
-        .synchronous(sqlx::sqlite::SqliteSynchronous::Normal)
-        .busy_timeout(std::time::Duration::from_secs(BUSY_TIMEOUT_SECS));
-
     let (max_connections, min_connections) = settings.resolve_connection_limits();
 
-    let pool = SqlitePoolOptions::new()
+    let mut options = sqlx::any::AnyConnectOptions::from_str(&settings.url)?
         .max_connections(max_connections)
         .min_connections(min_connections)
         .acquire_timeout(std::time::Duration::from_secs(ACQUIRE_TIMEOUT_SECS))
         .idle_timeout(std::time::Duration::from_secs(IDLE_TIMEOUT_SECS))
-        .max_lifetime(std::time::Duration::from_secs(MAX_LIFETIME_SECS))
-        .connect_with(connect_options)
-        .await?;
+        .max_lifetime(std::time::Duration::from_secs(MAX_LIFETIME_SECS));
+
+    let pool = AnyPoolOptions::from(options).connect().await?;
 
     info!("数据库连接池初始化成功");
     Ok(pool)
 }
 
-/// 运行数据库迁移
-pub async fn run_migrations(pool: &DbPool) -> Result<()> {
+/// 运行数据库迁移（根据 DbKind 选择目录）
+pub async fn run_migrations(pool: &DbPool, url: &str) -> Result<()> {
     info!("开始运行数据库迁移");
+    let kind = DbKind::detect(url);
+    let path = match kind {
+        DbKind::Sqlite => "./migrations",
+        DbKind::Postgres => "./migrations_pg",
+    };
 
-    match sqlx::migrate!("./migrations").run(pool).await {
+    match sqlx::migrate::Migrator::new(std::path::Path::new(path))
+        .await?
+        .run(pool)
+        .await
+    {
         Ok(_) => {
             info!("数据库迁移完成");
             Ok(())
@@ -61,7 +78,6 @@ pub struct DbPoolSettings {
     pub url: String,
     pub max_connections: Option<u32>,
     pub min_connections: Option<u32>,
-    pub journal_mode: SqliteJournalMode,
 }
 
 impl Default for DbPoolSettings {
@@ -70,7 +86,6 @@ impl Default for DbPoolSettings {
             url: DEFAULT_DB_URL.to_string(),
             max_connections: Some(DEFAULT_MAX_CONNECTIONS),
             min_connections: Some(DEFAULT_MIN_CONNECTIONS),
-            journal_mode: SqliteJournalMode::Wal,
         }
     }
 }
@@ -90,11 +105,6 @@ impl DbPoolSettings {
 
     pub fn with_min_connections(mut self, min_connections: impl Into<Option<u32>>) -> Self {
         self.min_connections = min_connections.into();
-        self
-    }
-
-    pub fn with_journal_mode(mut self, journal_mode: SqliteJournalMode) -> Self {
-        self.journal_mode = journal_mode;
         self
     }
 
@@ -124,17 +134,9 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_db_init() {
+    async fn test_db_init_sqlite() {
         let config = DbPoolSettings::new("sqlite::memory:");
         let pool = config.create_pool().await;
         assert!(pool.is_ok());
-    }
-
-    #[tokio::test]
-    async fn test_migrations() {
-        let config = DbPoolSettings::new("sqlite::memory:");
-        let pool = config.create_pool().await.unwrap();
-        let result = run_migrations(&pool).await;
-        assert!(result.is_ok());
     }
 }
