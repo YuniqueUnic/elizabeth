@@ -1,7 +1,9 @@
 use chrono::{NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::FromRow;
+use sqlx::{FromRow, Row, any::AnyRow, postgres::PgRow, sqlite::SqliteRow};
 use utoipa::ToSchema;
+
+use crate::models::room::row_utils::read_datetime_from_any;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema, sqlx::Type)]
 #[serde(rename_all = "snake_case")]
@@ -15,8 +17,8 @@ pub enum ContentType {
     Url = 3,
 }
 
-/// 数据库 RoomContent 模型，使用 FromRow 自动映射
-#[derive(Debug, Clone, FromRow, Serialize, Deserialize, ToSchema)]
+/// 数据库 RoomContent 模型
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct RoomContent {
     pub id: Option<i64>,
     pub room_id: i64,
@@ -29,6 +31,44 @@ pub struct RoomContent {
     pub mime_type: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+}
+
+fn build_room_content_from_row<R, F>(row: &R, read_dt: F) -> Result<RoomContent, sqlx::Error>
+where
+    R: Row,
+    F: Fn(&R, &str) -> Result<NaiveDateTime, sqlx::Error>,
+{
+    Ok(RoomContent {
+        id: row.try_get("id")?,
+        room_id: row.try_get("room_id")?,
+        content_type: row.try_get("content_type")?,
+        text: row.try_get("text")?,
+        url: row.try_get("url")?,
+        path: row.try_get("path")?,
+        file_name: row.try_get("file_name")?,
+        size: row.try_get("size")?,
+        mime_type: row.try_get("mime_type")?,
+        created_at: read_dt(row, "created_at")?,
+        updated_at: read_dt(row, "updated_at")?,
+    })
+}
+
+impl<'r> FromRow<'r, SqliteRow> for RoomContent {
+    fn from_row(row: &'r SqliteRow) -> Result<Self, sqlx::Error> {
+        build_room_content_from_row(row, |row, column| row.try_get(column))
+    }
+}
+
+impl<'r> FromRow<'r, PgRow> for RoomContent {
+    fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
+        build_room_content_from_row(row, |row, column| row.try_get(column))
+    }
+}
+
+impl<'r> FromRow<'r, AnyRow> for RoomContent {
+    fn from_row(row: &'r AnyRow) -> Result<Self, sqlx::Error> {
+        build_room_content_from_row(row, read_datetime_from_any)
+    }
 }
 
 #[bon::bon]

@@ -1,7 +1,9 @@
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, Type};
+use sqlx::{FromRow, Row, Type, any::AnyRow, postgres::PgRow, sqlite::SqliteRow};
 use utoipa::ToSchema;
+
+use crate::models::room::row_utils::{read_datetime_from_any, read_optional_datetime_from_any};
 
 /// 上传状态枚举
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Default)]
@@ -95,6 +97,28 @@ impl<'q> sqlx::Encode<'q, sqlx::Postgres> for UploadStatus {
     }
 }
 
+impl sqlx::Type<sqlx::Any> for UploadStatus {
+    fn type_info() -> <sqlx::Any as sqlx::Database>::TypeInfo {
+        <String as sqlx::Type<sqlx::Any>>::type_info()
+    }
+}
+
+impl<'r> sqlx::Decode<'r, sqlx::Any> for UploadStatus {
+    fn decode(value: sqlx::any::AnyValueRef<'r>) -> Result<Self, sqlx::error::BoxDynError> {
+        let s = <&str as sqlx::Decode<sqlx::Any>>::decode(value)?;
+        s.parse().map_err(|e: String| e.into())
+    }
+}
+
+impl<'q> sqlx::Encode<'q, sqlx::Any> for UploadStatus {
+    fn encode_by_ref(
+        &self,
+        buf: &mut <sqlx::Any as sqlx::Database>::ArgumentBuffer<'q>,
+    ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
+        <&str as sqlx::Encode<sqlx::Any>>::encode(self.as_storage_value(), buf)
+    }
+}
+
 /// 客户端上报的文件信息
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct UploadFileDescriptor {
@@ -113,7 +137,7 @@ pub struct ChunkedUploadPreparationRequest {
 }
 
 /// 上传预留记录
-#[derive(Debug, Clone, FromRow, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct RoomUploadReservation {
     pub id: Option<i64>,
     pub room_id: i64,
@@ -133,6 +157,62 @@ pub struct RoomUploadReservation {
     pub file_hash: Option<String>,           // 文件完整哈希
     pub chunk_size: Option<i64>,             // 分块大小
     pub upload_status: Option<UploadStatus>, // 上传状态
+}
+
+fn build_room_upload_reservation<R, F, G>(
+    row: &R,
+    read_dt: F,
+    read_optional_dt: G,
+) -> Result<RoomUploadReservation, sqlx::Error>
+where
+    R: Row,
+    F: Fn(&R, &str) -> Result<NaiveDateTime, sqlx::Error>,
+    G: Fn(&R, &str) -> Result<Option<NaiveDateTime>, sqlx::Error>,
+{
+    Ok(RoomUploadReservation {
+        id: row.try_get("id")?,
+        room_id: row.try_get("room_id")?,
+        token_jti: row.try_get("token_jti")?,
+        file_manifest: row.try_get("file_manifest")?,
+        reserved_size: row.try_get("reserved_size")?,
+        reserved_at: read_dt(row, "reserved_at")?,
+        expires_at: read_dt(row, "expires_at")?,
+        consumed_at: read_optional_dt(row, "consumed_at")?,
+        created_at: read_dt(row, "created_at")?,
+        updated_at: read_dt(row, "updated_at")?,
+        chunked_upload: row.try_get("chunked_upload")?,
+        total_chunks: row.try_get("total_chunks")?,
+        uploaded_chunks: row.try_get("uploaded_chunks")?,
+        file_hash: row.try_get("file_hash")?,
+        chunk_size: row.try_get("chunk_size")?,
+        upload_status: row.try_get("upload_status")?,
+    })
+}
+
+impl<'r> FromRow<'r, SqliteRow> for RoomUploadReservation {
+    fn from_row(row: &'r SqliteRow) -> Result<Self, sqlx::Error> {
+        build_room_upload_reservation(
+            row,
+            |row, column| row.try_get(column),
+            |row, column| row.try_get(column),
+        )
+    }
+}
+
+impl<'r> FromRow<'r, PgRow> for RoomUploadReservation {
+    fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
+        build_room_upload_reservation(
+            row,
+            |row, column| row.try_get(column),
+            |row, column| row.try_get(column),
+        )
+    }
+}
+
+impl<'r> FromRow<'r, AnyRow> for RoomUploadReservation {
+    fn from_row(row: &'r AnyRow) -> Result<Self, sqlx::Error> {
+        build_room_upload_reservation(row, read_datetime_from_any, read_optional_datetime_from_any)
+    }
 }
 
 impl RoomUploadReservation {

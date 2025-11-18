@@ -1,7 +1,6 @@
 use anyhow::Result;
 use logrs::{error, info};
-use sqlx::{Any, AnyPool, ConnectOptions, Executor, any::AnyKind, any::AnyPoolOptions};
-use std::str::FromStr;
+use sqlx::{Any, AnyPool, Executor, any::AnyPoolOptions};
 
 use crate::constants::database::{
     ACQUIRE_TIMEOUT_SECS, DEFAULT_DB_URL, DEFAULT_MAX_CONNECTIONS, DEFAULT_MIN_CONNECTIONS,
@@ -34,14 +33,14 @@ pub async fn init_db(settings: &DbPoolSettings) -> Result<DbPool> {
 
     let (max_connections, min_connections) = settings.resolve_connection_limits();
 
-    let mut options = sqlx::any::AnyConnectOptions::from_str(&settings.url)?
+    let pool = AnyPoolOptions::new()
         .max_connections(max_connections)
         .min_connections(min_connections)
         .acquire_timeout(std::time::Duration::from_secs(ACQUIRE_TIMEOUT_SECS))
         .idle_timeout(std::time::Duration::from_secs(IDLE_TIMEOUT_SECS))
-        .max_lifetime(std::time::Duration::from_secs(MAX_LIFETIME_SECS));
-
-    let pool = AnyPoolOptions::from(options).connect().await?;
+        .max_lifetime(std::time::Duration::from_secs(MAX_LIFETIME_SECS))
+        .connect(&settings.url)
+        .await?;
 
     info!("数据库连接池初始化成功");
     Ok(pool)

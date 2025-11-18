@@ -60,29 +60,39 @@ CREATE TABLE IF NOT EXISTS token_blacklist (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS room_chunk_uploads (
-    id BIGSERIAL PRIMARY KEY,
-    room_id BIGINT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
-    upload_id TEXT NOT NULL UNIQUE,
-    file_name TEXT NOT NULL,
-    total_chunks BIGINT NOT NULL,
-    uploaded_chunks BIGINT NOT NULL DEFAULT 0,
-    size BIGINT NOT NULL DEFAULT 0,
-    mime_type TEXT,
-    status SMALLINT NOT NULL DEFAULT 0 CHECK (status IN (0,1,2)),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
 CREATE TABLE IF NOT EXISTS room_upload_reservations (
     id BIGSERIAL PRIMARY KEY,
     room_id BIGINT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
-    reservation_id TEXT NOT NULL UNIQUE,
-    file_name TEXT NOT NULL,
-    expected_size BIGINT NOT NULL DEFAULT 0,
-    mime_type TEXT,
-    expire_at TIMESTAMPTZ NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    token_jti TEXT NOT NULL,
+    file_manifest TEXT NOT NULL,
+    reserved_size BIGINT NOT NULL CHECK (reserved_size > 0),
+    reserved_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL,
+    consumed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    chunked_upload BOOLEAN DEFAULT FALSE,
+    total_chunks BIGINT,
+    uploaded_chunks BIGINT DEFAULT 0 CHECK (uploaded_chunks >= 0),
+    file_hash TEXT,
+    chunk_size BIGINT CHECK (chunk_size IS NULL OR chunk_size > 0),
+    upload_status TEXT DEFAULT 'pending' CHECK (upload_status IN ('pending','uploading','completed','failed','expired')),
+    CHECK (expires_at > reserved_at),
+    CHECK (consumed_at IS NULL OR consumed_at >= reserved_at),
+    CHECK (uploaded_chunks IS NULL OR total_chunks IS NULL OR uploaded_chunks <= total_chunks),
+    CHECK (chunked_upload = FALSE OR (total_chunks IS NOT NULL AND chunk_size IS NOT NULL))
+);
+
+CREATE TABLE IF NOT EXISTS room_chunk_uploads (
+    id BIGSERIAL PRIMARY KEY,
+    reservation_id BIGINT NOT NULL REFERENCES room_upload_reservations(id) ON DELETE CASCADE,
+    chunk_index BIGINT NOT NULL CHECK (chunk_index >= 0),
+    chunk_size BIGINT NOT NULL CHECK (chunk_size > 0),
+    chunk_hash TEXT,
+    upload_status TEXT NOT NULL DEFAULT 'pending' CHECK (upload_status IN ('pending','uploading','uploaded','verified','failed')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(reservation_id, chunk_index)
 );
 
 -- Indexes
@@ -90,8 +100,11 @@ CREATE INDEX IF NOT EXISTS idx_room_contents_room_id ON room_contents(room_id);
 CREATE INDEX IF NOT EXISTS idx_room_tokens_room_id ON room_tokens(room_id);
 CREATE INDEX IF NOT EXISTS idx_room_refresh_tokens_room_id ON room_refresh_tokens(room_id);
 CREATE INDEX IF NOT EXISTS idx_token_blacklist_expires_at ON token_blacklist(expires_at);
-CREATE INDEX IF NOT EXISTS idx_room_chunk_uploads_room_id ON room_chunk_uploads(room_id);
 CREATE INDEX IF NOT EXISTS idx_room_upload_reservations_room_id ON room_upload_reservations(room_id);
+CREATE INDEX IF NOT EXISTS idx_room_upload_reservations_token ON room_upload_reservations(token_jti);
+CREATE INDEX IF NOT EXISTS idx_room_chunk_uploads_reservation_id ON room_chunk_uploads(reservation_id);
+CREATE INDEX IF NOT EXISTS idx_room_chunk_uploads_chunk_index ON room_chunk_uploads(chunk_index);
+CREATE INDEX IF NOT EXISTS idx_room_chunk_uploads_reservation_status ON room_chunk_uploads(reservation_id, upload_status);
 
 -- Updated_at triggers
 CREATE OR REPLACE FUNCTION set_updated_at()
