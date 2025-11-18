@@ -63,7 +63,7 @@ configuration. @niginx.conf this is the nginx main configuration.
 And if you encounter any issues, please use the web search or related tools to
 help you solve this problem correctly.
 
-## 2025-11-07 缓存问题修复进度
+## 2025-11-07 缓存问题修复进度 (未能解决问题)
 
 - 删除首页 `_ts` 重定向，使用 Next.js `connection()` 与 `revalidate = 0`
   强制动态渲染，避免构建期产出长期缓存的 HTML。
@@ -73,7 +73,7 @@ help you solve this problem correctly.
 - 本地执行 `pnpm build` 与 `cargo check` 均通过，确认前后端构建流程正常。
 - 建议生产环境部署后对 frp/nginx 做一次缓存清理或重载，彻底清除历史 HTML。
 
-## 2025-11-08 首页返回旧 HTML 的修复补充
+## 2025-11-08 首页返回旧 HTML 的修复补充 (未能解决问题)
 
 - 移除 `next/server` 的 `connection()` 调用，避免 Next.js 在生产模式下写入 `_ts`
   重定向逻辑。
@@ -85,7 +85,7 @@ help you solve this problem correctly.
 - 线上 `https://box.yunique.top` 首屏 HTML 脚本指向最新 chunk（如
   `1dfffbc0d9c48c1c.js` 等），浏览器页面加载正常，按钮交互恢复。
 
-## 2025-11-08 Mixed Content 防护增强
+## 2025-11-08 Mixed Content 防护增强 (未能解决问题)
 
 - 调整 `web/lib/utils/api.ts` 的
   `buildClientUrl`，在浏览器环境检测协议降级与同域情况，强制返回相对路径，彻底消除
