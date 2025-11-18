@@ -30,6 +30,7 @@ export function RoomPasswordDialog({
 }: RoomPasswordDialogProps) {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,6 +39,12 @@ export function RoomPasswordDialog({
 
     if (!password.trim()) {
       setError("请输入密码");
+      return;
+    }
+
+    // When password is hidden we require confirmation
+    if (!showPassword && password !== confirmPassword) {
+      setError("两次输入的密码不一致");
       return;
     }
 
@@ -52,16 +59,8 @@ export function RoomPasswordDialog({
     }
   };
 
-  // 添加一个确认密码状态和第二个密码输入框
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
   const isPasswordValid = password.trim().length > 0;
-  const isPasswordMatch = password === confirmPassword;
-
-  // 只有在显示密码时才需要验证确认密码
-  const needsConfirmPassword = showPassword || showConfirmPassword;
-  const canSubmit = isPasswordValid && (!needsConfirmPassword || isPasswordMatch);
+  const canSubmit = isPasswordValid && (showPassword || password === confirmPassword);
 
   return (
     <Dialog open={open} onOpenChange={(open) => !open && onCancel()}>
@@ -85,125 +84,56 @@ export function RoomPasswordDialog({
 
         <form onSubmit={handleSubmit}>
           <div className="space-y-4 py-4">
-            {/* 只有在显示密码时才显示密码输入 */}
-            {showPassword || showConfirmPassword ? (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="password">密码</Label>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      value={password}
-                      onChange={(e) => {
-                        setPassword(e.target.value);
-                        setError(null);
-                      }}
-                      placeholder="请输入房间密码"
-                      disabled={loading}
-                      autoFocus
-                      className="pr-10"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-0 top-0 h-full"
-                      onClick={() => setShowPassword(!showPassword)}
-                      disabled={loading}
-                      tabIndex={-1}
-                    >
-                      {showPassword
-                        ? <EyeOff className="h-4 w-4" />
-                        : <Eye className="h-4 w-4" />}
-                    </Button>
-                  </div>
-                </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">密码</Label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setError(null);
+                  }}
+                  placeholder="请输入房间密码"
+                  disabled={loading}
+                  autoFocus
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-0 top-0 h-full"
+                  onClick={() => setShowPassword(!showPassword)}
+                  disabled={loading}
+                  tabIndex={-1}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
 
-                {/* 如果显示了密码，则显示确认密码框 */}
-                <div className="space-y-2">
-                  <Label htmlFor="confirm-password">确认密码</Label>
-                  <div className="relative">
-                    <Input
-                      id="confirm-password"
-                      type={showConfirmPassword ? "text" : "password"}
-                      value={confirmPassword}
-                      onChange={(e) => {
-                        setConfirmPassword(e.target.value);
-                        setError(null);
-                      }}
-                      placeholder="请再次输入密码"
-                      disabled={loading}
-                      className="pr-10"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-0 top-0 h-full"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      disabled={loading}
-                      tabIndex={-1}
-                    >
-                      {showConfirmPassword
-                        ? <EyeOff className="h-4 w-4" />
-                        : <Eye className="h-4 w-4" />}
-                    </Button>
-                  </div>
-                </div>
-
-                {error && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                )}
-              </>
-            ) : (
-              /* 隐藏密码状态，只显示两个密码框 */
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="password">密码</Label>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      type="password"
-                      value={password}
-                      onChange={(e) => {
-                        setPassword(e.target.value);
-                        setError(null);
-                      }}
-                      placeholder="请输入房间密码"
-                      disabled={loading}
-                      autoFocus
-                      className="pr-10"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="confirm-password">确认密码</Label>
-                  <div className="relative">
-                    <Input
-                      id="confirm-password"
-                      type="password"
-                      value={confirmPassword}
-                      onChange={(e) => {
-                        setConfirmPassword(e.target.value);
-                        setError(null);
-                      }}
-                      placeholder="请再次输入密码"
-                      disabled={loading}
-                      className="pr-10"
-                    />
-                  </div>
-                </div>
-
-                {error && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                )}
-              </>
+            {!showPassword && (
+              <div className="space-y-2">
+                <Label htmlFor="confirm-password">确认密码</Label>
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value);
+                    setError(null);
+                  }}
+                  placeholder="请再次输入密码"
+                  disabled={loading}
+                  className="pr-10"
+                />
+              </div>
             )}
 
             {error && (
