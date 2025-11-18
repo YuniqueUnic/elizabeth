@@ -1,5 +1,8 @@
 # Elizabeth 文件分享与协作平台
 
+请使用 /Users/unic/dev/projs/rs/elizabeth/manage_services.sh
+来控制前端和后端的服务。
+
 > elizabeth 后端为 elizabeth-board:
 > /Users/unic/dev/projs/rs/elizabeth/crates/board
 >

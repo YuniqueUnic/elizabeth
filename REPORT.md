@@ -1,5 +1,47 @@
 # Elizabeth Frontend/Backend Investigation Report
 
+请你直接访问 https://box.yunique.top 吧，然后找到问题所在，利用 chrome-devtools
+mcp 来使用 remote debug chrome 直接访问 https://box.yunique.top后 看到了
+elizabeth 的前端，创建房间/进入房间的功能按钮，点击这两个按钮均没有反应，并且
+consoleerror 提示如下：Application error: a client-side exception has occurred
+while loading box.yunique.top (see the browser console for more information).
+
+Failed to load resource: the server responded with a status of 404 ()Understand
+this error turbopack-5d0e2dd1b9f3ea1a.js:1 Uncaught Error: Failed to load chunk
+/_next/static/chunks/b71e021ebc4e57fd.js from module 64893 at
+turbopack-5d0e2dd1b9f3ea1a.js:1:5708
+
+https://box.yunique.top 则是真实的环境了.(其背后是本地的 docker
+容器，请你仔细的核查并且找到问题所在，并且修复)
+
+你可以使用 /Users/unic/dev/projs/rs/elizabeth/manage_services.sh
+来控制本地的前后端程序启动，停止，以及 log 查看 注意：
+
+1. manage_services.sh 控制的是本地的前端/后端程序
+2. 而 https://box.yunique.top 则是真实的环境，是访问的 docker 容器。
+
+## 这两个是不一样的，我希望你能够利用这两个来辅助你解决 https://box.yunique.top 中的问题.,
+
+同时还有个问题：
+后端的配置解析问题，用户传入的配置文件/或者是从默认位置读取到的配置文件并未成功。
+尤其是后端 AppConfig.LoggingConfig.level 解析存在问题，始终为 "off",
+需要找到原因，并且修复。并且需要写测试，确保 配置解析顺序和逻辑正确
+配置文件解析顺序和逻辑正确 priority: 命令行参数 > 程序环境变量 > 配置文件值 >
+程序默认配置值
+
+1. 程序启动时，如果用户没有指定配置文件 (--config-file/-c),
+   那么就是使用默认配置文件
+2. 如果默认配置文件不存在，那么就使用命令行>程序环境变量>配置文件值>程序默认配置值，并且创建/写入配置文件。
+   - 如果默认配置文件不存在，创建默认配置文件
+   - 如果用户还用了命令行参数，以及环境变量，那么就还是按照 priority
+     优先级进行解析和覆盖。
+   - 并且会更新默认配置文件的内容。
+3. 如果用户指定了配置文件，那么就使用用户指定的配置文件，但是不覆盖默认配置文件。
+   - 如果用户指定的配置文件不存在，直接报错即可
+   - 如果用户不仅指定了配置文件，还用了命令行参数，以及环境变量，那么就还是按照
+     priority 优先级进行解析和覆盖。
+   - 并且也不会更改用户指定的配置文件的内容.(仅仅读取即可)
+
 ## 关键的一些内容
 
 my deploy structure:
@@ -8,18 +50,10 @@ my deploy structure:
         ^
         |
 
-## https://box.yunqiue.top/ ^ |
+---
 
-        |                   my server vps
-      nginx
-        ^
-        |
-    reverse-proxy(localhost:52033)
-        ^
-        |
-    frp-server(52033)
-        ^
-        |
+https://box.yunqiue.top/ ^ | | my server vps nginx ^ |
+reverse-proxy(localhost:52033) ^ | frp-server(52033) ^ |
 
 ---
 
@@ -33,11 +67,14 @@ my deploy structure:
 
 frontend (4001) + backend (4092)
 
-frp-server 机器 你可以使用 ssh 功能来进行检索。ssh root@121.41.3.22 -p 10022 -i
-~/.ssh/id_ed25519_aliyun 然后这个是 frp-server 上的 nginx
-目录：/www/server/nginx 这里是 /www/wwwroot/box.yunique.top 然后这里是 frps
-的配置文件：/opt/1panel/apps/frps/frps/data/frps.toml 并且这个 frps 实际是通过
-docker 部署的，1Panel-frps-x40N, 这是容器名
+frp-server 机器 你可以使用 ssh
+功能来进行检索。`ssh root@121.41.3.22 -p 10022 -i
+~/.ssh/id_ed25519_aliyun`
+
+- 然后这个是 frp-server 上的 nginx 目录：/www/server/nginx
+- 这里是 /www/wwwroot/box.yunique.top
+- 然后这里是 frps 的配置文件：/opt/1panel/apps/frps/frps/data/frps.toml
+- 并且这个 frps 实际是通过 docker 部署的，1Panel-frps-x40N, 这是容器名
 
 请你查看 Dockerfile.frontend docker-compose.yml Dockerfile.backend
 manage_services.sh，然后修复线上 https://box.yunique.top
