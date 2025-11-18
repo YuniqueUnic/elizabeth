@@ -13,8 +13,8 @@ use crate::errors::{AppError, AppResult};
 use crate::models::{Room, RoomToken, permission::RoomPermission};
 use crate::permissions::PermissionBuilder;
 use crate::repository::{
-    IRoomContentRepository, IRoomRepository, IRoomTokenRepository, SqliteRoomContentRepository,
-    SqliteRoomRepository, SqliteRoomTokenRepository,
+    IRoomContentRepository, IRoomRepository, IRoomTokenRepository, RoomContentRepository,
+    RoomRepository, RoomTokenRepository,
 };
 use crate::services::RoomTokenClaims;
 use crate::state::AppState;
@@ -145,7 +145,7 @@ pub async fn create(
         PasswordValidator::validate_room_password(password)?;
     }
 
-    let repository = SqliteRoomRepository::new(app_state.db_pool.clone());
+    let repository = RoomRepository::new(app_state.db_pool.clone());
 
     // 检查房间是否已存在
     if repository.exists(&name).await? {
@@ -183,7 +183,7 @@ pub async fn find(
     // 验证房间标识符（可能是名称或 slug）
     RoomNameValidator::validate_identifier(&name)?;
 
-    let repository = SqliteRoomRepository::new(app_state.db_pool.clone());
+    let repository = RoomRepository::new(app_state.db_pool.clone());
 
     match repository.find_by_name(&name).await? {
         Some(room) => {
@@ -237,7 +237,7 @@ pub async fn delete(
     // 验证房间标识符（可能是名称或 slug）
     RoomNameValidator::validate_identifier(&name)?;
 
-    let repository = SqliteRoomRepository::new(app_state.db_pool.clone());
+    let repository = RoomRepository::new(app_state.db_pool.clone());
 
     // 首先检查房间是否存在和过期
     let room = repository
@@ -263,7 +263,7 @@ pub async fn delete(
     // 房间存在且未过期，执行删除
     // 1. 获取房间的所有内容以删除关联的文件
     if let Some(room_id) = room.id {
-        let content_repo = SqliteRoomContentRepository::new(app_state.db_pool.clone());
+        let content_repo = RoomContentRepository::new(app_state.db_pool.clone());
         let contents = content_repo
             .list_by_room(room_id)
             .await
@@ -330,7 +330,7 @@ pub async fn issue_token(
         previous_jti = Some(verified.record.jti.clone());
         verified.room
     } else {
-        let repository = SqliteRoomRepository::new(app_state.db_pool.clone());
+        let repository = RoomRepository::new(app_state.db_pool.clone());
         let Some(room) = repository
             .find_by_name(&name)
             .await
@@ -375,10 +375,10 @@ pub async fn issue_token(
         );
     }
 
-    let repository = SqliteRoomRepository::new(app_state.db_pool.clone());
+    let repository = RoomRepository::new(app_state.db_pool.clone());
     if room.current_times_entered >= room.max_times_entered {
         // Reset room by deleting its content and resetting its state
-        let content_repo = SqliteRoomContentRepository::new(app_state.db_pool.clone());
+        let content_repo = RoomContentRepository::new(app_state.db_pool.clone());
 
         // 1. 获取房间的所有内容
         if let Some(room_id) = room.id {
@@ -423,7 +423,7 @@ pub async fn issue_token(
         .map_err(|e| AppError::authentication(e.to_string()))?;
 
     let record = RoomToken::new(claims.room_id, claims.jti.clone(), claims.expires_at());
-    let token_repo = SqliteRoomTokenRepository::new(app_state.db_pool.clone());
+    let token_repo = RoomTokenRepository::new(app_state.db_pool.clone());
     token_repo
         .create(&record)
         .await
@@ -540,7 +540,7 @@ pub async fn update_permissions(
     }
     let new_permission = builder.build();
 
-    let repo = SqliteRoomRepository::new(app_state.db_pool.clone());
+    let repo = RoomRepository::new(app_state.db_pool.clone());
     let mut room = verified.room;
     let was_shareable = room.permission.can_share();
     room.permission = new_permission;
@@ -609,7 +609,7 @@ pub async fn list_tokens(
         .id
         .ok_or_else(|| AppError::internal("Room id missing"))?;
 
-    let token_repo = SqliteRoomTokenRepository::new(app_state.db_pool.clone());
+    let token_repo = RoomTokenRepository::new(app_state.db_pool.clone());
     let tokens = token_repo
         .list_by_room(room_id)
         .await
@@ -645,7 +645,7 @@ pub async fn revoke_token(
 
     let _verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
 
-    let token_repo = SqliteRoomTokenRepository::new(app_state.db_pool.clone());
+    let token_repo = RoomTokenRepository::new(app_state.db_pool.clone());
     let revoked = token_repo
         .revoke(&target_jti)
         .await
@@ -715,7 +715,7 @@ pub async fn update_room_settings(
         return Err(AppError::validation("max_size must be greater than 0"));
     }
 
-    let repo = SqliteRoomRepository::new(app_state.db_pool.clone());
+    let repo = RoomRepository::new(app_state.db_pool.clone());
     let mut room = verified.room;
 
     // 更新字段

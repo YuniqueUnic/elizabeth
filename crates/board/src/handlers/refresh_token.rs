@@ -129,13 +129,13 @@ pub struct CleanupResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db::{DbPoolSettings, run_migrations};
     use crate::models::Room;
     use crate::repository::room_refresh_token_repository::{
-        SqliteRoomRefreshTokenRepository, SqliteTokenBlacklistRepository,
+        RoomRefreshTokenRepository, TokenBlacklistRepository,
     };
     use crate::services::token::RoomTokenService;
     use chrono::Duration;
-    use sqlx::SqlitePool;
     use std::sync::Arc;
 
     async fn create_test_app_state() -> Arc<AppState> {
@@ -145,16 +145,9 @@ mod tests {
             room::DEFAULT_MAX_ROOM_CONTENT_SIZE, room::DEFAULT_MAX_TIMES_ENTER_ROOM,
             test::TEST_JWT_SECRET,
         };
-        use crate::db::init_db;
-
-        let db_pool = Arc::new(
-            init_db(&crate::db::DbPoolSettings::new("sqlite::memory:"))
-                .await
-                .unwrap(),
-        );
-
-        // 运行迁移
-        sqlx::migrate!("./migrations").run(&*db_pool).await.unwrap();
+        let url = "sqlite::memory:";
+        let db_pool = Arc::new(DbPoolSettings::new(url).create_pool().await.unwrap());
+        run_migrations(db_pool.as_ref(), url).await.unwrap();
 
         // 创建测试配置
         let app_config = AppConfig {

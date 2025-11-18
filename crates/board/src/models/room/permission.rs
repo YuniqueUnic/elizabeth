@@ -4,6 +4,7 @@ use sqlx::{
     Decode, Encode, Type,
     encode::IsNull,
     error::BoxDynError,
+    postgres::PgValueRef,
     sqlite::{Sqlite, SqliteTypeInfo, SqliteValueRef},
 };
 use utoipa::{
@@ -100,6 +101,12 @@ impl Type<Sqlite> for RoomPermission {
     }
 }
 
+impl Type<sqlx::Postgres> for RoomPermission {
+    fn type_info() -> sqlx::postgres::PgTypeInfo {
+        <i16 as Type<sqlx::Postgres>>::type_info()
+    }
+}
+
 impl Encode<'_, Sqlite> for RoomPermission {
     fn encode(
         self,
@@ -116,9 +123,33 @@ impl Encode<'_, Sqlite> for RoomPermission {
     }
 }
 
+impl Encode<'_, sqlx::Postgres> for RoomPermission {
+    fn encode(
+        self,
+        buf: &mut <sqlx::Postgres as sqlx::Database>::ArgumentBuffer<'_>,
+    ) -> Result<IsNull, BoxDynError> {
+        <i16 as Encode<sqlx::Postgres>>::encode(self.bits() as i16, buf)
+    }
+
+    fn encode_by_ref(
+        &self,
+        buf: &mut <sqlx::Postgres as sqlx::Database>::ArgumentBuffer<'_>,
+    ) -> Result<IsNull, BoxDynError> {
+        <i16 as Encode<sqlx::Postgres>>::encode(self.bits() as i16, buf)
+    }
+}
+
 impl Decode<'_, Sqlite> for RoomPermission {
     fn decode(value: SqliteValueRef<'_>) -> Result<Self, BoxDynError> {
         let raw = <u8 as Decode<Sqlite>>::decode(value)?;
+        RoomPermission::from_bits(raw)
+            .ok_or_else(|| format!("invalid RoomPermission bits: {}", raw).into())
+    }
+}
+
+impl Decode<'_, sqlx::Postgres> for RoomPermission {
+    fn decode(value: PgValueRef<'_>) -> Result<Self, BoxDynError> {
+        let raw = <i16 as Decode<sqlx::Postgres>>::decode(value)? as u8;
         RoomPermission::from_bits(raw)
             .ok_or_else(|| format!("invalid RoomPermission bits: {}", raw).into())
     }

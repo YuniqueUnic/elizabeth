@@ -28,10 +28,10 @@ use crate::config::{AppConfig, AuthConfig, RoomConfig, ServerConfig, StorageConf
 use crate::constants::{
     storage::DEFAULT_STORAGE_ROOT, upload::DEFAULT_UPLOAD_RESERVATION_TTL_SECONDS,
 };
-use crate::db::{DbPoolSettings, init_db, run_migrations};
+use crate::db::{DbKind, DbPoolSettings, init_db, run_migrations};
 use crate::init::{cfg_service, const_service, log_service};
 use crate::repository::room_refresh_token_repository::{
-    SqliteRoomRefreshTokenRepository, SqliteTokenBlacklistRepository,
+    RoomRefreshTokenRepository, TokenBlacklistRepository,
 };
 use crate::services::{RoomTokenService, refresh_token_service::RefreshTokenService};
 use crate::state::AppState;
@@ -61,14 +61,16 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
     log_service::init(cfg);
 
     // 初始化数据库
-    let db_settings = DbPoolSettings::new(cfg.app.database.url.clone())
+    let db_url = cfg.app.database.url.clone();
+    let sqlite_journal = parse_sqlite_journal_mode(cfg.app.database.journal_mode.as_str());
+    let db_settings = DbPoolSettings::new(db_url.clone())
         .with_max_connections(cfg.app.database.max_connections)
-        .with_min_connections(cfg.app.database.min_connections)
-        .with_journal_mode(parse_sqlite_journal_mode(
-            cfg.app.database.journal_mode.as_str(),
-        ));
+        .with_min_connections(cfg.app.database.min_connections);
     let db_pool = init_db(&db_settings).await?;
-    run_migrations(&db_pool).await?;
+    if matches!(DbKind::detect(&db_url), DbKind::Sqlite) {
+        apply_sqlite_journal_mode(&db_pool, sqlite_journal).await?;
+    }
+    run_migrations(&db_pool, &db_url).await?;
     let db_pool = Arc::new(db_pool);
 
     // 创建应用配置
@@ -134,6 +136,23 @@ fn parse_sqlite_journal_mode(value: &str) -> SqliteJournalMode {
             SqliteJournalMode::Wal
         }
     }
+}
+
+async fn apply_sqlite_journal_mode(
+    pool: &crate::db::DbPool,
+    mode: SqliteJournalMode,
+) -> anyhow::Result<()> {
+    let pragma_value = match mode {
+        SqliteJournalMode::Delete => "DELETE",
+        SqliteJournalMode::Truncate => "TRUNCATE",
+        SqliteJournalMode::Persist => "PERSIST",
+        SqliteJournalMode::Memory => "MEMORY",
+        SqliteJournalMode::Off => "OFF",
+        SqliteJournalMode::Wal => "WAL",
+    };
+    let statement = format!("PRAGMA journal_mode = {pragma_value}");
+    sqlx::query(&statement).execute(pool).await?;
+    Ok(())
 }
 
 fn build_api_router(app_state: Arc<AppState>, cfg: &configrs::Config) -> (String, axum::Router) {

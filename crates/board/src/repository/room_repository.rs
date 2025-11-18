@@ -1,12 +1,12 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use chrono::{NaiveDateTime, Utc};
-use sqlx::{Any, AnyPool, FromRow, Row};
+use sqlx::{Any, FromRow, Row};
 use std::sync::Arc;
 
 use crate::{
     db::DbPool,
-    models::{permission::RoomPermission, Room, RoomStatus},
+    models::{Room, RoomStatus, permission::RoomPermission},
 };
 
 #[async_trait]
@@ -23,11 +23,11 @@ pub trait IRoomRepository: Send + Sync {
 }
 
 /// 通用房间仓库（兼容 Sqlite / Postgres）
-pub struct SqliteRoomRepository {
+pub struct RoomRepository {
     pool: Arc<DbPool>,
 }
 
-impl SqliteRoomRepository {
+impl RoomRepository {
     pub fn new(pool: Arc<DbPool>) -> Self {
         Self { pool }
     }
@@ -61,10 +61,7 @@ impl SqliteRoomRepository {
         .await
     }
 
-    async fn fetch_room_optional_by_slug<'e, E>(
-        executor: E,
-        slug: &str,
-    ) -> Result<Option<Room>>
+    async fn fetch_room_optional_by_slug<'e, E>(executor: E, slug: &str) -> Result<Option<Room>>
     where
         E: sqlx::Executor<'e, Database = Any>,
     {
@@ -187,13 +184,12 @@ impl SqliteRoomRepository {
 }
 
 #[async_trait]
-impl IRoomRepository for SqliteRoomRepository {
+impl IRoomRepository for RoomRepository {
     async fn exists(&self, name: &str) -> Result<bool> {
-        let exists: i64 =
-            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM rooms WHERE slug = ?)")
-                .bind(name)
-                .fetch_one(&*self.pool)
-                .await?;
+        let exists: i64 = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM rooms WHERE slug = ?)")
+            .bind(name)
+            .fetch_one(&*self.pool)
+            .await?;
 
         Ok(exists != 0)
     }

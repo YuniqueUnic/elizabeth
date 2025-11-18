@@ -19,11 +19,11 @@ use crate::{
         upload_reservation::{ChunkedUploadPreparationRequest, UploadFileDescriptor, UploadStatus},
     },
     repository::room_chunk_upload_repository::{
-        IRoomChunkUploadRepository, SqliteRoomChunkUploadRepository,
+        IRoomChunkUploadRepository, RoomChunkUploadRepository,
     },
-    repository::room_repository::{IRoomRepository, SqliteRoomRepository},
+    repository::room_repository::{IRoomRepository, RoomRepository},
     repository::room_upload_reservation_repository::{
-        IRoomUploadReservationRepository, SqliteRoomUploadReservationRepository,
+        IRoomUploadReservationRepository, RoomUploadReservationRepository,
     },
     state::AppState,
 };
@@ -109,7 +109,7 @@ pub async fn prepare_chunked_upload(
     }
 
     // 查找房间
-    let room_repository = SqliteRoomRepository::new(app_state.db_pool.clone());
+    let room_repository = RoomRepository::new(app_state.db_pool.clone());
     let room = room_repository
         .find_by_name(&room_name)
         .await
@@ -132,8 +132,7 @@ pub async fn prepare_chunked_upload(
         HttpResponse::InternalServerError().message(format!("序列化文件清单失败：{}", e))
     })?;
 
-    let reservation_repository =
-        SqliteRoomUploadReservationRepository::new(app_state.db_pool.clone());
+    let reservation_repository = RoomUploadReservationRepository::new(app_state.db_pool.clone());
 
     // 计算每个文件的分块信息并构建响应
     let mut reserved_files = Vec::new();
@@ -384,8 +383,7 @@ pub async fn upload_chunk(
     }
 
     // 查找预留记录
-    let reservation_repository =
-        SqliteRoomUploadReservationRepository::new(app_state.db_pool.clone());
+    let reservation_repository = RoomUploadReservationRepository::new(app_state.db_pool.clone());
 
     let reservation = reservation_repository
         .find_by_token(&upload_token)
@@ -409,7 +407,7 @@ pub async fn upload_chunk(
     }
 
     // 验证房间名称
-    let room_repository = SqliteRoomRepository::new(app_state.db_pool.clone());
+    let room_repository = RoomRepository::new(app_state.db_pool.clone());
     let room = room_repository
         .find_by_id(reservation.room_id)
         .await
@@ -422,7 +420,7 @@ pub async fn upload_chunk(
     }
 
     // 检查分块是否已存在
-    let chunk_repository = SqliteRoomChunkUploadRepository::new(app_state.db_pool.clone());
+    let chunk_repository = RoomChunkUploadRepository::new(app_state.db_pool.clone());
     let existing_chunk = chunk_repository
         .find_by_reservation_and_index(reservation_id, chunk_index.into())
         .await
@@ -549,7 +547,7 @@ pub async fn get_upload_status(
     }
 
     // 查找房间
-    let room_repository = SqliteRoomRepository::new(app_state.db_pool.clone());
+    let room_repository = RoomRepository::new(app_state.db_pool.clone());
     let room = room_repository
         .find_by_name(&room_name)
         .await
@@ -560,8 +558,7 @@ pub async fn get_upload_status(
     let room = room.ok_or_else(|| HttpResponse::NotFound().message("房间不存在"))?;
 
     // 查找预留记录
-    let reservation_repository =
-        SqliteRoomUploadReservationRepository::new(app_state.db_pool.clone());
+    let reservation_repository = RoomUploadReservationRepository::new(app_state.db_pool.clone());
     let reservation = if let Some(ref token) = query.upload_token {
         reservation_repository
             .find_by_token(token)
@@ -603,7 +600,7 @@ pub async fn get_upload_status(
     };
 
     // 查询分块记录
-    let chunk_repository = SqliteRoomChunkUploadRepository::new(app_state.db_pool.clone());
+    let chunk_repository = RoomChunkUploadRepository::new(app_state.db_pool.clone());
     let reservation_db_id = reservation.id.expect("预留 ID 不能为空");
     let chunks = chunk_repository
         .find_by_reservation_id(reservation_db_id)
@@ -695,7 +692,7 @@ pub async fn complete_file_merge(
     }
 
     // 查找房间
-    let room_repository = SqliteRoomRepository::new(app_state.db_pool.clone());
+    let room_repository = RoomRepository::new(app_state.db_pool.clone());
     let room = room_repository
         .find_by_name(&room_name)
         .await
@@ -706,8 +703,7 @@ pub async fn complete_file_merge(
     let room = room.ok_or_else(|| HttpResponse::NotFound().message("房间不存在"))?;
 
     // 查找预留记录
-    let reservation_repository =
-        SqliteRoomUploadReservationRepository::new(app_state.db_pool.clone());
+    let reservation_repository = RoomUploadReservationRepository::new(app_state.db_pool.clone());
     let reservation = reservation_repository
         .find_by_reservation_id(&payload.reservation_id)
         .await
@@ -743,7 +739,7 @@ pub async fn complete_file_merge(
     }
 
     // 查询所有分块记录
-    let chunk_repository = SqliteRoomChunkUploadRepository::new(app_state.db_pool.clone());
+    let chunk_repository = RoomChunkUploadRepository::new(app_state.db_pool.clone());
     let reservation_db_id = reservation.id.expect("预留 ID 不能为空");
     let chunks = chunk_repository
         .find_by_reservation_id(reservation_db_id)
@@ -881,7 +877,10 @@ pub async fn complete_file_merge(
                         .unwrap_or_else(|| "application/octet-stream".to_string());
 
                     use crate::repository::IRoomContentRepository;
-                    let content_repository = crate::repository::room_content_repository::SqliteRoomContentRepository::new(app_state.db_pool.clone());
+                    let content_repository =
+                        crate::repository::room_content_repository::RoomContentRepository::new(
+                            app_state.db_pool.clone(),
+                        );
 
                     // 构建 RoomContent 对象
                     let now = chrono::Utc::now().naive_utc();
@@ -914,7 +913,7 @@ pub async fn complete_file_merge(
                     let mut updated_room = room.clone();
                     updated_room.current_size += file_size;
                     use crate::repository::IRoomRepository;
-                    let room_repository = SqliteRoomRepository::new(app_state.db_pool.clone());
+                    let room_repository = RoomRepository::new(app_state.db_pool.clone());
                     room_repository.update(&updated_room).await.map_err(|e| {
                         HttpResponse::InternalServerError()
                             .message(format!("更新房间大小失败：{}", e))

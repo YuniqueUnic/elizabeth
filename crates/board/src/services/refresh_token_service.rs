@@ -9,10 +9,10 @@ use uuid::Uuid;
 
 use crate::models::{RefreshTokenResponse, Room, RoomRefreshToken, TokenBlacklistEntry};
 use crate::repository::room_refresh_token_repository::{
-    IRoomRefreshTokenRepository, ITokenBlacklistRepository, SqliteRoomRefreshTokenRepository,
-    SqliteTokenBlacklistRepository,
+    IRoomRefreshTokenRepository, ITokenBlacklistRepository, RoomRefreshTokenRepository,
+    TokenBlacklistRepository,
 };
-use crate::repository::room_repository::{IRoomRepository, SqliteRoomRepository};
+use crate::repository::room_repository::{IRoomRepository, RoomRepository};
 use crate::services::token::{RoomTokenClaims, RoomTokenService, TokenType};
 
 /// 刷新令牌服务，简化版本
@@ -313,20 +313,17 @@ impl RefreshTokenService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::DbPool;
+    use crate::db::{DbPoolSettings, run_migrations};
     use crate::repository::room_refresh_token_repository::{
-        SqliteRoomRefreshTokenRepository, SqliteTokenBlacklistRepository,
+        RoomRefreshTokenRepository, TokenBlacklistRepository,
     };
     use chrono::Duration;
-    use sqlx::SqlitePool;
 
-    async fn create_test_pool() -> DbPool {
-        let pool = SqlitePool::connect(":memory:").await.unwrap();
-
-        // 运行迁移
-        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
-
-        pool
+    async fn create_test_pool() -> Arc<crate::db::DbPool> {
+        let url = "sqlite::memory:";
+        let pool = DbPoolSettings::new(url).create_pool().await.unwrap();
+        run_migrations(&pool, url).await.unwrap();
+        Arc::new(pool)
     }
 
     #[tokio::test]
@@ -335,10 +332,9 @@ mod tests {
         let secret = Arc::new("test_secret".to_string());
 
         let base_service = RoomTokenService::new(secret.clone());
-        let pool_arc = Arc::new(pool.clone());
-        let refresh_repo = Arc::new(SqliteRoomRefreshTokenRepository::new(pool_arc.clone()));
-        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(pool_arc.clone()));
-        let room_repo = Arc::new(SqliteRoomRepository::new(pool_arc));
+        let refresh_repo = Arc::new(RoomRefreshTokenRepository::new(pool.clone()));
+        let blacklist_repo = Arc::new(TokenBlacklistRepository::new(pool.clone()));
+        let room_repo = Arc::new(RoomRepository::new(pool.clone()));
 
         let refresh_service = RefreshTokenService::new(
             base_service,
@@ -372,10 +368,9 @@ mod tests {
         let secret = Arc::new("test_secret".to_string());
 
         let base_service = RoomTokenService::new(secret.clone());
-        let pool_arc = Arc::new(pool.clone());
-        let refresh_repo = Arc::new(SqliteRoomRefreshTokenRepository::new(pool_arc.clone()));
-        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(pool_arc.clone()));
-        let room_repo = Arc::new(SqliteRoomRepository::new(pool_arc));
+        let refresh_repo = Arc::new(RoomRefreshTokenRepository::new(pool.clone()));
+        let blacklist_repo = Arc::new(TokenBlacklistRepository::new(pool.clone()));
+        let room_repo = Arc::new(RoomRepository::new(pool.clone()));
 
         let refresh_service = RefreshTokenService::new(
             base_service,
@@ -420,10 +415,9 @@ mod tests {
         let secret = Arc::new("test_secret".to_string());
 
         let base_service = RoomTokenService::new(secret.clone());
-        let pool_arc = Arc::new(pool.clone());
-        let refresh_repo = Arc::new(SqliteRoomRefreshTokenRepository::new(pool_arc.clone()));
-        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(pool_arc.clone()));
-        let room_repo = Arc::new(SqliteRoomRepository::new(pool_arc));
+        let refresh_repo = Arc::new(RoomRefreshTokenRepository::new(pool.clone()));
+        let blacklist_repo = Arc::new(TokenBlacklistRepository::new(pool.clone()));
+        let room_repo = Arc::new(RoomRepository::new(pool.clone()));
 
         let refresh_service = RefreshTokenService::new(
             base_service.clone(),
