@@ -65,13 +65,7 @@ chrono = { version = "0.4", features = ["serde"] }
 jsonwebtoken = { version = "10", features = ["use_pem", "aws_lc_rs"] }
 
 
-sqlx = { version = "0.8", features = [
-    "runtime-tokio",
-    "tls-rustls-aws-lc-rs",
-    "sqlite",
-    "migrate",
-    "chrono",
-] }
+sqlx = { version = "0.8", features = ["runtime-tokio", "tls-rustls-aws-lc-rs", "sqlite", "postgres", "migrate", "chrono"] }
 async-trait = "0.1"
 
 # JWT authentication
