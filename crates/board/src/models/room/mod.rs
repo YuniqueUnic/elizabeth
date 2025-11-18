@@ -1,15 +1,17 @@
 use chrono::{NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::FromRow;
+use sqlx::{FromRow, Row, any::AnyRow, postgres::PgRow, sqlite::SqliteRow};
 use utoipa::ToSchema;
 
 use crate::constants::room::{DEFAULT_MAX_ROOM_CONTENT_SIZE, DEFAULT_MAX_TIMES_ENTER_ROOM};
 use crate::models::permission::RoomPermission;
+use crate::models::room::row_utils::{read_datetime_from_any, read_optional_datetime_from_any};
 
 pub mod chunk_upload;
 pub mod content;
 pub mod permission;
 pub mod refresh_token;
+pub mod row_utils;
 pub mod token;
 pub mod upload_reservation;
 
@@ -38,8 +40,8 @@ pub enum RoomStatus {
     Close = 2,
 }
 
-/// 数据库与 API Room 模型，使用 FromRow 自动映射
-#[derive(Debug, Clone, FromRow, Serialize, Deserialize, ToSchema)]
+/// 数据库与 API Room 模型
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Room {
     pub id: Option<i64>,
     pub name: String,
@@ -54,6 +56,59 @@ pub struct Room {
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
     pub permission: RoomPermission,
+}
+
+fn build_room_from_row<R, F, G>(
+    row: &R,
+    read_dt: F,
+    read_optional_dt: G,
+) -> Result<Room, sqlx::Error>
+where
+    R: Row,
+    F: Fn(&R, &str) -> Result<NaiveDateTime, sqlx::Error>,
+    G: Fn(&R, &str) -> Result<Option<NaiveDateTime>, sqlx::Error>,
+{
+    Ok(Room {
+        id: row.try_get("id")?,
+        name: row.try_get("name")?,
+        slug: row.try_get("slug")?,
+        password: row.try_get("password")?,
+        status: row.try_get("status")?,
+        max_size: row.try_get("max_size")?,
+        current_size: row.try_get("current_size")?,
+        max_times_entered: row.try_get("max_times_entered")?,
+        current_times_entered: row.try_get("current_times_entered")?,
+        expire_at: read_optional_dt(row, "expire_at")?,
+        created_at: read_dt(row, "created_at")?,
+        updated_at: read_dt(row, "updated_at")?,
+        permission: row.try_get("permission")?,
+    })
+}
+
+impl<'r> FromRow<'r, SqliteRow> for Room {
+    fn from_row(row: &'r SqliteRow) -> Result<Self, sqlx::Error> {
+        build_room_from_row(
+            row,
+            |row, column| row.try_get(column),
+            |row, column| row.try_get(column),
+        )
+    }
+}
+
+impl<'r> FromRow<'r, PgRow> for Room {
+    fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
+        build_room_from_row(
+            row,
+            |row, column| row.try_get(column),
+            |row, column| row.try_get(column),
+        )
+    }
+}
+
+impl<'r> FromRow<'r, AnyRow> for Room {
+    fn from_row(row: &'r AnyRow) -> Result<Self, sqlx::Error> {
+        build_room_from_row(row, read_datetime_from_any, read_optional_datetime_from_any)
+    }
 }
 
 impl Room {

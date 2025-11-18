@@ -475,7 +475,7 @@ pub async fn upload_chunk(
     };
 
     // 保存分块记录到数据库
-    chunk_repository.create(chunk_record).await.map_err(|e| {
+    chunk_repository.create(&chunk_record).await.map_err(|e| {
         HttpResponse::InternalServerError().message(format!("创建分块记录失败：{}", e))
     })?;
 
@@ -567,6 +567,9 @@ pub async fn get_upload_status(
                 HttpResponse::InternalServerError().message(format!("查询预留记录失败：{}", e))
             })?
     } else if let Some(ref reservation_id) = query.reservation_id {
+        let reservation_id: i64 = reservation_id
+            .parse()
+            .map_err(|_| HttpResponse::BadRequest().message("reservation_id 必须是数字"))?;
         reservation_repository
             .find_by_reservation_id(reservation_id)
             .await
@@ -704,8 +707,12 @@ pub async fn complete_file_merge(
 
     // 查找预留记录
     let reservation_repository = RoomUploadReservationRepository::new(app_state.db_pool.clone());
+    let reservation_id: i64 = payload
+        .reservation_id
+        .parse()
+        .map_err(|_| HttpResponse::BadRequest().message("reservation_id 必须是数字"))?;
     let reservation = reservation_repository
-        .find_by_reservation_id(&payload.reservation_id)
+        .find_by_reservation_id(reservation_id)
         .await
         .map_err(|e| {
             HttpResponse::InternalServerError().message(format!("查询预留记录失败：{}", e))

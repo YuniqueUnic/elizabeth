@@ -1,12 +1,14 @@
 use chrono::{NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use sqlx::FromRow;
+use sqlx::{FromRow, Row, any::AnyRow, postgres::PgRow, sqlite::SqliteRow};
 use utoipa::ToSchema;
+
+use crate::models::room::row_utils::{read_datetime_from_any, read_optional_datetime_from_any};
 
 /// 房间刷新令牌数据模型
 /// 用于存储和管理 JWT 刷新令牌的信息
-#[derive(Debug, Clone, FromRow, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct RoomRefreshToken {
     /// 主键 ID
     pub id: Option<i64>,
@@ -24,6 +26,54 @@ pub struct RoomRefreshToken {
     pub last_used_at: Option<NaiveDateTime>,
     /// 是否已撤销
     pub is_revoked: bool,
+}
+
+fn build_room_refresh_token<R, F, G>(
+    row: &R,
+    read_dt: F,
+    read_optional_dt: G,
+) -> Result<RoomRefreshToken, sqlx::Error>
+where
+    R: Row,
+    F: Fn(&R, &str) -> Result<NaiveDateTime, sqlx::Error>,
+    G: Fn(&R, &str) -> Result<Option<NaiveDateTime>, sqlx::Error>,
+{
+    Ok(RoomRefreshToken {
+        id: row.try_get("id")?,
+        room_id: row.try_get("room_id")?,
+        access_token_jti: row.try_get("access_token_jti")?,
+        token_hash: row.try_get("token_hash")?,
+        expires_at: read_dt(row, "expires_at")?,
+        created_at: read_dt(row, "created_at")?,
+        last_used_at: read_optional_dt(row, "last_used_at")?,
+        is_revoked: row.try_get("is_revoked")?,
+    })
+}
+
+impl<'r> FromRow<'r, SqliteRow> for RoomRefreshToken {
+    fn from_row(row: &'r SqliteRow) -> Result<Self, sqlx::Error> {
+        build_room_refresh_token(
+            row,
+            |row, column| row.try_get(column),
+            |row, column| row.try_get(column),
+        )
+    }
+}
+
+impl<'r> FromRow<'r, PgRow> for RoomRefreshToken {
+    fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
+        build_room_refresh_token(
+            row,
+            |row, column| row.try_get(column),
+            |row, column| row.try_get(column),
+        )
+    }
+}
+
+impl<'r> FromRow<'r, AnyRow> for RoomRefreshToken {
+    fn from_row(row: &'r AnyRow) -> Result<Self, sqlx::Error> {
+        build_room_refresh_token(row, read_datetime_from_any, read_optional_datetime_from_any)
+    }
 }
 
 impl RoomRefreshToken {
@@ -136,7 +186,7 @@ pub struct RefreshTokenResponse {
 }
 
 /// 令牌黑名单条目结构
-#[derive(Debug, Clone, FromRow, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct TokenBlacklistEntry {
     /// 主键 ID
     pub id: Option<i64>,
@@ -146,6 +196,40 @@ pub struct TokenBlacklistEntry {
     pub expires_at: NaiveDateTime,
     /// 创建时间
     pub created_at: NaiveDateTime,
+}
+
+fn build_token_blacklist_entry<R, F>(
+    row: &R,
+    read_dt: F,
+) -> Result<TokenBlacklistEntry, sqlx::Error>
+where
+    R: Row,
+    F: Fn(&R, &str) -> Result<NaiveDateTime, sqlx::Error>,
+{
+    Ok(TokenBlacklistEntry {
+        id: row.try_get("id")?,
+        jti: row.try_get("jti")?,
+        expires_at: read_dt(row, "expires_at")?,
+        created_at: read_dt(row, "created_at")?,
+    })
+}
+
+impl<'r> FromRow<'r, SqliteRow> for TokenBlacklistEntry {
+    fn from_row(row: &'r SqliteRow) -> Result<Self, sqlx::Error> {
+        build_token_blacklist_entry(row, |row, column| row.try_get(column))
+    }
+}
+
+impl<'r> FromRow<'r, PgRow> for TokenBlacklistEntry {
+    fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
+        build_token_blacklist_entry(row, |row, column| row.try_get(column))
+    }
+}
+
+impl<'r> FromRow<'r, AnyRow> for TokenBlacklistEntry {
+    fn from_row(row: &'r AnyRow) -> Result<Self, sqlx::Error> {
+        build_token_blacklist_entry(row, read_datetime_from_any)
+    }
 }
 
 impl TokenBlacklistEntry {
