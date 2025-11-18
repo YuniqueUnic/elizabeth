@@ -1,7 +1,7 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use chrono::Utc;
-use sqlx::{Any, AnyPool};
+use sqlx::Any;
 use std::sync::Arc;
 
 use crate::db::DbPool;
@@ -16,11 +16,11 @@ pub trait IRoomTokenRepository: Send + Sync {
     async fn delete_by_room(&self, room_id: i64) -> Result<u64>;
 }
 
-pub struct SqliteRoomTokenRepository {
+pub struct RoomTokenRepository {
     pool: Arc<DbPool>,
 }
 
-impl SqliteRoomTokenRepository {
+impl RoomTokenRepository {
     pub fn new(pool: Arc<DbPool>) -> Self {
         Self { pool }
     }
@@ -60,7 +60,7 @@ impl SqliteRoomTokenRepository {
 }
 
 #[async_trait]
-impl IRoomTokenRepository for SqliteRoomTokenRepository {
+impl IRoomTokenRepository for RoomTokenRepository {
     async fn create(&self, room_token: &RoomToken) -> Result<RoomToken> {
         let mut tx = self.pool.begin().await?;
         let now = Utc::now().naive_utc();

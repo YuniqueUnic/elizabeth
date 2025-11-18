@@ -213,32 +213,18 @@ impl AuthService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repository::SqliteTokenBlacklistRepository;
+    use crate::db::{DbPoolSettings, run_migrations};
+    use crate::repository::TokenBlacklistRepository;
     use crate::services::RoomTokenClaims;
     use crate::services::token::RoomTokenService;
     use chrono::Duration;
-    use sqlx::SqlitePool;
     use std::sync::Arc;
 
-    async fn create_test_pool() -> SqlitePool {
-        let pool = SqlitePool::connect(":memory:").await.unwrap();
-
-        // 创建测试表
-        sqlx::query(
-            r#"
-            CREATE TABLE token_blacklist (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                jti TEXT NOT NULL UNIQUE,
-                expires_at DATETIME NOT NULL,
-                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-            );
-            "#,
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
-
-        pool
+    async fn create_test_pool() -> Arc<crate::db::DbPool> {
+        let url = "sqlite::memory:";
+        let pool = DbPoolSettings::new(url).create_pool().await.unwrap();
+        run_migrations(&pool, url).await.unwrap();
+        Arc::new(pool)
     }
 
     #[tokio::test]
@@ -247,7 +233,7 @@ mod tests {
         let secret = Arc::new("test_secret".to_string());
 
         let token_service = Arc::new(RoomTokenService::new(secret.clone()));
-        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(Arc::new(pool)));
+        let blacklist_repo = Arc::new(TokenBlacklistRepository::new(pool.clone()));
 
         let auth_service = AuthService::new(token_service, blacklist_repo);
 
@@ -275,7 +261,7 @@ mod tests {
         let secret = Arc::new("test_secret".to_string());
 
         let token_service = Arc::new(RoomTokenService::new(secret.clone()));
-        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(Arc::new(pool)));
+        let blacklist_repo = Arc::new(TokenBlacklistRepository::new(pool.clone()));
 
         let auth_service = AuthService::new(token_service, blacklist_repo);
 
@@ -315,7 +301,7 @@ mod tests {
         let secret = Arc::new("test_secret_for_unit_testing".to_string());
 
         let token_service = Arc::new(RoomTokenService::new(secret.clone()));
-        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(Arc::new(pool)));
+        let blacklist_repo = Arc::new(TokenBlacklistRepository::new(pool.clone()));
 
         let auth_service = AuthService::new(token_service.clone(), blacklist_repo);
 
@@ -354,7 +340,7 @@ mod tests {
         let secret = Arc::new("test_secret_for_unit_testing".to_string());
 
         let token_service = Arc::new(RoomTokenService::new(secret.clone()));
-        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(Arc::new(pool)));
+        let blacklist_repo = Arc::new(TokenBlacklistRepository::new(pool.clone()));
 
         let auth_service = AuthService::new(token_service.clone(), blacklist_repo.clone());
 
@@ -392,7 +378,7 @@ mod tests {
         let secret = Arc::new("test_secret_for_unit_testing".to_string());
 
         let token_service = Arc::new(RoomTokenService::new(secret.clone()));
-        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(Arc::new(pool)));
+        let blacklist_repo = Arc::new(TokenBlacklistRepository::new(pool.clone()));
 
         let auth_service = AuthService::new(token_service.clone(), blacklist_repo);
 
@@ -428,7 +414,7 @@ mod tests {
         let secret = Arc::new("test_secret_for_unit_testing".to_string());
 
         let token_service = Arc::new(RoomTokenService::new(secret.clone()));
-        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(Arc::new(pool)));
+        let blacklist_repo = Arc::new(TokenBlacklistRepository::new(pool.clone()));
 
         let auth_service = AuthService::new(token_service.clone(), blacklist_repo);
 
@@ -496,7 +482,7 @@ mod tests {
         let secret = Arc::new("test_secret".to_string());
 
         let token_service = Arc::new(RoomTokenService::new(secret.clone()));
-        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(Arc::new(pool)));
+        let blacklist_repo = Arc::new(TokenBlacklistRepository::new(Arc::new(pool)));
 
         let auth_service = AuthService::new(token_service.clone(), blacklist_repo.clone());
 
@@ -517,7 +503,7 @@ mod tests {
         let secret = Arc::new("test_secret".to_string());
 
         let token_service = Arc::new(RoomTokenService::new(secret.clone()));
-        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(Arc::new(pool)));
+        let blacklist_repo = Arc::new(TokenBlacklistRepository::new(Arc::new(pool)));
 
         let auth_service = AuthService::new(token_service, blacklist_repo);
 

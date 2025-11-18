@@ -1,7 +1,7 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use chrono::Utc;
-use sqlx::{Any, AnyPool};
+use sqlx::Any;
 use std::sync::Arc;
 
 use crate::db::DbPool;
@@ -11,17 +11,18 @@ use crate::models::room::chunk_upload::{ChunkedUploadStatusResponse, RoomChunkUp
 pub trait IRoomChunkUploadRepository: Send + Sync {
     async fn create(&self, upload: &RoomChunkUpload) -> Result<RoomChunkUpload>;
     async fn find_by_upload_id(&self, upload_id: &str) -> Result<Option<RoomChunkUpload>>;
-    async fn update_status(&self, upload_id: &str, uploaded_chunks: i64) -> Result<RoomChunkUpload>;
+    async fn update_status(&self, upload_id: &str, uploaded_chunks: i64)
+    -> Result<RoomChunkUpload>;
     async fn finalize(&self, upload_id: &str) -> Result<RoomChunkUpload>;
     async fn delete_by_room(&self, room_id: i64) -> Result<u64>;
     async fn status(&self, upload_id: &str) -> Result<Option<ChunkedUploadStatusResponse>>;
 }
 
-pub struct SqliteRoomChunkUploadRepository {
+pub struct RoomChunkUploadRepository {
     pool: Arc<DbPool>,
 }
 
-impl SqliteRoomChunkUploadRepository {
+impl RoomChunkUploadRepository {
     pub fn new(pool: Arc<DbPool>) -> Self {
         Self { pool }
     }
@@ -46,7 +47,7 @@ impl SqliteRoomChunkUploadRepository {
 }
 
 #[async_trait]
-impl IRoomChunkUploadRepository for SqliteRoomChunkUploadRepository {
+impl IRoomChunkUploadRepository for RoomChunkUploadRepository {
     async fn create(&self, upload: &RoomChunkUpload) -> Result<RoomChunkUpload> {
         let mut tx = self.pool.begin().await?;
         let now = Utc::now().naive_utc();
@@ -91,7 +92,11 @@ impl IRoomChunkUploadRepository for SqliteRoomChunkUploadRepository {
         .await
     }
 
-    async fn update_status(&self, upload_id: &str, uploaded_chunks: i64) -> Result<RoomChunkUpload> {
+    async fn update_status(
+        &self,
+        upload_id: &str,
+        uploaded_chunks: i64,
+    ) -> Result<RoomChunkUpload> {
         let mut tx = self.pool.begin().await?;
         sqlx::query(
             r#"

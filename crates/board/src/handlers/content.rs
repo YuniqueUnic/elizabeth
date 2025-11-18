@@ -29,7 +29,7 @@ use crate::models::{
 };
 use crate::repository::{
     IRoomContentRepository, IRoomRepository, IRoomUploadReservationRepository,
-    SqliteRoomContentRepository, SqliteRoomRepository, SqliteRoomUploadReservationRepository,
+    RoomContentRepository, RoomRepository, RoomUploadReservationRepository,
 };
 use crate::services::RoomTokenClaims;
 use crate::state::AppState;
@@ -146,7 +146,7 @@ pub async fn list_contents(
         ContentPermission::View,
     )?;
 
-    let repository = SqliteRoomContentRepository::new(app_state.db_pool.clone());
+    let repository = RoomContentRepository::new(app_state.db_pool.clone());
     let contents = repository
         .list_by_room(room_id)
         .await
@@ -218,7 +218,7 @@ pub async fn prepare_upload(
     let manifest_json = serde_json::to_string(&payload.files)
         .map_err(|e| AppError::internal(format!("Serialize manifest failed: {e}")))?;
 
-    let reservation_repo = SqliteRoomUploadReservationRepository::new(app_state.db_pool.clone());
+    let reservation_repo = RoomUploadReservationRepository::new(app_state.db_pool.clone());
     let ttl = app_state.upload_reservation_ttl();
 
     let (reservation, updated_room) = reservation_repo
@@ -249,7 +249,7 @@ pub async fn prepare_upload(
     let cleanup_delay_seconds = ttl.num_seconds().max(1) as u64;
     tokio::spawn(async move {
         sleep(StdDuration::from_secs(cleanup_delay_seconds)).await;
-        let repo = SqliteRoomUploadReservationRepository::new(db_pool);
+        let repo = RoomUploadReservationRepository::new(db_pool);
         if let Err(err) = repo.release_if_pending(reservation_id).await {
             log::warn!(
                 "Failed to release expired reservation {}: {}",
@@ -309,7 +309,7 @@ pub async fn upload_contents(
     )?;
 
     let room_id = room_id_or_error(&verified.claims)?;
-    let reservation_repo = SqliteRoomUploadReservationRepository::new(app_state.db_pool.clone());
+    let reservation_repo = RoomUploadReservationRepository::new(app_state.db_pool.clone());
     let reservation = reservation_repo
         .fetch_by_id(query.reservation_id)
         .await
@@ -478,7 +478,7 @@ pub async fn upload_contents(
         ));
     }
 
-    let repository = SqliteRoomContentRepository::new(app_state.db_pool.clone());
+    let repository = RoomContentRepository::new(app_state.db_pool.clone());
     let mut uploaded = Vec::new();
     let mut actual_total: i64 = 0;
 
@@ -597,7 +597,7 @@ pub async fn delete_contents(
     )?;
 
     let room_id = room_id_or_error(&verified.claims)?;
-    let repository = SqliteRoomContentRepository::new(app_state.db_pool.clone());
+    let repository = RoomContentRepository::new(app_state.db_pool.clone());
     let existing_contents = repository
         .list_by_room(room_id)
         .await
@@ -635,7 +635,7 @@ pub async fn delete_contents(
 
     if freed_size > 0 {
         verified.room.current_size = (verified.room.current_size - freed_size).max(0);
-        let room_repo = SqliteRoomRepository::new(app_state.db_pool.clone());
+        let room_repo = RoomRepository::new(app_state.db_pool.clone());
         verified.room = room_repo
             .update(&verified.room)
             .await
@@ -681,7 +681,7 @@ pub async fn download_content(
     )?;
 
     let room_id = room_id_or_error(&verified.claims)?;
-    let repository = SqliteRoomContentRepository::new(app_state.db_pool.clone());
+    let repository = RoomContentRepository::new(app_state.db_pool.clone());
     let content = repository
         .find_by_id(content_id)
         .await
@@ -826,7 +826,7 @@ pub async fn update_content(
     )?;
 
     let room_id = room_id_or_error(&verified.claims)?;
-    let repository = SqliteRoomContentRepository::new(app_state.db_pool.clone());
+    let repository = RoomContentRepository::new(app_state.db_pool.clone());
 
     // Get existing content
     let existing_content = repository
@@ -895,10 +895,9 @@ pub async fn update_content(
 async fn room_repo_update_if_content_size_changed(
     room: &crate::models::room::Room,
     content: &RoomContent,
-    db_pool: &sqlx::SqlitePool,
+    db_pool: &Arc<crate::db::DbPool>,
 ) -> Result<crate::models::room::Room, AppError> {
-    use crate::repository::{IRoomRepository, SqliteRoomRepository};
-    use std::sync::Arc;
+    use crate::repository::{IRoomRepository, RoomRepository};
 
     // Check if size actually changed
     let size_changed = match content.size {
@@ -907,7 +906,7 @@ async fn room_repo_update_if_content_size_changed(
     };
 
     if size_changed {
-        let room_repo = SqliteRoomRepository::new(Arc::new(db_pool.clone()));
+        let room_repo = RoomRepository::new(db_pool.clone());
         room_repo
             .update(room)
             .await

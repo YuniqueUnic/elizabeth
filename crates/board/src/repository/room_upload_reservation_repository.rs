@@ -1,7 +1,7 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use chrono::Utc;
-use sqlx::{Any, AnyPool, QueryBuilder, Row};
+use sqlx::{Any, QueryBuilder, Row};
 use std::sync::Arc;
 
 use crate::db::DbPool;
@@ -10,22 +10,28 @@ use crate::models::room::upload_reservation::{RoomUploadReservation, UploadStatu
 #[async_trait]
 pub trait IRoomUploadReservationRepository: Send + Sync {
     async fn create(&self, reservation: &RoomUploadReservation) -> Result<RoomUploadReservation>;
-    async fn find_by_reservation_id(&self, reservation_id: &str) -> Result<Option<RoomUploadReservation>>;
+    async fn find_by_reservation_id(
+        &self,
+        reservation_id: &str,
+    ) -> Result<Option<RoomUploadReservation>>;
     async fn mark_uploaded(&self, reservation_id: &str) -> Result<RoomUploadReservation>;
     async fn delete(&self, reservation_id: &str) -> Result<bool>;
     async fn purge_expired(&self) -> Result<u64>;
 }
 
-pub struct SqliteRoomUploadReservationRepository {
+pub struct RoomUploadReservationRepository {
     pool: Arc<DbPool>,
 }
 
-impl SqliteRoomUploadReservationRepository {
+impl RoomUploadReservationRepository {
     pub fn new(pool: Arc<DbPool>) -> Self {
         Self { pool }
     }
 
-    async fn fetch_optional<'e, E>(executor: E, reservation_id: &str) -> Result<Option<RoomUploadReservation>>
+    async fn fetch_optional<'e, E>(
+        executor: E,
+        reservation_id: &str,
+    ) -> Result<Option<RoomUploadReservation>>
     where
         E: sqlx::Executor<'e, Database = Any>,
     {
@@ -62,7 +68,7 @@ impl SqliteRoomUploadReservationRepository {
 }
 
 #[async_trait]
-impl IRoomUploadReservationRepository for SqliteRoomUploadReservationRepository {
+impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
     async fn create(&self, reservation: &RoomUploadReservation) -> Result<RoomUploadReservation> {
         let mut tx = self.pool.begin().await?;
         let id: i64 = sqlx::query_scalar(
@@ -90,7 +96,10 @@ impl IRoomUploadReservationRepository for SqliteRoomUploadReservationRepository 
         Ok(created)
     }
 
-    async fn find_by_reservation_id(&self, reservation_id: &str) -> Result<Option<RoomUploadReservation>> {
+    async fn find_by_reservation_id(
+        &self,
+        reservation_id: &str,
+    ) -> Result<Option<RoomUploadReservation>> {
         Self::fetch_optional(&*self.pool, reservation_id).await
     }
 
@@ -109,7 +118,7 @@ impl IRoomUploadReservationRepository for SqliteRoomUploadReservationRepository 
         .execute(&mut *tx)
         .await?;
 
-        let updated = SqliteRoomUploadReservationRepository::fetch_optional(&mut *tx, reservation_id)
+        let updated = RoomUploadReservationRepository::fetch_optional(&mut *tx, reservation_id)
             .await?
             .ok_or_else(|| anyhow!("upload reservation not found"))?;
 

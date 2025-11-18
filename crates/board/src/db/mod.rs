@@ -1,6 +1,6 @@
 use anyhow::Result;
 use logrs::{error, info};
-use sqlx::{any::AnyKind, any::AnyPoolOptions, Any, AnyPool, ConnectOptions, Executor};
+use sqlx::{Any, AnyPool, ConnectOptions, Executor, any::AnyKind, any::AnyPoolOptions};
 use std::str::FromStr;
 
 use crate::constants::database::{

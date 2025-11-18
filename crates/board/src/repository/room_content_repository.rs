@@ -1,7 +1,7 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use chrono::Utc;
-use sqlx::{Any, AnyPool, QueryBuilder};
+use sqlx::{Any, QueryBuilder};
 use std::sync::Arc;
 
 use crate::{
@@ -22,11 +22,11 @@ pub trait IRoomContentRepository: Send + Sync {
     async fn delete(&self, room_name: &str) -> Result<bool>;
 }
 
-pub struct SqliteRoomContentRepository {
+pub struct RoomContentRepository {
     pool: Arc<DbPool>,
 }
 
-impl SqliteRoomContentRepository {
+impl RoomContentRepository {
     pub fn new(pool: Arc<DbPool>) -> Self {
         Self { pool }
     }
@@ -72,14 +72,13 @@ impl SqliteRoomContentRepository {
 }
 
 #[async_trait]
-impl IRoomContentRepository for SqliteRoomContentRepository {
+impl IRoomContentRepository for RoomContentRepository {
     async fn exists(&self, content_id: i64) -> Result<bool> {
-        let exists: i64 = sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM room_contents WHERE id = ?)",
-        )
-        .bind(content_id)
-        .fetch_one(&*self.pool)
-        .await?;
+        let exists: i64 =
+            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM room_contents WHERE id = ?)")
+                .bind(content_id)
+                .fetch_one(&*self.pool)
+                .await?;
 
         Ok(exists != 0)
     }

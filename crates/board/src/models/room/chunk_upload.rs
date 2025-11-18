@@ -14,14 +14,20 @@ pub enum ChunkStatus {
     Failed,   // 失败
 }
 
+impl ChunkStatus {
+    fn as_storage_value(&self) -> &'static str {
+        match self {
+            ChunkStatus::Pending => "pending",
+            ChunkStatus::Uploaded => "uploaded",
+            ChunkStatus::Verified => "verified",
+            ChunkStatus::Failed => "failed",
+        }
+    }
+}
+
 impl std::fmt::Display for ChunkStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ChunkStatus::Pending => write!(f, "pending"),
-            ChunkStatus::Uploaded => write!(f, "uploaded"),
-            ChunkStatus::Verified => write!(f, "verified"),
-            ChunkStatus::Failed => write!(f, "failed"),
-        }
+        write!(f, "{}", self.as_storage_value())
     }
 }
 
@@ -58,9 +64,31 @@ impl<'q> sqlx::Encode<'q, sqlx::Sqlite> for ChunkStatus {
         args: &mut Vec<sqlx::sqlite::SqliteArgumentValue<'q>>,
     ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
         args.push(sqlx::sqlite::SqliteArgumentValue::Text(
-            std::borrow::Cow::Owned(self.to_string()),
+            std::borrow::Cow::Borrowed(self.as_storage_value()),
         ));
         Ok(sqlx::encode::IsNull::No)
+    }
+}
+
+impl sqlx::Type<sqlx::Postgres> for ChunkStatus {
+    fn type_info() -> sqlx::postgres::PgTypeInfo {
+        <String as sqlx::Type<sqlx::Postgres>>::type_info()
+    }
+}
+
+impl<'r> sqlx::Decode<'r, sqlx::Postgres> for ChunkStatus {
+    fn decode(value: sqlx::postgres::PgValueRef<'r>) -> Result<Self, sqlx::error::BoxDynError> {
+        let s = <&str as sqlx::Decode<sqlx::Postgres>>::decode(value)?;
+        s.parse().map_err(|e: String| e.into())
+    }
+}
+
+impl<'q> sqlx::Encode<'q, sqlx::Postgres> for ChunkStatus {
+    fn encode_by_ref(
+        &self,
+        buf: &mut <sqlx::Postgres as sqlx::Database>::ArgumentBuffer<'q>,
+    ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
+        <&str as sqlx::Encode<sqlx::Postgres>>::encode(self.as_storage_value(), buf)
     }
 }
 

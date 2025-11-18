@@ -7,9 +7,9 @@ use std::sync::Arc;
 use crate::config::AppConfig;
 use crate::db::DbPool;
 use crate::repository::room_refresh_token_repository::{
-    SqliteRoomRefreshTokenRepository, SqliteTokenBlacklistRepository,
+    RoomRefreshTokenRepository, TokenBlacklistRepository,
 };
-use crate::repository::room_repository::SqliteRoomRepository;
+use crate::repository::room_repository::RoomRepository;
 
 pub mod auth_service;
 pub mod refresh_token_service;
@@ -26,7 +26,7 @@ pub struct Services {
     pub auth: Arc<AuthService>,
     pub token_service: Arc<RoomTokenService>,
     pub refresh_token_service: Arc<RefreshTokenService>,
-    pub room_repository: Arc<SqliteRoomRepository>,
+    pub room_repository: Arc<RoomRepository>,
 }
 
 impl Services {
@@ -40,11 +40,11 @@ impl Services {
         ));
 
         // 创建房间仓库
-        let room_repository = Arc::new(SqliteRoomRepository::new(db_pool.clone()));
+        let room_repository = Arc::new(RoomRepository::new(db_pool.clone()));
 
         // 创建刷新令牌仓库
-        let refresh_repo = Arc::new(SqliteRoomRefreshTokenRepository::new(db_pool.clone()));
-        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(db_pool.clone()));
+        let refresh_repo = Arc::new(RoomRefreshTokenRepository::new(db_pool.clone()));
+        let blacklist_repo = Arc::new(TokenBlacklistRepository::new(db_pool.clone()));
 
         // 创建刷新令牌服务
         let refresh_token_service = Arc::new(RefreshTokenService::with_defaults(
