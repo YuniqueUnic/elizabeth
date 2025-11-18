@@ -250,6 +250,11 @@ fn merge_config_with_cli_args(
         cfg.app.logging.level = match_log_level(verbose);
     }
 
+    // If logging level is empty or invalid after merging CLI/env, fall back to info
+    if cfg.app.logging.level.trim().is_empty() {
+        cfg.app.logging.level = "info".to_string();
+    }
+
     merge_cli_arg!(cfg.app.jwt.secret, args.jwt_secret.clone());
     merge_cli_arg!(cfg.app.database.url, args.db_url.clone());
 
