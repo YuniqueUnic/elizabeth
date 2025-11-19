@@ -319,10 +319,14 @@ mod tests {
     };
     use chrono::Duration;
 
+    const TEST_DB_URL: &str = "sqlite::memory:";
+
     async fn create_test_pool() -> Arc<crate::db::DbPool> {
-        let url = "sqlite::memory:";
-        let pool = DbPoolSettings::new(url).create_pool().await.unwrap();
-        run_migrations(&pool, url).await.unwrap();
+        let settings = DbPoolSettings::new(TEST_DB_URL)
+            .with_max_connections(1)
+            .with_min_connections(1);
+        let pool = settings.create_pool().await.unwrap();
+        run_migrations(&pool, TEST_DB_URL).await.unwrap();
         Arc::new(pool)
     }
 

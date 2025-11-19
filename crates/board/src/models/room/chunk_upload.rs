@@ -277,11 +277,7 @@ impl ChunkStatusInfo {
     }
 }
 
-fn build_chunk_from_row<R, F>(row: &R, ts: F) -> Result<RoomChunkUpload, sqlx::Error>
-where
-    R: Row,
-    F: Fn(&R, &str) -> Result<NaiveDateTime, sqlx::Error>,
-{
+fn build_chunk_from_sqlite(row: &SqliteRow) -> Result<RoomChunkUpload, sqlx::Error> {
     Ok(RoomChunkUpload {
         id: row.try_get("id")?,
         reservation_id: row.try_get("reservation_id")?,
@@ -289,25 +285,51 @@ where
         chunk_size: row.try_get("chunk_size")?,
         chunk_hash: row.try_get("chunk_hash")?,
         upload_status: row.try_get("upload_status")?,
-        created_at: ts(row, "created_at")?,
-        updated_at: ts(row, "updated_at")?,
+        created_at: row.try_get("created_at")?,
+        updated_at: row.try_get("updated_at")?,
+    })
+}
+
+fn build_chunk_from_pg(row: &PgRow) -> Result<RoomChunkUpload, sqlx::Error> {
+    Ok(RoomChunkUpload {
+        id: row.try_get("id")?,
+        reservation_id: row.try_get("reservation_id")?,
+        chunk_index: row.try_get("chunk_index")?,
+        chunk_size: row.try_get("chunk_size")?,
+        chunk_hash: row.try_get("chunk_hash")?,
+        upload_status: row.try_get("upload_status")?,
+        created_at: row.try_get("created_at")?,
+        updated_at: row.try_get("updated_at")?,
+    })
+}
+
+fn build_chunk_from_any(row: &AnyRow) -> Result<RoomChunkUpload, sqlx::Error> {
+    Ok(RoomChunkUpload {
+        id: row.try_get("id")?,
+        reservation_id: row.try_get("reservation_id")?,
+        chunk_index: row.try_get("chunk_index")?,
+        chunk_size: row.try_get("chunk_size")?,
+        chunk_hash: row.try_get("chunk_hash")?,
+        upload_status: row.try_get("upload_status")?,
+        created_at: read_datetime_from_any(row, "created_at")?,
+        updated_at: read_datetime_from_any(row, "updated_at")?,
     })
 }
 
 impl<'r> FromRow<'r, SqliteRow> for RoomChunkUpload {
     fn from_row(row: &'r SqliteRow) -> Result<Self, sqlx::Error> {
-        build_chunk_from_row(row, |row, column| row.try_get(column))
+        build_chunk_from_sqlite(row)
     }
 }
 
 impl<'r> FromRow<'r, PgRow> for RoomChunkUpload {
     fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
-        build_chunk_from_row(row, |row, column| row.try_get(column))
+        build_chunk_from_pg(row)
     }
 }
 
 impl<'r> FromRow<'r, AnyRow> for RoomChunkUpload {
     fn from_row(row: &'r AnyRow) -> Result<Self, sqlx::Error> {
-        build_chunk_from_row(row, |row, column| read_datetime_from_any(row, column))
+        build_chunk_from_any(row)
     }
 }

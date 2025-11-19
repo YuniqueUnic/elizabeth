@@ -58,16 +58,7 @@ pub struct Room {
     pub permission: RoomPermission,
 }
 
-fn build_room_from_row<R, F, G>(
-    row: &R,
-    read_dt: F,
-    read_optional_dt: G,
-) -> Result<Room, sqlx::Error>
-where
-    R: Row,
-    F: Fn(&R, &str) -> Result<NaiveDateTime, sqlx::Error>,
-    G: Fn(&R, &str) -> Result<Option<NaiveDateTime>, sqlx::Error>,
-{
+fn build_room_from_sqlite(row: &SqliteRow) -> Result<Room, sqlx::Error> {
     Ok(Room {
         id: row.try_get("id")?,
         name: row.try_get("name")?,
@@ -78,36 +69,66 @@ where
         current_size: row.try_get("current_size")?,
         max_times_entered: row.try_get("max_times_entered")?,
         current_times_entered: row.try_get("current_times_entered")?,
-        expire_at: read_optional_dt(row, "expire_at")?,
-        created_at: read_dt(row, "created_at")?,
-        updated_at: read_dt(row, "updated_at")?,
+        expire_at: row.try_get("expire_at")?,
+        created_at: row.try_get("created_at")?,
+        updated_at: row.try_get("updated_at")?,
         permission: row.try_get("permission")?,
+    })
+}
+
+fn build_room_from_pg(row: &PgRow) -> Result<Room, sqlx::Error> {
+    Ok(Room {
+        id: row.try_get("id")?,
+        name: row.try_get("name")?,
+        slug: row.try_get("slug")?,
+        password: row.try_get("password")?,
+        status: row.try_get("status")?,
+        max_size: row.try_get("max_size")?,
+        current_size: row.try_get("current_size")?,
+        max_times_entered: row.try_get("max_times_entered")?,
+        current_times_entered: row.try_get("current_times_entered")?,
+        expire_at: row.try_get("expire_at")?,
+        created_at: row.try_get("created_at")?,
+        updated_at: row.try_get("updated_at")?,
+        permission: row.try_get("permission")?,
+    })
+}
+
+fn build_room_from_any(row: &AnyRow) -> Result<Room, sqlx::Error> {
+    let permission_bits: i64 = row.try_get("permission")?;
+    let permission = RoomPermission::from_bits(permission_bits as u8).unwrap_or_default();
+    Ok(Room {
+        id: row.try_get("id")?,
+        name: row.try_get("name")?,
+        slug: row.try_get("slug")?,
+        password: row.try_get("password")?,
+        status: row.try_get("status")?,
+        max_size: row.try_get("max_size")?,
+        current_size: row.try_get("current_size")?,
+        max_times_entered: row.try_get("max_times_entered")?,
+        current_times_entered: row.try_get("current_times_entered")?,
+        expire_at: read_optional_datetime_from_any(row, "expire_at")?,
+        created_at: read_datetime_from_any(row, "created_at")?,
+        updated_at: read_datetime_from_any(row, "updated_at")?,
+        permission,
     })
 }
 
 impl<'r> FromRow<'r, SqliteRow> for Room {
     fn from_row(row: &'r SqliteRow) -> Result<Self, sqlx::Error> {
-        build_room_from_row(
-            row,
-            |row, column| row.try_get(column),
-            |row, column| row.try_get(column),
-        )
+        build_room_from_sqlite(row)
     }
 }
 
 impl<'r> FromRow<'r, PgRow> for Room {
     fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
-        build_room_from_row(
-            row,
-            |row, column| row.try_get(column),
-            |row, column| row.try_get(column),
-        )
+        build_room_from_pg(row)
     }
 }
 
 impl<'r> FromRow<'r, AnyRow> for Room {
     fn from_row(row: &'r AnyRow) -> Result<Self, sqlx::Error> {
-        build_room_from_row(row, read_datetime_from_any, read_optional_datetime_from_any)
+        build_room_from_any(row)
     }
 }
 

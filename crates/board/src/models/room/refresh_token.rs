@@ -28,51 +28,60 @@ pub struct RoomRefreshToken {
     pub is_revoked: bool,
 }
 
-fn build_room_refresh_token<R, F, G>(
-    row: &R,
-    read_dt: F,
-    read_optional_dt: G,
-) -> Result<RoomRefreshToken, sqlx::Error>
-where
-    R: Row,
-    F: Fn(&R, &str) -> Result<NaiveDateTime, sqlx::Error>,
-    G: Fn(&R, &str) -> Result<Option<NaiveDateTime>, sqlx::Error>,
-{
+fn build_room_refresh_token_sqlite(row: &SqliteRow) -> Result<RoomRefreshToken, sqlx::Error> {
     Ok(RoomRefreshToken {
         id: row.try_get("id")?,
         room_id: row.try_get("room_id")?,
         access_token_jti: row.try_get("access_token_jti")?,
         token_hash: row.try_get("token_hash")?,
-        expires_at: read_dt(row, "expires_at")?,
-        created_at: read_dt(row, "created_at")?,
-        last_used_at: read_optional_dt(row, "last_used_at")?,
+        expires_at: row.try_get("expires_at")?,
+        created_at: row.try_get("created_at")?,
+        last_used_at: row.try_get("last_used_at")?,
+        is_revoked: row.try_get("is_revoked")?,
+    })
+}
+
+fn build_room_refresh_token_pg(row: &PgRow) -> Result<RoomRefreshToken, sqlx::Error> {
+    Ok(RoomRefreshToken {
+        id: row.try_get("id")?,
+        room_id: row.try_get("room_id")?,
+        access_token_jti: row.try_get("access_token_jti")?,
+        token_hash: row.try_get("token_hash")?,
+        expires_at: row.try_get("expires_at")?,
+        created_at: row.try_get("created_at")?,
+        last_used_at: row.try_get("last_used_at")?,
+        is_revoked: row.try_get("is_revoked")?,
+    })
+}
+
+fn build_room_refresh_token_any(row: &AnyRow) -> Result<RoomRefreshToken, sqlx::Error> {
+    Ok(RoomRefreshToken {
+        id: row.try_get("id")?,
+        room_id: row.try_get("room_id")?,
+        access_token_jti: row.try_get("access_token_jti")?,
+        token_hash: row.try_get("token_hash")?,
+        expires_at: read_datetime_from_any(row, "expires_at")?,
+        created_at: read_datetime_from_any(row, "created_at")?,
+        last_used_at: read_optional_datetime_from_any(row, "last_used_at")?,
         is_revoked: row.try_get("is_revoked")?,
     })
 }
 
 impl<'r> FromRow<'r, SqliteRow> for RoomRefreshToken {
     fn from_row(row: &'r SqliteRow) -> Result<Self, sqlx::Error> {
-        build_room_refresh_token(
-            row,
-            |row, column| row.try_get(column),
-            |row, column| row.try_get(column),
-        )
+        build_room_refresh_token_sqlite(row)
     }
 }
 
 impl<'r> FromRow<'r, PgRow> for RoomRefreshToken {
     fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
-        build_room_refresh_token(
-            row,
-            |row, column| row.try_get(column),
-            |row, column| row.try_get(column),
-        )
+        build_room_refresh_token_pg(row)
     }
 }
 
 impl<'r> FromRow<'r, AnyRow> for RoomRefreshToken {
     fn from_row(row: &'r AnyRow) -> Result<Self, sqlx::Error> {
-        build_room_refresh_token(row, read_datetime_from_any, read_optional_datetime_from_any)
+        build_room_refresh_token_any(row)
     }
 }
 
@@ -198,37 +207,50 @@ pub struct TokenBlacklistEntry {
     pub created_at: NaiveDateTime,
 }
 
-fn build_token_blacklist_entry<R, F>(
-    row: &R,
-    read_dt: F,
-) -> Result<TokenBlacklistEntry, sqlx::Error>
-where
-    R: Row,
-    F: Fn(&R, &str) -> Result<NaiveDateTime, sqlx::Error>,
-{
+fn build_token_blacklist_entry_sqlite(
+    row: &SqliteRow,
+) -> Result<TokenBlacklistEntry, sqlx::Error> {
     Ok(TokenBlacklistEntry {
         id: row.try_get("id")?,
         jti: row.try_get("jti")?,
-        expires_at: read_dt(row, "expires_at")?,
-        created_at: read_dt(row, "created_at")?,
+        expires_at: row.try_get("expires_at")?,
+        created_at: row.try_get("created_at")?,
+    })
+}
+
+fn build_token_blacklist_entry_pg(row: &PgRow) -> Result<TokenBlacklistEntry, sqlx::Error> {
+    Ok(TokenBlacklistEntry {
+        id: row.try_get("id")?,
+        jti: row.try_get("jti")?,
+        expires_at: row.try_get("expires_at")?,
+        created_at: row.try_get("created_at")?,
+    })
+}
+
+fn build_token_blacklist_entry_any(row: &AnyRow) -> Result<TokenBlacklistEntry, sqlx::Error> {
+    Ok(TokenBlacklistEntry {
+        id: row.try_get("id")?,
+        jti: row.try_get("jti")?,
+        expires_at: read_datetime_from_any(row, "expires_at")?,
+        created_at: read_datetime_from_any(row, "created_at")?,
     })
 }
 
 impl<'r> FromRow<'r, SqliteRow> for TokenBlacklistEntry {
     fn from_row(row: &'r SqliteRow) -> Result<Self, sqlx::Error> {
-        build_token_blacklist_entry(row, |row, column| row.try_get(column))
+        build_token_blacklist_entry_sqlite(row)
     }
 }
 
 impl<'r> FromRow<'r, PgRow> for TokenBlacklistEntry {
     fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
-        build_token_blacklist_entry(row, |row, column| row.try_get(column))
+        build_token_blacklist_entry_pg(row)
     }
 }
 
 impl<'r> FromRow<'r, AnyRow> for TokenBlacklistEntry {
     fn from_row(row: &'r AnyRow) -> Result<Self, sqlx::Error> {
-        build_token_blacklist_entry(row, read_datetime_from_any)
+        build_token_blacklist_entry_any(row)
     }
 }
 

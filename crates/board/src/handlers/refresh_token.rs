@@ -138,6 +138,8 @@ mod tests {
     use chrono::Duration;
     use std::sync::Arc;
 
+    const TEST_DB_URL: &str = "sqlite::memory:";
+
     async fn create_test_app_state() -> Arc<AppState> {
         use crate::config::{AppConfig, AuthConfig, RoomConfig, ServerConfig, StorageConfig};
         use crate::constants::upload::DEFAULT_UPLOAD_RESERVATION_TTL_SECONDS;
@@ -145,9 +147,13 @@ mod tests {
             room::DEFAULT_MAX_ROOM_CONTENT_SIZE, room::DEFAULT_MAX_TIMES_ENTER_ROOM,
             test::TEST_JWT_SECRET,
         };
-        let url = "sqlite::memory:";
-        let db_pool = Arc::new(DbPoolSettings::new(url).create_pool().await.unwrap());
-        run_migrations(db_pool.as_ref(), url).await.unwrap();
+        let settings = DbPoolSettings::new(TEST_DB_URL)
+            .with_max_connections(1)
+            .with_min_connections(1);
+        let db_pool = Arc::new(settings.create_pool().await.unwrap());
+        run_migrations(db_pool.as_ref(), TEST_DB_URL)
+            .await
+            .unwrap();
 
         // 创建测试配置
         let app_config = AppConfig {

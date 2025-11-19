@@ -8,6 +8,25 @@ use crate::{
     db::DbPool,
     models::{Room, RoomStatus, permission::RoomPermission},
 };
+use crate::models::room::row_utils::{format_naive_datetime, format_optional_naive_datetime};
+
+const ROOM_SELECT_BASE: &str = r#"
+    SELECT
+        id,
+        name,
+        slug,
+        password,
+        status as "status: RoomStatus",
+        max_size,
+        current_size,
+        max_times_entered,
+        current_times_entered,
+        CAST(expire_at AS TEXT) as expire_at,
+        CAST(created_at AS TEXT) as created_at,
+        CAST(updated_at AS TEXT) as updated_at,
+        permission as "permission: RoomPermission"
+    FROM rooms
+"#;
 
 #[async_trait]
 pub trait IRoomRepository: Send + Sync {
@@ -36,58 +55,21 @@ impl RoomRepository {
     where
         E: sqlx::Executor<'e, Database = Any>,
     {
-        sqlx::query_as::<_, Room>(
-            r#"
-            SELECT
-                id,
-                name,
-                slug,
-                password,
-                status as "status: RoomStatus",
-                max_size,
-                current_size,
-                max_times_entered,
-                current_times_entered,
-                expire_at,
-                created_at,
-                updated_at,
-                permission as "permission: RoomPermission"
-            FROM rooms
-            WHERE id = ?
-            "#,
-        )
-        .bind(id)
-        .fetch_optional(executor)
-        .await
+        let sql = format!("{ROOM_SELECT_BASE} WHERE id = ?");
+        let room = sqlx::query_as::<_, Room>(&sql).bind(id).fetch_optional(executor).await?;
+        Ok(room)
     }
 
     async fn fetch_room_optional_by_slug<'e, E>(executor: E, slug: &str) -> Result<Option<Room>>
     where
         E: sqlx::Executor<'e, Database = Any>,
     {
-        sqlx::query_as::<_, Room>(
-            r#"
-            SELECT
-                id,
-                name,
-                slug,
-                password,
-                status as "status: RoomStatus",
-                max_size,
-                current_size,
-                max_times_entered,
-                current_times_entered,
-                expire_at,
-                created_at,
-                updated_at,
-                permission as "permission: RoomPermission"
-            FROM rooms
-            WHERE slug = ?
-            "#,
-        )
-        .bind(slug)
-        .fetch_optional(executor)
-        .await
+        let sql = format!("{ROOM_SELECT_BASE} WHERE slug = ?");
+        let room = sqlx::query_as::<_, Room>(&sql)
+            .bind(slug)
+            .fetch_optional(executor)
+            .await?;
+        Ok(room)
     }
 
     async fn fetch_room_optional_by_display_name<'e, E>(
@@ -97,29 +79,12 @@ impl RoomRepository {
     where
         E: sqlx::Executor<'e, Database = Any>,
     {
-        sqlx::query_as::<_, Room>(
-            r#"
-            SELECT
-                id,
-                name,
-                slug,
-                password,
-                status as "status: RoomStatus",
-                max_size,
-                current_size,
-                max_times_entered,
-                current_times_entered,
-                expire_at,
-                created_at,
-                updated_at,
-                permission as "permission: RoomPermission"
-            FROM rooms
-            WHERE name = ?
-            "#,
-        )
-        .bind(name)
-        .fetch_optional(executor)
-        .await
+        let sql = format!("{ROOM_SELECT_BASE} WHERE name = ?");
+        let room = sqlx::query_as::<_, Room>(&sql)
+            .bind(name)
+            .fetch_optional(executor)
+            .await?;
+        Ok(room)
     }
 
     async fn fetch_room_by_id_or_err<'e, E>(executor: E, id: i64) -> Result<Room>
@@ -135,29 +100,14 @@ impl RoomRepository {
     where
         E: sqlx::Executor<'e, Database = Any>,
     {
-        sqlx::query_as::<_, Room>(
-            r#"
-            SELECT
-                id,
-                name,
-                slug,
-                password,
-                status as "status: RoomStatus",
-                max_size,
-                current_size,
-                max_times_entered,
-                current_times_entered,
-                expire_at,
-                created_at,
-                updated_at,
-                permission as "permission: RoomPermission"
-            FROM rooms
-            WHERE expire_at IS NOT NULL AND expire_at < ?
-            "#,
-        )
-        .bind(before)
-        .fetch_all(executor)
-        .await
+        let sql = format!(
+            "{ROOM_SELECT_BASE} WHERE expire_at IS NOT NULL AND CAST(expire_at AS TEXT) < ?"
+        );
+        let rooms = sqlx::query_as::<_, Room>(&sql)
+            .bind(format_naive_datetime(before))
+            .fetch_all(executor)
+            .await?;
+        Ok(rooms)
     }
 
     async fn reset_if_expired(&self, room: Room) -> Result<Option<Room>> {
@@ -197,6 +147,8 @@ impl IRoomRepository for RoomRepository {
     async fn create(&self, room: &Room) -> Result<Room> {
         let mut tx = self.pool.begin().await?;
         let now = Utc::now().naive_utc();
+        let now_str = format_naive_datetime(now);
+        let expire_at = format_optional_naive_datetime(room.expire_at);
 
         let inserted_id: i64 = sqlx::query_scalar(
             r#"
@@ -216,10 +168,10 @@ impl IRoomRepository for RoomRepository {
         .bind(room.current_size)
         .bind(room.max_times_entered)
         .bind(room.current_times_entered)
-        .bind(room.expire_at)
-        .bind(now)
-        .bind(now)
-        .bind(room.permission)
+        .bind(expire_at.clone())
+        .bind(now_str.clone())
+        .bind(now_str.clone())
+        .bind(i64::from(room.permission.bits()))
         .fetch_one(&mut *tx)
         .await?;
 
@@ -264,6 +216,8 @@ impl IRoomRepository for RoomRepository {
             .ok_or_else(|| anyhow!("room id is required for update"))?;
         let mut tx = self.pool.begin().await?;
         let now = Utc::now().naive_utc();
+        let now_str = format_naive_datetime(now);
+        let expire_at = format_optional_naive_datetime(room.expire_at);
 
         sqlx::query(
             r#"
@@ -280,9 +234,9 @@ impl IRoomRepository for RoomRepository {
         .bind(room.current_size)
         .bind(room.max_times_entered)
         .bind(room.current_times_entered)
-        .bind(room.expire_at)
-        .bind(now)
-        .bind(room.permission)
+        .bind(expire_at)
+        .bind(now_str)
+        .bind(i64::from(room.permission.bits()))
         .bind(&room.slug)
         .bind(room_id)
         .execute(&mut *tx)
@@ -311,8 +265,10 @@ impl IRoomRepository for RoomRepository {
     }
 
     async fn delete_expired_before(&self, before: NaiveDateTime) -> Result<u64> {
-        let result = sqlx::query("DELETE FROM rooms WHERE expire_at IS NOT NULL AND expire_at < ?")
-            .bind(before)
+        let result = sqlx::query(
+            "DELETE FROM rooms WHERE expire_at IS NOT NULL AND CAST(expire_at AS TEXT) < ?",
+        )
+        .bind(format_naive_datetime(before))
             .execute(&*self.pool)
             .await?;
 

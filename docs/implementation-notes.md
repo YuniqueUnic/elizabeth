@@ -149,3 +149,8 @@ Room/Upload/Token services ----> Repositories ----> Database
 ---
 
 Document generated: 2025-11-18.
+
+## 8. Any/SQLite datetime handling (2025-11-18 refresh)
+- SQLite stores datetime as TEXT/NUMERIC; casting to `DATETIME` can truncate fractions, so we persist timestamps as ISO strings and parse in Any citeturn0search1.
+- sqlx recommends using SQLite’s `YYYY-MM-DD HH:MM:SS.SSSS` textual form with chrono parsing; lexicographic comparisons remain correct when formats are consistent citeturn0search5.
+- Repositories now cast datetime columns to TEXT in SELECT and bind ISO strings on INSERT/UPDATE; Any FromRow parses via `row_utils::parse_any_timestamp` to avoid missing `Encode/Decode` for `NaiveDateTime`.

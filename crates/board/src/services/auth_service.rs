@@ -220,10 +220,14 @@ mod tests {
     use chrono::Duration;
     use std::sync::Arc;
 
+    const TEST_DB_URL: &str = "sqlite::memory:";
+
     async fn create_test_pool() -> Arc<crate::db::DbPool> {
-        let url = "sqlite::memory:";
-        let pool = DbPoolSettings::new(url).create_pool().await.unwrap();
-        run_migrations(&pool, url).await.unwrap();
+        let settings = DbPoolSettings::new(TEST_DB_URL)
+            .with_max_connections(1)
+            .with_min_connections(1);
+        let pool = settings.create_pool().await.unwrap();
+        run_migrations(&pool, TEST_DB_URL).await.unwrap();
         Arc::new(pool)
     }
 
@@ -482,7 +486,7 @@ mod tests {
         let secret = Arc::new("test_secret".to_string());
 
         let token_service = Arc::new(RoomTokenService::new(secret.clone()));
-        let blacklist_repo = Arc::new(TokenBlacklistRepository::new(Arc::new(pool)));
+        let blacklist_repo = Arc::new(TokenBlacklistRepository::new(pool.clone()));
 
         let auth_service = AuthService::new(token_service.clone(), blacklist_repo.clone());
 
@@ -503,7 +507,7 @@ mod tests {
         let secret = Arc::new("test_secret".to_string());
 
         let token_service = Arc::new(RoomTokenService::new(secret.clone()));
-        let blacklist_repo = Arc::new(TokenBlacklistRepository::new(Arc::new(pool)));
+        let blacklist_repo = Arc::new(TokenBlacklistRepository::new(pool.clone()));
 
         let auth_service = AuthService::new(token_service, blacklist_repo);
 

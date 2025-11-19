@@ -5,6 +5,7 @@
 use anyhow::Result;
 use board::db::{DbPool, DbPoolSettings, run_migrations};
 use board::models::permission::RoomPermission;
+use board::models::room::row_utils::format_naive_datetime;
 use chrono::DateTime;
 use std::sync::Arc;
 
@@ -154,7 +155,7 @@ async fn test_update_room() -> Result<()> {
 #[tokio::test]
 async fn test_delete_room() -> Result<()> {
     let pool = create_test_pool().await?;
-    let repository = RoomRepository::new(Arc::new(pool));
+    let repository = RoomRepository::new(pool.clone());
 
     // 创建房间
     let room = create_test_room("delete_test");
@@ -193,7 +194,7 @@ async fn test_list_expired_rooms() -> Result<()> {
     let created_expired = repository.create(&expired_room).await?;
     let past = DateTime::from_timestamp(1609459200, 0).unwrap().naive_utc(); // 2021-01-01
     sqlx::query("UPDATE rooms SET expire_at = ? WHERE id = ?")
-        .bind(past)
+        .bind(format_naive_datetime(past))
         .bind(created_expired.id.unwrap())
         .execute(pool.as_ref())
         .await?;
@@ -221,7 +222,7 @@ async fn test_expired_room_is_purged_on_access() -> Result<()> {
     // 设置过期时间为过去
     let past = DateTime::from_timestamp(946684800, 0).unwrap().naive_utc(); // 2000-01-01
     sqlx::query("UPDATE rooms SET expire_at = ? WHERE id = ?")
-        .bind(past)
+        .bind(format_naive_datetime(past))
         .bind(room_id)
         .execute(pool.as_ref())
         .await?;

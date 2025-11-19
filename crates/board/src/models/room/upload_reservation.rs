@@ -159,27 +159,62 @@ pub struct RoomUploadReservation {
     pub upload_status: Option<UploadStatus>, // 上传状态
 }
 
-fn build_room_upload_reservation<R, F, G>(
-    row: &R,
-    read_dt: F,
-    read_optional_dt: G,
-) -> Result<RoomUploadReservation, sqlx::Error>
-where
-    R: Row,
-    F: Fn(&R, &str) -> Result<NaiveDateTime, sqlx::Error>,
-    G: Fn(&R, &str) -> Result<Option<NaiveDateTime>, sqlx::Error>,
-{
+fn build_room_upload_reservation_sqlite(
+    row: &SqliteRow,
+) -> Result<RoomUploadReservation, sqlx::Error> {
     Ok(RoomUploadReservation {
         id: row.try_get("id")?,
         room_id: row.try_get("room_id")?,
         token_jti: row.try_get("token_jti")?,
         file_manifest: row.try_get("file_manifest")?,
         reserved_size: row.try_get("reserved_size")?,
-        reserved_at: read_dt(row, "reserved_at")?,
-        expires_at: read_dt(row, "expires_at")?,
-        consumed_at: read_optional_dt(row, "consumed_at")?,
-        created_at: read_dt(row, "created_at")?,
-        updated_at: read_dt(row, "updated_at")?,
+        reserved_at: row.try_get("reserved_at")?,
+        expires_at: row.try_get("expires_at")?,
+        consumed_at: row.try_get("consumed_at")?,
+        created_at: row.try_get("created_at")?,
+        updated_at: row.try_get("updated_at")?,
+        chunked_upload: row.try_get("chunked_upload")?,
+        total_chunks: row.try_get("total_chunks")?,
+        uploaded_chunks: row.try_get("uploaded_chunks")?,
+        file_hash: row.try_get("file_hash")?,
+        chunk_size: row.try_get("chunk_size")?,
+        upload_status: row.try_get("upload_status")?,
+    })
+}
+
+fn build_room_upload_reservation_pg(row: &PgRow) -> Result<RoomUploadReservation, sqlx::Error> {
+    Ok(RoomUploadReservation {
+        id: row.try_get("id")?,
+        room_id: row.try_get("room_id")?,
+        token_jti: row.try_get("token_jti")?,
+        file_manifest: row.try_get("file_manifest")?,
+        reserved_size: row.try_get("reserved_size")?,
+        reserved_at: row.try_get("reserved_at")?,
+        expires_at: row.try_get("expires_at")?,
+        consumed_at: row.try_get("consumed_at")?,
+        created_at: row.try_get("created_at")?,
+        updated_at: row.try_get("updated_at")?,
+        chunked_upload: row.try_get("chunked_upload")?,
+        total_chunks: row.try_get("total_chunks")?,
+        uploaded_chunks: row.try_get("uploaded_chunks")?,
+        file_hash: row.try_get("file_hash")?,
+        chunk_size: row.try_get("chunk_size")?,
+        upload_status: row.try_get("upload_status")?,
+    })
+}
+
+fn build_room_upload_reservation_any(row: &AnyRow) -> Result<RoomUploadReservation, sqlx::Error> {
+    Ok(RoomUploadReservation {
+        id: row.try_get("id")?,
+        room_id: row.try_get("room_id")?,
+        token_jti: row.try_get("token_jti")?,
+        file_manifest: row.try_get("file_manifest")?,
+        reserved_size: row.try_get("reserved_size")?,
+        reserved_at: read_datetime_from_any(row, "reserved_at")?,
+        expires_at: read_datetime_from_any(row, "expires_at")?,
+        consumed_at: read_optional_datetime_from_any(row, "consumed_at")?,
+        created_at: read_datetime_from_any(row, "created_at")?,
+        updated_at: read_datetime_from_any(row, "updated_at")?,
         chunked_upload: row.try_get("chunked_upload")?,
         total_chunks: row.try_get("total_chunks")?,
         uploaded_chunks: row.try_get("uploaded_chunks")?,
@@ -191,27 +226,19 @@ where
 
 impl<'r> FromRow<'r, SqliteRow> for RoomUploadReservation {
     fn from_row(row: &'r SqliteRow) -> Result<Self, sqlx::Error> {
-        build_room_upload_reservation(
-            row,
-            |row, column| row.try_get(column),
-            |row, column| row.try_get(column),
-        )
+        build_room_upload_reservation_sqlite(row)
     }
 }
 
 impl<'r> FromRow<'r, PgRow> for RoomUploadReservation {
     fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
-        build_room_upload_reservation(
-            row,
-            |row, column| row.try_get(column),
-            |row, column| row.try_get(column),
-        )
+        build_room_upload_reservation_pg(row)
     }
 }
 
 impl<'r> FromRow<'r, AnyRow> for RoomUploadReservation {
     fn from_row(row: &'r AnyRow) -> Result<Self, sqlx::Error> {
-        build_room_upload_reservation(row, read_datetime_from_any, read_optional_datetime_from_any)
+        build_room_upload_reservation_any(row)
     }
 }
 

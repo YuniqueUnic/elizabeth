@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use crate::db::DbPool;
 use crate::models::room::chunk_upload::RoomChunkUpload;
+use crate::models::room::row_utils::format_naive_datetime;
 
 const SELECT_BASE: &str = r#"
     SELECT
@@ -15,8 +16,8 @@ const SELECT_BASE: &str = r#"
         chunk_size,
         chunk_hash,
         upload_status as "upload_status: _",
-        created_at,
-        updated_at
+        CAST(created_at AS TEXT) as created_at,
+        CAST(updated_at AS TEXT) as updated_at
     FROM room_chunk_uploads
 "#;
 
@@ -75,6 +76,8 @@ impl RoomChunkUploadRepository {
 impl IRoomChunkUploadRepository for RoomChunkUploadRepository {
     async fn create(&self, upload: &RoomChunkUpload) -> Result<RoomChunkUpload> {
         let mut tx = self.pool.begin().await?;
+        let created_at = format_naive_datetime(upload.created_at);
+        let updated_at = format_naive_datetime(upload.updated_at);
         let id: i64 = sqlx::query_scalar(
             r#"
             INSERT INTO room_chunk_uploads (
@@ -94,8 +97,8 @@ impl IRoomChunkUploadRepository for RoomChunkUploadRepository {
         .bind(upload.chunk_size)
         .bind(&upload.chunk_hash)
         .bind(upload.upload_status.to_string())
-        .bind(upload.created_at)
-        .bind(upload.updated_at)
+        .bind(created_at)
+        .bind(updated_at)
         .fetch_one(&mut *tx)
         .await?;
 
@@ -113,12 +116,13 @@ impl IRoomChunkUploadRepository for RoomChunkUploadRepository {
     }
 
     async fn find_by_reservation_id(&self, reservation_id: i64) -> Result<Vec<RoomChunkUpload>> {
-        sqlx::query_as::<_, RoomChunkUpload>(&format!(
+        let rows = sqlx::query_as::<_, RoomChunkUpload>(&format!(
             "{SELECT_BASE} WHERE reservation_id = ? ORDER BY chunk_index"
         ))
         .bind(reservation_id)
         .fetch_all(&*self.pool)
-        .await
+        .await?;
+        Ok(rows)
     }
 
     async fn count_by_reservation_id(&self, reservation_id: i64) -> Result<i64> {
