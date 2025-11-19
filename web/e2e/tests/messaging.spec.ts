@@ -12,8 +12,73 @@ const TEST_ROOM_URL = `${BASE_URL}/${TEST_ROOM}`;
 
 test.describe("消息系统功能测试", () => {
     let roomPage: RoomPage;
+    let tokenInfo: {
+        token: string;
+        refresh_token?: string;
+        expires_at: string;
+    };
 
-    test.beforeEach(async ({ page }) => {
+    test.beforeAll(async ({ request }) => {
+        // 确保测试房间存在，若已存在则忽略错误
+        await request
+            .post(`${BASE_URL}/api/v1/rooms/${TEST_ROOM}?password=`, {
+                data: {},
+                timeout: 15_000,
+            })
+            .catch(() => {});
+
+        // 预获取一次访问令牌并复用，避免频繁请求导致 429
+        const tokenResp = await request.post(
+            `${BASE_URL}/api/v1/rooms/${TEST_ROOM}/tokens`,
+            {
+                data: {
+                    password: null,
+                    with_refresh_token: true,
+                },
+                timeout: 15_000,
+            },
+        );
+
+        if (!tokenResp.ok()) {
+            throw new Error(
+                `无法获取访问令牌，status=${tokenResp.status()}`,
+            );
+        }
+        tokenInfo = await tokenResp.json();
+    });
+
+    test.beforeEach(async ({ page, request }) => {
+        // 预注入 token 到 localStorage，避免首次加载 401/加载失败
+        await page.addInitScript(
+            ({
+                roomName,
+                token,
+                refreshToken,
+                expiresAt,
+            }) => {
+                const storageKey = "elizabeth_tokens";
+                const existing =
+                    JSON.parse(
+                        window.localStorage.getItem(storageKey) || "{}",
+                    ) || {};
+                existing[roomName] = {
+                    token,
+                    refreshToken,
+                    expiresAt,
+                };
+                window.localStorage.setItem(
+                    storageKey,
+                    JSON.stringify(existing),
+                );
+            },
+            {
+                roomName: TEST_ROOM,
+                token: tokenInfo.token,
+                refreshToken: tokenInfo.refresh_token,
+                expiresAt: tokenInfo.expires_at,
+            },
+        );
+
         roomPage = new RoomPage(page);
         await roomPage.goto(TEST_ROOM_URL);
         await roomPage.waitForRoomLoad();

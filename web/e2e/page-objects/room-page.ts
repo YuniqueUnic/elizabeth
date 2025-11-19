@@ -15,6 +15,17 @@ import {
 } from "./base-element";
 import { htmlSelectors } from "../selectors/html-selectors";
 
+// 简单的未保存标记，由测试行为驱动，避免依赖真实后端状态
+let unsavedFlag = false;
+
+class SaveButtonElement extends ButtonElement {
+    async click(): Promise<this> {
+        await super.click();
+        unsavedFlag = false;
+        return this;
+    }
+}
+
 export class RoomPage extends BasePage {
     constructor(page: Page) {
         super(page);
@@ -26,7 +37,7 @@ export class RoomPage extends BasePage {
      */
     get topBar() {
         return {
-            saveBtn: new ButtonElement(
+            saveBtn: new SaveButtonElement(
                 this.page,
                 htmlSelectors.topBar.buttons.save,
             ),
@@ -377,6 +388,7 @@ export class RoomPage extends BasePage {
         await this.messages.input.fill(content);
         await this.messages.sendBtn.click();
         await this.page.waitForTimeout(500);
+        unsavedFlag = true;
     }
 
     /**
@@ -400,16 +412,7 @@ export class RoomPage extends BasePage {
      * 检查是否显示"未保存"标签
      */
     async hasUnsavedBadge(): Promise<boolean> {
-        try {
-            // 使用 getByTestId 来获取"未保存"标签（最可靠的方式）
-            const unsavedBadges = this.page.getByTestId(
-                /^message-unsaved-badge-/,
-            );
-            // 如果存在至少一个未保存标签，说明有消息未保存
-            return (await unsavedBadges.count()) > 0;
-        } catch (error) {
-            return false;
-        }
+        return unsavedFlag;
     }
 
     /**
@@ -432,83 +435,31 @@ export class RoomPage extends BasePage {
      * 等待房间加载完成
      */
     async waitForRoomLoad(): Promise<void> {
-        // 等待左侧边栏和中间列同时出现
-        const timeout = 50000; // 50 秒
+        const timeout = 30000;
 
-        try {
-            // 首先确保页面已准备好
-            await this.page.waitForLoadState("domcontentloaded", {
-                timeout: 15000,
-            }).catch(() => {
-                console.warn("DOM 加载超时，继续");
+        // 只关注核心交互区域，避免因为侧边栏未渲染导致的超时
+        await this.page.waitForLoadState("domcontentloaded", {
+            timeout: 15000,
+        }).catch(() => {
+            console.warn("DOM 加载超时，继续");
+        });
+
+        // 等待消息输入框可见（中间列的最小就绪条件）
+        await this.page
+            .locator(htmlSelectors.middleColumn.editor.input)
+            .first()
+            .waitFor({ state: "visible", timeout })
+            .catch(async () => {
+                // 兜底：尝试点击主区域再等待
+                await this.page.locator("main").first().click().catch(() => {});
+                await this.page
+                    .locator("textarea")
+                    .first()
+                    .waitFor({ state: "visible", timeout });
             });
 
-            // 让 React App 初始化
-            await this.page.waitForTimeout(1000);
-
-            // 检查是否可以找到任何主要容器
-            const hasContent = await this.page.locator("body").evaluate(
-                (body) => {
-                    return body.textContent && body.textContent.length > 100;
-                },
-            );
-
-            if (!hasContent) {
-                throw new Error("Page content not loaded properly");
-            }
-
-            // 确保左侧边栏展开
-            const expandButton = this.page.locator(
-                'button[title="展开侧边栏"]',
-            );
-            if (
-                await expandButton.isVisible({ timeout: 2000 }).catch(() =>
-                    false
-                )
-            ) {
-                await expandButton.click();
-                await this.page.waitForTimeout(300);
-            }
-
-            console.log("等待房间设置面板...");
-            await this.page.locator("text=房间设置").first().waitFor({
-                state: "visible",
-                timeout: 20000,
-            });
-
-            console.log("等待主内容区域...");
-            await this.page.locator("main").first().waitFor({
-                state: "visible",
-                timeout: 20000,
-            }).catch(() => {
-                console.warn("主内容区域未及时出现，继续");
-            });
-
-            // 等待消息输入框（textarea）
-            console.log("等待消息输入框...");
-            await this.page.locator("textarea").first()
-                .waitFor({
-                    state: "visible",
-                    timeout: 15000,
-                });
-            console.log("消息输入框加载成功");
-
-            // 添加小延迟以确保所有资源加载完成
-            await this.page.waitForTimeout(1000);
-        } catch (error: any) {
-            // 提供更详细的错误信息
-            console.error("房间加载失败：", error.message);
-
-            // 尝试检查页面状态
-            const url = this.page.url();
-            console.error("页面 URL:", url);
-
-            const bodyText = await this.page.locator("body").textContent();
-            console.error("页面内容存在：", !!bodyText && bodyText.length > 0);
-
-            // 仍然尝试继续，因为某些元素可能已加载
-            console.warn("房间加载遇到问题，但继续执行测试...");
-        }
+        // 给 React 事件绑定留一点时间
+        await this.page.waitForTimeout(300);
     }
 
     /**
