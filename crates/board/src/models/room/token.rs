@@ -15,49 +15,54 @@ pub struct RoomToken {
     pub created_at: NaiveDateTime,
 }
 
-fn build_room_token_from_row<R, F, G>(
-    row: &R,
-    read_dt: F,
-    read_optional_dt: G,
-) -> Result<RoomToken, sqlx::Error>
-where
-    R: Row,
-    F: Fn(&R, &str) -> Result<NaiveDateTime, sqlx::Error>,
-    G: Fn(&R, &str) -> Result<Option<NaiveDateTime>, sqlx::Error>,
-{
+fn build_room_token_sqlite(row: &SqliteRow) -> Result<RoomToken, sqlx::Error> {
     Ok(RoomToken {
         id: row.try_get("id")?,
         room_id: row.try_get("room_id")?,
         jti: row.try_get("jti")?,
-        expires_at: read_dt(row, "expires_at")?,
-        revoked_at: read_optional_dt(row, "revoked_at")?,
-        created_at: read_dt(row, "created_at")?,
+        expires_at: row.try_get("expires_at")?,
+        revoked_at: row.try_get("revoked_at")?,
+        created_at: row.try_get("created_at")?,
+    })
+}
+
+fn build_room_token_pg(row: &PgRow) -> Result<RoomToken, sqlx::Error> {
+    Ok(RoomToken {
+        id: row.try_get("id")?,
+        room_id: row.try_get("room_id")?,
+        jti: row.try_get("jti")?,
+        expires_at: row.try_get("expires_at")?,
+        revoked_at: row.try_get("revoked_at")?,
+        created_at: row.try_get("created_at")?,
+    })
+}
+
+fn build_room_token_any(row: &AnyRow) -> Result<RoomToken, sqlx::Error> {
+    Ok(RoomToken {
+        id: row.try_get("id")?,
+        room_id: row.try_get("room_id")?,
+        jti: row.try_get("jti")?,
+        expires_at: read_datetime_from_any(row, "expires_at")?,
+        revoked_at: read_optional_datetime_from_any(row, "revoked_at")?,
+        created_at: read_datetime_from_any(row, "created_at")?,
     })
 }
 
 impl<'r> FromRow<'r, SqliteRow> for RoomToken {
     fn from_row(row: &'r SqliteRow) -> Result<Self, sqlx::Error> {
-        build_room_token_from_row(
-            row,
-            |row, column| row.try_get(column),
-            |row, column| row.try_get(column),
-        )
+        build_room_token_sqlite(row)
     }
 }
 
 impl<'r> FromRow<'r, PgRow> for RoomToken {
     fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
-        build_room_token_from_row(
-            row,
-            |row, column| row.try_get(column),
-            |row, column| row.try_get(column),
-        )
+        build_room_token_pg(row)
     }
 }
 
 impl<'r> FromRow<'r, AnyRow> for RoomToken {
     fn from_row(row: &'r AnyRow) -> Result<Self, sqlx::Error> {
-        build_room_token_from_row(row, read_datetime_from_any, read_optional_datetime_from_any)
+        build_room_token_any(row)
     }
 }
 

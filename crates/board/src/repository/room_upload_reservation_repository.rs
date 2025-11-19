@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use crate::db::DbPool;
 use crate::models::room::Room;
+use crate::models::room::row_utils::{format_naive_datetime, format_optional_naive_datetime};
 use crate::models::room::upload_reservation::{RoomUploadReservation, UploadStatus};
 
 const SELECT_BASE: &str = r#"
@@ -15,11 +16,11 @@ const SELECT_BASE: &str = r#"
         token_jti,
         file_manifest,
         reserved_size,
-        reserved_at,
-        expires_at,
-        consumed_at,
-        created_at,
-        updated_at,
+        CAST(reserved_at AS TEXT) as reserved_at,
+        CAST(expires_at AS TEXT) as expires_at,
+        CAST(consumed_at AS TEXT) as consumed_at,
+        CAST(created_at AS TEXT) as created_at,
+        CAST(updated_at AS TEXT) as updated_at,
         chunked_upload,
         total_chunks,
         uploaded_chunks,
@@ -87,10 +88,11 @@ impl RoomUploadReservationRepository {
     where
         E: sqlx::Executor<'e, Database = Any>,
     {
-        sqlx::query_as::<_, RoomUploadReservation>(&format!("{SELECT_BASE} WHERE id = ?"))
+        let row = sqlx::query_as::<_, RoomUploadReservation>(&format!("{SELECT_BASE} WHERE id = ?"))
             .bind(reservation_id)
             .fetch_optional(executor)
-            .await
+            .await?;
+        Ok(row)
     }
 
     async fn fetch_by_id_or_err<'e, E>(executor: E, id: i64) -> Result<RoomUploadReservation>
@@ -118,9 +120,9 @@ impl RoomUploadReservationRepository {
                 current_size,
                 max_times_entered,
                 current_times_entered,
-                expire_at,
-                created_at,
-                updated_at,
+                CAST(expire_at AS TEXT) as expire_at,
+                CAST(created_at AS TEXT) as created_at,
+                CAST(updated_at AS TEXT) as updated_at,
                 permission
             FROM rooms
             WHERE id = ?
@@ -137,6 +139,15 @@ impl RoomUploadReservationRepository {
 impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
     async fn create(&self, reservation: &RoomUploadReservation) -> Result<RoomUploadReservation> {
         let mut tx = self.pool.begin().await?;
+        let reserved_at = format_naive_datetime(reservation.reserved_at);
+        let expires_at = format_naive_datetime(reservation.expires_at);
+        let consumed_at = format_optional_naive_datetime(reservation.consumed_at);
+        let created_at = format_naive_datetime(reservation.created_at);
+        let updated_at = format_naive_datetime(reservation.updated_at);
+        let upload_status = reservation
+            .upload_status
+            .clone()
+            .unwrap_or(UploadStatus::Pending);
         let id: i64 = sqlx::query_scalar(
             r#"
             INSERT INTO room_upload_reservations (
@@ -163,17 +174,17 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
         .bind(&reservation.token_jti)
         .bind(&reservation.file_manifest)
         .bind(reservation.reserved_size)
-        .bind(reservation.reserved_at)
-        .bind(reservation.expires_at)
-        .bind(reservation.consumed_at)
-        .bind(reservation.created_at)
-        .bind(reservation.updated_at)
+        .bind(reserved_at)
+        .bind(expires_at)
+        .bind(consumed_at)
+        .bind(created_at)
+        .bind(updated_at)
         .bind(reservation.chunked_upload.unwrap_or(false))
         .bind(reservation.total_chunks)
         .bind(reservation.uploaded_chunks)
         .bind(&reservation.file_hash)
         .bind(reservation.chunk_size)
-        .bind(reservation.upload_status.unwrap_or(UploadStatus::Pending))
+        .bind(upload_status)
         .fetch_one(&mut *tx)
         .await?;
 
@@ -190,10 +201,12 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
     }
 
     async fn find_by_token(&self, token_jti: &str) -> Result<Option<RoomUploadReservation>> {
-        sqlx::query_as::<_, RoomUploadReservation>(&format!("{SELECT_BASE} WHERE token_jti = ?"))
-            .bind(token_jti)
-            .fetch_optional(&*self.pool)
-            .await
+        let row =
+            sqlx::query_as::<_, RoomUploadReservation>(&format!("{SELECT_BASE} WHERE token_jti = ?"))
+                .bind(token_jti)
+                .fetch_optional(&*self.pool)
+                .await?;
+        Ok(row)
     }
 
     async fn reserve_upload(
@@ -220,6 +233,8 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
         latest_room.current_size += reserved_size;
         let now = Utc::now().naive_utc();
         let expires_at = now + ttl;
+        let now_str = format_naive_datetime(now);
+        let expires_at_str = format_naive_datetime(expires_at);
 
         sqlx::query(
             r#"
@@ -229,7 +244,7 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
             "#,
         )
         .bind(latest_room.current_size)
-        .bind(now)
+        .bind(now_str.clone())
         .bind(room_id)
         .execute(&mut *tx)
         .await?;
@@ -261,10 +276,10 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
         .bind(token_jti)
         .bind(file_manifest)
         .bind(reserved_size)
-        .bind(now)
-        .bind(expires_at)
-        .bind(now)
-        .bind(now)
+        .bind(now_str.clone())
+        .bind(expires_at_str)
+        .bind(now_str.clone())
+        .bind(now_str)
         .bind(UploadStatus::Pending)
         .fetch_one(&mut *tx)
         .await?;
@@ -302,7 +317,7 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
                     "#,
                 )
                 .bind(reservation.reserved_size)
-                .bind(Utc::now().naive_utc())
+                .bind(format_naive_datetime(Utc::now().naive_utc()))
                 .bind(reservation.room_id)
                 .execute(&mut *tx)
                 .await?;
@@ -351,6 +366,7 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
         }
 
         let now = Utc::now().naive_utc();
+        let now_str = format_naive_datetime(now);
         room.current_size = new_size;
         room.updated_at = now;
 
@@ -362,7 +378,7 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
             "#,
         )
         .bind(room.current_size)
-        .bind(now)
+        .bind(now_str.clone())
         .bind(room_id)
         .execute(&mut *tx)
         .await?;
@@ -386,8 +402,8 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
         .bind(actual_size)
         .bind(manifest)
         .bind(UploadStatus::Completed.to_string())
-        .bind(now)
-        .bind(now)
+        .bind(now_str.clone())
+        .bind(now_str)
         .bind(reservation_id)
         .execute(&mut *tx)
         .await?;
@@ -402,7 +418,7 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
         uploaded_chunks: i64,
     ) -> Result<RoomUploadReservation> {
         let mut tx = self.pool.begin().await?;
-        let now = Utc::now().naive_utc();
+        let now = format_naive_datetime(Utc::now().naive_utc());
         sqlx::query(
             r#"
             UPDATE room_upload_reservations
@@ -434,7 +450,7 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
         status: UploadStatus,
     ) -> Result<RoomUploadReservation> {
         let mut tx = self.pool.begin().await?;
-        let now = Utc::now().naive_utc();
+        let now = format_naive_datetime(Utc::now().naive_utc());
         sqlx::query(
             r#"
             UPDATE room_upload_reservations
@@ -455,7 +471,7 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
 
     async fn consume_upload(&self, reservation_id: i64) -> Result<RoomUploadReservation> {
         let mut tx = self.pool.begin().await?;
-        let now = Utc::now().naive_utc();
+        let now = format_naive_datetime(Utc::now().naive_utc());
         sqlx::query(
             r#"
             UPDATE room_upload_reservations
@@ -463,7 +479,7 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
             WHERE id = ?
             "#,
         )
-        .bind(now)
+        .bind(now.clone())
         .bind(now)
         .bind(reservation_id)
         .execute(&mut *tx)
@@ -476,7 +492,7 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
 
     async fn mark_uploaded(&self, reservation_id: i64) -> Result<RoomUploadReservation> {
         let mut tx = self.pool.begin().await?;
-        let now = Utc::now().naive_utc();
+        let now = format_naive_datetime(Utc::now().naive_utc());
         sqlx::query(
             r#"
             UPDATE room_upload_reservations
@@ -488,8 +504,8 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
             "#,
         )
         .bind(UploadStatus::Completed)
-        .bind(now)
-        .bind(now)
+        .bind(now.clone())
+        .bind(now.clone())
         .bind(reservation_id)
         .execute(&mut *tx)
         .await?;
@@ -509,10 +525,12 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
     }
 
     async fn purge_expired(&self) -> Result<u64> {
-        let result = sqlx::query("DELETE FROM room_upload_reservations WHERE expires_at <= ?")
-            .bind(Utc::now().naive_utc())
-            .execute(&*self.pool)
-            .await?;
+        let result = sqlx::query(
+            "DELETE FROM room_upload_reservations WHERE CAST(expires_at AS TEXT) <= ?",
+        )
+        .bind(format_naive_datetime(Utc::now().naive_utc()))
+        .execute(&*self.pool)
+        .await?;
         Ok(result.rows_affected())
     }
 }

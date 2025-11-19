@@ -5,7 +5,7 @@ use utoipa::ToSchema;
 
 use crate::models::room::row_utils::read_datetime_from_any;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema, sqlx::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema, sqlx::Type)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "type")]
 #[sqlx(type_name = "INTEGER")]
@@ -33,11 +33,7 @@ pub struct RoomContent {
     pub updated_at: NaiveDateTime,
 }
 
-fn build_room_content_from_row<R, F>(row: &R, read_dt: F) -> Result<RoomContent, sqlx::Error>
-where
-    R: Row,
-    F: Fn(&R, &str) -> Result<NaiveDateTime, sqlx::Error>,
-{
+fn build_room_content_sqlite(row: &SqliteRow) -> Result<RoomContent, sqlx::Error> {
     Ok(RoomContent {
         id: row.try_get("id")?,
         room_id: row.try_get("room_id")?,
@@ -48,26 +44,58 @@ where
         file_name: row.try_get("file_name")?,
         size: row.try_get("size")?,
         mime_type: row.try_get("mime_type")?,
-        created_at: read_dt(row, "created_at")?,
-        updated_at: read_dt(row, "updated_at")?,
+        created_at: row.try_get("created_at")?,
+        updated_at: row.try_get("updated_at")?,
+    })
+}
+
+fn build_room_content_pg(row: &PgRow) -> Result<RoomContent, sqlx::Error> {
+    Ok(RoomContent {
+        id: row.try_get("id")?,
+        room_id: row.try_get("room_id")?,
+        content_type: row.try_get("content_type")?,
+        text: row.try_get("text")?,
+        url: row.try_get("url")?,
+        path: row.try_get("path")?,
+        file_name: row.try_get("file_name")?,
+        size: row.try_get("size")?,
+        mime_type: row.try_get("mime_type")?,
+        created_at: row.try_get("created_at")?,
+        updated_at: row.try_get("updated_at")?,
+    })
+}
+
+fn build_room_content_any(row: &AnyRow) -> Result<RoomContent, sqlx::Error> {
+    Ok(RoomContent {
+        id: row.try_get("id")?,
+        room_id: row.try_get("room_id")?,
+        content_type: row.try_get("content_type")?,
+        text: row.try_get("text")?,
+        url: row.try_get("url")?,
+        path: row.try_get("path")?,
+        file_name: row.try_get("file_name")?,
+        size: row.try_get("size")?,
+        mime_type: row.try_get("mime_type")?,
+        created_at: read_datetime_from_any(row, "created_at")?,
+        updated_at: read_datetime_from_any(row, "updated_at")?,
     })
 }
 
 impl<'r> FromRow<'r, SqliteRow> for RoomContent {
     fn from_row(row: &'r SqliteRow) -> Result<Self, sqlx::Error> {
-        build_room_content_from_row(row, |row, column| row.try_get(column))
+        build_room_content_sqlite(row)
     }
 }
 
 impl<'r> FromRow<'r, PgRow> for RoomContent {
     fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
-        build_room_content_from_row(row, |row, column| row.try_get(column))
+        build_room_content_pg(row)
     }
 }
 
 impl<'r> FromRow<'r, AnyRow> for RoomContent {
     fn from_row(row: &'r AnyRow) -> Result<Self, sqlx::Error> {
-        build_room_content_from_row(row, read_datetime_from_any)
+        build_room_content_any(row)
     }
 }
 

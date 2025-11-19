@@ -6,6 +6,15 @@ use std::sync::Arc;
 
 use crate::db::DbPool;
 use crate::models::RoomToken;
+use crate::models::room::row_utils::{format_naive_datetime, format_optional_naive_datetime};
+
+const TOKEN_SELECT: &str = r#"
+    SELECT id, room_id, jti,
+           CAST(expires_at AS TEXT) as expires_at,
+           CAST(revoked_at AS TEXT) as revoked_at,
+           CAST(created_at AS TEXT) as created_at
+    FROM room_tokens
+"#;
 
 #[async_trait]
 pub trait IRoomTokenRepository: Send + Sync {
@@ -29,33 +38,24 @@ impl RoomTokenRepository {
     where
         E: sqlx::Executor<'e, Database = Any>,
     {
-        sqlx::query_as::<_, RoomToken>(
-            r#"
-            SELECT id, room_id, jti, expires_at, revoked_at, created_at
-            FROM room_tokens
-            WHERE jti = ?
-            "#,
-        )
-        .bind(jti)
-        .fetch_optional(executor)
-        .await
+        let sql = format!("{TOKEN_SELECT} WHERE jti = ?");
+        let token = sqlx::query_as::<_, RoomToken>(&sql)
+            .bind(jti)
+            .fetch_optional(executor)
+            .await?;
+        Ok(token)
     }
 
     async fn fetch_by_id_or_err<'e, E>(executor: E, id: i64) -> Result<RoomToken>
     where
         E: sqlx::Executor<'e, Database = Any>,
     {
-        sqlx::query_as::<_, RoomToken>(
-            r#"
-            SELECT id, room_id, jti, expires_at, revoked_at, created_at
-            FROM room_tokens
-            WHERE id = ?
-            "#,
-        )
-        .bind(id)
-        .fetch_optional(executor)
-        .await?
-        .ok_or_else(|| anyhow!("room token not found"))
+        let sql = format!("{TOKEN_SELECT} WHERE id = ?");
+        sqlx::query_as::<_, RoomToken>(&sql)
+            .bind(id)
+            .fetch_optional(executor)
+            .await?
+            .ok_or_else(|| anyhow!("room token not found"))
     }
 }
 
@@ -64,6 +64,9 @@ impl IRoomTokenRepository for RoomTokenRepository {
     async fn create(&self, room_token: &RoomToken) -> Result<RoomToken> {
         let mut tx = self.pool.begin().await?;
         let now = Utc::now().naive_utc();
+        let now_str = format_naive_datetime(now);
+        let expires_at = format_naive_datetime(room_token.expires_at);
+        let revoked_at = format_optional_naive_datetime(room_token.revoked_at);
         let id: i64 = sqlx::query_scalar(
             r#"
             INSERT INTO room_tokens (room_id, jti, expires_at, revoked_at, created_at)
@@ -73,9 +76,9 @@ impl IRoomTokenRepository for RoomTokenRepository {
         )
         .bind(room_token.room_id)
         .bind(&room_token.jti)
-        .bind(room_token.expires_at)
-        .bind(room_token.revoked_at)
-        .bind(now)
+        .bind(expires_at)
+        .bind(revoked_at)
+        .bind(now_str)
         .fetch_one(&mut *tx)
         .await?;
 
@@ -89,21 +92,17 @@ impl IRoomTokenRepository for RoomTokenRepository {
     }
 
     async fn list_by_room(&self, room_id: i64) -> Result<Vec<RoomToken>> {
-        sqlx::query_as::<_, RoomToken>(
-            r#"
-            SELECT id, room_id, jti, expires_at, revoked_at, created_at
-            FROM room_tokens
-            WHERE room_id = ?
-            ORDER BY created_at DESC
-            "#,
-        )
-        .bind(room_id)
-        .fetch_all(&*self.pool)
-        .await
+        let sql = format!("{TOKEN_SELECT} WHERE room_id = ? ORDER BY created_at DESC");
+        let tokens = sqlx::query_as::<_, RoomToken>(&sql)
+            .bind(room_id)
+            .fetch_all(&*self.pool)
+            .await?;
+        Ok(tokens)
     }
 
     async fn revoke(&self, jti: &str) -> Result<bool> {
         let now = Utc::now().naive_utc();
+        let now_str = format_naive_datetime(now);
         let result = sqlx::query(
             r#"
             UPDATE room_tokens
@@ -111,7 +110,7 @@ impl IRoomTokenRepository for RoomTokenRepository {
             WHERE jti = ? AND revoked_at IS NULL
             "#,
         )
-        .bind(now)
+        .bind(now_str)
         .bind(jti)
         .execute(&*self.pool)
         .await?;

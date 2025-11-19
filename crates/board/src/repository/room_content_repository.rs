@@ -8,6 +8,23 @@ use crate::{
     db::DbPool,
     models::content::{ContentType, RoomContent},
 };
+use crate::models::room::row_utils::format_naive_datetime;
+
+const CONTENT_SELECT_BASE: &str = r#"
+    SELECT
+        id,
+        room_id,
+        content_type as "content_type: ContentType",
+        text,
+        url,
+        path,
+        file_name,
+        size,
+        mime_type,
+        CAST(created_at AS TEXT) as created_at,
+        CAST(updated_at AS TEXT) as updated_at
+    FROM room_contents
+"#;
 
 #[async_trait]
 pub trait IRoomContentRepository: Send + Sync {
@@ -38,27 +55,12 @@ impl RoomContentRepository {
     where
         E: sqlx::Executor<'e, Database = Any>,
     {
-        sqlx::query_as::<_, RoomContent>(
-            r#"
-            SELECT
-                id,
-                room_id,
-                content_type as "content_type: ContentType",
-                text,
-                url,
-                path,
-                file_name,
-                size,
-                mime_type,
-                created_at,
-                updated_at
-            FROM room_contents
-            WHERE id = ?
-            "#,
-        )
-        .bind(content_id)
-        .fetch_optional(executor)
-        .await
+        let sql = format!("{CONTENT_SELECT_BASE} WHERE id = ?");
+        let content = sqlx::query_as::<_, RoomContent>(&sql)
+            .bind(content_id)
+            .fetch_optional(executor)
+            .await?;
+        Ok(content)
     }
 
     async fn fetch_by_id_or_err<'e, E>(executor: E, content_id: i64) -> Result<RoomContent>
@@ -86,6 +88,7 @@ impl IRoomContentRepository for RoomContentRepository {
     async fn create(&self, room_content: &RoomContent) -> Result<RoomContent> {
         let mut tx = self.pool.begin().await?;
         let now = Utc::now().naive_utc();
+        let now_str = format_naive_datetime(now);
         let id: i64 = sqlx::query_scalar(
             r#"
             INSERT INTO room_contents
@@ -103,8 +106,8 @@ impl IRoomContentRepository for RoomContentRepository {
         .bind(&room_content.file_name)
         .bind(room_content.size)
         .bind(&room_content.mime_type)
-        .bind(now)
-        .bind(now)
+        .bind(now_str.clone())
+        .bind(now_str)
         .fetch_one(&mut *tx)
         .await?;
 
@@ -123,6 +126,7 @@ impl IRoomContentRepository for RoomContentRepository {
             .ok_or_else(|| anyhow!("room content id is required for update"))?;
         let mut tx = self.pool.begin().await?;
         let now = Utc::now().naive_utc();
+        let now_str = format_naive_datetime(now);
         sqlx::query(
             r#"
             UPDATE room_contents SET
@@ -140,7 +144,7 @@ impl IRoomContentRepository for RoomContentRepository {
         .bind(&room_content.file_name)
         .bind(room_content.size)
         .bind(&room_content.mime_type)
-        .bind(now)
+        .bind(now_str)
         .bind(content_id)
         .execute(&mut *tx)
         .await?;
@@ -151,28 +155,12 @@ impl IRoomContentRepository for RoomContentRepository {
     }
 
     async fn list_by_room(&self, room_id: i64) -> Result<Vec<RoomContent>> {
-        sqlx::query_as::<_, RoomContent>(
-            r#"
-            SELECT
-                id,
-                room_id,
-                content_type as "content_type: ContentType",
-                text,
-                url,
-                path,
-                file_name,
-                size,
-                mime_type,
-                created_at,
-                updated_at
-            FROM room_contents
-            WHERE room_id = ?
-            ORDER BY created_at DESC
-            "#,
-        )
-        .bind(room_id)
-        .fetch_all(&*self.pool)
-        .await
+        let sql = format!("{CONTENT_SELECT_BASE} WHERE room_id = ? ORDER BY created_at DESC");
+        let rows = sqlx::query_as::<_, RoomContent>(&sql)
+            .bind(room_id)
+            .fetch_all(&*self.pool)
+            .await?;
+        Ok(rows)
     }
 
     async fn delete_by_ids(&self, room_id: i64, content_ids: &[i64]) -> Result<u64> {

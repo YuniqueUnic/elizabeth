@@ -1,13 +1,21 @@
 use chrono::{DateTime, NaiveDateTime};
 use sqlx::{Error, Row, any::AnyRow};
 
-const DEFAULT_FORMAT_WITH_FRACTION: &str = "%Y-%m-%d %H:%M:%S%.f";
-const DEFAULT_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
+pub const DEFAULT_FORMAT_WITH_FRACTION: &str = "%Y-%m-%d %H:%M:%S%.f";
+pub const DEFAULT_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 
 pub fn parse_any_timestamp(raw: &str) -> Result<NaiveDateTime, chrono::ParseError> {
     NaiveDateTime::parse_from_str(raw, DEFAULT_FORMAT_WITH_FRACTION)
         .or_else(|_| NaiveDateTime::parse_from_str(raw, DEFAULT_FORMAT))
         .or_else(|_| DateTime::parse_from_rfc3339(raw).map(|dt| dt.naive_utc()))
+}
+
+pub fn format_naive_datetime(dt: NaiveDateTime) -> String {
+    dt.format(DEFAULT_FORMAT_WITH_FRACTION).to_string()
+}
+
+pub fn format_optional_naive_datetime(dt: Option<NaiveDateTime>) -> Option<String> {
+    dt.map(format_naive_datetime)
 }
 
 pub fn read_datetime_from_any(row: &AnyRow, column: &str) -> Result<NaiveDateTime, Error> {

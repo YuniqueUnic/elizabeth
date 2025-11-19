@@ -33,6 +33,9 @@ pub async fn init_db(settings: &DbPoolSettings) -> Result<DbPool> {
 
     let (max_connections, min_connections) = settings.resolve_connection_limits();
 
+    // Ensure Any drivers (SQLite/Postgres) are registered before connecting.
+    sqlx::any::install_default_drivers();
+
     let pool = AnyPoolOptions::new()
         .max_connections(max_connections)
         .min_connections(min_connections)
@@ -50,12 +53,18 @@ pub async fn init_db(settings: &DbPoolSettings) -> Result<DbPool> {
 pub async fn run_migrations(pool: &DbPool, url: &str) -> Result<()> {
     info!("开始运行数据库迁移");
     let kind = DbKind::detect(url);
-    let path = match kind {
-        DbKind::Sqlite => "./migrations",
-        DbKind::Postgres => "./migrations_pg",
+    let primary = match kind {
+        DbKind::Sqlite => std::path::Path::new("./migrations"),
+        DbKind::Postgres => std::path::Path::new("./migrations_pg"),
     };
+    // 兼容工作区根目录执行测试：回退到 crate 内的迁移目录
+    let fallback = match kind {
+        DbKind::Sqlite => std::path::Path::new("./crates/board/migrations"),
+        DbKind::Postgres => std::path::Path::new("./crates/board/migrations_pg"),
+    };
+    let path = if primary.exists() { primary } else { fallback };
 
-    match sqlx::migrate::Migrator::new(std::path::Path::new(path))
+    match sqlx::migrate::Migrator::new(path)
         .await?
         .run(pool)
         .await
