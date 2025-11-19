@@ -162,6 +162,7 @@ pub struct RoomUploadReservation {
 fn build_room_upload_reservation_sqlite(
     row: &SqliteRow,
 ) -> Result<RoomUploadReservation, sqlx::Error> {
+    let chunked_upload_raw: Option<i64> = row.try_get("chunked_upload")?;
     Ok(RoomUploadReservation {
         id: row.try_get("id")?,
         room_id: row.try_get("room_id")?,
@@ -173,7 +174,7 @@ fn build_room_upload_reservation_sqlite(
         consumed_at: row.try_get("consumed_at")?,
         created_at: row.try_get("created_at")?,
         updated_at: row.try_get("updated_at")?,
-        chunked_upload: row.try_get("chunked_upload")?,
+        chunked_upload: chunked_upload_raw.map(|v| v != 0),
         total_chunks: row.try_get("total_chunks")?,
         uploaded_chunks: row.try_get("uploaded_chunks")?,
         file_hash: row.try_get("file_hash")?,
@@ -204,6 +205,14 @@ fn build_room_upload_reservation_pg(row: &PgRow) -> Result<RoomUploadReservation
 }
 
 fn build_room_upload_reservation_any(row: &AnyRow) -> Result<RoomUploadReservation, sqlx::Error> {
+    // sqlite via Any driver may store booleans as integers; decode manually
+    let chunked_upload_raw: Option<i64> = match row.try_get("chunked_upload") {
+        Ok(v) => v,
+        Err(_) => {
+            let as_bool: Option<bool> = row.try_get("chunked_upload")?;
+            as_bool.map(|b| if b { 1 } else { 0 })
+        }
+    };
     Ok(RoomUploadReservation {
         id: row.try_get("id")?,
         room_id: row.try_get("room_id")?,
@@ -215,7 +224,7 @@ fn build_room_upload_reservation_any(row: &AnyRow) -> Result<RoomUploadReservati
         consumed_at: read_optional_datetime_from_any(row, "consumed_at")?,
         created_at: read_datetime_from_any(row, "created_at")?,
         updated_at: read_datetime_from_any(row, "updated_at")?,
-        chunked_upload: row.try_get("chunked_upload")?,
+        chunked_upload: chunked_upload_raw.map(|v| v != 0),
         total_chunks: row.try_get("total_chunks")?,
         uploaded_chunks: row.try_get("uploaded_chunks")?,
         file_hash: row.try_get("file_hash")?,

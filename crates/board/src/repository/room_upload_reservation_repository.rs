@@ -21,12 +21,12 @@ const SELECT_BASE: &str = r#"
         CAST(consumed_at AS TEXT) as consumed_at,
         CAST(created_at AS TEXT) as created_at,
         CAST(updated_at AS TEXT) as updated_at,
-        chunked_upload,
+        CAST(chunked_upload AS INTEGER) as chunked_upload,
         total_chunks,
         uploaded_chunks,
         file_hash,
         chunk_size,
-        upload_status as "upload_status: _"
+        upload_status
     FROM room_upload_reservations
 "#;
 

@@ -10,8 +10,9 @@ import * as fs from "fs";
 import * as path from "path";
 
 const BASE_URL = "http://localhost:4001";
-const TEST_ROOM = "file-test-room-" + Date.now();
+const TEST_ROOM = "file-test-room";
 const TEST_ROOM_URL = `${BASE_URL}/${TEST_ROOM}`;
+const API_BASE = "http://localhost:4092/api/v1";
 
 // 创建测试文件
 function createTestFile(name: string, content: string): string {
@@ -27,8 +28,9 @@ function createTestFile(name: string, content: string): string {
 test.describe("文件操作测试", () => {
     let roomPage: RoomPage;
     const testFiles: string[] = [];
+    let tokenInfo: { token: string; refresh_token?: string; expires_at: string };
 
-    test.beforeAll(() => {
+    test.beforeAll(async ({ request }) => {
         // 创建测试文件
         testFiles.push(createTestFile("test1.txt", "Test file 1 content"));
         testFiles.push(
@@ -40,10 +42,55 @@ test.describe("文件操作测试", () => {
                 JSON.stringify({ test: "data" }, null, 2),
             ),
         );
+
+        // 确保房间存在（已存在则忽略）
+        const createResp = await request.post(
+            `${API_BASE}/rooms/${TEST_ROOM}?password=`,
+            { data: {}, timeout: 15_000 },
+        );
+        if (!createResp.ok() && createResp.status() !== 409) {
+            throw new Error(
+                `创建文件房间失败，status=${createResp.status()}`,
+            );
+        }
+
+        // 预获取 token 用于后续复用，避免频繁鉴权/限流
+        const tokenResp = await request.post(
+            `${API_BASE}/rooms/${TEST_ROOM}/tokens`,
+            {
+                data: { password: "", with_refresh_token: true },
+                timeout: 15_000,
+            },
+        );
+        if (!tokenResp.ok()) {
+            throw new Error(
+                `无法获取文件房间访问令牌，status=${tokenResp.status()}`,
+            );
+        }
+        tokenInfo = await tokenResp.json();
     });
 
     test.beforeEach(async ({ page }) => {
         roomPage = new RoomPage(page);
+
+        // 预注入 token，避免首次加载 401/429
+        await page.addInitScript(
+            ({ roomName, token, refreshToken, expiresAt }) => {
+                const storageKey = "elizabeth_tokens";
+                const existing =
+                    JSON.parse(window.localStorage.getItem(storageKey) || "{}") ||
+                    {};
+                existing[roomName] = { token, refreshToken, expiresAt };
+                window.localStorage.setItem(storageKey, JSON.stringify(existing));
+            },
+            {
+                roomName: TEST_ROOM,
+                token: tokenInfo.token,
+                refreshToken: tokenInfo.refresh_token,
+                expiresAt: tokenInfo.expires_at,
+            },
+        );
+
         await roomPage.goto(TEST_ROOM_URL);
         await roomPage.waitForRoomLoad();
         await roomPage.clearAllFiles();
