@@ -154,3 +154,8 @@ Document generated: 2025-11-18.
 - SQLite stores datetime as TEXT/NUMERIC; casting to `DATETIME` can truncate fractions, so we persist timestamps as ISO strings and parse in Any citeturn0search1.
 - sqlx recommends using SQLite’s `YYYY-MM-DD HH:MM:SS.SSSS` textual form with chrono parsing; lexicographic comparisons remain correct when formats are consistent citeturn0search5.
 - Repositories now cast datetime columns to TEXT in SELECT and bind ISO strings on INSERT/UPDATE; Any FromRow parses via `row_utils::parse_any_timestamp` to avoid missing `Encode/Decode` for `NaiveDateTime`.
+
+## 9. Test DB bootstrap guardrails (2025-11-19)
+- Integration/handler/service tests now pin SQLite URL to `sqlite::memory:` with single-connection pool to ensure deterministic schema.
+- Tests defensively (re)create minimal tables `rooms`, `room_refresh_tokens`, `token_blacklist` with required columns (`permission`, `is_revoked INTEGER`) to avoid Any driver type gaps.
+- `.sqlx` cache removed after schema stabilization to prevent stale query descriptors.

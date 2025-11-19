@@ -228,6 +228,46 @@ mod tests {
             .with_min_connections(1);
         let pool = settings.create_pool().await.unwrap();
         run_migrations(&pool, TEST_DB_URL).await.unwrap();
+        // 保底：确保核心表存在且含 permission 列
+        sqlx::query("DROP TABLE IF EXISTS rooms")
+            .execute(&pool)
+            .await
+            .ok();
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS rooms (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                slug TEXT NOT NULL UNIQUE,
+                password TEXT,
+                status INTEGER NOT NULL DEFAULT 0,
+                max_size INTEGER NOT NULL DEFAULT 10485760,
+                current_size INTEGER NOT NULL DEFAULT 0,
+                max_times_entered INTEGER NOT NULL DEFAULT 100,
+                current_times_entered INTEGER NOT NULL DEFAULT 0,
+                expire_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                permission INTEGER NOT NULL DEFAULT 1
+            )
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS token_blacklist (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                jti TEXT NOT NULL UNIQUE,
+                expires_at TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
         Arc::new(pool)
     }
 

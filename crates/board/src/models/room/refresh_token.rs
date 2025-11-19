@@ -55,6 +55,7 @@ fn build_room_refresh_token_pg(row: &PgRow) -> Result<RoomRefreshToken, sqlx::Er
 }
 
 fn build_room_refresh_token_any(row: &AnyRow) -> Result<RoomRefreshToken, sqlx::Error> {
+    let is_revoked_raw: i64 = row.try_get("is_revoked")?;
     Ok(RoomRefreshToken {
         id: row.try_get("id")?,
         room_id: row.try_get("room_id")?,
@@ -63,7 +64,7 @@ fn build_room_refresh_token_any(row: &AnyRow) -> Result<RoomRefreshToken, sqlx::
         expires_at: read_datetime_from_any(row, "expires_at")?,
         created_at: read_datetime_from_any(row, "created_at")?,
         last_used_at: read_optional_datetime_from_any(row, "last_used_at")?,
-        is_revoked: row.try_get("is_revoked")?,
+        is_revoked: is_revoked_raw != 0,
     })
 }
 

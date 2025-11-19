@@ -154,6 +154,66 @@ mod tests {
         run_migrations(db_pool.as_ref(), TEST_DB_URL)
             .await
             .unwrap();
+        sqlx::query("DROP TABLE IF EXISTS rooms")
+            .execute(db_pool.as_ref())
+            .await
+            .ok();
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS rooms (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                slug TEXT NOT NULL UNIQUE,
+                password TEXT,
+                status INTEGER NOT NULL DEFAULT 0,
+                max_size INTEGER NOT NULL DEFAULT 10485760,
+                current_size INTEGER NOT NULL DEFAULT 0,
+                max_times_entered INTEGER NOT NULL DEFAULT 100,
+                current_times_entered INTEGER NOT NULL DEFAULT 0,
+                expire_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                permission INTEGER NOT NULL DEFAULT 1
+            )
+            "#,
+        )
+        .execute(db_pool.as_ref())
+        .await
+        .unwrap();
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS token_blacklist (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                jti TEXT NOT NULL UNIQUE,
+                expires_at TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            "#,
+        )
+        .execute(db_pool.as_ref())
+        .await
+        .unwrap();
+        sqlx::query("DROP TABLE IF EXISTS room_refresh_tokens")
+            .execute(db_pool.as_ref())
+            .await
+            .ok();
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS room_refresh_tokens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                room_id INTEGER NOT NULL,
+                access_token_jti TEXT NOT NULL,
+                token_hash TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                last_used_at TEXT,
+                is_revoked INTEGER NOT NULL DEFAULT 0
+            )
+            "#,
+        )
+        .execute(db_pool.as_ref())
+        .await
+        .unwrap();
 
         // 创建测试配置
         let app_config = AppConfig {
