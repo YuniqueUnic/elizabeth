@@ -14,7 +14,7 @@ const CONTENT_SELECT_BASE: &str = r#"
     SELECT
         id,
         room_id,
-        content_type as "content_type: ContentType",
+        content_type,
         text,
         url,
         path,

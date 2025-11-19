@@ -1,56 +1,58 @@
 import { test, expect } from "@playwright/test";
 import * as fs from "fs";
+import { RoomPage } from "../page-objects/room-page";
 
 const BASE_URL = "http://localhost:4001";
-const ROOM = "correct-upload-" + Date.now();
+const API_BASE = "http://localhost:4092/api/v1";
+const TEST_ROOM = "file-upload-correct";
+const TEST_ROOM_URL = `${BASE_URL}/${TEST_ROOM}`;
 
-test("正确的文件上传测试", async ({ page }) => {
-    const logs: string[] = [];
+test.describe("正确的文件上传测试", () => {
+    let tokenInfo: { token: string; refresh_token?: string; expires_at: string };
 
-    page.on("console", (msg) => {
-        const text = msg.text();
-        if (text.includes("[uploadFile]") || text.includes("[getFilesList]")) {
-            logs.push(text);
+    test.beforeAll(async ({ request }) => {
+        await request
+            .post(`${API_BASE}/rooms/${TEST_ROOM}?password=`, { data: {}, timeout: 15_000 })
+            .catch(() => {});
+        const tokenResp = await request.post(`${API_BASE}/rooms/${TEST_ROOM}/tokens`, {
+            data: { password: "", with_refresh_token: true },
+            timeout: 15_000,
+        });
+        if (!tokenResp.ok()) {
+            throw new Error(`无法获取文件房间令牌，status=${tokenResp.status()}`);
         }
+        tokenInfo = await tokenResp.json();
     });
 
-    console.log("第 1 步：打开房间");
-    await page.goto(`${BASE_URL}/${ROOM}`);
-    await page.waitForLoadState("networkidle").catch(() => {});
-    await page.waitForTimeout(2000);
+    test("应成功上传文件并显示在列表中", async ({ page }) => {
+        await page.addInitScript(
+            ({ roomName, token, refreshToken, expiresAt }) => {
+                const storageKey = "elizabeth_tokens";
+                const existing =
+                    JSON.parse(window.localStorage.getItem(storageKey) || "{}") || {};
+                existing[roomName] = { token, refreshToken, expiresAt };
+                window.localStorage.setItem(storageKey, JSON.stringify(existing));
+            },
+            {
+                roomName: TEST_ROOM,
+                token: tokenInfo.token,
+                refreshToken: tokenInfo.refresh_token,
+                expiresAt: tokenInfo.expires_at,
+            },
+        );
 
-    console.log("第 2 步：找到文件 input");
-    const fileInput = page.locator("input[type='file']");
+        const roomPage = new RoomPage(page);
+        await roomPage.goto(TEST_ROOM_URL);
+        await roomPage.waitForRoomLoad();
+        await roomPage.clearAllFiles();
 
-    // 创建测试文件
-    const testFile = "/tmp/correct-upload-test.txt";
-    fs.writeFileSync(testFile, "test content for correct upload");
+        const testFile = "/tmp/correct-upload-test.txt";
+        fs.writeFileSync(testFile, "test content for correct upload");
 
-    console.log("第 3 步：设置文件并触发 change 事件");
-    await fileInput.setInputFiles(testFile);
+        await roomPage.uploadFile(testFile);
 
-    // 手动触发 change 事件
-    await page.evaluate(() => {
-        const input = document.querySelector("input[type='file']") as HTMLInputElement;
-        if (input) {
-            input.dispatchEvent(new Event("change", { bubbles: true }));
-        }
+        const files = await roomPage.getFileList();
+        expect(files.some((name) => name.includes("correct-upload-test.txt"))).toBe(true);
+        await fs.promises.unlink(testFile);
     });
-
-    console.log("第 4 步：等待上传完成");
-    await page.waitForTimeout(3000);
-
-    console.log("\n========== 收集的日志 ==========");
-    logs.forEach(log => console.log(log));
-
-    console.log("\n第 5 步：验证文件是否出现");
-    const fileItems = page.locator("div.group.relative.flex.items-center.gap-3.rounded-lg.border");
-    const count = await fileItems.count();
-    console.log(`文件列表中的项数：${count}`);
-
-    if (count > 0) {
-        console.log("✅ 成功！文件出现在列表中");
-    } else {
-        console.log("❌ 失败！文件没有出现");
-    }
 });

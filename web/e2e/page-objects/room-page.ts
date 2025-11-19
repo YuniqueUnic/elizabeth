@@ -190,16 +190,20 @@ export class RoomPage extends BasePage {
      * 使用示例：await roomPage.uploadFile('path/to/file.txt')
      */
     async uploadFile(filePath: string): Promise<void> {
-        // 获取文件输入元素
-        const fileInput = this.page.locator(
-            htmlSelectors.rightSidebar.fileManager.uploadZone.input,
-        );
+        // 通过点击“上传文件”按钮触发原生文件选择，保持与用户流程一致
+        const uploadBtn = this.page
+            .locator(htmlSelectors.rightSidebar.header.uploadBtn)
+            .first();
+        const fileChooserPromise = this.page.waitForEvent("filechooser");
+        await uploadBtn.click({ timeout: 10_000 });
+        const fileChooser = await fileChooserPromise;
+        await fileChooser.setFiles(filePath);
 
-        // 设置文件
-        await fileInput.setInputFiles(filePath);
-
-        // 等待上传完成
-        await this.page.waitForTimeout(2000);
+        const uploadingText = this.page.locator("text=上传中...");
+        await uploadingText.first().waitFor({ state: "visible", timeout: 2000 }).catch(() => {});
+        await uploadingText.first().waitFor({ state: "hidden", timeout: 10_000 }).catch(() => {});
+        // 给文件列表一些渲染时间
+        await this.page.waitForTimeout(500);
     }
 
     /**
@@ -216,9 +220,15 @@ export class RoomPage extends BasePage {
      * 获取文件列表
      */
     async getFileList(): Promise<string[]> {
-        const fileItems = this.page.locator(
-            htmlSelectors.rightSidebar.fileManager.fileList.fileItem.container,
-        );
+        const fileList = htmlSelectors.rightSidebar.fileManager.fileList;
+        const fileItems = this.page.locator(fileList.fileItem.container);
+        const loading = this.page.locator(fileList.loading);
+        if (await loading.count()) {
+            await loading
+                .first()
+                .waitFor({ state: "hidden", timeout: 10_000 })
+                .catch(() => {});
+        }
         const count = await fileItems.count();
         const files: string[] = [];
 
@@ -233,7 +243,9 @@ export class RoomPage extends BasePage {
 
         for (let i = 0; i < count; i++) {
             const item = fileItems.nth(i);
-            const name = await item.locator(".file-name").textContent();
+            const name = await item
+                .locator(htmlSelectors.rightSidebar.fileManager.fileList.fileItem.name)
+                .textContent();
             if (name) {
                 files.push(normalizeName(name));
             }
@@ -254,7 +266,10 @@ export class RoomPage extends BasePage {
 
         for (let i = 0; i < count; i++) {
             const item = fileItems.nth(i);
-            const name = await item.textContent();
+            const nameEl = item.locator(
+                htmlSelectors.rightSidebar.fileManager.fileList.fileItem.name,
+            );
+            const name = await nameEl.textContent();
 
             if (name && name.includes(fileName)) {
                 // 点击删除按钮

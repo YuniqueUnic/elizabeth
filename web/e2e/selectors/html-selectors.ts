@@ -68,17 +68,17 @@ export const htmlSelectors = {
 
         // 房间权限部分
         roomPermissions: {
-            section: 'heading:has-text("房间权限")',
+            section: 'aside >> heading:has-text("房间权限")',
 
             buttons: {
-                preview: 'text=房间权限 >> .. >> button:has-text("预览")',
-                edit: 'text=房间权限 >> .. >> button:has-text("编辑")',
-                share: 'text=房间权限 >> .. >> button:has-text("分享")',
-                delete: 'text=房间权限 >> .. >> button:has-text("删除")',
+                preview: 'aside button[aria-pressed][title^="预览"]',
+                edit: 'aside button[aria-pressed][title^="编辑"]',
+                share: 'aside button[aria-pressed][title^="分享"]',
+                delete: 'aside button[aria-pressed][title^="删除"]',
             },
 
             hint: "text=/提示：/",
-            saveBtn: 'text=房间权限 >> .. >> button:has-text("保存权限")',
+            saveBtn: 'aside >> button:has-text("保存权限")',
         },
 
         // 分享房间部分
@@ -182,22 +182,23 @@ export const htmlSelectors = {
             },
 
             fileList: {
-                container: "div.space-y-2",
+                container: "div.space-y-1",
                 emptyState: 'text="暂无文件"',
+                loading: 'text="加载中..."',
 
                 fileItem: {
-                    // 文件卡片是一个 div，包含边框
+                    // 文件卡片容器
                     container:
                         "div.group.relative.flex.items-center.gap-3.rounded-lg.border",
 
-                    // 复选框
-                    checkbox: "[data-slot='checkbox']",
+                    // 复选框（shadcn Checkbox 渲染为 role=checkbox 的按钮）
+                    checkbox: "[role='checkbox']",
 
                     // 文件名元素
-                    name: ".file-name",
+                    name: "p.text-sm.font-medium",
 
                     // 文件大小
-                    size: ".text-xs.text-muted-foreground",
+                    size: "p.text-xs",
 
                     // 操作按钮
                     actions: {
@@ -212,7 +213,7 @@ export const htmlSelectors = {
             uploadZone: {
                 // 上传区域在底部
                 container: ".p-4.pt-2",
-                input: "input[type='file']",
+                input: ".p-4.pt-2 input[type='file']",
                 icon: "img, svg",
                 text: 'text="拖拽文件到此处或点击上传"',
             },
