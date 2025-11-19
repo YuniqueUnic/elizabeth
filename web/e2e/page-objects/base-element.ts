@@ -298,7 +298,10 @@ export class InputElement extends BaseElement {
  */
 export class ButtonElement extends BaseElement {
     async click(): Promise<this> {
-        await this.locator.click({ timeout: this.options.timeout });
+        await this.locator.click({
+            timeout: this.options.timeout,
+            force: true, // 避免被临时 toast/遮罩拦截
+        });
         return this;
     }
 
