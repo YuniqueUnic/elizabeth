@@ -15,7 +15,11 @@ use board::repository::room_repository::{IRoomRepository, RoomRepository};
 /// 创建测试数据库连接池
 async fn create_test_pool() -> Result<Arc<DbPool>> {
     let url = "sqlite::memory:";
-    let pool = DbPoolSettings::new(url).create_pool().await?;
+    let pool = DbPoolSettings::new(url)
+        .with_max_connections(1)
+        .with_min_connections(1)
+        .create_pool()
+        .await?;
     run_migrations(&pool, url).await?;
     Ok(Arc::new(pool))
 }

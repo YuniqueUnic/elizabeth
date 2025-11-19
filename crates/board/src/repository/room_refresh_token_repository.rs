@@ -19,7 +19,7 @@ const REFRESH_TOKEN_SELECT: &str = r#"
            CAST(expires_at AS TEXT) as expires_at,
            CAST(created_at AS TEXT) as created_at,
            CAST(last_used_at AS TEXT) as last_used_at,
-           is_revoked
+           CAST(is_revoked AS INTEGER) as is_revoked
     FROM room_refresh_tokens
 "#;
 

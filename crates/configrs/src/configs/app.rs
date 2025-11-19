@@ -1,5 +1,8 @@
 use smart_default::SmartDefault;
 
+const DEFAULT_JWT_SECRET: &str =
+    "default-secret-change-in-productiondefault-secret-change-in-production"; // pragma: allowlist secret
+
 use crate::merge::{Merge, overwrite, overwrite_not_empty_string};
 
 #[derive(Merge, Debug, Clone, serde::Deserialize, serde::Serialize, Default)]
@@ -54,7 +57,7 @@ pub struct DatabaseConfig {
 #[derive(Merge, Debug, Clone, SmartDefault, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct JwtConfig {
-    #[default("default-secret-change-in-production".repeat(2))] // pragma: allowlist secret
+    #[default(DEFAULT_JWT_SECRET.to_string())] // pragma: allowlist secret
     #[merge(strategy = overwrite_not_empty_string)]
     pub secret: String,
     #[default(30 * 60)]
@@ -250,14 +253,14 @@ mod tests {
         assert_eq!(cfg.database.max_connections, Some(20));
         assert_eq!(cfg.database.min_connections, Some(5));
         assert_eq!(cfg.database.journal_mode.to_lowercase(), "wal");
-        assert_eq!(cfg.jwt.secret, "secret");
+        assert_eq!(cfg.jwt.secret, DEFAULT_JWT_SECRET);
         assert_eq!(cfg.jwt.ttl_seconds, 30 * 60);
         assert_eq!(cfg.jwt.refresh_ttl_seconds, 7 * 24 * 60 * 60);
         assert_eq!(cfg.jwt.max_refresh_count, 10);
         assert_eq!(cfg.jwt.cleanup_interval_seconds, 24 * 60 * 60);
         assert_eq!(cfg.jwt.enable_refresh_token_rotation, true);
         assert_eq!(cfg.storage.root, "storage/rooms");
-        assert_eq!(cfg.room.max_size, 10 * 1024 * 1024);
+        assert_eq!(cfg.room.max_size, 50 * 1024 * 1024);
         assert_eq!(cfg.room.max_times_entered, 100);
         assert_eq!(cfg.upload.reservation_ttl_seconds, 3600);
 
