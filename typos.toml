@@ -10,6 +10,7 @@ extend-exclude = [
     "*.svg",
     "*.png",
     "*.jpg",
+    "playwright*",
 ]
 
 [default]
@@ -20,4 +21,4 @@ locale = "en"
 # 项目特定词汇（避免误报）
 # 例如：helo = "helo"
 "iif" = "iif"
-"oif" ="oif"
+"oif" = "oif"

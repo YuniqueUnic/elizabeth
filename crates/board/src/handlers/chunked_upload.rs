@@ -170,17 +170,24 @@ pub async fn prepare_chunked_upload(
     // 设置 chunked_upload 标记和 chunk 信息
     let db_reservation_id = saved_reservation.id.expect("预留 ID 不能为空");
     let status_str = UploadStatus::Pending.to_string();
+    let reservation_chunk_size = reserved_files
+        .first()
+        .map(|file| file.chunk_size)
+        .unwrap_or(1024 * 1024);
+
     sqlx::query(
         r#"
         UPDATE room_upload_reservations
         SET chunked_upload = true,
             total_chunks = ?,
             uploaded_chunks = 0,
+            chunk_size = ?,
             upload_status = ?
         WHERE id = ?
         "#,
     )
     .bind(total_chunks)
+    .bind(reservation_chunk_size)
     .bind(&status_str)
     .bind(db_reservation_id)
     .execute(app_state.db_pool.as_ref())

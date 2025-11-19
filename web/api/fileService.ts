@@ -148,6 +148,16 @@ export async function uploadFile(
   const useChunkedUpload = options?.useChunkedUpload ??
     file.size > CHUNKED_UPLOAD_THRESHOLD;
 
+  if (typeof window !== "undefined") {
+    (window as any).__elizabethLastUpload = {
+      room: roomName,
+      name: file.name,
+      size: file.size,
+      threshold: CHUNKED_UPLOAD_THRESHOLD,
+      chunked: useChunkedUpload,
+    };
+  }
+
   if (useChunkedUpload) {
     const { uploadFileChunked } = await import("./chunkedUploadService");
     const mergeResponse = await uploadFileChunked(

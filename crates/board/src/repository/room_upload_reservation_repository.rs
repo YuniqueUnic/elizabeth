@@ -88,10 +88,11 @@ impl RoomUploadReservationRepository {
     where
         E: sqlx::Executor<'e, Database = Any>,
     {
-        let row = sqlx::query_as::<_, RoomUploadReservation>(&format!("{SELECT_BASE} WHERE id = ?"))
-            .bind(reservation_id)
-            .fetch_optional(executor)
-            .await?;
+        let row =
+            sqlx::query_as::<_, RoomUploadReservation>(&format!("{SELECT_BASE} WHERE id = ?"))
+                .bind(reservation_id)
+                .fetch_optional(executor)
+                .await?;
         Ok(row)
     }
 
@@ -201,11 +202,12 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
     }
 
     async fn find_by_token(&self, token_jti: &str) -> Result<Option<RoomUploadReservation>> {
-        let row =
-            sqlx::query_as::<_, RoomUploadReservation>(&format!("{SELECT_BASE} WHERE token_jti = ?"))
-                .bind(token_jti)
-                .fetch_optional(&*self.pool)
-                .await?;
+        let row = sqlx::query_as::<_, RoomUploadReservation>(&format!(
+            "{SELECT_BASE} WHERE token_jti = ?"
+        ))
+        .bind(token_jti)
+        .fetch_optional(&*self.pool)
+        .await?;
         Ok(row)
     }
 
@@ -525,12 +527,11 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
     }
 
     async fn purge_expired(&self) -> Result<u64> {
-        let result = sqlx::query(
-            "DELETE FROM room_upload_reservations WHERE CAST(expires_at AS TEXT) <= ?",
-        )
-        .bind(format_naive_datetime(Utc::now().naive_utc()))
-        .execute(&*self.pool)
-        .await?;
+        let result =
+            sqlx::query("DELETE FROM room_upload_reservations WHERE CAST(expires_at AS TEXT) <= ?")
+                .bind(format_naive_datetime(Utc::now().naive_utc()))
+                .execute(&*self.pool)
+                .await?;
         Ok(result.rows_affected())
     }
 }

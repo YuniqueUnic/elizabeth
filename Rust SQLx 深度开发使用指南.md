@@ -79,7 +79,7 @@ async fn fetch_user(pool: &PgPool, user_id: i32) -> Result<User, sqlx::Error> {
 2. **配置数据库连接：** 在项目根目录下的 `.env` 文件中设置 `DATABASE_URL`
    环境变量。
    ```ini
-   DATABASE_URL=postgres://user:password@host:port/database_name
+   DATABASE_URL=postgres://user:password@host:port/database_name # pragma: allowlist secret
    ```
 3. **准备查询元数据：** 运行以下命令，`sqlx`
    会连接到数据库并为所有宏查询生成元数据文件（通常在 `.sqlx/` 目录下）。

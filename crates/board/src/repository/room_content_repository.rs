@@ -4,11 +4,11 @@ use chrono::Utc;
 use sqlx::{Any, QueryBuilder};
 use std::sync::Arc;
 
+use crate::models::room::row_utils::format_naive_datetime;
 use crate::{
     db::DbPool,
     models::content::{ContentType, RoomContent},
 };
-use crate::models::room::row_utils::format_naive_datetime;
 
 const CONTENT_SELECT_BASE: &str = r#"
     SELECT

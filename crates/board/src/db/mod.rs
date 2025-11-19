@@ -64,11 +64,7 @@ pub async fn run_migrations(pool: &DbPool, url: &str) -> Result<()> {
     };
     let path = if primary.exists() { primary } else { fallback };
 
-    match sqlx::migrate::Migrator::new(path)
-        .await?
-        .run(pool)
-        .await
-    {
+    match sqlx::migrate::Migrator::new(path).await?.run(pool).await {
         Ok(_) => {
             info!("数据库迁移完成");
             Ok(())
