@@ -4,11 +4,11 @@ use chrono::{NaiveDateTime, Utc};
 use sqlx::{Any, FromRow, Row};
 use std::sync::Arc;
 
+use crate::models::room::row_utils::{format_naive_datetime, format_optional_naive_datetime};
 use crate::{
     db::DbPool,
     models::{Room, RoomStatus, permission::RoomPermission},
 };
-use crate::models::room::row_utils::{format_naive_datetime, format_optional_naive_datetime};
 
 const ROOM_SELECT_BASE: &str = r#"
     SELECT
@@ -56,7 +56,10 @@ impl RoomRepository {
         E: sqlx::Executor<'e, Database = Any>,
     {
         let sql = format!("{ROOM_SELECT_BASE} WHERE id = ?");
-        let room = sqlx::query_as::<_, Room>(&sql).bind(id).fetch_optional(executor).await?;
+        let room = sqlx::query_as::<_, Room>(&sql)
+            .bind(id)
+            .fetch_optional(executor)
+            .await?;
         Ok(room)
     }
 
@@ -269,8 +272,8 @@ impl IRoomRepository for RoomRepository {
             "DELETE FROM rooms WHERE expire_at IS NOT NULL AND CAST(expire_at AS TEXT) < ?",
         )
         .bind(format_naive_datetime(before))
-            .execute(&*self.pool)
-            .await?;
+        .execute(&*self.pool)
+        .await?;
 
         Ok(result.rows_affected())
     }

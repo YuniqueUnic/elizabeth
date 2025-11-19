@@ -208,9 +208,7 @@ pub struct TokenBlacklistEntry {
     pub created_at: NaiveDateTime,
 }
 
-fn build_token_blacklist_entry_sqlite(
-    row: &SqliteRow,
-) -> Result<TokenBlacklistEntry, sqlx::Error> {
+fn build_token_blacklist_entry_sqlite(row: &SqliteRow) -> Result<TokenBlacklistEntry, sqlx::Error> {
     Ok(TokenBlacklistEntry {
         id: row.try_get("id")?,
         jti: row.try_get("jti")?,

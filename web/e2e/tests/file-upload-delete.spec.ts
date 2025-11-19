@@ -5,7 +5,7 @@ import { RoomPage } from "../page-objects/room-page";
 
 const BASE_URL = "http://localhost:4001";
 const API_BASE = "http://localhost:4092/api/v1";
-const TEST_ROOM = "file-auto-test";
+const TEST_ROOM = `file-auto-test-${Date.now()}`;
 const TEST_ROOM_URL = `${BASE_URL}/${TEST_ROOM}`;
 
 test.describe.configure({ mode: "serial" });
@@ -14,6 +14,7 @@ test.describe("文件上传和删除 - 自动化测试", () => {
     let smallFile: string;
     let mediumFile: string;
     let largeFile: string;
+    let chunkedFile: string;
     let tokenInfo: { token: string; refresh_token?: string; expires_at: string };
 
     const createTestFile = (name: string, sizeInKB: number): string => {
@@ -54,6 +55,14 @@ test.describe("文件上传和删除 - 自动化测试", () => {
         smallFile = createTestFile("small-test.txt", 100); // 100KB
         mediumFile = createTestFile("medium-test.bin", 2 * 1024); // 2MB
         largeFile = createTestFile("large-test.bin", 4 * 1024); // 4MB
+        chunkedFile = createTestFile("chunked-test.bin", 6 * 1024); // 6MB -> chunked
+
+        // 保证测试文件真实存在且符合大小预期
+        [smallFile, mediumFile, largeFile, chunkedFile].forEach((filePath) => {
+            if (!fs.existsSync(filePath)) {
+                throw new Error(`Test file missing: ${filePath}`);
+            }
+        });
 
         await request
             .post(`${API_BASE}/rooms/${TEST_ROOM}?password=`, { data: {}, timeout: 15_000 })
@@ -70,7 +79,7 @@ test.describe("文件上传和删除 - 自动化测试", () => {
     });
 
     test.afterAll(() => {
-        [smallFile, mediumFile, largeFile].forEach((file) => {
+        [smallFile, mediumFile, largeFile, chunkedFile].forEach((file) => {
             if (file && fs.existsSync(file)) {
                 fs.unlinkSync(file);
             }
@@ -115,6 +124,23 @@ test.describe("文件上传和删除 - 自动化测试", () => {
         await expect.poll(async () => (await roomPage.getFileList()).length, {
             timeout: 60_000,
         }).toBeGreaterThanOrEqual(3);
+    });
+
+    test("超大文件分片上传测试", async ({ page }) => {
+        const roomPage = await bootstrapRoomPage(page);
+        await roomPage.clearAllFiles();
+        await roomPage.uploadFile(chunkedFile);
+
+        const lastUpload = await page
+            .evaluate(() => (window as any).__elizabethLastUpload || null)
+            .catch(() => null);
+        expect(lastUpload?.chunked).toBe(true);
+
+        await expect
+            .poll(async () => (await roomPage.getFileList()).includes("chunked-test.bin"), {
+                timeout: 90_000,
+            })
+            .toBe(true);
     });
 
     test("文件选择和批量操作", async ({ page }) => {

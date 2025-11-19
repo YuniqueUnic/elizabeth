@@ -6,10 +6,7 @@ use std::sync::Arc;
 
 use crate::db::DbPool;
 use crate::models::room::refresh_token::{RoomRefreshToken, TokenBlacklistEntry};
-use crate::models::room::row_utils::{
-    format_naive_datetime,
-    format_optional_naive_datetime,
-};
+use crate::models::room::row_utils::{format_naive_datetime, format_optional_naive_datetime};
 
 const REFRESH_TOKEN_SELECT: &str = r#"
     SELECT id,
@@ -204,12 +201,11 @@ impl IRoomRefreshTokenRepository for RoomRefreshTokenRepository {
     }
 
     async fn delete_expired(&self) -> Result<u64> {
-        let result = sqlx::query(
-            "DELETE FROM room_refresh_tokens WHERE CAST(expires_at AS TEXT) <= ?",
-        )
-        .bind(format_naive_datetime(Utc::now().naive_utc()))
-        .execute(&*self.pool)
-        .await?;
+        let result =
+            sqlx::query("DELETE FROM room_refresh_tokens WHERE CAST(expires_at AS TEXT) <= ?")
+                .bind(format_naive_datetime(Utc::now().naive_utc()))
+                .execute(&*self.pool)
+                .await?;
         Ok(result.rows_affected())
     }
 

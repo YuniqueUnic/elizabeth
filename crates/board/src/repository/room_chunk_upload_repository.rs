@@ -15,7 +15,7 @@ const SELECT_BASE: &str = r#"
         chunk_index,
         chunk_size,
         chunk_hash,
-        upload_status as "upload_status: _",
+        upload_status,
         CAST(created_at AS TEXT) as created_at,
         CAST(updated_at AS TEXT) as updated_at
     FROM room_chunk_uploads

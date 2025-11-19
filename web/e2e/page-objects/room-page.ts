@@ -200,8 +200,9 @@ export class RoomPage extends BasePage {
         await fileChooser.setFiles(filePath);
 
         const uploadingText = this.page.locator("text=上传中...");
-        await uploadingText.first().waitFor({ state: "visible", timeout: 2000 }).catch(() => {});
-        await uploadingText.first().waitFor({ state: "hidden", timeout: 10_000 }).catch(() => {});
+        const uploadingIndicator = uploadingText.first();
+        await uploadingIndicator.waitFor({ state: "visible", timeout: 5_000 }).catch(() => {});
+        await uploadingIndicator.waitFor({ state: "hidden", timeout: 60_000 }).catch(() => {});
         // 给文件列表一些渲染时间
         await this.page.waitForTimeout(500);
     }

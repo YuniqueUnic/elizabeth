@@ -151,9 +151,7 @@ mod tests {
             .with_max_connections(1)
             .with_min_connections(1);
         let db_pool = Arc::new(settings.create_pool().await.unwrap());
-        run_migrations(db_pool.as_ref(), TEST_DB_URL)
-            .await
-            .unwrap();
+        run_migrations(db_pool.as_ref(), TEST_DB_URL).await.unwrap();
         sqlx::query("DROP TABLE IF EXISTS rooms")
             .execute(db_pool.as_ref())
             .await
