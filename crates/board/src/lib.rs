@@ -14,6 +14,7 @@ pub mod services;
 pub mod state;
 pub mod types;
 pub mod validation;
+pub mod websocket;
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -159,7 +160,7 @@ async fn apply_sqlite_journal_mode(
 fn build_api_router(app_state: Arc<AppState>, cfg: &configrs::Config) -> (String, axum::Router) {
     let (status_router, mut api) = route::status::api_router().split_for_parts();
     let (room_router, room_api) = route::room::api_router(app_state.clone()).split_for_parts();
-    let (auth_router, auth_api) = route::auth::auth_router(app_state).split_for_parts();
+    let (auth_router, auth_api) = route::auth::auth_router(app_state.clone()).split_for_parts();
 
     let router = status_router.merge(room_router).merge(auth_router);
     api.merge(room_api);
@@ -167,6 +168,10 @@ fn build_api_router(app_state: Arc<AppState>, cfg: &configrs::Config) -> (String
 
     let (scalar, scalar_path) = route::scalar(api);
     let router = router.merge(scalar);
+
+    // 集成 WebSocket 路由
+    let ws_router = route::ws::api_router(app_state.clone());
+    let router = router.merge(ws_router);
 
     // Apply middleware configuration
     let middleware_config = crate::middleware::from_app_config(cfg);
