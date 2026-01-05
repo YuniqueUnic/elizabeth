@@ -9,6 +9,8 @@ use crate::models::room::row_utils::{read_datetime_from_any, read_optional_datet
 /// 房间刷新令牌数据模型
 /// 用于存储和管理 JWT 刷新令牌的信息
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct RoomRefreshToken {
     /// 主键 ID
     pub id: Option<i64>,
@@ -164,6 +166,8 @@ impl RoomRefreshToken {
 
 /// 用于创建刷新令牌的请求结构
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct CreateRefreshTokenRequest {
     /// 房间 ID
     pub room_id: i64,
@@ -177,6 +181,8 @@ pub struct CreateRefreshTokenRequest {
 
 /// 刷新令牌验证请求结构
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct RefreshTokenRequest {
     /// 刷新令牌（明文）
     pub refresh_token: String,
@@ -184,6 +190,8 @@ pub struct RefreshTokenRequest {
 
 /// 刷新令牌验证响应结构
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct RefreshTokenResponse {
     /// 新的访问令牌
     pub access_token: String,
@@ -197,6 +205,8 @@ pub struct RefreshTokenResponse {
 
 /// 令牌黑名单条目结构
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct TokenBlacklistEntry {
     /// 主键 ID
     pub id: Option<i64>,

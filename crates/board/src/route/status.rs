@@ -1,5 +1,4 @@
-use axum::response::IntoResponse;
-use axum_responses::http::HttpResponse;
+use axum::{Json, response::IntoResponse};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -22,7 +21,7 @@ pub fn api_router() -> OpenApiRouter {
     tag = "status"
 )]
 pub async fn health() -> impl IntoResponse {
-    HttpResponse::Ok()
+    (axum::http::StatusCode::OK, "OK")
 }
 
 #[derive(Debug, Default, Serialize, Deserialize, ToSchema)]
@@ -36,7 +35,7 @@ pub struct Status {
     get,
     path = format!("{}/status", API_PREFIX),
     responses(
-        (status = 200, description = "The status of service", body = ())
+        (status = 200, description = "The status of service", body = Status)
     ),
     tag = "status"
 )]
@@ -45,5 +44,5 @@ pub async fn status() -> impl IntoResponse {
         uptime: Utc::now().to_rfc3339(),
         ..Default::default()
     };
-    HttpResponse::Ok().data(status)
+    Json(status)
 }

@@ -26,6 +26,8 @@ bitflags! {
     /// - VIEW_ONLY | EDITABLE | SHARE | DELETE 可以 everything
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     #[serde(transparent)]
+    #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS))]
+    #[cfg_attr(feature = "typescript-export", ts(export))]
     pub struct RoomPermission: u8 {
         const VIEW_ONLY = 1;
         const EDITABLE = 1 << 1;

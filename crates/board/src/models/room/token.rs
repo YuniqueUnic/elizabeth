@@ -6,6 +6,8 @@ use utoipa::ToSchema;
 use crate::models::room::row_utils::{read_datetime_from_any, read_optional_datetime_from_any};
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct RoomToken {
     pub id: Option<i64>,
     pub room_id: i64,

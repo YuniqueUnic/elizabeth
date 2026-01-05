@@ -6,10 +6,12 @@ use utoipa::ToSchema;
 use crate::models::room::row_utils::read_datetime_from_any;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema, sqlx::Type)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "type")]
 #[sqlx(type_name = "INTEGER")]
 #[repr(i64)]
+#[cfg_attr(feature = "typescript-export", ts(export))]
 pub enum ContentType {
     Text = 0,
     Image = 1,
@@ -19,6 +21,8 @@ pub enum ContentType {
 
 /// 数据库 RoomContent 模型
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct RoomContent {
     pub id: Option<i64>,
     pub room_id: i64,

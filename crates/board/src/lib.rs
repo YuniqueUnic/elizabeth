@@ -12,6 +12,7 @@ pub mod repository;
 pub mod route;
 pub mod services;
 pub mod state;
+pub mod types;
 pub mod validation;
 
 use std::net::SocketAddr;

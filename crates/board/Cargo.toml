@@ -22,6 +22,7 @@ completions = ["dep:clap_complete"]
 logging = ["logrs/logging", "dep:log"]
 disable-log = ["logrs/disable-log"]
 structured-log = ["logrs/structured-log"]
+typescript-export = []
 
 [dependencies]
 log = { version = "0.4", optional = true }
@@ -81,6 +82,10 @@ hex = "0.4"
 sanitize-filename = "0.6"
 futures = "0.3"
 
+# TypeScript schema generation
+ts-rs = { version = "8", features = ["serde-compat", "chrono-impl"] }
+schemars = { version = "0.8", features = ["chrono"] }
+
 [dev-dependencies]
 tower = "0.5"
 serial_test = "3"
@@ -92,3 +97,4 @@ toml = { version = "0.9", features = ["preserve_order"] }
 clap = { version = "4", features = ["derive", "env"] }
 clap_complete = { version = "4" }
 shadow-rs = { version = "1", features = ["no_std"] }
+ts-rs = { version = "8", features = ["serde-compat"] }

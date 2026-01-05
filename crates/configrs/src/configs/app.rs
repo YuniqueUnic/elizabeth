@@ -258,21 +258,21 @@ mod tests {
         assert_eq!(cfg.jwt.refresh_ttl_seconds, 7 * 24 * 60 * 60);
         assert_eq!(cfg.jwt.max_refresh_count, 10);
         assert_eq!(cfg.jwt.cleanup_interval_seconds, 24 * 60 * 60);
-        assert_eq!(cfg.jwt.enable_refresh_token_rotation, true);
+        assert!(cfg.jwt.enable_refresh_token_rotation);
         assert_eq!(cfg.storage.root, "storage/rooms");
         assert_eq!(cfg.room.max_size, 50 * 1024 * 1024);
         assert_eq!(cfg.room.max_times_entered, 100);
         assert_eq!(cfg.upload.reservation_ttl_seconds, 3600);
 
         // Test middleware defaults
-        assert_eq!(cfg.middleware.tracing.enabled, true);
+        assert!(cfg.middleware.tracing.enabled);
         assert_eq!(cfg.middleware.tracing.level, "info");
-        assert_eq!(cfg.middleware.request_id.enabled, true);
+        assert!(cfg.middleware.request_id.enabled);
         assert_eq!(cfg.middleware.request_id.header_name, "X-Request-Id");
-        assert_eq!(cfg.middleware.compression.enabled, false);
-        assert_eq!(cfg.middleware.cors.enabled, false);
-        assert_eq!(cfg.middleware.security.enabled, true);
-        assert_eq!(cfg.middleware.rate_limit.enabled, false);
+        assert!(!cfg.middleware.compression.enabled);
+        assert!(!cfg.middleware.cors.enabled);
+        assert!(cfg.middleware.security.enabled);
+        assert!(!cfg.middleware.rate_limit.enabled);
     }
 
     #[test]

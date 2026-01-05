@@ -29,10 +29,12 @@ pub use upload_reservation::{RoomUploadReservation, UploadFileDescriptor, Upload
 
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema, Default, sqlx::Type,
-)] // 如果使用 sqlx
+)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 #[sqlx(type_name = "INTEGER")]
 #[repr(i64)]
+#[cfg_attr(feature = "typescript-export", ts(export))]
 pub enum RoomStatus {
     #[default]
     Open = 0,
@@ -42,6 +44,8 @@ pub enum RoomStatus {
 
 /// 数据库与 API Room 模型
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct Room {
     pub id: Option<i64>,
     pub name: String,
