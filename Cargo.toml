@@ -6,6 +6,7 @@ license = "BSD-3"
 
 [workspace]
 members = ["crates/*"]
+exclude = ["crates/web"]
 resolver = "3"
 
 

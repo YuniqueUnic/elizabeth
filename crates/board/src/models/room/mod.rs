@@ -59,6 +59,7 @@ pub struct Room {
     pub expire_at: Option<NaiveDateTime>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+    #[cfg_attr(feature = "typescript-export", ts(skip))]
     pub permission: RoomPermission,
 }
 

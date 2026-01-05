@@ -7,7 +7,9 @@ use crate::models::room::row_utils::{read_datetime_from_any, read_optional_datet
 
 /// 上传状态枚举
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Default)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS))]
 #[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "typescript-export", ts(export))]
 pub enum UploadStatus {
     #[default]
     Pending, // 等待上传
@@ -121,6 +123,8 @@ impl<'q> sqlx::Encode<'q, sqlx::Any> for UploadStatus {
 
 /// 客户端上报的文件信息
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct UploadFileDescriptor {
     pub name: String,
     pub size: i64,
@@ -138,6 +142,8 @@ pub struct ChunkedUploadPreparationRequest {
 
 /// 上传预留记录
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct RoomUploadReservation {
     pub id: Option<i64>,
     pub room_id: i64,
