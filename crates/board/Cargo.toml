@@ -39,7 +39,7 @@ clap_complete = { version = "4", optional = true }
 
 tokio = { version = "1", features = ["full"] }
 axum = { version = "0.8", features = ["multipart"] }
-axum_responses = "0.4"
+axum_responses = "0.5"
 tower = "0.5"
 tower-http = { version = "0.6", features = [
     "trace",
