@@ -210,15 +210,13 @@ pub mod http {
             builder = builder.header("content-type", "application/json");
         }
 
-        let request = if let Some(b) = body {
+        if let Some(b) = body {
             builder.body(b).expect("Failed to build request with body")
         } else {
             builder
                 .body(Body::empty())
                 .expect("Failed to build request with empty body")
-        };
-
-        request
+        }
     }
 
     /// 发送请求并返回响应

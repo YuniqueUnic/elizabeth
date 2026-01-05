@@ -110,7 +110,7 @@ async fn test_chunked_upload_complete_workflow() -> Result<()> {
 
     let upload_request = Request::builder()
         .method(Method::POST)
-        .uri(&format!("/api/v1/rooms/{}/uploads/chunks", room_name))
+        .uri(format!("/api/v1/rooms/{}/uploads/chunks", room_name))
         .header(
             "content-type",
             format!("multipart/form-data; boundary={}", boundary),
@@ -201,7 +201,7 @@ async fn test_chunked_upload_error_handling() -> Result<()> {
 
     let upload_request = Request::builder()
         .method(Method::POST)
-        .uri(&format!("/api/v1/rooms/{}/uploads/chunks", room_name))
+        .uri(format!("/api/v1/rooms/{}/uploads/chunks", room_name))
         .header(
             "content-type",
             format!("multipart/form-data; boundary={}", boundary),

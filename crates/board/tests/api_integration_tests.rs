@@ -383,7 +383,7 @@ async fn test_room_token_and_content_flow() -> Result<()> {
     );
     let upload_request = Request::builder()
         .method(Method::POST)
-        .uri(&format!(
+        .uri(format!(
             "/api/v1/rooms/{}/contents?token={}&reservation_id={}",
             room_name, token, reservation_id
         ))

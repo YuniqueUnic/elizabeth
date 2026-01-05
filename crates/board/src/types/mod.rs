@@ -7,8 +7,16 @@
 pub mod export;
 
 // 重新导出所有 API 相关类型，方便前端使用
-pub use crate::models::{
-    ChunkStatus, ChunkUploadRequest, ChunkUploadResponse, ContentType, CreateRefreshTokenRequest,
-    RefreshTokenRequest, RefreshTokenResponse, Room, RoomChunkUpload, RoomContent, RoomPermission,
-    RoomRefreshToken, RoomStatus, RoomToken, UploadFileDescriptor, UploadStatus,
+pub use crate::models::content::{ContentType, RoomContent};
+pub use crate::models::room::{Room, RoomStatus, RoomToken};
+// 注意：RoomPermission 是 bitflags，不支持 TS derive，需要手动在前端定义
+pub use crate::models::room::chunk_upload::{
+    ChunkStatus, ChunkUploadRequest, ChunkUploadResponse, RoomChunkUpload,
+};
+pub use crate::models::room::refresh_token::{
+    CreateRefreshTokenRequest, RefreshTokenRequest, RefreshTokenResponse, RoomRefreshToken,
+    TokenBlacklistEntry,
+};
+pub use crate::models::room::upload_reservation::{
+    RoomUploadReservation, UploadFileDescriptor, UploadStatus,
 };

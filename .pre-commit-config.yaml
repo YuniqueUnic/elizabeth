@@ -57,6 +57,7 @@ repos:
         language: system
         types: [rust]
         pass_filenames: false
+        stages: [push]
 
   # Rust 快速编译检查 - 仅在 push 阶段运行
   - repo: local
