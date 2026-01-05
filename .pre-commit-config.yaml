@@ -43,7 +43,7 @@ repos:
     hooks:
       - id: rustfmt
         name: rustfmt
-        entry: cargo fmt --all -- --check
+        entry: cargo fmt --all
         language: system
         types: [rust]
         pass_filenames: false
@@ -53,7 +53,7 @@ repos:
     hooks:
       - id: clippy
         name: clippy
-        entry: cargo clippy --all-features -- -D warnings
+        entry: cargo clippy --all-features --workspace --all-targets --tests --allow-dirty --fix -- -D warnings
         language: system
         types: [rust]
         pass_filenames: false
@@ -74,7 +74,7 @@ repos:
     hooks:
       - id: cargo-test
         name: cargo test
-        entry: cargo test --all-features
+        entry: cargo test --all-features --all-targets
         language: system
         pass_filenames: false
         stages: [push]

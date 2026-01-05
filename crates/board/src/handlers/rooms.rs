@@ -1,7 +1,6 @@
 use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::response::IntoResponse;
-use axum_responses::http::HttpResponse;
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -233,7 +232,7 @@ pub async fn delete(
     Path(name): Path<String>,
     Query(query): Query<TokenQuery>,
     State(app_state): State<Arc<AppState>>,
-) -> Result<HttpResponse, AppError> {
+) -> Result<String, AppError> {
     // 验证房间标识符（可能是名称或 slug）
     RoomNameValidator::validate_identifier(&name)?;
 
@@ -290,7 +289,7 @@ pub async fn delete(
                 "Room {} deleted successfully with all content cleaned up",
                 name
             );
-            Ok(HttpResponse::Ok().message("Room deleted successfully"))
+            Ok("Room deleted successfully".to_string())
         }
         Ok(false) => Err(AppError::room_not_found(&name)),
         Err(e) => Err(AppError::internal(format!("Failed to delete room: {}", e))),

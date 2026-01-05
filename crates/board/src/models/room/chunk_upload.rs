@@ -7,7 +7,9 @@ use utoipa::ToSchema;
 
 /// 分块状态枚举
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, Default)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS))]
 #[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "typescript-export", ts(export))]
 pub enum ChunkStatus {
     #[default]
     Pending, // 等待上传
@@ -118,6 +120,8 @@ impl<'q> sqlx::Encode<'q, sqlx::Any> for ChunkStatus {
 
 /// 房间分块上传记录
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct RoomChunkUpload {
     pub id: Option<i64>,
     pub reservation_id: i64,        // 关联的预留 ID
@@ -131,6 +135,8 @@ pub struct RoomChunkUpload {
 
 /// 分块上传请求
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct ChunkUploadRequest {
     pub chunk_index: i64,
     pub chunk_hash: String,
@@ -138,6 +144,8 @@ pub struct ChunkUploadRequest {
 
 /// 分块上传响应
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct ChunkUploadResponse {
     pub chunk_index: i64,
     pub upload_status: ChunkStatus,

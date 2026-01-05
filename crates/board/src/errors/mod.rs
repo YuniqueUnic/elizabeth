@@ -241,32 +241,6 @@ impl IntoResponse for AppError {
     }
 }
 
-/// 为 axum_responses::http::HttpResponse 实现转换
-impl From<AppError> for axum_responses::http::HttpResponse {
-    fn from(err: AppError) -> Self {
-        let status = err.status_code();
-        let error_response = json!({
-            "error": {
-                "code": err.error_code(),
-                "message": err.to_string(),
-                "status": status.as_u16()
-            }
-        });
-
-        match status.as_u16() {
-            400 => axum_responses::http::HttpResponse::BadRequest().message(err.to_string()),
-            401 => axum_responses::http::HttpResponse::Unauthorized().message(err.to_string()),
-            403 => axum_responses::http::HttpResponse::Forbidden().message(err.to_string()),
-            404 => axum_responses::http::HttpResponse::NotFound().message(err.to_string()),
-            409 => axum_responses::http::HttpResponse::Conflict().message(err.to_string()),
-            500 => {
-                axum_responses::http::HttpResponse::InternalServerError().message(err.to_string())
-            }
-            _ => axum_responses::http::HttpResponse::InternalServerError().message(err.to_string()),
-        }
-    }
-}
-
 /// 从 anyhow::Error 转换为 AppError
 impl From<anyhow::Error> for AppError {
     fn from(err: anyhow::Error) -> Self {

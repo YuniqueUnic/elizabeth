@@ -2,10 +2,10 @@ use std::sync::Arc;
 
 use axum::Json;
 use axum::extract::{Path, State};
-use axum_responses::http::HttpResponse;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+use crate::errors::{AppError, AppResult};
 use crate::models::{RefreshTokenRequest, RefreshTokenResponse};
 use crate::repository::room_repository::IRoomRepository;
 use crate::services::refresh_token_service::RefreshTokenService;
@@ -29,7 +29,7 @@ use crate::state::AppState;
 pub async fn refresh_token(
     State(app_state): State<Arc<AppState>>,
     Json(request): Json<RefreshTokenRequest>,
-) -> Result<Json<RefreshTokenResponse>, HttpResponse> {
+) -> AppResult<Json<RefreshTokenResponse>> {
     let refresh_service = app_state.refresh_token_service();
 
     let response = refresh_service
@@ -37,7 +37,7 @@ pub async fn refresh_token(
         .await
         .map_err(|e| {
             logrs::error!("Failed to refresh access token: {}", e);
-            HttpResponse::Unauthorized().message("Invalid or expired refresh token")
+            AppError::authentication("Invalid or expired refresh token")
         })?;
 
     Ok(Json(response))
@@ -61,14 +61,14 @@ pub async fn refresh_token(
 pub async fn revoke_token(
     State(app_state): State<Arc<AppState>>,
     Json(request): Json<LogoutRequest>,
-) -> Result<HttpResponse, HttpResponse> {
+) -> AppResult<String> {
     let refresh_service = app_state.refresh_token_service();
 
     // 首先验证令牌有效性
     let claims = app_state
         .token_service()
         .decode(&request.access_token)
-        .map_err(|_| HttpResponse::Unauthorized().message("Invalid access token"))?;
+        .map_err(|_| AppError::authentication("Invalid access token"))?;
 
     // 撤销令牌
     refresh_service
@@ -76,10 +76,10 @@ pub async fn revoke_token(
         .await
         .map_err(|e| {
             logrs::error!("Failed to revoke token: {}", e);
-            HttpResponse::InternalServerError().message("Failed to revoke token")
+            AppError::internal("Failed to revoke token")
         })?;
 
-    Ok(HttpResponse::Ok().message("Token revoked successfully"))
+    Ok("Token revoked successfully".to_string())
 }
 
 /// 登出请求结构
@@ -103,12 +103,12 @@ pub struct LogoutRequest {
 )]
 pub async fn cleanup_expired_tokens(
     State(app_state): State<Arc<AppState>>,
-) -> Result<Json<CleanupResponse>, HttpResponse> {
+) -> AppResult<Json<CleanupResponse>> {
     let refresh_service = app_state.refresh_token_service();
 
     let cleaned_count = refresh_service.cleanup_expired().await.map_err(|e| {
         logrs::error!("Failed to cleanup expired tokens: {}", e);
-        HttpResponse::InternalServerError().message("Failed to cleanup expired tokens")
+        AppError::internal("Failed to cleanup expired tokens")
     })?;
 
     Ok(Json(CleanupResponse {
