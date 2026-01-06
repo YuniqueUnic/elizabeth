@@ -17,8 +17,7 @@ use tokio::sync::mpsc;
 #[tokio::test]
 async fn test_connection_manager_new() {
     let _manager = ConnectionManager::new();
-    // 测试创建成功
-    assert!(true, "ConnectionManager::new() should succeed");
+    // 测试创建成功 - 如果能创建到这行，说明没有 panic
 }
 
 #[tokio::test]

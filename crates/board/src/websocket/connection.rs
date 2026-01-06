@@ -95,10 +95,10 @@ impl ConnectionManager {
         let mut metrics = self.metrics.write().await;
 
         // 检查房间连接数限制
-        if let Some(existing_connections) = subscribers.get(&room_name) {
-            if existing_connections.len() >= self.config.max_connections_per_room {
-                return Err(format!("房间 {} 连接数已达上限", room_name).into());
-            }
+        if let Some(existing_connections) = subscribers.get(&room_name)
+            && existing_connections.len() >= self.config.max_connections_per_room
+        {
+            return Err(format!("房间 {} 连接数已达上限", room_name).into());
         }
 
         // 添加到房间订阅者列表

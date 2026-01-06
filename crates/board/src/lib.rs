@@ -82,6 +82,12 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
             host: cfg.app.server.addr.clone(),
             port: cfg.app.server.port,
         },
+        database: crate::config::DatabaseConfig {
+            url: cfg.app.database.url.clone(),
+            max_connections: cfg.app.database.max_connections.unwrap_or(10),
+            min_connections: cfg.app.database.min_connections.unwrap_or(1),
+            journal_mode: cfg.app.database.journal_mode.clone(),
+        },
         storage: StorageConfig {
             root: if cfg.app.storage.root.trim().is_empty() {
                 PathBuf::from(DEFAULT_STORAGE_ROOT)

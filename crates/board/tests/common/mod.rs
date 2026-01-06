@@ -86,6 +86,7 @@ pub async fn create_test_app() -> Result<(axum::Router, Arc<board::db::DbPool>)>
     // 创建测试配置
     let app_config = AppConfig {
         server: ServerConfig::default(),
+        database: board::config::DatabaseConfig::default(),
         storage: StorageConfig {
             root: std::env::temp_dir(),
             upload_reservation_ttl_seconds: DEFAULT_UPLOAD_RESERVATION_TTL_SECONDS,
