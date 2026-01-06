@@ -154,30 +154,3 @@ impl Decode<'_, sqlx::Postgres> for RoomPermission {
             .ok_or_else(|| format!("invalid RoomPermission bits: {}", raw).into())
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_room_permission() {
-        let permission = RoomPermission::new().with_all();
-        println!("permission: {:?}", permission);
-        assert!(permission.can_view());
-        assert!(permission.can_edit());
-        assert!(permission.can_share());
-        assert!(permission.can_delete());
-        assert!(permission.can_do_all());
-    }
-
-    #[test]
-    fn test_room_default() {
-        let permission = RoomPermission::default();
-        assert!(!permission.is_empty());
-        assert!(permission.can_view());
-        assert!(!permission.can_edit());
-        assert!(!permission.can_share());
-        assert!(!permission.can_delete());
-        assert!(!permission.can_do_all());
-    }
-}

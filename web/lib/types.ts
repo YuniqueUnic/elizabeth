@@ -5,6 +5,12 @@
 // To regenerate: cargo build --package elizabeth-board --features typescript-export
 export * from '../types/generated/api.types';
 
+import type {
+  ContentType as GeneratedContentType,
+  Room as GeneratedRoom,
+  RoomContent as GeneratedRoomContent,
+} from '../types/generated/api.types';
+
 // ============================================================================
 // Backend API Types (aligned with Rust backend)
 // ============================================================================
@@ -22,11 +28,7 @@ export enum ContentType {
 /**
  * Backend ContentType response format (tagged enum)
  */
-export type BackendContentType =
-  | { type: "text" }
-  | { type: "image" }
-  | { type: "file" }
-  | { type: "url" };
+export type BackendContentType = GeneratedContentType;
 
 /**
  * Convert backend ContentType to frontend enum
@@ -64,36 +66,12 @@ export type RoomPermission = "read" | "edit" | "share" | "delete";
 /**
  * Backend Room response
  */
-export interface BackendRoom {
-  id?: number;
-  name: string;
-  slug: string;
-  password: string | null; // Room password (null if no password)
-  permission: number | string; // Bitflags: 1=read, 2=edit, 4=share, 8=delete, or string representation
-  status: "open" | "lock" | "close";
-  max_size: number;
-  current_size: number;
-  max_times_entered: number;
-  current_times_entered: number;
-  created_at: string;
-  updated_at: string;
-  expire_at: string | null;
-}
+export type BackendRoom = GeneratedRoom;
 
 /**
  * Backend RoomContent response
  */
-export interface BackendRoomContent {
-  id: number;
-  content_type: BackendContentType | number;
-  file_name?: string;
-  url?: string | null;
-  size?: number;
-  mime_type?: string;
-  text?: string;
-  created_at: string;
-  updated_at: string;
-}
+export type BackendRoomContent = GeneratedRoomContent;
 
 /**
  * Upload preparation response

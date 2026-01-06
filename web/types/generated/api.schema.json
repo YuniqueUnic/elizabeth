@@ -1,0 +1,705 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ApiSchema",
+  "type": "object",
+  "properties": {
+    "chunk_status": {
+      "$ref": "#/$defs/ChunkStatus"
+    },
+    "chunk_upload_request": {
+      "$ref": "#/$defs/ChunkUploadRequest"
+    },
+    "chunk_upload_response": {
+      "$ref": "#/$defs/ChunkUploadResponse"
+    },
+    "content_type": {
+      "$ref": "#/$defs/ContentType"
+    },
+    "create_refresh_token_request": {
+      "$ref": "#/$defs/CreateRefreshTokenRequest"
+    },
+    "refresh_token_request": {
+      "$ref": "#/$defs/RefreshTokenRequest"
+    },
+    "refresh_token_response": {
+      "$ref": "#/$defs/RefreshTokenResponse"
+    },
+    "room": {
+      "$ref": "#/$defs/Room"
+    },
+    "room_chunk_upload": {
+      "$ref": "#/$defs/RoomChunkUpload"
+    },
+    "room_content": {
+      "$ref": "#/$defs/RoomContent"
+    },
+    "room_refresh_token": {
+      "$ref": "#/$defs/RoomRefreshToken"
+    },
+    "room_status": {
+      "$ref": "#/$defs/RoomStatus"
+    },
+    "room_upload_reservation": {
+      "$ref": "#/$defs/RoomUploadReservation"
+    },
+    "token_blacklist_entry": {
+      "$ref": "#/$defs/TokenBlacklistEntry"
+    },
+    "upload_file_descriptor": {
+      "$ref": "#/$defs/UploadFileDescriptor"
+    },
+    "upload_status": {
+      "$ref": "#/$defs/UploadStatus"
+    }
+  },
+  "required": [
+    "room",
+    "room_status",
+    "room_content",
+    "content_type",
+    "chunk_status",
+    "room_chunk_upload",
+    "chunk_upload_request",
+    "chunk_upload_response",
+    "create_refresh_token_request",
+    "refresh_token_request",
+    "refresh_token_response",
+    "room_refresh_token",
+    "token_blacklist_entry",
+    "room_upload_reservation",
+    "upload_file_descriptor",
+    "upload_status"
+  ],
+  "$defs": {
+    "ChunkStatus": {
+      "description": "分块状态枚举",
+      "type": "string",
+      "enum": [
+        "pending",
+        "uploaded",
+        "verified",
+        "failed"
+      ]
+    },
+    "ChunkUploadRequest": {
+      "description": "分块上传请求",
+      "type": "object",
+      "properties": {
+        "chunk_hash": {
+          "type": "string"
+        },
+        "chunk_index": {
+          "type": "integer",
+          "format": "int64"
+        }
+      },
+      "required": [
+        "chunk_index",
+        "chunk_hash"
+      ]
+    },
+    "ChunkUploadResponse": {
+      "description": "分块上传响应",
+      "type": "object",
+      "properties": {
+        "chunk_index": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "total_chunks": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "upload_progress": {
+          "type": "number",
+          "format": "double"
+        },
+        "upload_status": {
+          "$ref": "#/$defs/ChunkStatus"
+        },
+        "uploaded_chunks": {
+          "type": "integer",
+          "format": "int64"
+        }
+      },
+      "required": [
+        "chunk_index",
+        "upload_status",
+        "uploaded_chunks",
+        "total_chunks",
+        "upload_progress"
+      ]
+    },
+    "ContentType": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "text"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "image"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "file"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "url"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "CreateRefreshTokenRequest": {
+      "description": "用于创建刷新令牌的请求结构",
+      "type": "object",
+      "properties": {
+        "access_token_jti": {
+          "description": "访问令牌 JTI",
+          "type": "string"
+        },
+        "expires_at": {
+          "description": "过期时间",
+          "type": "string",
+          "format": "partial-date-time"
+        },
+        "refresh_token": {
+          "description": "刷新令牌（明文，仅用于创建时哈希）",
+          "type": "string"
+        },
+        "room_id": {
+          "description": "房间 ID",
+          "type": "integer",
+          "format": "int64"
+        }
+      },
+      "required": [
+        "room_id",
+        "access_token_jti",
+        "refresh_token",
+        "expires_at"
+      ]
+    },
+    "RefreshTokenRequest": {
+      "description": "刷新令牌验证请求结构",
+      "type": "object",
+      "properties": {
+        "refresh_token": {
+          "description": "刷新令牌（明文）",
+          "type": "string"
+        }
+      },
+      "required": [
+        "refresh_token"
+      ]
+    },
+    "RefreshTokenResponse": {
+      "description": "刷新令牌验证响应结构",
+      "type": "object",
+      "properties": {
+        "access_token": {
+          "description": "新的访问令牌",
+          "type": "string"
+        },
+        "access_token_expires_at": {
+          "description": "访问令牌过期时间",
+          "type": "string",
+          "format": "partial-date-time"
+        },
+        "refresh_token": {
+          "description": "新的刷新令牌",
+          "type": "string"
+        },
+        "refresh_token_expires_at": {
+          "description": "刷新令牌过期时间",
+          "type": "string",
+          "format": "partial-date-time"
+        }
+      },
+      "required": [
+        "access_token",
+        "refresh_token",
+        "access_token_expires_at",
+        "refresh_token_expires_at"
+      ]
+    },
+    "Room": {
+      "description": "数据库与 API Room 模型",
+      "type": "object",
+      "properties": {
+        "created_at": {
+          "type": "string",
+          "format": "partial-date-time"
+        },
+        "current_size": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "current_times_entered": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "expire_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "partial-date-time"
+        },
+        "id": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "max_size": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "max_times_entered": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "name": {
+          "type": "string"
+        },
+        "password": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "permission": {
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "slug": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/RoomStatus"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "partial-date-time"
+        }
+      },
+      "required": [
+        "name",
+        "slug",
+        "status",
+        "max_size",
+        "current_size",
+        "max_times_entered",
+        "current_times_entered",
+        "created_at",
+        "updated_at",
+        "permission"
+      ]
+    },
+    "RoomChunkUpload": {
+      "description": "房间分块上传记录",
+      "type": "object",
+      "properties": {
+        "chunk_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "chunk_index": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "chunk_size": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "partial-date-time"
+        },
+        "id": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "reservation_id": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "partial-date-time"
+        },
+        "upload_status": {
+          "$ref": "#/$defs/ChunkStatus"
+        }
+      },
+      "required": [
+        "reservation_id",
+        "chunk_index",
+        "chunk_size",
+        "upload_status",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    "RoomContent": {
+      "description": "数据库 RoomContent 模型",
+      "type": "object",
+      "properties": {
+        "content_type": {
+          "$ref": "#/$defs/ContentType"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "partial-date-time"
+        },
+        "file_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "mime_type": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "room_id": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "size": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "text": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "partial-date-time"
+        },
+        "url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "room_id",
+        "content_type",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    "RoomRefreshToken": {
+      "description": "房间刷新令牌数据模型\n用于存储和管理 JWT 刷新令牌的信息",
+      "type": "object",
+      "properties": {
+        "access_token_jti": {
+          "description": "关联的访问令牌 JTI",
+          "type": "string"
+        },
+        "created_at": {
+          "description": "创建时间",
+          "type": "string",
+          "format": "partial-date-time"
+        },
+        "expires_at": {
+          "description": "刷新令牌过期时间",
+          "type": "string",
+          "format": "partial-date-time"
+        },
+        "id": {
+          "description": "主键 ID",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "is_revoked": {
+          "description": "是否已撤销",
+          "type": "boolean"
+        },
+        "last_used_at": {
+          "description": "最后使用时间",
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "partial-date-time"
+        },
+        "room_id": {
+          "description": "关联的房间 ID",
+          "type": "integer",
+          "format": "int64"
+        },
+        "token_hash": {
+          "description": "刷新令牌的 SHA-256 哈希值（不存储明文）",
+          "type": "string"
+        }
+      },
+      "required": [
+        "room_id",
+        "access_token_jti",
+        "token_hash",
+        "expires_at",
+        "created_at",
+        "is_revoked"
+      ]
+    },
+    "RoomStatus": {
+      "type": "string",
+      "enum": [
+        "open",
+        "lock",
+        "close"
+      ]
+    },
+    "RoomUploadReservation": {
+      "description": "上传预留记录",
+      "type": "object",
+      "properties": {
+        "chunk_size": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "chunked_upload": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "consumed_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "partial-date-time"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "partial-date-time"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "partial-date-time"
+        },
+        "file_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "file_manifest": {
+          "type": "string"
+        },
+        "id": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "reserved_at": {
+          "type": "string",
+          "format": "partial-date-time"
+        },
+        "reserved_size": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "room_id": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "token_jti": {
+          "type": "string"
+        },
+        "total_chunks": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "partial-date-time"
+        },
+        "upload_status": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UploadStatus"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "uploaded_chunks": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        }
+      },
+      "required": [
+        "room_id",
+        "token_jti",
+        "file_manifest",
+        "reserved_size",
+        "reserved_at",
+        "expires_at",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    "TokenBlacklistEntry": {
+      "description": "令牌黑名单条目结构",
+      "type": "object",
+      "properties": {
+        "created_at": {
+          "description": "创建时间",
+          "type": "string",
+          "format": "partial-date-time"
+        },
+        "expires_at": {
+          "description": "过期时间（黑名单记录的过期时间）",
+          "type": "string",
+          "format": "partial-date-time"
+        },
+        "id": {
+          "description": "主键 ID",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "jti": {
+          "description": "令牌 JTI",
+          "type": "string"
+        }
+      },
+      "required": [
+        "jti",
+        "expires_at",
+        "created_at"
+      ]
+    },
+    "UploadFileDescriptor": {
+      "description": "客户端上报的文件信息",
+      "type": "object",
+      "properties": {
+        "chunk_size": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int32"
+        },
+        "file_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mime": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "size": {
+          "type": "integer",
+          "format": "int64"
+        }
+      },
+      "required": [
+        "name",
+        "size"
+      ]
+    },
+    "UploadStatus": {
+      "description": "上传状态枚举",
+      "type": "string",
+      "enum": [
+        "pending",
+        "uploading",
+        "completed",
+        "failed",
+        "expired"
+      ]
+    }
+  }
+}

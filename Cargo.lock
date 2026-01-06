@@ -811,6 +811,7 @@ dependencies = [
  "chrono",
  "clap",
  "clap_complete",
+ "elizabeth-board-protocol",
  "elizabeth-configrs",
  "elizabeth-logrs",
  "futures",
@@ -823,7 +824,6 @@ dependencies = [
  "opendal",
  "regex",
  "sanitize-filename",
- "schemars",
  "serde",
  "serde_json",
  "serial_test",
@@ -838,11 +838,26 @@ dependencies = [
  "tower",
  "tower-http",
  "tower_governor",
- "ts-rs",
  "utoipa",
  "utoipa-axum",
  "utoipa-scalar",
  "uuid",
+]
+
+[[package]]
+name = "elizabeth-board-protocol"
+version = "0.3.0"
+dependencies = [
+ "bitflags",
+ "bon",
+ "chrono",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "ts-rs",
+ "utoipa",
 ]
 
 [[package]]

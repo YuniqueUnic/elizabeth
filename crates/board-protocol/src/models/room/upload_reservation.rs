@@ -7,7 +7,7 @@ use crate::models::room::row_utils::{read_datetime_from_any, read_optional_datet
 
 /// 上传状态枚举
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Default)]
-#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
 #[serde(rename_all = "lowercase")]
 #[cfg_attr(feature = "typescript-export", ts(export))]
 pub enum UploadStatus {
@@ -123,10 +123,11 @@ impl<'q> sqlx::Encode<'q, sqlx::Any> for UploadStatus {
 
 /// 客户端上报的文件信息
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
 #[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct UploadFileDescriptor {
     pub name: String,
+    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
     pub size: i64,
     pub mime: Option<String>,
     // 分块上传相关字段
@@ -142,13 +143,16 @@ pub struct ChunkedUploadPreparationRequest {
 
 /// 上传预留记录
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
 #[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct RoomUploadReservation {
+    #[cfg_attr(feature = "typescript-export", ts(type = "number | null"))]
     pub id: Option<i64>,
+    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
     pub room_id: i64,
     pub token_jti: String,
     pub file_manifest: String,
+    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
     pub reserved_size: i64,
     pub reserved_at: NaiveDateTime,
     pub expires_at: NaiveDateTime,
@@ -157,11 +161,14 @@ pub struct RoomUploadReservation {
     pub updated_at: NaiveDateTime,
 
     // 分块上传相关字段
-    pub chunked_upload: Option<bool>,        // 是否为分块上传
-    pub total_chunks: Option<i64>,           // 总分块数
-    pub uploaded_chunks: Option<i64>,        // 已上传分块数
-    pub file_hash: Option<String>,           // 文件完整哈希
-    pub chunk_size: Option<i64>,             // 分块大小
+    pub chunked_upload: Option<bool>, // 是否为分块上传
+    #[cfg_attr(feature = "typescript-export", ts(type = "number | null"))]
+    pub total_chunks: Option<i64>, // 总分块数
+    #[cfg_attr(feature = "typescript-export", ts(type = "number | null"))]
+    pub uploaded_chunks: Option<i64>, // 已上传分块数
+    pub file_hash: Option<String>,    // 文件完整哈希
+    #[cfg_attr(feature = "typescript-export", ts(type = "number | null"))]
+    pub chunk_size: Option<i64>, // 分块大小
     pub upload_status: Option<UploadStatus>, // 上传状态
 }
 

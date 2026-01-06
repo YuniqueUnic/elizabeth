@@ -7,16 +7,16 @@
 //! # Example
 //!
 //! ```rust,no_run
-//! use crate::storage::{StorageConfig, StorageType, OpendalBackend};
+//! use board::storage::{OpendalBackend, StorageBackend, StorageConfig, StorageType};
 //!
-//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! # async fn example() -> board::storage::StorageResult<()> {
 //! let config = StorageConfig {
 //!     storage_type: StorageType::Fs,
 //!     root: "/tmp/storage".to_string(),
 //!     s3_config: None,
 //! };
 //!
-//! let backend = OpendalBackend::new(config).await?;
+//! let backend = OpendalBackend::new(config)?;
 //! backend.put("test.txt", b"Hello".to_vec()).await?;
 //! # Ok(())
 //! # }
