@@ -6,6 +6,7 @@ pub mod errors;
 mod handlers;
 mod init;
 pub mod middleware;
+pub use board_protocol::dto;
 pub use board_protocol::models;
 pub mod permissions;
 pub mod repository;

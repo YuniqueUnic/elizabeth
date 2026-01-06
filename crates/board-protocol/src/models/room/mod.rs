@@ -15,11 +15,7 @@ pub mod row_utils;
 pub mod token;
 pub mod upload_reservation;
 
-pub use chunk_upload::{
-    ChunkStatus, ChunkStatusInfo, ChunkUploadRequest, ChunkUploadResponse,
-    ChunkedUploadStatusResponse, FileMergeRequest, FileMergeResponse, MergedFileInfo,
-    RoomChunkUpload,
-};
+pub use chunk_upload::{ChunkStatus, RoomChunkUpload};
 pub use refresh_token::{
     CreateRefreshTokenRequest, RefreshTokenRequest, RefreshTokenResponse, RoomRefreshToken,
     TokenBlacklistEntry,

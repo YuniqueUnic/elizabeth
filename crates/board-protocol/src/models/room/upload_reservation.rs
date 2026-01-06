@@ -129,16 +129,13 @@ pub struct UploadFileDescriptor {
     pub name: String,
     #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
     pub size: i64,
+    #[cfg_attr(feature = "typescript-export", ts(optional))]
     pub mime: Option<String>,
     // 分块上传相关字段
+    #[cfg_attr(feature = "typescript-export", ts(optional))]
     pub chunk_size: Option<i32>,
+    #[cfg_attr(feature = "typescript-export", ts(optional))]
     pub file_hash: Option<String>,
-}
-
-/// 分块上传预留请求
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct ChunkedUploadPreparationRequest {
-    pub files: Vec<UploadFileDescriptor>,
 }
 
 /// 上传预留记录

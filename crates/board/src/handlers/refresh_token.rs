@@ -2,9 +2,8 @@ use std::sync::Arc;
 
 use axum::Json;
 use axum::extract::{Path, State};
-use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 
+use crate::dto::auth::{CleanupResponse, LogoutRequest};
 use crate::errors::{AppError, AppResult};
 use crate::models::{RefreshTokenRequest, RefreshTokenResponse};
 use crate::repository::room_repository::IRoomRepository;
@@ -82,13 +81,6 @@ pub async fn revoke_token(
     Ok("Token revoked successfully".to_string())
 }
 
-/// 登出请求结构
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct LogoutRequest {
-    /// 访问令牌
-    pub access_token: String,
-}
-
 /// 清理过期令牌
 ///
 /// 清理过期的刷新令牌和黑名单记录（管理员功能）
@@ -115,15 +107,6 @@ pub async fn cleanup_expired_tokens(
         cleaned_records: cleaned_count,
         message: "Cleanup completed successfully".to_string(),
     }))
-}
-
-/// 清理响应结构
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct CleanupResponse {
-    /// 清理的记录数量
-    pub cleaned_records: u64,
-    /// 操作结果消息
-    pub message: String,
 }
 
 #[cfg(test)]

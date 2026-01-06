@@ -150,6 +150,12 @@ fn generate_frontend_bindings() -> anyhow::Result<()> {
     // 通知 cargo 在以下文件变化时重新运行
     println!("cargo:rerun-if-changed=../board-protocol/src/constants.rs");
     println!("cargo:rerun-if-changed=../board-protocol/src/codegen.rs");
+    println!("cargo:rerun-if-changed=../board-protocol/src/dto/mod.rs");
+    println!("cargo:rerun-if-changed=../board-protocol/src/dto/token.rs");
+    println!("cargo:rerun-if-changed=../board-protocol/src/dto/rooms.rs");
+    println!("cargo:rerun-if-changed=../board-protocol/src/dto/content.rs");
+    println!("cargo:rerun-if-changed=../board-protocol/src/dto/chunked_upload.rs");
+    println!("cargo:rerun-if-changed=../board-protocol/src/dto/auth.rs");
     println!("cargo:rerun-if-changed=../board-protocol/src/models/mod.rs");
     println!("cargo:rerun-if-changed=../board-protocol/src/models/room/mod.rs");
     println!("cargo:rerun-if-changed=../board-protocol/src/models/room/content.rs");
