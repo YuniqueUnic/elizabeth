@@ -8,7 +8,10 @@ export * from '../types/generated/api.types';
 import type {
   ContentType as GeneratedContentType,
   Room as GeneratedRoom,
-  RoomContent as GeneratedRoomContent,
+  RoomContentView as GeneratedRoomContentView,
+  IssueTokenResponse as GeneratedIssueTokenResponse,
+  UploadPreparationResponse as GeneratedUploadPreparationResponse,
+  ValidateTokenResponse as GeneratedValidateTokenResponse,
 } from '../types/generated/api.types';
 
 // ============================================================================
@@ -71,58 +74,22 @@ export type BackendRoom = GeneratedRoom;
 /**
  * Backend RoomContent response
  */
-export type BackendRoomContent = GeneratedRoomContent;
+export type BackendRoomContent = GeneratedRoomContentView;
 
 /**
  * Upload preparation response
  */
-export interface UploadPreparationResponse {
-  reservation_id: number;
-  reserved_size: number;
-  expires_at: string;
-  current_size: number;
-  remaining_size: number;
-  max_size: number;
-}
+export type UploadPreparationResponse = GeneratedUploadPreparationResponse;
 
 /**
- * Backend Token response
+ * Backend Token response (issue token)
  */
-export interface BackendTokenResponse {
-  token: string;
-  claims: {
-    sub: string;
-    room_id: number;
-    room_name: string;
-    permission: number;
-    max_size: number;
-    exp: number;
-    iat: number;
-    jti: string;
-    token_type: "access" | "refresh";
-    refresh_jti?: string;
-  };
-  expires_at: string;
-  refresh_token?: string;
-  refresh_token_expires_at?: string;
-}
+export type BackendTokenResponse = GeneratedIssueTokenResponse;
 
 /**
  * Backend Token validation response
  */
-export interface BackendTokenValidation {
-  claims: {
-    sub: string;
-    room_id: number;
-    room_name: string;
-    permission: number;
-    max_size: number;
-    exp: number;
-    iat: number;
-    jti: string;
-    token_type: "access" | "refresh";
-  };
-}
+export type BackendTokenValidation = GeneratedValidateTokenResponse;
 
 // ============================================================================
 // Frontend Types

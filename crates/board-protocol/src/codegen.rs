@@ -4,14 +4,6 @@ use std::path::Path;
 use ts_rs::TS;
 
 #[cfg(feature = "typescript-export")]
-use crate::models::content::{ContentType, RoomContent};
-#[cfg(feature = "typescript-export")]
-use crate::models::{
-    ChunkStatus, CreateRefreshTokenRequest, RefreshTokenRequest, RefreshTokenResponse, Room,
-    RoomChunkUpload, RoomRefreshToken, RoomStatus, RoomUploadReservation, TokenBlacklistEntry,
-    UploadFileDescriptor, UploadStatus,
-};
-#[cfg(feature = "typescript-export")]
 use crate::dto::{
     ChunkStatusInfo, ChunkUploadRequest, ChunkUploadResponse, ChunkedUploadPreparationRequest,
     ChunkedUploadPreparationResponse, CleanupResponse, CreateMessageRequest, CreateMessageResponse,
@@ -22,6 +14,14 @@ use crate::dto::{
     UpdateRoomSettingsRequest, UploadContentResponse, UploadPreparationRequest,
     UploadPreparationResponse, UploadStatusQuery, UploadStatusResponse, ValidateTokenRequest,
     ValidateTokenResponse,
+};
+#[cfg(feature = "typescript-export")]
+use crate::models::content::{ContentType, RoomContent};
+#[cfg(feature = "typescript-export")]
+use crate::models::{
+    ChunkStatus, CreateRefreshTokenRequest, RefreshTokenRequest, RefreshTokenResponse, Room,
+    RoomChunkUpload, RoomRefreshToken, RoomStatus, RoomUploadReservation, TokenBlacklistEntry,
+    UploadFileDescriptor, UploadStatus,
 };
 
 #[cfg(feature = "typescript-export")]
