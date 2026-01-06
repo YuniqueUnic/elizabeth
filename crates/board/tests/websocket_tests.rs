@@ -5,9 +5,7 @@
 use board::models::room::content::{ContentType, RoomContent};
 use board::websocket::broadcaster::Broadcaster;
 use board::websocket::connection::ConnectionManager;
-use board::websocket::types::{
-    RoomInfo, WsMessage, WsMessageType, WsError,
-};
+use board::websocket::types::{RoomInfo, WsError, WsMessage, WsMessageType};
 use chrono::Utc;
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -83,7 +81,11 @@ async fn test_disconnect() {
     let result = manager.broadcast_to_room(&room_name, message).await;
 
     assert!(result.is_ok(), "broadcast_to_room should succeed");
-    assert_eq!(result.unwrap(), 0, "should broadcast to 0 connections after disconnect");
+    assert_eq!(
+        result.unwrap(),
+        0,
+        "should broadcast to 0 connections after disconnect"
+    );
 }
 
 #[tokio::test]
@@ -285,9 +287,15 @@ async fn test_ws_message_with_payload() {
     assert!(json.is_ok(), "should serialize message with payload");
 
     let deserialized: Result<WsMessage, _> = serde_json::from_str(&json.unwrap());
-    assert!(deserialized.is_ok(), "should deserialize message with payload");
+    assert!(
+        deserialized.is_ok(),
+        "should deserialize message with payload"
+    );
     let msg = deserialized.unwrap();
-    assert!(msg.payload.is_some(), "deserialized message should have payload");
+    assert!(
+        msg.payload.is_some(),
+        "deserialized message should have payload"
+    );
 }
 
 #[tokio::test]
@@ -316,7 +324,10 @@ async fn test_room_info_serialization() {
 async fn test_ws_error_display() {
     let error = WsError::InvalidToken("bad token".to_string());
     let display = format!("{}", error);
-    assert!(display.contains("Invalid token"), "error display should contain type");
+    assert!(
+        display.contains("Invalid token"),
+        "error display should contain type"
+    );
 }
 
 #[tokio::test]
@@ -345,7 +356,7 @@ async fn test_ws_message_error() {
     let message = WsMessage::error("test error");
     assert_eq!(message.message_type, WsMessageType::Error);
     assert!(message.payload.is_some());
-    
+
     if let Some(payload) = message.payload {
         let json = serde_json::to_string(&payload).unwrap();
         assert!(json.contains("error"), "payload should contain error field");

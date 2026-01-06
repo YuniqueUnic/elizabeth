@@ -665,7 +665,11 @@ pub async fn delete_contents(
                 .broadcast_content_deleted(&room_name_clone, *content_id)
                 .await
             {
-                log::warn!("Failed to broadcast content deleted event for {}: {}", content_id, e);
+                log::warn!(
+                    "Failed to broadcast content deleted event for {}: {}",
+                    content_id,
+                    e
+                );
             }
         }
     });

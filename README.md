@@ -35,6 +35,11 @@ Elizabeth 是一个现代化的、以房间为中心的文件分享与协作平�
 ### 协作功能
 
 - ✅ **实时协作**: 支持 Markdown 的消息系统
+- ✅ **WebSocket 实时通信**: 房间内实时事件推送
+  - 内容创建/更新/删除实时同步
+  - 用户加入/离开通知
+  - 自动重连机制
+  - 心跳检测
 - ✅ **消息编辑**: 可编辑历史消息
 - ✅ **文件共享**: 房间内成员共享文件
 - ✅ **权限管理**: 细粒度的权限控制
@@ -57,6 +62,8 @@ Elizabeth 是一个现代化的、以房间为中心的文件分享与协作平�
 - **Tokio**: 异步运行时
 - **Serde**: 序列化/反序列化
 - **Utoipa**: OpenAPI 文档自动生成
+- **tokio-tungstenite**: WebSocket 支持
+- **ts-rs**: Rust 到 TypeScript 类型自动生成
 - **JWT**: 基于 JSON Web Token 的认证
 
 ### 前端 (Next.js)
@@ -316,6 +323,15 @@ docker-compose down         # 停止服务
 - `POST /api/v1/refresh-token` - 刷新访问令牌
 - `DELETE /api/v1/refresh-token` - 撤销刷新令牌
 - `DELETE /api/v1/refresh-token/cleanup` - 清理过期令牌
+
+#### WebSocket
+
+- `WS /api/v1/ws` - WebSocket 连接端点
+  - 支持房间级别的事件订阅
+  - 实时推送房间内容变更
+  - 用户在线状态通知
+
+详细的 WebSocket 使用指南请参考：[WebSocket 指南](./docs/WEBSOCKET_GUIDE.md)
 
 ### OpenAPI 文档
 
@@ -727,6 +743,8 @@ just docker-backup    # 备份数据
 ### 开发文档
 
 - [`README.md`](./README.md) - 项目主文档（本文档）
+- [`IMPLEMENTATION_GUIDE.md`](./docs/IMPLEMENTATION_GUIDE.md) - API Schema 和 WebSocket 实施指南
+- [`WEBSOCKET_GUIDE.md`](./docs/WEBSOCKET_GUIDE.md) - WebSocket 使用指南
 - [`web/README.md`](./web/README.md) - 前端项目文档
 - [`CHANGELOG.md`](./CHANGELOG.md) - 项目变更日志
 

@@ -18,22 +18,13 @@ pub struct MessageHandler {
 impl MessageHandler {
     /// 创建新的消息处理器
     pub fn new(app_state: AppState, manager: Arc<ConnectionManager>) -> Self {
-        Self {
-            app_state,
-            manager,
-        }
+        Self { app_state, manager }
     }
 
     /// 处理连接请求
-    pub async fn handle_connect(
-        &self,
-        request: ConnectRequest,
-    ) -> Result<ConnectAck, WsError> {
+    pub async fn handle_connect(&self, request: ConnectRequest) -> Result<ConnectAck, WsError> {
         // TODO: 验证 token 并返回连接确认
-        log::info!(
-            "Connect request from room_name: {}",
-            request.room_name
-        );
+        log::info!("Connect request from room_name: {}", request.room_name);
 
         // 临时返回成功响应
         Ok(ConnectAck {
@@ -49,17 +40,17 @@ impl MessageHandler {
     }
 
     /// 处理消息
-    pub async fn handle_message(
-        &self,
-        message: WsMessage,
-    ) -> Result<WsMessage, WsError> {
+    pub async fn handle_message(&self, message: WsMessage) -> Result<WsMessage, WsError> {
         match message.message_type {
             WsMessageType::Connect => {
                 // 解析连接请求
                 if let Some(payload) = message.payload {
                     if let Ok(request) = serde_json::from_value::<ConnectRequest>(payload) {
                         let ack = self.handle_connect(request).await?;
-                        Ok(WsMessage::new(WsMessageType::ConnectAck, Some(serde_json::to_value(ack)?)))
+                        Ok(WsMessage::new(
+                            WsMessageType::ConnectAck,
+                            Some(serde_json::to_value(ack)?),
+                        ))
                     } else {
                         Ok(WsMessage::error("Invalid connect request"))
                     }
