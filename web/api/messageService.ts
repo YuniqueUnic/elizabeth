@@ -5,42 +5,20 @@
  * Messages are stored as RoomContent with content_type = ContentType.Text (0)
  */
 
-import { API_BASE_URL, API_ENDPOINTS } from "../lib/config";
+import { API_ENDPOINTS } from "../lib/config";
 import { api } from "../lib/utils/api";
 import { getValidToken } from "./authService";
 import type {
-  backendContentToMessage,
   BackendRoomContent,
-  ContentType,
+  CreateMessageResponse,
   Message,
+  UpdateContentResponse,
 } from "../lib/types";
 import {
   backendContentToMessage as convertMessage,
   ContentType as CT,
   parseContentType,
 } from "../lib/types";
-
-// ============================================================================
-// Message Request/Response Types
-// ============================================================================
-
-export interface PrepareUploadRequest {
-  files: Array<{
-    name: string;
-    size: number;
-    mime?: string;
-    file_hash?: string;
-  }>;
-}
-
-export interface PrepareUploadResponse {
-  reservation_id: number;
-  reserved_size: number;
-  expires_at: string;
-  current_size: number;
-  remaining_size: number;
-  max_size: number;
-}
 
 // ============================================================================
 // Message Functions
@@ -115,7 +93,7 @@ export async function postMessage(
       ? content
       : String(content);
 
-    const response = await api.post<{ message: BackendRoomContent }>(
+    const response = await api.post<CreateMessageResponse>(
       API_ENDPOINTS.content.messages(roomName),
       { text: contentString },
       { token: authToken },
@@ -220,7 +198,7 @@ export async function updateMessage(
   }
 
   // Call the update_content API
-  const response = await api.put<{ updated: BackendRoomContent }>(
+  const response = await api.put<UpdateContentResponse>(
     API_ENDPOINTS.content.byId(roomName, messageId),
     { text: content },
     { token: authToken },

@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use utoipa::ToSchema;
 
-use crate::models::content::{ContentType, RoomContent};
 use crate::models::UploadFileDescriptor;
+use crate::models::content::{ContentType, RoomContent};
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
@@ -133,4 +133,3 @@ pub struct CreateMessageRequest {
 pub struct CreateMessageResponse {
     pub message: RoomContentView,
 }
-

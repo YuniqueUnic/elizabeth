@@ -8,6 +8,14 @@
 import { API_ENDPOINTS } from "../lib/config";
 import { api } from "../lib/utils/api";
 import { getValidToken } from "./authService";
+import type {
+  ChunkedUploadPreparationRequest,
+  ChunkedUploadPreparationResponse,
+  FileMergeRequest,
+  FileMergeResponse,
+  UploadStatusQuery,
+  UploadStatusResponse,
+} from "../lib/types";
 
 // ============================================================================
 // Chunked Upload Types
@@ -31,50 +39,10 @@ export interface ChunkUploadProgress {
   estimatedTimeRemaining: number; // seconds
 }
 
-export interface ChunkedUploadRequest {
-  files: Array<{
-    name: string;
-    size: number;
-    mime?: string;
-    file_hash?: string;
-    chunk_size?: number;
-  }>;
-}
-
-export interface ChunkedUploadPreparationResponse {
-  reservation_id: string;
-  upload_token: string;
-  expires_at: string;
-  files: Array<{
-    name: string;
-    size: number;
-    mime: string;
-    chunk_size: number;
-    total_chunks: number;
-    file_hash?: string;
-  }>;
-}
-
 export interface ChunkData {
   chunk_index: number;
   data: ArrayBuffer;
   is_last: boolean;
-}
-
-export interface FileMergeRequest {
-  reservation_id: string;
-  final_hash: string;
-}
-
-export interface FileMergeResponse {
-  reservation_id: string;
-  merged_files: Array<{
-    file_name: string;
-    file_size: number;
-    file_hash: string;
-    content_id: number;
-  }>;
-  message: string;
 }
 
 // ============================================================================
@@ -114,7 +82,7 @@ export async function uploadFileChunked(
   let bytesUploaded = 0;
 
   // Step 1: Prepare chunked upload
-  const prepareRequest: ChunkedUploadRequest = {
+  const prepareRequest: ChunkedUploadPreparationRequest = {
     files: [{
       name: file.name,
       size: file.size,
@@ -269,26 +237,20 @@ async function uploadChunk(
  */
 export async function getChunkedUploadStatus(
   roomName: string,
-  uploadId: string,
+  query: UploadStatusQuery,
   token?: string,
-): Promise<{
-  upload_id: string;
-  file_name: string;
-  file_size: number;
-  uploaded_chunks: number;
-  total_chunks: number;
-  status: "preparing" | "uploading" | "completed" | "failed";
-  created_at: string;
-  updated_at: string;
-}> {
+): Promise<UploadStatusResponse> {
   const authToken = token || await getValidToken(roomName);
   if (!authToken) {
     throw new Error("Authentication required to check upload status");
   }
 
-  return api.get(
-    `${API_ENDPOINTS.chunkedUpload.status(roomName)}?upload_id=${uploadId}`,
-    undefined,
+  return api.get<UploadStatusResponse>(
+    API_ENDPOINTS.chunkedUpload.status(roomName),
+    {
+      upload_token: query.upload_token,
+      reservation_id: query.reservation_id,
+    },
     { token: authToken },
   );
 }
@@ -303,22 +265,17 @@ export async function getChunkedUploadStatus(
  */
 export async function completeChunkedUpload(
   roomName: string,
-  uploadId: string,
+  request: FileMergeRequest,
   token?: string,
-): Promise<{
-  content_id: string;
-  file_name: string;
-  file_size: number;
-  upload_url: string;
-}> {
+): Promise<FileMergeResponse> {
   const authToken = token || await getValidToken(roomName);
   if (!authToken) {
     throw new Error("Authentication required to complete upload");
   }
 
-  return api.post(
-    `${API_ENDPOINTS.chunkedUpload.complete(roomName)}?upload_id=${uploadId}`,
-    {},
+  return api.post<FileMergeResponse>(
+    API_ENDPOINTS.chunkedUpload.complete(roomName),
+    request,
     { token: authToken },
   );
 }

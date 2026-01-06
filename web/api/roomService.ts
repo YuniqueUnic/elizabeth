@@ -9,24 +9,17 @@
  */
 
 import { API_ENDPOINTS } from "../lib/config";
-import {
-  api,
-  clearRoomToken,
-  getRoomToken,
-  isTokenExpired,
-  setRoomToken,
-} from "../lib/utils/api";
+import { api, clearRoomToken } from "../lib/utils/api";
 import { getValidToken } from "./authService";
-import type { BackendRoom, RoomDetails, RoomPermission } from "../lib/types";
+import type {
+  BackendRoom,
+  RoomDetails,
+  RoomPermission,
+  RoomTokenView,
+  UpdateRoomPermissionRequest,
+  UpdateRoomSettingsRequest,
+} from "../lib/types";
 import { backendRoomToRoomDetails as convertRoom } from "../lib/types";
-
-// ============================================================================
-// Room Request/Response Types
-// ============================================================================
-
-export interface CreateRoomRequest {
-  password?: string;
-}
 
 // ============================================================================
 // Room Management Functions
@@ -104,6 +97,7 @@ export async function deleteRoom(
 
   await api.delete(
     API_ENDPOINTS.rooms.base(roomName),
+    undefined,
     { token: authToken },
   );
 }
@@ -129,13 +123,14 @@ export async function updateRoomPermissions(
 
   // Backend expects { edit: bool, share: bool, delete: bool }
   // VIEW_ONLY (read) is always included by default
+  const payload: UpdateRoomPermissionRequest = {
+    edit: permissions.includes("edit"),
+    share: permissions.includes("share"),
+    delete: permissions.includes("delete"),
+  };
   const room = await api.post<BackendRoom>(
     API_ENDPOINTS.rooms.permissions(roomName),
-    {
-      edit: permissions.includes("edit"),
-      share: permissions.includes("share"),
-      delete: permissions.includes("delete"),
-    },
+    payload,
     { token: authToken },
   );
   return convertRoom(room);
@@ -166,12 +161,7 @@ export async function updateRoomSettings(
   }
 
   // Convert frontend settings to backend format
-  const payload: {
-    password?: string | null;
-    expire_at?: string | null;
-    max_times_entered?: number;
-    max_size?: number;
-  } = {};
+  const payload: UpdateRoomSettingsRequest = {};
 
   if (settings.password !== undefined) {
     // ✅ FIX: Send empty string to clear password, backend expects empty string not null
@@ -213,14 +203,14 @@ export async function updateRoomSettings(
 export async function listRoomTokens(
   roomName: string,
   token?: string,
-): Promise<any[]> {
+): Promise<RoomTokenView[]> {
   const authToken = token || await getValidToken(roomName);
 
   if (!authToken) {
     throw new Error("Authentication required to list tokens");
   }
 
-  return api.get(
+  return api.get<RoomTokenView[]>(
     API_ENDPOINTS.rooms.tokens(roomName),
     undefined,
     { token: authToken },

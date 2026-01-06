@@ -11,33 +11,19 @@
 import { API_ENDPOINTS } from "../lib/config";
 import { api } from "../lib/utils/api";
 import { getAccessToken, getValidToken } from "./authService";
-import type { BackendRoomContent, FileItem } from "../lib/types";
+import type {
+  BackendRoomContent,
+  FileItem,
+  UpdateContentResponse,
+  UploadContentResponse,
+  UploadPreparationRequest,
+  UploadPreparationResponse,
+} from "../lib/types";
 import {
   backendContentToFileItem as convertFile,
   ContentType as CT,
   parseContentType,
 } from "../lib/types";
-
-// ============================================================================
-// File Request/Response Types
-// ============================================================================
-
-export interface PrepareUploadRequest {
-  files: Array<{
-    name: string;
-    size: number;
-    mime: string;
-  }>;
-}
-
-export interface PrepareUploadResponse {
-  reservation_id: string;
-  reservations: Array<{
-    file_name: string;
-    expected_size: number;
-    mime_type: string;
-  }>;
-}
 
 export interface UploadUrlRequest {
   url: string;
@@ -173,6 +159,9 @@ export async function uploadFile(
     if (!mergedFile) {
       throw new Error("No merged files in response");
     }
+    if (mergedFile.content_id == null) {
+      throw new Error("Merged file missing content_id");
+    }
 
     const timestamp = new Date().toISOString();
     return {
@@ -188,7 +177,7 @@ export async function uploadFile(
     };
   }
 
-  const prepareRequest: PrepareUploadRequest = {
+  const prepareRequest: UploadPreparationRequest = {
     files: [{
       name: file.name,
       size: file.size,
@@ -196,7 +185,7 @@ export async function uploadFile(
     }],
   };
 
-  const prepareResponse = await api.post<PrepareUploadResponse>(
+  const prepareResponse = await api.post<UploadPreparationResponse>(
     API_ENDPOINTS.content.prepare(roomName),
     prepareRequest,
     { token: authToken },
@@ -205,10 +194,8 @@ export async function uploadFile(
   const formData = new FormData();
   formData.append("file", file);
 
-  const uploadOnce = async (reservationId: string) => {
-    const response = await api.post<
-      { uploaded: BackendRoomContent[]; current_size: number }
-    >(
+  const uploadOnce = async (reservationId: number) => {
+    const response = await api.post<UploadContentResponse>(
       `${API_ENDPOINTS.content.base(roomName)}?reservation_id=${reservationId}`,
       formData,
       { token: authToken },
@@ -223,7 +210,7 @@ export async function uploadFile(
     if (err?.code !== 400) {
       throw err;
     }
-    const retryPrepare = await api.post<PrepareUploadResponse>(
+    const retryPrepare = await api.post<UploadPreparationResponse>(
       API_ENDPOINTS.content.prepare(roomName),
       prepareRequest,
       { token: authToken },
@@ -395,7 +382,7 @@ export async function uploadUrl(
   );
 
   // Step 3: Update the content to URL type
-  const updateResponse = await api.put<{ updated: BackendRoomContent }>(
+  const updateResponse = await api.put<UpdateContentResponse>(
     `${API_ENDPOINTS.content.byId(roomName, uploadedContent.id)}`,
     {
       url: data.url,
