@@ -81,8 +81,9 @@ start_frontend() {
         return
     fi
 
+    # For local development, always use localhost regardless of .env file
+    local internal_api_url="http://localhost:4092/api/v1"
     local public_api_url="${MANAGER_NEXT_PUBLIC_API_URL:-${NEXT_PUBLIC_API_URL:-/api/v1}}"
-    local internal_api_url="${MANAGER_INTERNAL_API_URL:-http://localhost:4092/api/v1}"
     local app_url="${MANAGER_NEXT_PUBLIC_APP_URL:-${NEXT_PUBLIC_APP_URL:-http://localhost:4001}}"
 
     echo "Starting frontend..."
