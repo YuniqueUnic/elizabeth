@@ -30,7 +30,6 @@ export function RoomPasswordDialog({
 }: RoomPasswordDialogProps) {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,12 +38,6 @@ export function RoomPasswordDialog({
 
     if (!password.trim()) {
       setError("请输入密码");
-      return;
-    }
-
-    // When password is hidden we require confirmation
-    if (!showPassword && password !== confirmPassword) {
-      setError("两次输入的密码不一致");
       return;
     }
 
@@ -60,7 +53,7 @@ export function RoomPasswordDialog({
   };
 
   const isPasswordValid = password.trim().length > 0;
-  const canSubmit = isPasswordValid && (showPassword || password === confirmPassword);
+  const canSubmit = isPasswordValid;
 
   return (
     <Dialog open={open} onOpenChange={(open) => !open && onCancel()}>
@@ -117,24 +110,6 @@ export function RoomPasswordDialog({
                 </Button>
               </div>
             </div>
-
-            {!showPassword && (
-              <div className="space-y-2">
-                <Label htmlFor="confirm-password">确认密码</Label>
-                <Input
-                  id="confirm-password"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => {
-                    setConfirmPassword(e.target.value);
-                    setError(null);
-                  }}
-                  placeholder="请再次输入密码"
-                  disabled={loading}
-                  className="pr-10"
-                />
-              </div>
-            )}
 
             {error && (
               <Alert variant="destructive">

@@ -15,7 +15,7 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { createRoom } from "@/api/roomService";
 import { getAccessToken } from "@/api/authService";
-import { ArrowRight, Lock, Plus } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, Lock, Plus } from "lucide-react";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 
 export default function HomePage() {
@@ -23,12 +23,27 @@ export default function HomePage() {
   const [mode, setMode] = useState<"home" | "create" | "join">("home");
   const [roomName, setRoomName] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleCreateRoom = async () => {
     if (!roomName.trim()) {
       setError("请输入房间名称");
+      return;
+    }
+
+    // 验证密码：如果输入了密码，必须确认密码一致
+    if (password && password !== confirmPassword) {
+      setError("两次输入的密码不一致");
+      return;
+    }
+
+    // 如果只输入了确认密码而没有输入密码
+    if (!password && confirmPassword) {
+      setError("请先输入密码");
       return;
     }
 
@@ -166,19 +181,79 @@ export default function HomePage() {
                   <span>密码保护（可选）</span>
                 </div>
               </Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && roomName.trim() && !loading) {
-                    handleCreateRoom();
-                  }
-                }}
-                placeholder="留空表示不设置密码"
-                disabled={loading}
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setError(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && roomName.trim() && !loading) {
+                      handleCreateRoom();
+                    }
+                  }}
+                  placeholder="留空表示不设置密码"
+                  disabled={loading}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-0 top-0 h-full"
+                  onClick={() => setShowPassword(!showPassword)}
+                  disabled={loading}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="confirm-password">
+                <div className="flex items-center gap-2">
+                  <Lock className="h-4 w-4" />
+                  <span>确认密码</span>
+                </div>
+              </Label>
+              <div className="relative">
+                <Input
+                  id="confirm-password"
+                  type={showConfirmPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value);
+                    setError(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && roomName.trim() && !loading) {
+                      handleCreateRoom();
+                    }
+                  }}
+                  placeholder={password ? "再次输入密码" : "请先输入密码"}
+                  disabled={loading || !password}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-0 top-0 h-full"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  disabled={loading || !password}
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
             </div>
 
             {error && (
@@ -194,6 +269,9 @@ export default function HomePage() {
                   setMode("home");
                   setRoomName("");
                   setPassword("");
+                  setConfirmPassword("");
+                  setShowPassword(false);
+                  setShowConfirmPassword(false);
                   setError(null);
                 }}
                 disabled={loading}
