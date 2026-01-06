@@ -14,7 +14,6 @@ export * from './Room';
 export * from './RoomStatus';
 export * from './RoomContent';
 export * from './ContentType';
-export * from './RoomToken';
 export * from './ChunkStatus';
 export * from './RoomChunkUpload';
 export * from './ChunkUploadRequest';
