@@ -150,7 +150,6 @@ async fn test_rate_limiting_middleware() -> Result<()> {
 
     // 快速发送多个请求测试限流
     let mut successful_requests = 0;
-    let mut rate_limited_requests = 0;
 
     for i in 0..10 {
         let request = create_http_request(
@@ -159,25 +158,16 @@ async fn test_rate_limiting_middleware() -> Result<()> {
             None,
         );
 
-        match app.clone().oneshot(request).await {
-            Ok(response) => {
-                if response.status() == StatusCode::OK {
-                    successful_requests += 1;
-                } else if response.status() == StatusCode::TOO_MANY_REQUESTS {
-                    rate_limited_requests += 1;
-                }
-            }
-            Err(_) => {
-                // 请求失败，可能是由于限流
-                rate_limited_requests += 1;
-            }
+        let result = app.clone().oneshot(request).await;
+        if matches!(result, Ok(ref resp) if resp.status() == StatusCode::OK) {
+            successful_requests += 1;
         }
     }
 
     // 至少应该有一些请求成功
     assert!(
         successful_requests > 0,
-        "At least some requests should succeed"
+        "At least some requests should succeed, got {successful_requests}"
     );
 
     // 限流可能触发，也可能不触发，取决于配置

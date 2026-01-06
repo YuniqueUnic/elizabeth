@@ -164,6 +164,10 @@ impl RoomContent {
     }
 }
 
+fn string_storage_size(value: &str) -> i64 {
+    value.len() as i64
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -219,11 +223,7 @@ mod tests {
         );
 
         // Calculate UTF-8 byte length
-        let expected = "https://例子。测试/路径".as_bytes().len() as i64;
+        let expected = "https://例子。测试/路径".len() as i64;
         assert_eq!(content.size, Some(expected));
     }
-}
-
-fn string_storage_size(value: &str) -> i64 {
-    value.len() as i64
 }

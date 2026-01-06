@@ -10,7 +10,7 @@
 pub fn export_types() -> String {
     // ts-rs 会自动处理所有带有 #[derive(TS)] 和 #[ts(export)] 的类型
     // 这个函数主要用于文档说明
-    format!("TypeScript types exported via ts-rs")
+    "TypeScript types exported via ts-rs".to_string()
 }
 #[cfg(test)]
 #[cfg(feature = "typescript-export")]
@@ -34,21 +34,21 @@ mod ts_export_tests {
         use crate::models::room::{Room, RoomStatus};
 
         // 导出所有类型到 TypeScript
-        Room::export();
-        RoomStatus::export();
-        ContentType::export();
-        RoomContent::export();
-        ChunkStatus::export();
-        RoomChunkUpload::export();
-        ChunkUploadRequest::export();
-        ChunkUploadResponse::export();
-        CreateRefreshTokenRequest::export();
-        RefreshTokenRequest::export();
-        RefreshTokenResponse::export();
-        RoomRefreshToken::export();
-        TokenBlacklistEntry::export();
-        RoomUploadReservation::export();
-        UploadFileDescriptor::export();
-        UploadStatus::export();
+        let _ = Room::export();
+        let _ = RoomStatus::export();
+        let _ = ContentType::export();
+        let _ = RoomContent::export();
+        let _ = ChunkStatus::export();
+        let _ = RoomChunkUpload::export();
+        let _ = ChunkUploadRequest::export();
+        let _ = ChunkUploadResponse::export();
+        let _ = CreateRefreshTokenRequest::export();
+        let _ = RefreshTokenRequest::export();
+        let _ = RefreshTokenResponse::export();
+        let _ = RoomRefreshToken::export();
+        let _ = TokenBlacklistEntry::export();
+        let _ = RoomUploadReservation::export();
+        let _ = UploadFileDescriptor::export();
+        let _ = UploadStatus::export();
     }
 }
