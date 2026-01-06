@@ -2,7 +2,7 @@
 //!
 //! 提供 WebSocket 服务器功能和路由集成
 
-use axum::extract::{ws::WebSocket, ws::WebSocketUpgrade, State};
+use axum::extract::{State, ws::WebSocket, ws::WebSocketUpgrade};
 use futures::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
 
@@ -23,16 +23,11 @@ impl WsServer {
         State(app_state): State<AppState>,
     ) -> impl axum::response::IntoResponse {
         // 升级连接到 WebSocket
-        ws.on_upgrade(|socket| async move {
-            Self::handle_socket(socket, app_state).await
-        })
+        ws.on_upgrade(|socket| async move { Self::handle_socket(socket, app_state).await })
     }
 
     /// 处理 WebSocket socket
-    async fn handle_socket(
-        socket: WebSocket,
-        app_state: AppState,
-    ) {
+    async fn handle_socket(socket: WebSocket, app_state: AppState) {
         // 分离 socket 为 sink 和 stream
         let (sender, mut receiver) = socket.split();
 

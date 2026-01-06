@@ -2,8 +2,8 @@
 //!
 //! 测试完整的 WebSocket 连接流程、消息发送接收、房间订阅广播、认证流程和错误处理
 
-use board::websocket::connection::ConnectionManager;
 use board::websocket::broadcaster::Broadcaster;
+use board::websocket::connection::ConnectionManager;
 use board::websocket::types::{RoomInfo, WsMessage, WsMessageType};
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -20,30 +20,30 @@ async fn test_complete_websocket_connection_flow() {
     let connection_id = "conn-integration-1".to_string();
     let (tx, mut rx) = mpsc::unbounded_channel::<WsMessage>();
 
-    // 步骤1: 订阅房间
+    // 步骤 1: 订阅房间
     let subscribe_result = manager
         .subscribe_to_room(connection_id.clone(), room_name.clone(), tx)
         .await;
     assert!(subscribe_result.is_ok(), "订阅房间应该成功");
 
-    // 步骤2: 验证连接已建立
+    // 步骤 2: 验证连接已建立
     let message = WsMessage::new(WsMessageType::Ping, None);
     let broadcast_result = manager.broadcast_to_room(&room_name, message).await;
     assert!(broadcast_result.is_ok(), "广播应该成功");
-    assert_eq!(broadcast_result.unwrap(), 1, "应该有1个接收者");
+    assert_eq!(broadcast_result.unwrap(), 1, "应该有 1 个接收者");
 
-    // 步骤3: 接收消息验证
+    // 步骤 3: 接收消息验证
     let received = rx.recv().await;
     assert!(received.is_some(), "应该收到消息");
 
-    // 步骤4: 断开连接
+    // 步骤 4: 断开连接
     manager.disconnect(&connection_id).await;
 
-    // 步骤5: 验证断开后无法接收消息
+    // 步骤 5: 验证断开后无法接收消息
     let message = WsMessage::new(WsMessageType::Pong, None);
     let broadcast_result = manager.broadcast_to_room(&room_name, message).await;
     assert!(broadcast_result.is_ok(), "广播应该成功");
-    assert_eq!(broadcast_result.unwrap(), 0, "应该有0个接收者");
+    assert_eq!(broadcast_result.unwrap(), 0, "应该有 0 个接收者");
 }
 
 // ============================================================================
@@ -78,8 +78,8 @@ async fn test_message_send_and_receive() {
     // 验证两个连接都收到消息
     let msg1 = rx1.recv().await;
     let msg2 = rx2.recv().await;
-    assert!(msg1.is_some(), "连接1应该收到消息");
-    assert!(msg2.is_some(), "连接2应该收到消息");
+    assert!(msg1.is_some(), "连接 1 应该收到消息");
+    assert!(msg2.is_some(), "连接 2 应该收到消息");
     assert_eq!(msg1.unwrap().message_type, WsMessageType::Ping);
     assert_eq!(msg2.unwrap().message_type, WsMessageType::Ping);
 }
@@ -109,7 +109,7 @@ async fn test_room_subscription_and_broadcast() {
         .await
         .unwrap();
 
-    // 向房间1广播
+    // 向房间 1 广播
     let room_info = RoomInfo {
         id: 1,
         name: room1.clone(),
@@ -125,12 +125,17 @@ async fn test_room_subscription_and_broadcast() {
         .await
         .unwrap();
 
-    // 验证只有房间1的连接收到消息
+    // 验证只有房间 1 的连接收到消息
     let msg1 = rx1.recv().await;
-    let msg2 = rx2.recv().await;
 
-    assert!(msg1.is_some(), "房间1的连接应该收到消息");
-    assert!(msg2.is_none(), "房间2的连接不应该收到消息");
+    // 使用 timeout 避免无限等待
+    let msg2 = tokio::time::timeout(std::time::Duration::from_millis(100), rx2.recv()).await;
+
+    assert!(msg1.is_some(), "房间 1 的连接应该收到消息");
+    assert!(
+        msg2.is_err() || msg2.unwrap().is_none(),
+        "房间 2 的连接不应该收到消息"
+    );
     assert_eq!(msg1.unwrap().message_type, WsMessageType::RoomUpdate);
 }
 
@@ -145,9 +150,11 @@ async fn test_authentication_flow() {
 
     // 模拟多个客户端连接
     let clients = vec!["client-1", "client-2", "client-3"];
+    let mut _receivers = Vec::new(); // 保留接收端
 
     for client_id in clients {
-        let (tx, _rx) = mpsc::unbounded_channel::<WsMessage>();
+        let (tx, rx) = mpsc::unbounded_channel::<WsMessage>();
+        _receivers.push(rx); // 保留接收端
         manager
             .subscribe_to_room(client_id.to_string(), room_name.clone(), tx)
             .await
@@ -158,7 +165,7 @@ async fn test_authentication_flow() {
     let message = WsMessage::new(WsMessageType::Pong, None);
     let result = manager.broadcast_to_room(&room_name, message).await;
     assert!(result.is_ok(), "广播应该成功");
-    assert_eq!(result.unwrap(), 3, "应该有3个接收者");
+    assert_eq!(result.unwrap(), 3, "应该有 3 个接收者");
 }
 
 // ============================================================================
@@ -172,14 +179,16 @@ async fn test_error_handling() {
 
     // 测试向不存在的房间广播
     let message = WsMessage::new(WsMessageType::Ping, None);
-    let result = manager.broadcast_to_room("non-existent-room", message).await;
+    let result = manager
+        .broadcast_to_room("non-existent-room", message)
+        .await;
     assert!(result.is_ok(), "向不存在的房间广播不应该报错");
-    assert_eq!(result.unwrap(), 0, "应该有0个接收者");
+    assert_eq!(result.unwrap(), 0, "应该有 0 个接收者");
 
     // 测试断开不存在的连接
-    manager.disconnect("non-existent-conn").await; // 应该不panic
+    manager.disconnect("non-existent-conn").await; // 应该不 panic
 
-    // 测试重复订阅同一个连接ID（实际行为取决于实现）
+    // 测试重复订阅同一个连接 ID（实际行为取决于实现）
     let (tx1, _rx) = mpsc::unbounded_channel::<WsMessage>();
     let (tx2, _rx) = mpsc::unbounded_channel::<WsMessage>();
 
@@ -201,10 +210,12 @@ async fn test_error_handling() {
 async fn test_concurrent_connections() {
     let manager = ConnectionManager::new();
     let room_name = "concurrent-room".to_string();
+    let mut _receivers = Vec::new(); // 保留接收端
 
     // 顺序创建多个连接（简化版，避免并发问题）
     for i in 0..10 {
-        let (tx, _rx) = mpsc::unbounded_channel::<WsMessage>();
+        let (tx, rx) = mpsc::unbounded_channel::<WsMessage>();
+        _receivers.push(rx); // 保留接收端
         let conn_id = format!("conn-concurrent-{}", i);
         manager
             .subscribe_to_room(conn_id, room_name.clone(), tx)
@@ -216,7 +227,7 @@ async fn test_concurrent_connections() {
     let message = WsMessage::new(WsMessageType::Ping, None);
     let result = manager.broadcast_to_room(&room_name, message).await;
     assert!(result.is_ok(), "广播应该成功");
-    assert_eq!(result.unwrap(), 10, "应该有10个接收者");
+    assert_eq!(result.unwrap(), 10, "应该有 10 个接收者");
 }
 
 // ============================================================================
@@ -283,10 +294,10 @@ async fn test_message_serialization_integration() {
     for msg_type in message_types {
         let message = WsMessage::new(msg_type.clone(), None);
         let json = serde_json::to_string(&message);
-        assert!(json.is_ok(), "序列化应该成功: {:?}", msg_type);
+        assert!(json.is_ok(), "序列化应该成功：{:?}", msg_type);
 
         let deserialized: Result<WsMessage, _> = serde_json::from_str(&json.unwrap());
-        assert!(deserialized.is_ok(), "反序列化应该成功: {:?}", msg_type);
+        assert!(deserialized.is_ok(), "反序列化应该成功：{:?}", msg_type);
         let msg = deserialized.unwrap();
         assert_eq!(msg.message_type, msg_type, "消息类型应该匹配");
     }
@@ -300,10 +311,12 @@ async fn test_message_serialization_integration() {
 async fn test_broadcast_performance() {
     let manager = ConnectionManager::new();
     let room_name = "perf-test-room".to_string();
+    let mut _receivers = Vec::new(); // 保留接收端
 
-    // 创建20个连接（简化版）
+    // 创建 20 个连接（简化版）
     for i in 0..20 {
-        let (tx, _rx) = mpsc::unbounded_channel::<WsMessage>();
+        let (tx, rx) = mpsc::unbounded_channel::<WsMessage>();
+        _receivers.push(rx); // 保留接收端
         let conn_id = format!("conn-perf-{}", i);
         manager
             .subscribe_to_room(conn_id, room_name.clone(), tx)
@@ -318,6 +331,6 @@ async fn test_broadcast_performance() {
     let elapsed = start.elapsed();
 
     assert!(result.is_ok(), "广播应该成功");
-    assert_eq!(result.unwrap(), 20, "应该有20个接收者");
-    assert!(elapsed.as_millis() < 100, "广播应该在100ms内完成");
+    assert_eq!(result.unwrap(), 20, "应该有 20 个接收者");
+    assert!(elapsed.as_millis() < 100, "广播应该在 100ms 内完成");
 }
