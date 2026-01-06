@@ -43,6 +43,7 @@ type HandlerResult<T> = Result<Json<T>, AppError>;
 pub struct RoomContentView {
     pub id: i64,
     pub content_type: ContentType,
+    pub text: Option<String>,
     pub file_name: Option<String>,
     pub url: Option<String>,
     pub size: Option<i64>,
@@ -65,6 +66,7 @@ impl From<RoomContent> for RoomContentView {
         Self {
             id: value.id.unwrap_or_default(),
             content_type: value.content_type,
+            text: value.text,
             file_name,
             url: value.url,
             size: value.size,

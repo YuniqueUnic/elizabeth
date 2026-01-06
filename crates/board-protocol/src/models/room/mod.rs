@@ -30,7 +30,7 @@ pub use upload_reservation::{RoomUploadReservation, UploadFileDescriptor, Upload
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema, Default, sqlx::Type,
 )]
-#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[sqlx(type_name = "INTEGER")]
 #[repr(i64)]
@@ -44,22 +44,28 @@ pub enum RoomStatus {
 
 /// 数据库与 API Room 模型
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
 #[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct Room {
+    #[cfg_attr(feature = "typescript-export", ts(type = "number | null"))]
     pub id: Option<i64>,
     pub name: String,
     pub slug: String,
     pub password: Option<String>,
     pub status: RoomStatus,
+    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
     pub max_size: i64,
+    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
     pub current_size: i64,
+    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
     pub max_times_entered: i64,
+    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
     pub current_times_entered: i64,
     pub expire_at: Option<NaiveDateTime>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
-    #[cfg_attr(feature = "typescript-export", ts(skip))]
+    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
+    #[cfg_attr(feature = "typescript-export", schemars(with = "u8"))]
     pub permission: RoomPermission,
 }
 
@@ -146,7 +152,7 @@ impl Room {
             name,
             password,
             status: RoomStatus::default(),
-            max_size: DEFAULT_MAX_ROOM_CONTENT_SIZE, // 10 megabytes
+            max_size: DEFAULT_MAX_ROOM_CONTENT_SIZE, // 50 megabytes
             current_size: 0,
             max_times_entered: DEFAULT_MAX_TIMES_ENTER_ROOM,
             current_times_entered: 0,

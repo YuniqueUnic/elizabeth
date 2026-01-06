@@ -29,6 +29,7 @@ impl Broadcaster {
             "content_id": content.id,
             "room_name": room_name,
             "content_type": content.content_type,
+            "text": content.text,
             "file_name": content.file_name,
             "created_at": content.created_at,
         });
@@ -48,6 +49,7 @@ impl Broadcaster {
             "content_id": content.id,
             "room_name": room_name,
             "content_type": content.content_type,
+            "text": content.text,
             "file_name": content.file_name,
             "updated_at": content.updated_at,
         });

@@ -22,12 +22,14 @@ completions = ["dep:clap_complete"]
 logging = ["logrs/logging", "dep:log"]
 disable-log = ["logrs/disable-log"]
 structured-log = ["logrs/structured-log"]
-typescript-export = []
+typescript-export = ["board_protocol/typescript-export"]
 
 [dependencies]
 log = { version = "0.4", optional = true }
 logrs = { workspace = true, features = ["logging"] }
 configrs = { workspace = true }
+
+board_protocol = { package = "elizabeth-board-protocol", path = "../board-protocol" }
 
 shadow-rs = { version = "1", features = ["no_std"] }
 
@@ -85,10 +87,6 @@ futures = "0.3"
 # Storage abstraction layer
 opendal = { version = "0.55", features = ["services-fs", "services-s3"] }
 
-# TypeScript schema generation
-ts-rs = { version = "11", features = ["serde-compat", "chrono-impl"] }
-schemars = { version = "1", features = ["chrono04"] }
-
 [dev-dependencies]
 tower = "0.5"
 serial_test = "3"
@@ -100,4 +98,4 @@ toml = { version = "0.9", features = ["preserve_order"] }
 clap = { version = "4", features = ["derive", "env"] }
 clap_complete = { version = "4" }
 shadow-rs = { version = "1", features = ["no_std"] }
-ts-rs = { version = "11", features = ["serde-compat"] }
+board_protocol = { package = "elizabeth-board-protocol", path = "../board-protocol", features = ["typescript-export"] }

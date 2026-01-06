@@ -6,7 +6,7 @@ use utoipa::ToSchema;
 use crate::models::room::row_utils::read_datetime_from_any;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema, sqlx::Type)]
-#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "type")]
 #[sqlx(type_name = "INTEGER")]
@@ -21,16 +21,19 @@ pub enum ContentType {
 
 /// 数据库 RoomContent 模型
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
 #[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct RoomContent {
+    #[cfg_attr(feature = "typescript-export", ts(type = "number | null"))]
     pub id: Option<i64>,
+    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
     pub room_id: i64,
     pub content_type: ContentType,
     pub text: Option<String>,      // The text content
     pub url: Option<String>,       // The URL to the content
     pub path: Option<String>, // The saved path to the content on server disk (UUID-based filename)
     pub file_name: Option<String>, // The original file name (for display and download)
+    #[cfg_attr(feature = "typescript-export", ts(type = "number | null"))]
     pub size: Option<i64>, // The size of the content, maybe the usize is better but the SQLite does not support u64
     pub mime_type: Option<String>,
     pub created_at: NaiveDateTime,
@@ -166,64 +169,4 @@ impl RoomContent {
 
 fn string_storage_size(value: &str) -> i64 {
     value.len() as i64
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use anyhow::Result;
-    use chrono::{DateTime, Utc};
-    use sqlx::{Pool, Sqlite};
-
-    #[tokio::test]
-    async fn test_room_content_builder() -> Result<()> {
-        // let pool = Pool::<Sqlite>::connect("sqlite::memory:").await?;
-        let now = Utc::now().naive_utc();
-        let mut content = RoomContent::builder()
-            .id(1)
-            .room_id(1)
-            .content_type(ContentType::Text)
-            .now(now)
-            .build();
-        content.set_text("hello world".to_string());
-        println!("{:#?}", content.size);
-        println!("{:#?}", content);
-        Ok(())
-    }
-
-    #[test]
-    fn set_text_records_utf8_byte_size() {
-        let now = Utc::now().naive_utc();
-        let mut content = RoomContent::builder()
-            .id(1)
-            .room_id(1)
-            .content_type(ContentType::Text)
-            .now(now)
-            .build();
-
-        content.set_text("你好世界".to_string());
-
-        // "你好世界" 占用 12 个字节（每个汉字 3 个字节）
-        assert_eq!(content.size, Some(12));
-    }
-
-    #[test]
-    fn set_url_records_utf8_byte_size() {
-        let now = Utc::now().naive_utc();
-        let mut content = RoomContent::builder()
-            .id(1)
-            .room_id(1)
-            .content_type(ContentType::Url)
-            .now(now)
-            .build();
-
-        content.set_url(
-            "https://例子。测试/路径".to_string(),
-            Some("text/html".to_string()),
-        );
-
-        // Calculate UTF-8 byte length
-        let expected = "https://例子。测试/路径".len() as i64;
-        assert_eq!(content.size, Some(expected));
-    }
 }

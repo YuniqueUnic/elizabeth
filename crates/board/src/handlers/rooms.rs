@@ -98,6 +98,11 @@ pub struct RevokeTokenResponse {
 }
 
 #[derive(Debug, Serialize, ToSchema)]
+pub struct DeleteRoomResponse {
+    pub message: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
 pub struct RoomTokenView {
     pub jti: String,
     pub expires_at: NaiveDateTime,
@@ -221,7 +226,7 @@ pub async fn find(
         ("token" = String, Query, description = "管理员访问令牌，需具备删除权限")
     ),
     responses(
-        (status = 200, description = "房间删除成功"),
+        (status = 200, description = "房间删除成功", body = DeleteRoomResponse),
         (status = 404, description = "房间不存在"),
         (status = 410, description = "房间已过期"),
         (status = 500, description = "服务器内部错误")
@@ -232,7 +237,7 @@ pub async fn delete(
     Path(name): Path<String>,
     Query(query): Query<TokenQuery>,
     State(app_state): State<Arc<AppState>>,
-) -> Result<String, AppError> {
+) -> HandlerResult<DeleteRoomResponse> {
     // 验证房间标识符（可能是名称或 slug）
     RoomNameValidator::validate_identifier(&name)?;
 
@@ -289,7 +294,9 @@ pub async fn delete(
                 "Room {} deleted successfully with all content cleaned up",
                 name
             );
-            Ok("Room deleted successfully".to_string())
+            Ok(Json(DeleteRoomResponse {
+                message: "Room deleted successfully".to_string(),
+            }))
         }
         Ok(false) => Err(AppError::room_not_found(&name)),
         Err(e) => Err(AppError::internal(format!("Failed to delete room: {}", e))),

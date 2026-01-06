@@ -7,7 +7,7 @@ use utoipa::ToSchema;
 
 /// 分块状态枚举
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, Default)]
-#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
 #[serde(rename_all = "lowercase")]
 #[cfg_attr(feature = "typescript-export", ts(export))]
 pub enum ChunkStatus {
@@ -120,13 +120,17 @@ impl<'q> sqlx::Encode<'q, sqlx::Any> for ChunkStatus {
 
 /// 房间分块上传记录
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
 #[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct RoomChunkUpload {
+    #[cfg_attr(feature = "typescript-export", ts(type = "number | null"))]
     pub id: Option<i64>,
-    pub reservation_id: i64,        // 关联的预留 ID
-    pub chunk_index: i64,           // 分块索引（从 0 开始）
-    pub chunk_size: i64,            // 分块大小
+    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
+    pub reservation_id: i64, // 关联的预留 ID
+    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
+    pub chunk_index: i64, // 分块索引（从 0 开始）
+    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
+    pub chunk_size: i64, // 分块大小
     pub chunk_hash: Option<String>, // 分块哈希值
     pub upload_status: ChunkStatus, // 分块状态
     pub created_at: NaiveDateTime,
@@ -135,21 +139,25 @@ pub struct RoomChunkUpload {
 
 /// 分块上传请求
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
 #[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct ChunkUploadRequest {
+    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
     pub chunk_index: i64,
     pub chunk_hash: String,
 }
 
 /// 分块上传响应
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
 #[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct ChunkUploadResponse {
+    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
     pub chunk_index: i64,
     pub upload_status: ChunkStatus,
+    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
     pub uploaded_chunks: i64,
+    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
     pub total_chunks: i64,
     pub upload_progress: f64,
 }

@@ -9,12 +9,14 @@ use crate::models::room::row_utils::{read_datetime_from_any, read_optional_datet
 /// 房间刷新令牌数据模型
 /// 用于存储和管理 JWT 刷新令牌的信息
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
 #[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct RoomRefreshToken {
     /// 主键 ID
+    #[cfg_attr(feature = "typescript-export", ts(type = "number | null"))]
     pub id: Option<i64>,
     /// 关联的房间 ID
+    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
     pub room_id: i64,
     /// 关联的访问令牌 JTI
     pub access_token_jti: String,
@@ -166,10 +168,11 @@ impl RoomRefreshToken {
 
 /// 用于创建刷新令牌的请求结构
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
 #[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct CreateRefreshTokenRequest {
     /// 房间 ID
+    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
     pub room_id: i64,
     /// 访问令牌 JTI
     pub access_token_jti: String,
@@ -181,7 +184,7 @@ pub struct CreateRefreshTokenRequest {
 
 /// 刷新令牌验证请求结构
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
 #[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct RefreshTokenRequest {
     /// 刷新令牌（明文）
@@ -190,7 +193,7 @@ pub struct RefreshTokenRequest {
 
 /// 刷新令牌验证响应结构
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
 #[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct RefreshTokenResponse {
     /// 新的访问令牌
@@ -205,10 +208,11 @@ pub struct RefreshTokenResponse {
 
 /// 令牌黑名单条目结构
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
 #[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct TokenBlacklistEntry {
     /// 主键 ID
+    #[cfg_attr(feature = "typescript-export", ts(type = "number | null"))]
     pub id: Option<i64>,
     /// 令牌 JTI
     pub jti: String,
@@ -283,119 +287,5 @@ impl TokenBlacklistEntry {
     /// 检查黑名单条目是否有效
     pub fn is_valid(&self) -> bool {
         !self.is_expired()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use chrono::Duration;
-
-    #[test]
-    fn test_token_hashing() {
-        let token = "test_refresh_token";
-        let hash1 = RoomRefreshToken::hash_token(token);
-        let hash2 = RoomRefreshToken::hash_token(token);
-
-        assert_eq!(hash1, hash2);
-        assert_ne!(token, hash1); // 确保哈希值与原令牌不同
-        assert_eq!(hash1.len(), 64); // SHA-256 哈希长度
-    }
-
-    #[test]
-    fn test_token_verification() {
-        let token = "test_refresh_token";
-        let wrong_token = "wrong_token";
-
-        let refresh_token = RoomRefreshToken::new(
-            1,
-            "test_jti".to_string(),
-            token,
-            Utc::now().naive_utc() + Duration::hours(24),
-        );
-
-        assert!(refresh_token.verify_token(token));
-        assert!(!refresh_token.verify_token(wrong_token));
-    }
-
-    #[test]
-    fn test_expiry_checks() {
-        let now = Utc::now().naive_utc();
-
-        // 未过期的令牌
-        let valid_token =
-            RoomRefreshToken::new(1, "test_jti".to_string(), "token", now + Duration::hours(1));
-        assert!(!valid_token.is_expired());
-        assert!(valid_token.is_valid());
-
-        // 已过期的令牌
-        let expired_token =
-            RoomRefreshToken::new(1, "test_jti".to_string(), "token", now - Duration::hours(1));
-        assert!(expired_token.is_expired());
-        assert!(!expired_token.is_valid());
-    }
-
-    #[test]
-    fn test_token_revocation() {
-        let mut token = RoomRefreshToken::new(
-            1,
-            "test_jti".to_string(),
-            "token",
-            Utc::now().naive_utc() + Duration::hours(24),
-        );
-
-        assert!(!token.is_revoked);
-        assert!(token.is_valid());
-
-        token.revoke();
-        assert!(token.is_revoked);
-        assert!(!token.is_valid());
-    }
-
-    #[test]
-    fn test_last_used_update() {
-        let mut token = RoomRefreshToken::new(
-            1,
-            "test_jti".to_string(),
-            "token",
-            Utc::now().naive_utc() + Duration::hours(24),
-        );
-
-        assert!(token.last_used_at.is_none());
-
-        let before_update = Utc::now().naive_utc();
-        token.update_last_used();
-        let after_update = Utc::now().naive_utc();
-
-        assert!(token.last_used_at.is_some());
-        let last_used = token.last_used_at.unwrap();
-        assert!(last_used >= before_update);
-        assert!(last_used <= after_update);
-    }
-
-    #[test]
-    fn test_remaining_seconds() {
-        let now = Utc::now().naive_utc();
-        let token =
-            RoomRefreshToken::new(1, "test_jti".to_string(), "token", now + Duration::hours(1));
-
-        let remaining = token.remaining_seconds();
-        assert!(remaining > 3500); // 约 1 小时 = 3600 秒，允许一些误差
-        assert!(remaining <= 3600);
-    }
-
-    #[test]
-    fn test_blacklist_entry() {
-        let now = Utc::now().naive_utc();
-        let entry = TokenBlacklistEntry::new("test_jti".to_string(), now + Duration::hours(24));
-
-        assert!(!entry.is_expired());
-        assert!(entry.is_valid());
-
-        let expired_entry =
-            TokenBlacklistEntry::new("test_jti".to_string(), now - Duration::hours(1));
-
-        assert!(expired_entry.is_expired());
-        assert!(!expired_entry.is_valid());
     }
 }

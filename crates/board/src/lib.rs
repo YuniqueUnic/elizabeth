@@ -6,14 +6,13 @@ pub mod errors;
 mod handlers;
 mod init;
 pub mod middleware;
-pub mod models;
+pub use board_protocol::models;
 pub mod permissions;
 pub mod repository;
 pub mod route;
 pub mod services;
 pub mod state;
 pub mod storage;
-pub mod types;
 pub mod validation;
 pub mod websocket;
 
