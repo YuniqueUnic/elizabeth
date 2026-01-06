@@ -2,9 +2,9 @@
 import type { ChunkStatus } from "./ChunkStatus";
 
 /**
- * 单个分块上传响应
+ * 单个分块状态信息
  */
-export type ChunkUploadResponse = {
+export type ChunkStatusInfo = {
 /**
  * 分块索引
  */
@@ -24,4 +24,4 @@ upload_status: ChunkStatus,
 /**
  * 上传时间
  */
-uploaded_at: string, };
+uploaded_at: string | null, };
