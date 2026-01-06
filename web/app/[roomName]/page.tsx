@@ -28,6 +28,7 @@ export default function RoomPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [needsPassword, setNeedsPassword] = useState(false);
+  const [tokenReady, setTokenReady] = useState(false);
 
   useEffect(() => {
     let isCancelled = false;
@@ -41,6 +42,7 @@ export default function RoomPage() {
       setLoading(true);
       setError(null);
       setNeedsPassword(false);
+      setTokenReady(false);
 
       // This logic runs every time the `roomName` in the URL changes.
       // 1. Set the global room identifier.
@@ -56,6 +58,7 @@ export default function RoomPage() {
         );
         if (!isCancelled) {
           setLoading(false);
+          setTokenReady(true);
         }
         return;
       }
@@ -76,6 +79,9 @@ export default function RoomPage() {
         } else if (!hasValidToken(roomName)) {
           // No password, so we should be able to get a token directly.
           await getAccessToken(roomName);
+          if (!isCancelled) {
+            setTokenReady(true);
+          }
         }
       } catch (err: any) {
         if (!isCancelled) {
@@ -104,6 +110,7 @@ export default function RoomPage() {
       setError(null);
       await getAccessToken(roomName, password);
       setNeedsPassword(false);
+      setTokenReady(true);
     } catch (err: any) {
       console.error("Password submission failed:", err);
       if (
@@ -161,6 +168,18 @@ export default function RoomPage() {
   // If we are not loading, have no errors, and don't need a password,
   // we can assume the room is accessible and render the main layout.
   // The token check in `initRoom` or a successful password submission ensures this.
+  // Wait for tokenReady to be true before rendering child components.
+  if (!tokenReady) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <LoadingSpinner className="h-12 w-12" />
+          <p className="text-muted-foreground">正在准备房间访问...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background">
       <TopBar />

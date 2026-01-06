@@ -48,7 +48,7 @@ export interface PrepareUploadResponse {
 
 /**
  * Get all messages for a room
- * Filters RoomContent for text-only content (content_type = 0 or text files)
+ * Filters RoomContent for text-only content (content_type = 0)
  *
  * @param roomName - The name of the room
  * @param token - Optional token for authentication
@@ -71,39 +71,13 @@ export async function getMessages(
       { token: authToken },
     );
 
+    // Filter only ContentType.Text (content_type = 0)
     const filteredContents = contents.filter((content) => {
       const contentType = parseContentType(content.content_type);
-      return contentType === CT.Text ||
-        (contentType === CT.File &&
-          content.mime_type === "text/plain" &&
-          content.file_name?.includes("message.txt"));
+      return contentType === CT.Text;
     });
 
-    const messagesWithContent = await Promise.all(
-      filteredContents.map(async (content) => {
-        // If content text is missing and it's a text file, fetch it
-        if (!content.text && content.mime_type === "text/plain") {
-          try {
-            const response = await fetch(
-              `${API_BASE_URL}${
-                API_ENDPOINTS.content.byId(roomName, String(content.id))
-              }?token=${authToken}`,
-              { headers: { "Accept": "text/plain" } },
-            );
-            if (response.ok) {
-              const fileContent = await response.text();
-              return { ...content, text: fileContent };
-            }
-            return { ...content, text: "[Failed to load content]" };
-          } catch (error) {
-            return { ...content, text: "[Failed to load content]" };
-          }
-        }
-        return content;
-      }),
-    );
-
-    return messagesWithContent
+    return filteredContents
       .map(convertMessage)
       .sort((a, b) =>
         new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
@@ -117,9 +91,8 @@ export async function getMessages(
 /**
  * Send a message to a room
  *
- * This uses a two-step process:
- * 1. Prepare upload to reserve space
- * 2. Upload the message as a text file using FormData
+ * Uses the new message creation API (POST /api/v1/rooms/{name}/messages)
+ * Messages are stored as ContentType.Text in the database
  *
  * @param roomName - The name of the room
  * @param content - The message content
@@ -138,48 +111,22 @@ export async function postMessage(
       throw new Error("Authentication required to send messages");
     }
 
-    // Step 1: Prepare upload
-    const textBytes = new TextEncoder().encode(content).length;
-    const prepareRequest: PrepareUploadRequest = {
-      files: [{
-        name: "message.txt",
-        size: textBytes,
-        mime: "text/plain",
-      }],
-    };
-
-    const prepareResponse = await api.post<PrepareUploadResponse>(
-      API_ENDPOINTS.content.prepare(roomName),
-      prepareRequest,
-      { token: authToken },
-    );
-
-    // Step 2: Upload content as FormData (required by backend)
     const contentString = typeof content === "string"
       ? content
       : String(content);
-    const formData = new FormData();
-    const blob = new Blob([contentString], { type: "text/plain" });
-    formData.append("file", blob, "message.txt");
 
-    const response = await api.post<{ uploaded: BackendRoomContent[] }>(
-      `${
-        API_ENDPOINTS.content.base(roomName)
-      }?reservation_id=${prepareResponse.reservation_id}`,
-      formData,
+    const response = await api.post<{ message: BackendRoomContent }>(
+      API_ENDPOINTS.content.messages(roomName),
+      { text: contentString },
       { token: authToken },
     );
 
-    const uploadedContents = response.uploaded;
-
-    if (uploadedContents.length === 0) {
-      throw new Error("Failed to upload message");
-    }
+    const message = response.message;
 
     return {
-      id: String(uploadedContents[0].id),
+      id: String(message.id),
       content: contentString,
-      timestamp: uploadedContents[0].created_at,
+      timestamp: message.created_at,
       isOwn: true,
     };
   } catch (error) {
