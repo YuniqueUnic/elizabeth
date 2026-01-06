@@ -451,6 +451,19 @@ pub async fn issue_token(
         (None, None)
     };
 
+    // 广播用户加入事件
+    let broadcaster = app_state.broadcaster.clone();
+    let room_name_clone = name.clone();
+    let user_id = claims.jti.clone();
+    tokio::spawn(async move {
+        if let Err(e) = broadcaster
+            .broadcast_user_joined(&room_name_clone, &user_id)
+            .await
+        {
+            log::warn!("Failed to broadcast user joined event: {}", e);
+        }
+    });
+
     Ok(Json(IssueTokenResponse {
         token,
         expires_at: claims.expires_at(),
@@ -575,6 +588,27 @@ pub async fn update_permissions(
         .update(&room)
         .await
         .map_err(|e| AppError::internal(format!("Failed to update room: {e}")))?;
+
+    // 广播房间更新事件
+    let broadcaster = app_state.broadcaster.clone();
+    let room_info = crate::websocket::types::RoomInfo {
+        id: updated_room.id.unwrap_or(0),
+        name: updated_room.name.clone(),
+        slug: updated_room.slug.clone(),
+        max_size: updated_room.max_size,
+        current_size: updated_room.current_size,
+        max_times_entered: updated_room.max_times_entered,
+        current_times_entered: updated_room.current_times_entered,
+    };
+    let room_name_clone = name.clone();
+    tokio::spawn(async move {
+        if let Err(e) = broadcaster
+            .broadcast_room_update(&room_name_clone, &room_info)
+            .await
+        {
+            log::warn!("Failed to broadcast room update event: {}", e);
+        }
+    });
 
     Ok(Json(updated_room))
 }
@@ -743,6 +777,27 @@ pub async fn update_room_settings(
         .update(&room)
         .await
         .map_err(|e| AppError::internal(format!("Failed to update room settings: {e}")))?;
+
+    // 广播房间更新事件
+    let broadcaster = app_state.broadcaster.clone();
+    let room_info = crate::websocket::types::RoomInfo {
+        id: updated_room.id.unwrap_or(0),
+        name: updated_room.name.clone(),
+        slug: updated_room.slug.clone(),
+        max_size: updated_room.max_size,
+        current_size: updated_room.current_size,
+        max_times_entered: updated_room.max_times_entered,
+        current_times_entered: updated_room.current_times_entered,
+    };
+    let room_name_clone = name.clone();
+    tokio::spawn(async move {
+        if let Err(e) = broadcaster
+            .broadcast_room_update(&room_name_clone, &room_info)
+            .await
+        {
+            log::warn!("Failed to broadcast room update event: {}", e);
+        }
+    });
 
     Ok(Json(updated_room))
 }

@@ -525,7 +525,19 @@ pub async fn upload_contents(
         actual_total = actual_total
             .checked_add(temp.size)
             .ok_or_else(|| AppError::internal("Total size overflow"))?;
-        uploaded.push(RoomContentView::from(saved));
+        uploaded.push(RoomContentView::from(saved.clone()));
+
+        // 广播内容创建事件
+        let broadcaster = app_state.broadcaster.clone();
+        let room_name_clone = name.clone();
+        tokio::spawn(async move {
+            if let Err(e) = broadcaster
+                .broadcast_content_created(&room_name_clone, &saved)
+                .await
+            {
+                log::warn!("Failed to broadcast content created event: {}", e);
+            }
+        });
     }
 
     let actual_manifest: Vec<UploadFileDescriptor> = staged
@@ -642,8 +654,24 @@ pub async fn delete_contents(
             .map_err(|e| AppError::internal(format!("Update room failed: {e}")))?;
     }
 
+    let ids_for_response = ids.clone();
+
+    // 广播内容删除事件
+    let broadcaster = app_state.broadcaster.clone();
+    let room_name_clone = name.clone();
+    tokio::spawn(async move {
+        for content_id in &ids {
+            if let Err(e) = broadcaster
+                .broadcast_content_deleted(&room_name_clone, *content_id)
+                .await
+            {
+                log::warn!("Failed to broadcast content deleted event for {}: {}", content_id, e);
+            }
+        }
+    });
+
     Ok(Json(DeleteContentResponse {
-        deleted: ids,
+        deleted: ids_for_response,
         freed_size,
         current_size: verified.room.current_size,
     }))
@@ -885,6 +913,20 @@ pub async fn update_content(
         &app_state.db_pool,
     )
     .await?;
+
+    let saved_content_clone = saved_content.clone();
+
+    // 广播内容更新事件
+    let broadcaster = app_state.broadcaster.clone();
+    let room_name_clone = name.clone();
+    tokio::spawn(async move {
+        if let Err(e) = broadcaster
+            .broadcast_content_updated(&room_name_clone, &saved_content_clone)
+            .await
+        {
+            log::warn!("Failed to broadcast content updated event: {}", e);
+        }
+    });
 
     Ok(Json(UpdateContentResponse {
         updated: RoomContentView::from(saved_content),

@@ -6,15 +6,16 @@ use crate::models::content::RoomContent;
 use crate::websocket::connection::ConnectionManager;
 use crate::websocket::types::{RoomInfo, WsMessage, WsMessageType};
 use serde_json::json;
+use std::sync::Arc;
 
 /// 房间事件广播器
 pub struct Broadcaster {
-    manager: ConnectionManager,
+    manager: Arc<ConnectionManager>,
 }
 
 impl Broadcaster {
     /// 创建新的广播器
-    pub fn new(manager: ConnectionManager) -> Self {
+    pub fn new(manager: Arc<ConnectionManager>) -> Self {
         Self { manager }
     }
 
