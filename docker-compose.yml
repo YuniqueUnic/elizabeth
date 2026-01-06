@@ -1,39 +1,35 @@
+# ============================================================================
+# Docker Compose configuration for Elizabeth
+# ============================================================================
+# File sharing and collaboration platform
+# ============================================================================
+
 services:
-  # ============================================================================
-  # Backend Service (Rust + Axum + SQLite)
-  # ============================================================================
+  # ==========================================================================
+  # Backend Service (Rust + Axum)
+  # ==========================================================================
   backend:
     build:
       context: .
       dockerfile: Dockerfile.backend
-      args:
-        USER_UID: 501
-        USER_GID: 20
+      extra_hosts:
+        - "index.crates.io=${CRATES_IO_INDEX_IPV4:-151.101.89.91}"
+        - "static.crates.io=${CRATES_IO_STATIC_IPV4:-151.101.90.137}"
     container_name: elizabeth-backend
     restart: unless-stopped
-    # Remove port mapping to restrict backend access to internal network only
-    # Backend only accessible via elizabeth-backend:4092 within the Docker network
-    # ports:
-    #   - "${BACKEND_PORT:-4092}:4092"
     volumes:
-      # Use dedicated host directories to avoid virtiofs mount contention on macOS (see Docker Desktop 4.34+ release notes)
-      - type: bind
-        source: ${PWD}/docker/backend/data
-        target: /app/data
-        bind:
-          create_host_path: true
-      - type: bind
-        source: ${PWD}/docker/backend/storage
-        target: /app/storage
-        bind:
-          create_host_path: true
-      # Configuration handled by environment variables and entrypoint script
-      - type: bind
-        source: ${PWD}/docker/backend/config/backend.yaml
-        target: /app/config/backend.yaml
+      # Data persistence
+      - ./docker/backend/data:/app/data
+      - ./docker/backend/storage:/app/storage
+      # Configuration
+      - ./docker/backend/config/backend.yaml:/app/config/backend.yaml:ro
     environment:
-      # Core environment variables - JWT secret for security
+      # Security
       JWT_SECRET: ${JWT_SECRET:-please-change-this-secret-in-production-min-32-chars}
+      # Logging
+      RUST_LOG: ${RUST_LOG:-info}
+      # Database
+      DATABASE_PATH: /app/data/elizabeth.db
     networks:
       - elizabeth-network
     healthcheck:
@@ -43,15 +39,14 @@ services:
       retries: 3
       start_period: 10s
 
-  # ============================================================================
-  # Frontend Service (Next.js)
-  # ============================================================================
+  # ==========================================================================
+  # Frontend Service (Next.js 16)
+  # ==========================================================================
   frontend:
     build:
       context: .
       dockerfile: Dockerfile.frontend
       args:
-        # Build-time arguments - use relative path
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api/v1}
         NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:4001}
         INTERNAL_API_URL: ${INTERNAL_API_URL:-http://elizabeth-backend:4092/api/v1}
@@ -60,27 +55,22 @@ services:
     ports:
       - "${FRONTEND_PORT:-4001}:4001"
     environment:
-      # Runtime environment variables
-      # Public API URL for browser (relative path)
+      # Public variables (client-side)
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api/v1}
-      # Internal API URL for Next.js server-side rewrites
-      INTERNAL_API_URL: ${INTERNAL_API_URL:-http://elizabeth-backend:4092/api/v1}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:4001}
+      # Internal variables (server-side)
+      INTERNAL_API_URL: ${INTERNAL_API_URL:-http://elizabeth-backend:4092/api/v1}
+      # Node.js
       NODE_ENV: production
       PORT: 4001
       HOSTNAME: 0.0.0.0
     networks:
       - elizabeth-network
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "require('http').get('http://localhost:4001/', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})",
-        ]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:4001/"]
       interval: 30s
       timeout: 3s
       retries: 3
