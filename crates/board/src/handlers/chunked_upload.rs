@@ -4,7 +4,6 @@ use axum::{
 };
 use chrono::{NaiveDateTime, Utc};
 use hex;
-use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
 use tokio::fs;
@@ -12,12 +11,15 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use uuid::Uuid;
 
 use crate::{
+    dto::chunked_upload::{
+        ChunkStatusInfo, ChunkUploadRequest, ChunkUploadResponse, ChunkedUploadPreparationRequest,
+        ChunkedUploadPreparationResponse, FileMergeRequest, FileMergeResponse, MergedFileInfo,
+        ReservedFileInfo, UploadStatusQuery, UploadStatusResponse,
+    },
     errors::{AppError, AppResult},
     models::room::{
-        chunk_upload::{
-            ChunkStatus, FileMergeRequest, FileMergeResponse, MergedFileInfo, RoomChunkUpload,
-        },
-        upload_reservation::{ChunkedUploadPreparationRequest, UploadFileDescriptor, UploadStatus},
+        chunk_upload::{ChunkStatus, RoomChunkUpload},
+        upload_reservation::{UploadFileDescriptor, UploadStatus},
     },
     repository::room_chunk_upload_repository::{
         IRoomChunkUploadRepository, RoomChunkUploadRepository,
@@ -29,36 +31,6 @@ use crate::{
     state::AppState,
 };
 type HandlerResult<T> = AppResult<Json<T>>;
-
-/// 分块上传预留响应
-#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
-pub struct ChunkedUploadPreparationResponse {
-    /// 预留 ID
-    pub reservation_id: String,
-    /// 上传令牌
-    pub upload_token: String,
-    /// 预留过期时间
-    pub expires_at: NaiveDateTime,
-    /// 文件清单
-    pub files: Vec<ReservedFileInfo>,
-}
-
-/// 预留文件信息
-#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
-pub struct ReservedFileInfo {
-    /// 文件名
-    pub name: String,
-    /// 文件大小
-    pub size: i64,
-    /// MIME 类型
-    pub mime: Option<String>,
-    /// 分块大小
-    pub chunk_size: i64,
-    /// 总分块数
-    pub total_chunks: i64,
-    /// 文件哈希
-    pub file_hash: Option<String>,
-}
 
 /// 预留分块上传空间
 #[utoipa::path(
@@ -199,86 +171,6 @@ pub async fn prepare_chunked_upload(
     Ok(Json(response))
 }
 
-/// 单个分块上传请求
-#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
-pub struct ChunkUploadRequest {
-    /// 上传令牌
-    pub upload_token: String,
-    /// 分块索引（从 0 开始）
-    pub chunk_index: i32,
-    /// 分块大小
-    pub chunk_size: i64,
-    /// 分块哈希（可选，用于完整性验证）
-    pub chunk_hash: Option<String>,
-}
-
-/// 单个分块上传响应
-#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
-pub struct ChunkUploadResponse {
-    /// 分块索引
-    pub chunk_index: i32,
-    /// 分块大小
-    pub chunk_size: i64,
-    /// 分块哈希
-    pub chunk_hash: Option<String>,
-    /// 上传状态
-    pub upload_status: ChunkStatus,
-    /// 上传时间
-    pub uploaded_at: NaiveDateTime,
-}
-
-/// 上传状态查询请求
-#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
-pub struct UploadStatusQuery {
-    /// 上传令牌（与 reservation_id 二选一）
-    pub upload_token: Option<String>,
-    /// 预留 ID（与 upload_token 二选一）
-    pub reservation_id: Option<String>,
-}
-
-/// 单个分块状态信息
-#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
-pub struct ChunkStatusInfo {
-    /// 分块索引
-    pub chunk_index: i64,
-    /// 分块大小
-    pub chunk_size: i64,
-    /// 分块哈希
-    pub chunk_hash: Option<String>,
-    /// 上传状态
-    pub upload_status: ChunkStatus,
-    /// 上传时间
-    pub uploaded_at: Option<NaiveDateTime>,
-}
-
-/// 上传状态查询响应
-#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
-pub struct UploadStatusResponse {
-    /// 预留 ID
-    pub reservation_id: String,
-    /// 上传令牌
-    pub upload_token: String,
-    /// 上传状态
-    pub upload_status: UploadStatus,
-    /// 总分块数
-    pub total_chunks: i64,
-    /// 已上传分块数
-    pub uploaded_chunks: i64,
-    /// 上传进度百分比（0-100）
-    pub progress_percentage: f64,
-    /// 预留过期时间
-    pub expires_at: NaiveDateTime,
-    /// 已上传分块详细信息
-    pub chunk_details: Vec<ChunkStatusInfo>,
-    /// 预留大小
-    pub reserved_size: i64,
-    /// 已上传大小
-    pub uploaded_size: i64,
-    /// 是否超时
-    pub is_expired: bool,
-    /// 剩余时间（秒）
-    pub remaining_seconds: Option<i64>,
-}
 
 /// 上传单个分块
 #[utoipa::path(

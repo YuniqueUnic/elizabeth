@@ -22,6 +22,11 @@ use uuid::Uuid;
 use crate::constants::{
     storage::DEFAULT_STORAGE_ROOT, upload::DEFAULT_UPLOAD_RESERVATION_TTL_SECONDS,
 };
+use crate::dto::content::{
+    CreateMessageRequest, CreateMessageResponse, DeleteContentRequest, DeleteContentResponse,
+    RoomContentView, UpdateContentRequest, UpdateContentResponse, UploadContentResponse,
+    UploadPreparationRequest, UploadPreparationResponse,
+};
 use crate::errors::{AppError, AppResult};
 use crate::models::{
     UploadFileDescriptor,
@@ -39,81 +44,10 @@ use super::{TokenQuery, verify_room_token};
 
 type HandlerResult<T> = Result<Json<T>, AppError>;
 
-#[derive(Debug, Serialize, ToSchema)]
-pub struct RoomContentView {
-    pub id: i64,
-    pub content_type: ContentType,
-    pub text: Option<String>,
-    pub file_name: Option<String>,
-    pub url: Option<String>,
-    pub size: Option<i64>,
-    pub mime_type: Option<String>,
-    pub created_at: NaiveDateTime,
-    pub updated_at: NaiveDateTime,
-}
-
-impl From<RoomContent> for RoomContentView {
-    fn from(value: RoomContent) -> Self {
-        // ✅ FIX: Use file_name from database instead of extracting from path
-        let file_name = value.file_name.clone().or_else(|| {
-            value.path.as_ref().and_then(|path| {
-                Path::new(path)
-                    .file_name()
-                    .map(|s| s.to_string_lossy().to_string())
-            })
-        });
-
-        Self {
-            id: value.id.unwrap_or_default(),
-            content_type: value.content_type,
-            text: value.text,
-            file_name,
-            url: value.url,
-            size: value.size,
-            mime_type: value.mime_type,
-            created_at: value.created_at,
-            updated_at: value.updated_at,
-        }
-    }
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-pub struct UploadContentResponse {
-    pub uploaded: Vec<RoomContentView>,
-    pub current_size: i64,
-}
-
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct UploadPreparationRequest {
-    pub files: Vec<UploadFileDescriptor>,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-pub struct UploadPreparationResponse {
-    pub reservation_id: i64,
-    pub reserved_size: i64,
-    pub expires_at: NaiveDateTime,
-    pub current_size: i64,
-    pub remaining_size: i64,
-    pub max_size: i64,
-}
-
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct UploadContentQuery {
     pub token: String,
     pub reservation_id: i64,
-}
-
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct DeleteContentRequest {
-    pub ids: Vec<i64>,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-pub struct DeleteContentResponse {
-    pub deleted: Vec<i64>,
-    pub freed_size: i64,
-    pub current_size: i64,
 }
 
 #[utoipa::path(
@@ -801,18 +735,6 @@ fn room_id_or_error(claims: &RoomTokenClaims) -> Result<i64, AppError> {
     Ok(claims.room_id)
 }
 
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct UpdateContentRequest {
-    pub text: Option<String>,
-    pub url: Option<String>,
-    pub mime_type: Option<String>,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-pub struct UpdateContentResponse {
-    pub updated: RoomContentView,
-}
-
 #[utoipa::path(
     put,
     path = "/api/v1/rooms/{name}/contents/{content_id}",
@@ -967,16 +889,6 @@ async fn room_repo_update_if_content_size_changed(
 // ============================================================================
 // Message Creation API
 // ============================================================================
-
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct CreateMessageRequest {
-    pub text: String,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-pub struct CreateMessageResponse {
-    pub message: RoomContentView,
-}
 
 #[utoipa::path(
     post,

@@ -137,77 +137,6 @@ pub struct RoomChunkUpload {
     pub updated_at: NaiveDateTime,
 }
 
-/// 分块上传请求
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
-pub struct ChunkUploadRequest {
-    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
-    pub chunk_index: i64,
-    pub chunk_hash: String,
-}
-
-/// 分块上传响应
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
-pub struct ChunkUploadResponse {
-    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
-    pub chunk_index: i64,
-    pub upload_status: ChunkStatus,
-    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
-    pub uploaded_chunks: i64,
-    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
-    pub total_chunks: i64,
-    pub upload_progress: f64,
-}
-
-/// 分块状态信息
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct ChunkStatusInfo {
-    pub chunk_index: i64,
-    pub status: ChunkStatus,
-    pub chunk_hash: Option<String>,
-    pub created_at: NaiveDateTime,
-    pub updated_at: NaiveDateTime,
-}
-
-/// 上传状态查询响应
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct ChunkedUploadStatusResponse {
-    pub reservation_id: i64,
-    pub upload_status: String,
-    pub total_chunks: i64,
-    pub uploaded_chunks: i64,
-    pub upload_progress: f64,
-    pub chunk_status: Vec<ChunkStatusInfo>,
-}
-
-/// 文件合并完成请求
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct FileMergeRequest {
-    pub reservation_id: String,
-    pub final_hash: String,
-}
-
-/// 文件合并完成响应
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct FileMergeResponse {
-    pub reservation_id: String,
-    pub merged_files: Vec<MergedFileInfo>,
-    pub message: String,
-}
-
-/// 合并后的文件信息
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct MergedFileInfo {
-    pub file_name: String,
-    pub file_size: i64,
-    pub file_hash: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub content_id: Option<i64>,
-}
-
 impl RoomChunkUpload {
     /// 创建新的分块上传记录
     pub fn new(
@@ -276,19 +205,6 @@ impl RoomChunkUpload {
         match &self.chunk_hash {
             Some(hash) => hash == expected_hash,
             None => false,
-        }
-    }
-}
-
-impl ChunkStatusInfo {
-    /// 从 RoomChunkUpload 创建状态信息
-    pub fn from_chunk_upload(chunk: &RoomChunkUpload) -> Self {
-        Self {
-            chunk_index: chunk.chunk_index,
-            status: chunk.upload_status.clone(),
-            chunk_hash: chunk.chunk_hash.clone(),
-            created_at: chunk.created_at,
-            updated_at: chunk.updated_at,
         }
     }
 }
