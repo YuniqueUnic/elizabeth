@@ -7,16 +7,17 @@ use crate::websocket::{
     connection::ConnectionManager,
     types::{ConnectAck, ConnectRequest, RoomInfo, WsError, WsMessage, WsMessageType},
 };
+use std::sync::Arc;
 
 /// WebSocket 消息处理器
 pub struct MessageHandler {
     app_state: AppState,
-    manager: ConnectionManager,
+    manager: Arc<ConnectionManager>,
 }
 
 impl MessageHandler {
     /// 创建新的消息处理器
-    pub fn new(app_state: AppState, manager: ConnectionManager) -> Self {
+    pub fn new(app_state: AppState, manager: Arc<ConnectionManager>) -> Self {
         Self {
             app_state,
             manager,

@@ -2,7 +2,6 @@
 //!
 //! 管理 WebSocket 连接和房间订阅关系
 
-use crate::state::AppState;
 use crate::websocket::types::{WsMessage, WsMessageType};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -10,18 +9,22 @@ use tokio::sync::RwLock;
 
 /// 连接管理器
 pub struct ConnectionManager {
-    app_state: AppState,
     /// 房间订阅关系: room_name -> connection_ids
     room_subscribers: RwLock<HashMap<String, Vec<String>>>,
     /// 活跃连接: connection_id -> (room_name, sender)
     connections: RwLock<HashMap<String, (String, tokio::sync::mpsc::UnboundedSender<WsMessage>)>>,
 }
 
+impl Default for ConnectionManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ConnectionManager {
     /// 创建新的连接管理器
-    pub fn new(app_state: AppState) -> Self {
+    pub fn new() -> Self {
         Self {
-            app_state,
             room_subscribers: RwLock::new(HashMap::new()),
             connections: RwLock::new(HashMap::new()),
         }
@@ -68,10 +71,10 @@ impl ConnectionManager {
             let mut count = 0;
 
             for connection_id in connection_ids {
-                if let Some((_, sender)) = connections.get(connection_id) {
-                    if sender.send(message.clone()).is_ok() {
-                        count += 1;
-                    }
+                if let Some((_, sender)) = connections.get(connection_id)
+                    && sender.send(message.clone()).is_ok()
+                {
+                    count += 1;
                 }
             }
 

@@ -39,8 +39,8 @@ impl WsServer {
         // 创建消息通道
         let (tx, rx) = mpsc::unbounded_channel::<WsMessage>();
 
-        // 创建连接管理器和处理器
-        let manager = ConnectionManager::new(app_state.clone());
+        // 使用共享的连接管理器
+        let manager = app_state.connection_manager.clone();
         let handler = MessageHandler::new(app_state.clone(), manager);
 
         // TODO: 实现连接处理逻辑

@@ -8,6 +8,7 @@ use anyhow::Result;
 use crate::config::AppConfig;
 use crate::db::DbPool;
 use crate::services::Services;
+use crate::websocket::{broadcaster::Broadcaster, connection::ConnectionManager};
 
 /// 应用程序状态
 ///
@@ -20,6 +21,10 @@ pub struct AppState {
     pub config: AppConfig,
     /// 服务容器
     pub services: Services,
+    /// WebSocket 连接管理器
+    pub connection_manager: Arc<ConnectionManager>,
+    /// WebSocket 广播器
+    pub broadcaster: Arc<Broadcaster>,
 }
 
 impl AppState {
@@ -31,10 +36,18 @@ impl AppState {
         // 创建服务
         let services = Services::new(&config, db_pool.clone())?;
 
+        // 创建 WebSocket 连接管理器
+        let connection_manager = Arc::new(ConnectionManager::new());
+
+        // 创建 WebSocket 广播器
+        let broadcaster = Arc::new(Broadcaster::new(connection_manager.clone()));
+
         Ok(Self {
             db_pool,
             config,
             services,
+            connection_manager,
+            broadcaster,
         })
     }
 
