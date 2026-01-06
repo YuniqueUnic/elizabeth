@@ -82,9 +82,12 @@ hex = "0.4"
 sanitize-filename = "0.6"
 futures = "0.3"
 
+# Storage abstraction layer
+opendal = { version = "0.55", features = ["services-fs", "services-s3"] }
+
 # TypeScript schema generation
-ts-rs = { version = "8", features = ["serde-compat", "chrono-impl"] }
-schemars = { version = "0.8", features = ["chrono"] }
+ts-rs = { version = "11", features = ["serde-compat", "chrono-impl"] }
+schemars = { version = "1", features = ["chrono04"] }
 
 [dev-dependencies]
 tower = "0.5"
@@ -97,4 +100,4 @@ toml = { version = "0.9", features = ["preserve_order"] }
 clap = { version = "4", features = ["derive", "env"] }
 clap_complete = { version = "4" }
 shadow-rs = { version = "1", features = ["no_std"] }
-ts-rs = { version = "8", features = ["serde-compat"] }
+ts-rs = { version = "11", features = ["serde-compat"] }

@@ -19,9 +19,97 @@ use crate::constants::{
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig {
     pub server: ServerConfig,
+    pub database: DatabaseConfig,
     pub storage: StorageConfig,
     pub room: RoomConfig,
     pub auth: AuthConfig,
+}
+
+/// 数据库配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DatabaseConfig {
+    /// 数据库连接 URL
+    /// 支持:
+    /// - SQLite: sqlite:path/to/db.sqlite
+    /// - PostgreSQL: postgresql://user:password@host:port/database
+    /// - Supabase: postgresql://postgres:[PASSWORD]@db.[PROJECT].supabase.co:5432/postgres
+    pub url: String,
+    
+    /// 连接池最大连接数
+    #[serde(default = "DatabaseConfig::default_max_connections")]
+    pub max_connections: u32,
+    
+    /// 连接池最小连接数
+    #[serde(default = "DatabaseConfig::default_min_connections")]
+    pub min_connections: u32,
+    
+    /// SQLite journal 模式
+    #[serde(default = "DatabaseConfig::default_journal_mode")]
+    pub journal_mode: String,
+}
+
+impl Default for DatabaseConfig {
+    fn default() -> Self {
+        Self {
+            url: "sqlite:elizabeth.db".to_string(),
+            max_connections: Self::default_max_connections(),
+            min_connections: Self::default_min_connections(),
+            journal_mode: Self::default_journal_mode(),
+        }
+    }
+}
+
+impl DatabaseConfig {
+    fn default_max_connections() -> u32 { 10 }
+    fn default_min_connections() -> u32 { 1 }
+    fn default_journal_mode() -> String { "wal".to_string() }
+    
+    /// 检测数据库类型
+    pub fn database_kind(&self) -> DatabaseKind {
+        if self.url.starts_with("sqlite:") {
+            DatabaseKind::Sqlite
+        } else if self.url.starts_with("postgresql:") || self.url.starts_with("postgres:") {
+            DatabaseKind::PostgreSQL
+        } else {
+            DatabaseKind::Unknown
+        }
+    }
+    
+    /// 检查是否为 Supabase 连接
+    pub fn is_supabase(&self) -> bool {
+        self.url.contains(".supabase.co")
+    }
+    
+    /// 验证配置
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        if self.url.is_empty() {
+            return Err(ConfigError::InvalidDatabaseConfig(
+                "Database URL cannot be empty".to_string(),
+            ));
+        }
+        
+        if self.max_connections == 0 {
+            return Err(ConfigError::InvalidDatabaseConfig(
+                "Max connections must be greater than 0".to_string(),
+            ));
+        }
+        
+        if self.min_connections > self.max_connections {
+            return Err(ConfigError::InvalidDatabaseConfig(
+                "Min connections cannot exceed max connections".to_string(),
+            ));
+        }
+        
+        Ok(())
+    }
+}
+
+/// 数据库类型
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DatabaseKind {
+    Sqlite,
+    PostgreSQL,
+    Unknown,
 }
 
 /// 服务器配置
@@ -126,12 +214,17 @@ pub enum ConfigError {
     InvalidStoragePath(String),
     #[error("Invalid room configuration: {0}")]
     InvalidRoomConfig(String),
+    #[error("Invalid database configuration: {0}")]
+    InvalidDatabaseConfig(String),
 }
 
 /// 配置验证器
 impl AppConfig {
     /// 验证配置是否有效
     pub fn validate(&self) -> Result<(), ConfigError> {
+        // 验证数据库配置
+        self.database.validate()?;
+        
         // 验证存储路径
         if self.storage.root.as_os_str().is_empty() {
             return Err(ConfigError::InvalidStoragePath(
@@ -161,6 +254,7 @@ impl AppConfig {
 
         Ok(Self {
             server: ServerConfig::default(),
+            database: DatabaseConfig::default(),
             storage: StorageConfig::default(),
             room: RoomConfig::default(),
             auth: auth_config,
@@ -171,6 +265,7 @@ impl AppConfig {
     pub fn for_development() -> Self {
         Self {
             server: ServerConfig::default(),
+            database: DatabaseConfig::default(),
             storage: StorageConfig::default(),
             room: RoomConfig::default(),
             auth: AuthConfig::default(),
