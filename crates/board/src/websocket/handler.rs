@@ -23,14 +23,38 @@ impl MessageHandler {
 
     /// 处理连接请求
     pub async fn handle_connect(&self, request: ConnectRequest) -> Result<ConnectAck, WsError> {
-        // TODO: 验证 token 并返回连接确认
         log::info!("Connect request from room_name: {}", request.room_name);
 
-        // 临时返回成功响应
+        // 验证 token（JWT 格式）
+        let claims = self
+            .app_state
+            .token_service()
+            .decode(&request.token)
+            .map_err(|e| WsError::InvalidToken(format!("Token verification failed: {}", e)))?;
+
+        // 检查 token 是否过期
+        if claims.is_expired() {
+            return Err(WsError::InvalidToken("Token is expired".to_string()));
+        }
+
+        // 验证房间名称是否匹配
+        if claims.room_name != request.room_name {
+            return Err(WsError::InvalidToken("Room name mismatch".to_string()));
+        }
+
+        log::info!(
+            "Token verified successfully for room_id: {}, room_name: {}",
+            claims.room_id,
+            claims.room_name
+        );
+
+        // TODO: 获取房间信息并验证房间名称
+        let room_info = None;
+
         Ok(ConnectAck {
             success: true,
             message: "Connected successfully".to_string(),
-            room_info: None,
+            room_info,
         })
     }
 
