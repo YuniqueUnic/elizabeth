@@ -11,6 +11,12 @@ export function resolveWebSocketUrl(path: string = "/ws"): string {
   }
 
   if (typeof window !== "undefined") {
+    // Production deployments (Docker + gateway) should keep the backend private.
+    // Always connect to the same-origin WebSocket endpoint and let the gateway proxy it.
+    if (process.env.NODE_ENV === "production") {
+      return `${window.location.origin}${path}`;
+    }
+
     // Local dev default: frontend (4001) + backend (4092)
     if (window.location.port === "4001") {
       const hostname = window.location.hostname === "0.0.0.0"
