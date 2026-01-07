@@ -51,6 +51,9 @@
     "file_merge_response": {
       "$ref": "#/$defs/FileMergeResponse"
     },
+    "full_room_gc_status_view": {
+      "$ref": "#/$defs/FullRoomGcStatusView"
+    },
     "issue_token_request": {
       "$ref": "#/$defs/IssueTokenRequest"
     },
@@ -101,6 +104,9 @@
     },
     "room_upload_reservation": {
       "$ref": "#/$defs/RoomUploadReservation"
+    },
+    "run_room_gc_response": {
+      "$ref": "#/$defs/RunRoomGcResponse"
     },
     "token_blacklist_entry": {
       "$ref": "#/$defs/TokenBlacklistEntry"
@@ -196,7 +202,9 @@
     "file_merge_response",
     "merged_file_info",
     "logout_request",
-    "cleanup_response"
+    "cleanup_response",
+    "full_room_gc_status_view",
+    "run_room_gc_response"
   ],
   "$defs": {
     "ChunkStatus": {
@@ -578,6 +586,63 @@
         "reservation_id",
         "merged_files",
         "message"
+      ]
+    },
+    "FullRoomGcStatusView": {
+      "type": "object",
+      "properties": {
+        "active_connections": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "cleanup_after": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "partial-date-time"
+        },
+        "current_times_entered": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "empty_since": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "partial-date-time"
+        },
+        "id": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "max_times_entered": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "max_token_expires_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "partial-date-time"
+        },
+        "name": {
+          "type": "string"
+        },
+        "slug": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "slug",
+        "max_times_entered",
+        "current_times_entered",
+        "active_connections"
       ]
     },
     "IssueTokenRequest": {
@@ -1286,6 +1351,19 @@
         "expires_at",
         "created_at",
         "updated_at"
+      ]
+    },
+    "RunRoomGcResponse": {
+      "type": "object",
+      "properties": {
+        "cleaned": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "cleaned"
       ]
     },
     "TokenBlacklistEntry": {

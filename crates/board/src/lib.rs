@@ -116,6 +116,8 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
     // 创建应用状态
     let app_state = Arc::new(AppState::new(app_config, db_pool)?);
 
+    spawn_room_gc_task(app_state.clone());
+
     let addr: SocketAddr = format!("{}:{}", cfg.app.server.addr, cfg.app.server.port).parse()?;
     let listener = tokio::net::TcpListener::bind(addr).await?;
     let actual_addr = listener.local_addr()?;
@@ -172,10 +174,15 @@ fn build_api_router(app_state: Arc<AppState>, cfg: &configrs::Config) -> (String
     let (status_router, mut api) = route::status::api_router().split_for_parts();
     let (room_router, room_api) = route::room::api_router(app_state.clone()).split_for_parts();
     let (auth_router, auth_api) = route::auth::auth_router(app_state.clone()).split_for_parts();
+    let (admin_router, admin_api) = route::admin::api_router(app_state.clone()).split_for_parts();
 
-    let router = status_router.merge(room_router).merge(auth_router);
+    let router = status_router
+        .merge(room_router)
+        .merge(auth_router)
+        .merge(admin_router);
     api.merge(room_api);
     api.merge(auth_api);
+    api.merge(admin_api);
 
     // Expose a machine-consumable OpenAPI document for client generation.
     // Keep it in parallel with the JSON Schema exported via build.rs.
@@ -209,4 +216,32 @@ fn build_api_router(app_state: Arc<AppState>, cfg: &configrs::Config) -> (String
     let router = crate::middleware::apply(&middleware_config, router);
 
     (scalar_path, router)
+}
+
+fn spawn_room_gc_task(app_state: Arc<AppState>) {
+    const ROOM_GC_INTERVAL_SECS: u64 = 60 * 10;
+    const ROOM_GC_BATCH_LIMIT: u32 = 200;
+
+    tokio::spawn(async move {
+        let mut interval =
+            tokio::time::interval(std::time::Duration::from_secs(ROOM_GC_INTERVAL_SECS));
+        loop {
+            interval.tick().await;
+            let cleaned = app_state
+                .services
+                .room_gc
+                .run_scheduled_gc(&app_state.connection_manager, ROOM_GC_BATCH_LIMIT)
+                .await;
+
+            match cleaned {
+                Ok(count) if count > 0 => {
+                    log::info!("Room GC cleaned {} rooms", count);
+                }
+                Ok(_) => {}
+                Err(e) => {
+                    log::warn!("Room GC task error: {}", e);
+                }
+            }
+        }
+    });
 }

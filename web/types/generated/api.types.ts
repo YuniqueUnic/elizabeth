@@ -55,3 +55,5 @@ export * from './FileMergeResponse';
 export * from './MergedFileInfo';
 export * from './LogoutRequest';
 export * from './CleanupResponse';
+export * from './FullRoomGcStatusView';
+export * from './RunRoomGcResponse';
