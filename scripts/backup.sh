@@ -10,9 +10,26 @@ set -euo pipefail
 BACKUP_DIR="./backups"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 BACKUP_NAME="elizabeth_backup_${TIMESTAMP}"
-DATA_DIR="./docker/backend/data"
-STORAGE_DIR="./docker/backend/storage"
-CONFIG_FILE="./docker/backend/config/backend.yaml"
+
+read_env_var() {
+    local key="$1"
+    local file="$2"
+    grep -E "^${key}=" "$file" 2>/dev/null | tail -n1 | cut -d'=' -f2- || true
+}
+
+ENV_FILE="./.env"
+ENV_DATA_DIR=""
+ENV_STORAGE_DIR=""
+ENV_CONFIG_FILE=""
+if [ -f "${ENV_FILE}" ]; then
+    ENV_DATA_DIR="$(read_env_var "ELIZABETH_DATA_DIR" "${ENV_FILE}")"
+    ENV_STORAGE_DIR="$(read_env_var "ELIZABETH_STORAGE_DIR" "${ENV_FILE}")"
+    ENV_CONFIG_FILE="$(read_env_var "ELIZABETH_BACKEND_CONFIG" "${ENV_FILE}")"
+fi
+
+DATA_DIR="${ELIZABETH_DATA_DIR:-${ENV_DATA_DIR:-./docker/backend/data}}"
+STORAGE_DIR="${ELIZABETH_STORAGE_DIR:-${ENV_STORAGE_DIR:-./docker/backend/storage}}"
+CONFIG_FILE="${ELIZABETH_BACKEND_CONFIG:-${ENV_CONFIG_FILE:-./docker/backend/config/backend.yaml}}"
 
 # Colors for output
 RED='\033[0;31m'

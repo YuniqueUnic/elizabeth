@@ -15,7 +15,11 @@ import { useCallback, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { useWebSocket, WsMessageType, type WsMessage } from "./use-websocket";
-import type { ContentEventPayload, UserEventPayload } from "./use-websocket";
+import type {
+  ContentEventPayload,
+  RoomUpdatePayload,
+  UserEventPayload,
+} from "./use-websocket";
 
 // ============================================================================
 // Query Key Factories
@@ -68,7 +72,7 @@ export interface UseRoomEventsOptions {
   /** Callback when a user leaves */
   onUserLeft?: (payload: UserEventPayload) => void;
   /** Callback when room is updated */
-  onRoomUpdate?: (payload: unknown) => void;
+  onRoomUpdate?: (payload: RoomUpdatePayload) => void;
   /** Enable automatic cache invalidation */
   enableCacheInvalidation?: boolean;
 }
@@ -172,7 +176,8 @@ export function useRoomEvents(options: UseRoomEventsOptions) {
       }
 
       case WsMessageType.RoomUpdate: {
-        onRoomUpdate?.(message.payload);
+        const payload = message.payload as RoomUpdatePayload;
+        onRoomUpdate?.(payload);
         invalidateRoomQueries();
         break;
       }
@@ -232,4 +237,5 @@ export function useRoomEvents(options: UseRoomEventsOptions) {
 // ============================================================================
 
 export type { WsMessage, WsMessageType, ContentEventPayload, UserEventPayload };
+export type { RoomUpdatePayload };
 export { useWebSocket } from "./use-websocket";

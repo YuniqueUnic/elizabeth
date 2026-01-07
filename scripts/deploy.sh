@@ -38,6 +38,12 @@ compose() {
     docker compose "$@"
 }
 
+read_env_var() {
+    local key="$1"
+    local file="$2"
+    grep -E "^${key}=" "$file" 2>/dev/null | tail -n1 | cut -d'=' -f2- || true
+}
+
 # Check if .env file exists
 if [ ! -f .env ]; then
     log_warn ".env file not found. Creating from template..."
@@ -54,7 +60,7 @@ if [ ! -f .env ]; then
 fi
 
 # Check JWT_SECRET
-JWT_SECRET=$(grep "^JWT_SECRET=" .env | cut -d'=' -f2)
+JWT_SECRET=$(read_env_var "JWT_SECRET" ".env")
 if [ "$JWT_SECRET" = "please-change-this-secret-in-production-min-32-chars-long-for-security" ]; then # pragma: allowlist secret
     log_error "JWT_SECRET is still using the default value!"
     log_error "Please generate a secure secret and update .env file"
@@ -78,9 +84,14 @@ log_info "Docker version: $(docker --version)"
 log_info "Docker Compose version: $(compose version)"
 
 log_step "2/6 Creating backup of existing data (if any)..."
-if [ -d ./docker/backend/data ] || [ -d ./docker/backend/storage ]; then
-    if [ "$(ls -A ./docker/backend/data 2>/dev/null | wc -l | tr -d ' ')" != "0" ] || \
-       [ "$(ls -A ./docker/backend/storage 2>/dev/null | wc -l | tr -d ' ')" != "0" ]; then
+DATA_DIR="${ELIZABETH_DATA_DIR:-$(read_env_var "ELIZABETH_DATA_DIR" ".env")}"
+STORAGE_DIR="${ELIZABETH_STORAGE_DIR:-$(read_env_var "ELIZABETH_STORAGE_DIR" ".env")}"
+DATA_DIR="${DATA_DIR:-./docker/backend/data}"
+STORAGE_DIR="${STORAGE_DIR:-./docker/backend/storage}"
+
+if [ -d "${DATA_DIR}" ] || [ -d "${STORAGE_DIR}" ]; then
+    if [ "$(ls -A "${DATA_DIR}" 2>/dev/null | wc -l | tr -d ' ')" != "0" ] || \
+       [ "$(ls -A "${STORAGE_DIR}" 2>/dev/null | wc -l | tr -d ' ')" != "0" ]; then
         log_info "Existing data found. Creating backup..."
         ./scripts/backup.sh || log_warn "Backup failed, continuing anyway..."
     else

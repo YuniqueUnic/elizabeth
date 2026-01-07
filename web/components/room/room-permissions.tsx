@@ -2,14 +2,22 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { getRoomDetails, updateRoomPermissions } from "@/api/roomService";
+import { updateRoomPermissions } from "@/api/roomService";
 import { useAppStore } from "@/lib/store";
 import { useToast } from "@/hooks/use-toast";
 import { useRoomPermissions } from "@/hooks/use-room-permissions";
 import { encodePermissions, parsePermissions } from "@/lib/types";
 import type { RoomPermission } from "@/lib/types";
-import { getAccessToken } from "@/api/authService";
 import { useRouter } from "next/navigation";
 import { clearRoomToken } from "@/lib/utils/api";
 
@@ -83,7 +91,8 @@ function canTogglePermission(
 
 export function RoomPermissions({ permissions }: RoomPermissionsProps) {
   const router = useRouter();
-  const { currentRoomId, setCurrentRoomId } = useAppStore();
+  const { currentRoomId } = useAppStore();
+  const hasUnsavedChanges = useAppStore((state) => state.hasUnsavedChanges);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { can } = useRoomPermissions();
@@ -91,6 +100,11 @@ export function RoomPermissions({ permissions }: RoomPermissionsProps) {
   const [permissionFlags, setPermissionFlags] = useState(
     permissionsToFlags(permissions),
   );
+  const [pendingRedirect, setPendingRedirect] = useState<{
+    from: string;
+    to: string;
+  } | null>(null);
+  const [redirectDialogOpen, setRedirectDialogOpen] = useState(false);
 
   // 当 permissions prop 更新时，同步更新 permissionFlags 状态
   useEffect(() => {
@@ -112,21 +126,19 @@ export function RoomPermissions({ permissions }: RoomPermissionsProps) {
         description: "房间权限已成功更新",
       });
 
-      // 清理旧的查询缓存
-      queryClient.invalidateQueries({ queryKey: ["room", oldIdentifier] });
-      queryClient.invalidateQueries({ queryKey: ["contents", oldIdentifier] });
-
       // 如果 slug 发生变化，需要跳转到新的 URL
       if (newIdentifier !== oldIdentifier) {
-        // 清理旧 token
+        // 保持当前页面可用（避免立即 refetch 触发错误），同时提示用户手动跳转
+        queryClient.setQueryData(["room", oldIdentifier], updatedRoom);
         clearRoomToken(oldIdentifier);
-
-        // 延迟跳转，让用户看到成功提示
-        setTimeout(() => {
-          // 跳转到新的房间 URL，会触发重新登录流程
-          window.location.href = `/${newIdentifier}`;
-        }, 1000);
+        setPendingRedirect({ from: oldIdentifier, to: newIdentifier });
+        setRedirectDialogOpen(true);
+        return;
       } else {
+        // 清理旧的查询缓存
+        queryClient.invalidateQueries({ queryKey: ["room", oldIdentifier] });
+        queryClient.invalidateQueries({ queryKey: ["contents", oldIdentifier] });
+
         // slug 没有变化，但权限可能降级了
         // 需要清理当前 token，强制用户重新登录以获取新权限的 token
         const oldPermissionValue = encodePermissions(permissions);
@@ -208,9 +220,54 @@ export function RoomPermissions({ permissions }: RoomPermissionsProps) {
     setPermissionFlags(newFlags);
   };
 
+  const pendingRedirectUrl = pendingRedirect
+    ? `/${pendingRedirect.to}`
+    : null;
+  const copyPendingRedirectUrl = async () => {
+    if (!pendingRedirect) return;
+    try {
+      await navigator.clipboard.writeText(
+        `${window.location.origin}/${pendingRedirect.to}`,
+      );
+      toast({ title: "已复制新链接" });
+    } catch (error) {
+      console.error("Failed to copy redirect url:", error);
+      toast({
+        title: "复制失败",
+        description: "无法复制链接，请手动复制。",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-semibold">房间权限</h3>
+
+      {pendingRedirect && (
+        <Alert>
+          <AlertTitle>房间地址已变更</AlertTitle>
+          <AlertDescription className="space-y-2">
+            <p className="text-sm text-muted-foreground">
+              该房间已切换到新的地址：
+              <span className="font-mono"> {pendingRedirectUrl}</span>。为继续使用，
+              请跳转到新地址并重新登录。
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                onClick={() => router.push(pendingRedirectUrl!)}
+              >
+                跳转到新地址
+              </Button>
+              <Button size="sm" variant="outline" onClick={copyPendingRedirectUrl}>
+                复制新链接
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="flex flex-wrap gap-2">
         {allPermissions.map((permission) => {
           const isEnabled = hasPermission(permission);
@@ -283,6 +340,55 @@ export function RoomPermissions({ permissions }: RoomPermissionsProps) {
           只有房间管理员可以修改权限
         </p>
       )}
+
+      <Dialog open={redirectDialogOpen} onOpenChange={setRedirectDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>房间地址已变更</DialogTitle>
+            <DialogDescription className="space-y-2">
+              <p>
+                该房间已切换到新的地址：
+                <span className="font-mono"> {pendingRedirectUrl}</span>。
+              </p>
+              <p>
+                为继续使用，请跳转到新地址并重新登录。跳转后当前页面的未保存内容可能会丢失。
+              </p>
+              {hasUnsavedChanges() && (
+                <p className="text-destructive">
+                  检测到你有未保存的消息更改，建议先复制/备份再跳转。
+                </p>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={copyPendingRedirectUrl}
+              disabled={!pendingRedirect}
+            >
+              复制新链接
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setRedirectDialogOpen(false)}
+            >
+              稍后跳转
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                if (!pendingRedirectUrl) return;
+                router.push(pendingRedirectUrl);
+              }}
+              disabled={!pendingRedirect}
+            >
+              立即跳转
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

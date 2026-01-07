@@ -287,6 +287,12 @@ healthcheck:
 - `docker/backend/config/backend.yaml` →
   `/app/config/backend.yaml`（运行时配置）
 
+如需自定义宿主机路径，可在 `.env` 中覆盖：
+
+- `ELIZABETH_DATA_DIR`
+- `ELIZABETH_STORAGE_DIR`
+- `ELIZABETH_BACKEND_CONFIG`
+
 **实现细节：**
 
 - Compose 使用 bind mount，并开启 `bind.create_host_path`
