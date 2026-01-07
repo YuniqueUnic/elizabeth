@@ -14,15 +14,15 @@ default = []
 typescript-export = ["dep:schemars", "dep:ts-rs"]
 
 [dependencies]
-bitflags = { version = "2", features = ["serde"] }
-bon = { version = "3" }
-chrono = { version = "0.4", features = ["serde"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-sha2 = "0.10"
-sqlx = { version = "0.8", features = ["any", "chrono", "postgres", "sqlite"] }
-utoipa = { version = "5", features = ["chrono"] }
-uuid = { version = "1", features = ["v4"] }
+bitflags = { workspace = true }
+bon = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+sqlx = { workspace = true }
+utoipa = { workspace = true }
+uuid = { workspace = true }
 
-schemars = { version = "1", features = ["chrono04"], optional = true }
-ts-rs = { version = "11", features = ["chrono-impl", "serde-compat"], optional = true }
+schemars = { workspace = true, optional = true }
+ts-rs = { workspace = true, optional = true }

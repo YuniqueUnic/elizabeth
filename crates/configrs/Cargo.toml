@@ -1,6 +1,6 @@
 [package]
 name = "elizabeth-configrs"
-version.workspace = true  # 使用 workspace 版本
+version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license-file.workspace = true
@@ -10,19 +10,14 @@ name = "configrs"
 path = "src/lib.rs"
 
 [dependencies]
-merge = { version = "0.2" }
-
-thiserror = { version = "2" }
-derive_more = { version = "2", features = ["full"] }
-smart-default = { version = "0.7" }
-tracing = { version = "0.1" }
-
-config = { version = "0.15", features = ["preserve_order"] }
-fs4 = { version = "0.13" }
-
-serde = { version = "1", features = ["derive"] }
-serde_yaml = { version = "0.9" }
-
+merge = { workspace = true }
+thiserror = { workspace = true }
+smart-default = { workspace = true }
+tracing = { workspace = true }
+config = { workspace = true }
+fs4 = { workspace = true }
+serde = { workspace = true }
+serde_yaml = { workspace = true }
 
 [dev-dependencies]
-tempfile = "3.23.0"
+tempfile = { workspace = true }
