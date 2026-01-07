@@ -92,7 +92,7 @@ start_frontend() {
     local internal_api_url="http://localhost:4092/api/v1"
     local public_api_url="${MANAGER_NEXT_PUBLIC_API_URL:-${NEXT_PUBLIC_API_URL:-/api/v1}}"
     local app_url="${MANAGER_NEXT_PUBLIC_APP_URL:-${NEXT_PUBLIC_APP_URL:-http://localhost:4001}}"
-    local ws_url="${MANAGER_NEXT_PUBLIC_WS_URL:-${NEXT_PUBLIC_WS_URL:-http://localhost:4092/ws}}"
+    local ws_url="${MANAGER_NEXT_PUBLIC_WS_URL:-${NEXT_PUBLIC_WS_URL:-http://localhost:4092/api/v1/ws}}"
 
     echo "Starting frontend..."
     cd "$FRONTEND_DIR" || exit 1
