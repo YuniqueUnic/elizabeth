@@ -6,6 +6,46 @@
 
 services:
   # ==========================================================================
+  # Gateway (Single public entrypoint)
+  # ==========================================================================
+  # Expose ONLY this service to the host. It proxies:
+  # - /            -> frontend (Next.js)
+  # - /api/v1/*    -> backend  (Axum)
+  # - /ws          -> backend  (WebSocket)
+  #
+  # This prevents browsers from reaching the backend directly, avoiding mixed
+  # content / CORS issues and keeping the backend off the public network.
+  gateway:
+    image: nginx:stable-alpine
+    container_name: elizabeth-gateway
+    restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
+    ports:
+      - "${FRONTEND_PORT:-4001}:4001"
+    volumes:
+      - ./docker/gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - elizabeth-network
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:4001/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # ==========================================================================
   # Backend Service (Rust + Axum)
   # ==========================================================================
   backend:
@@ -17,6 +57,14 @@ services:
         - "static.crates.io=${CRATES_IO_STATIC_IPV4:-151.101.90.137}"
     container_name: elizabeth-backend
     restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     volumes:
       # Data persistence
       - ./docker/backend/data:/app/data
@@ -30,6 +78,8 @@ services:
       RUST_LOG: ${RUST_LOG:-info}
       # Database
       DATABASE_URL: sqlite:/app/data/elizabeth.db
+    expose:
+      - "4092"
     networks:
       - elizabeth-network
     healthcheck:
@@ -52,8 +102,11 @@ services:
         INTERNAL_API_URL: ${INTERNAL_API_URL:-http://elizabeth-backend:4092/api/v1}
     container_name: elizabeth-frontend
     restart: unless-stopped
-    ports:
-      - "${FRONTEND_PORT:-4001}:4001"
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     environment:
       # Public variables (client-side)
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api/v1}

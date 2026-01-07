@@ -216,7 +216,7 @@ docker-backend-up:
 
 docker-frontend-up: docker-backend-up
     @echo "▶️ 启动前端容器..."
-    docker compose up -d frontend
+    docker compose up -d frontend gateway
 
 docker-backend-stop:
     @echo "⏹️ 停止后端容器..."
@@ -224,7 +224,7 @@ docker-backend-stop:
 
 docker-frontend-stop:
     @echo "⏹️ 停止前端容器..."
-    docker compose stop frontend
+    docker compose stop gateway frontend
 
 docker-backend-recreate:
     @echo "🔄 重建后端容器..."
@@ -233,7 +233,7 @@ docker-backend-recreate:
 
 docker-frontend-recreate: docker-backend-recreate
     @echo "🔄 重建前端容器..."
-    docker compose up -d --force-recreate frontend
+    docker compose up -d --force-recreate frontend gateway
 
 # === 🔤 命令别名 ===
 alias f := fmt            # 格式化代码
