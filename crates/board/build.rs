@@ -151,6 +151,7 @@ fn generate_frontend_bindings() -> anyhow::Result<()> {
     println!("cargo:rerun-if-changed=../board-protocol/src/constants.rs");
     println!("cargo:rerun-if-changed=../board-protocol/src/codegen.rs");
     println!("cargo:rerun-if-changed=../board-protocol/src/dto/mod.rs");
+    println!("cargo:rerun-if-changed=../board-protocol/src/dto/admin.rs");
     println!("cargo:rerun-if-changed=../board-protocol/src/dto/token.rs");
     println!("cargo:rerun-if-changed=../board-protocol/src/dto/rooms.rs");
     println!("cargo:rerun-if-changed=../board-protocol/src/dto/content.rs");

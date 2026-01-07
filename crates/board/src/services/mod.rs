@@ -13,11 +13,13 @@ use crate::repository::room_repository::RoomRepository;
 
 pub mod auth_service;
 pub mod refresh_token_service;
+pub mod room_gc_service;
 pub mod token;
 
 // 重新导出服务类型
 pub use auth_service::*;
 pub use refresh_token_service::*;
+pub use room_gc_service::*;
 pub use token::*;
 
 /// 服务容器，包含所有应用程序服务
@@ -27,6 +29,7 @@ pub struct Services {
     pub token_service: Arc<RoomTokenService>,
     pub refresh_token_service: Arc<RefreshTokenService>,
     pub room_repository: Arc<RoomRepository>,
+    pub room_gc: Arc<RoomGcService>,
 }
 
 impl Services {
@@ -56,11 +59,17 @@ impl Services {
         // 创建认证服务
         let auth_service = Arc::new(AuthService::new(token_service.clone(), blacklist_repo));
 
+        let room_gc = Arc::new(RoomGcService::new(
+            db_pool.clone(),
+            config.storage.root.clone(),
+        ));
+
         Ok(Self {
             auth: auth_service,
             token_service,
             refresh_token_service,
             room_repository,
+            room_gc,
         })
     }
 

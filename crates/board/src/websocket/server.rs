@@ -41,6 +41,7 @@ impl WsServer {
         // 使用共享的连接管理器
         let manager = app_state.connection_manager.clone();
         let handler = MessageHandler::new(app_state.clone(), manager.clone());
+        let room_gc = app_state.services.room_gc.clone();
 
         // 接收第一条 CONNECT 消息
         let room_name =
@@ -90,6 +91,10 @@ impl WsServer {
             connection_id,
             room_name
         );
+
+        if let Err(e) = room_gc.on_room_became_active(&room_name).await {
+            log::warn!("Failed to clear room gc markers for {}: {}", room_name, e);
+        }
 
         // 创建接收客户端消息的任务
         let manager_recv = manager.clone();
@@ -152,6 +157,11 @@ impl WsServer {
 
         // 清理连接
         manager.disconnect(&connection_id).await;
+        if manager.get_room_connection_count(&room_name).await == 0
+            && let Err(e) = room_gc.on_room_became_empty(&room_name).await
+        {
+            log::warn!("Failed to mark room {} for gc: {}", room_name, e);
+        }
         log::info!("WebSocket connection {} closed", connection_id);
     }
 

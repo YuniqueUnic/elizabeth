@@ -8,12 +8,12 @@ use crate::dto::{
     ChunkStatusInfo, ChunkUploadRequest, ChunkUploadResponse, ChunkedUploadPreparationRequest,
     ChunkedUploadPreparationResponse, CleanupResponse, CreateMessageRequest, CreateMessageResponse,
     DeleteContentRequest, DeleteContentResponse, DeleteRoomResponse, FileMergeRequest,
-    FileMergeResponse, IssueTokenRequest, IssueTokenResponse, LogoutRequest, MergedFileInfo,
-    ReservedFileInfo, RevokeTokenResponse, RoomContentView, RoomTokenClaims, RoomTokenView,
-    TokenType, UpdateContentRequest, UpdateContentResponse, UpdateRoomPermissionRequest,
-    UpdateRoomSettingsRequest, UploadContentResponse, UploadPreparationRequest,
-    UploadPreparationResponse, UploadStatusQuery, UploadStatusResponse, ValidateTokenRequest,
-    ValidateTokenResponse,
+    FileMergeResponse, FullRoomGcStatusView, IssueTokenRequest, IssueTokenResponse, LogoutRequest,
+    MergedFileInfo, ReservedFileInfo, RevokeTokenResponse, RoomContentView, RoomTokenClaims,
+    RoomTokenView, RunRoomGcResponse, TokenType, UpdateContentRequest, UpdateContentResponse,
+    UpdateRoomPermissionRequest, UpdateRoomSettingsRequest, UploadContentResponse,
+    UploadPreparationRequest, UploadPreparationResponse, UploadStatusQuery, UploadStatusResponse,
+    ValidateTokenRequest, ValidateTokenResponse,
 };
 #[cfg(feature = "typescript-export")]
 use crate::models::content::{ContentType, RoomContent};
@@ -79,6 +79,8 @@ pub fn export_ts_types_to(output_dir: &Path) -> Result<(), ts_rs::ExportError> {
 
     LogoutRequest::export_all_to(output_dir)?;
     CleanupResponse::export_all_to(output_dir)?;
+    FullRoomGcStatusView::export_all_to(output_dir)?;
+    RunRoomGcResponse::export_all_to(output_dir)?;
     Ok(())
 }
 
@@ -133,6 +135,8 @@ pub fn exported_ts_type_names() -> &'static [&'static str] {
         "MergedFileInfo",
         "LogoutRequest",
         "CleanupResponse",
+        "FullRoomGcStatusView",
+        "RunRoomGcResponse",
     ]
 }
 
@@ -190,6 +194,8 @@ pub fn api_schema_json_pretty() -> Result<String, serde_json::Error> {
         merged_file_info: MergedFileInfo,
         logout_request: LogoutRequest,
         cleanup_response: CleanupResponse,
+        full_room_gc_status_view: FullRoomGcStatusView,
+        run_room_gc_response: RunRoomGcResponse,
     }
 
     let root = schema_for!(ApiSchema);
