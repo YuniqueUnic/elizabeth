@@ -3,8 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useAppStore } from "@/lib/store";
-import { RoomSettingsForm } from "@/components/room/room-settings-form";
-import { RoomPermissions } from "@/components/room/room-permissions";
+import { RoomConfigForm } from "@/components/room/room-config-form";
 import { RoomCapacity } from "@/components/room/room-capacity";
 import { RoomSharing } from "@/components/room/room-sharing";
 import { useQuery } from "@tanstack/react-query";
@@ -44,8 +43,7 @@ export function LeftSidebar() {
               : roomDetails
               ? (
                 <>
-                  <RoomSettingsForm roomDetails={roomDetails} />
-                  <RoomPermissions permissions={roomDetails.permissions} />
+                  <RoomConfigForm roomDetails={roomDetails} />
                   <RoomSharing
                     key={roomDetails.slug}
                     roomId={roomDetails.slug || roomDetails.name}
@@ -105,8 +103,7 @@ export function LeftSidebar() {
             : roomDetails
             ? (
               <>
-                <RoomSettingsForm roomDetails={roomDetails} />
-                <RoomPermissions permissions={roomDetails.permissions} />
+                <RoomConfigForm roomDetails={roomDetails} />
                 <RoomSharing
                   key={roomDetails.slug}
                   roomId={roomDetails.slug || roomDetails.name}

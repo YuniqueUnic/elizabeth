@@ -314,8 +314,13 @@ export const useAppStore = create<AppState>()(
       syncMessagesFromServer: async () => {
         const { currentRoomId } = get();
         if (!currentRoomId) return;
-
-        const serverMessages = await getMessages(currentRoomId);
+        let serverMessages: Message[];
+        try {
+          serverMessages = await getMessages(currentRoomId);
+        } catch (error) {
+          console.error("[syncMessagesFromServer] Failed to sync messages:", error);
+          return;
+        }
 
         set((state) => {
           const pending = state.messages.filter((m) =>

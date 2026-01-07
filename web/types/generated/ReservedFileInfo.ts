@@ -3,27 +3,27 @@
 /**
  * 预留文件信息
  */
-export type ReservedFileInfo = { 
+export type ReservedFileInfo = {
 /**
  * 文件名
  */
-name: string, 
+name: string,
 /**
  * 文件大小
  */
-size: number, 
+size: number,
 /**
  * MIME 类型
  */
-mime: string | null, 
+mime: string | null,
 /**
  * 分块大小
  */
-chunk_size: number, 
+chunk_size: number,
 /**
  * 总分块数
  */
-total_chunks: number, 
+total_chunks: number,
 /**
  * 文件哈希
  */

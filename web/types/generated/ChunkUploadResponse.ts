@@ -4,23 +4,23 @@ import type { ChunkStatus } from "./ChunkStatus";
 /**
  * 单个分块上传响应
  */
-export type ChunkUploadResponse = { 
+export type ChunkUploadResponse = {
 /**
  * 分块索引
  */
-chunk_index: number, 
+chunk_index: number,
 /**
  * 分块大小
  */
-chunk_size: number, 
+chunk_size: number,
 /**
  * 分块哈希
  */
-chunk_hash: string | null, 
+chunk_hash: string | null,
 /**
  * 上传状态
  */
-upload_status: ChunkStatus, 
+upload_status: ChunkStatus,
 /**
  * 上传时间
  */

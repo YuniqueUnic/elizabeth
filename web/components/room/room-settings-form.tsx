@@ -158,15 +158,16 @@ export function RoomSettingsForm({ roomDetails }: RoomSettingsFormProps) {
       expiresAt = expireDate.toISOString().replace("Z", "");
     }
 
-    // ✅ FIX: Detect if password was changed
-    // Send empty string "" to clear password, not null
+    // Detect if password was changed
+    // - If unchanged, omit the field to avoid unintended token side effects.
+    // - If changed to empty string, backend treats it as "clear password".
     const newPassword = password.trim();
     const oldPassword = roomDetails.password || "";
     const passwordChanged = newPassword !== oldPassword;
 
     updateMutation.mutate({
       expiresAt: expiresAt ?? undefined,
-      password: newPassword, // Send empty string to clear password
+      password: passwordChanged ? newPassword : undefined,
       maxViews,
       passwordChanged,
     });
