@@ -42,7 +42,7 @@
   (runtime)
 - 非 root 用户运行 (elizabeth:1000)
 - 健康检查：SQLite 数据库连接测试
-- 暴露端口：4092
+- 容器端口：4092（默认仅容器网络可达，宿主机只暴露网关端口）
 
 **构建优化：**
 
@@ -70,6 +70,7 @@
 
 **服务定义：**
 
+- `gateway`: Nginx 网关（唯一对外入口，负责 /、/api/v1/* 与 /api/v1/ws 反代）
 - `backend`: Rust 后端服务
 - `frontend`: Next.js 前端服务
 
@@ -88,6 +89,7 @@
 
 - Backend: SQLite 连接测试
 - Frontend: HTTP 健康检查
+- Gateway: HTTP 健康检查（验证网关已可转发）
 - 依赖管理：Frontend 依赖 Backend 健康
 
 ### 3. 配置管理
@@ -289,9 +291,8 @@ healthcheck:
 
 - Compose 使用 bind mount，并开启 `bind.create_host_path`
   以在缺失时自动创建目录。
-- 新增
-  `scripts/docker_prepare_volumes.sh`：在启动容器前准备目录并检测端口占用，避免
-  SQLite 文件被宿主机锁定导致“Device busy or not ready”。
+- 新增 `scripts/docker_prepare_volumes.sh`：在启动容器前准备目录并检测 SQLite
+  数据库文件占用，避免宿主机进程锁定导致“Device busy or not ready”。
 - 数据与配置直接落在仓库内，方便版本管理与手动备份。
 - 后端配置新增 `app.database.journal_mode` 字段，默认仍为 `WAL`，而 Docker
   专用配置改为 `DELETE`，解决 VirtioFS/gRPC FUSE 上的 WAL 兼容性问题。
@@ -312,7 +313,7 @@ ELIZABETH__APP__JWT__SECRET=${JWT_SECRET}
 
 ```
 NEXT_PUBLIC_API_URL=/api/v1
-INTERNAL_API_URL=http://localhost:4092/api/v1
+INTERNAL_API_URL=http://elizabeth-backend:4092/api/v1
 NEXT_PUBLIC_APP_URL=http://localhost:4001
 ```
 

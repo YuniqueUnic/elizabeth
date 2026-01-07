@@ -57,8 +57,8 @@ docker-compose ps
 4. **访问应用**
 
 - 前端：http://localhost:4001
-- 后端 API: http://localhost:4092/api/v1
-- API 文档：http://localhost:4092/api/v1/scalar
+- 后端 API（经由网关转发）: http://localhost:4001/api/v1
+- API 文档（经由网关转发）：http://localhost:4001/api/v1/scalar
 
 ## 配置说明
 
@@ -69,8 +69,8 @@ docker-compose ps
 #### 端口配置
 
 ```bash
-BACKEND_PORT=4092          # 后端服务端口
-FRONTEND_PORT=4001         # 前端服务端口
+BACKEND_PORT=4092          # 后端容器端口（默认仅容器网络可达，不对宿主机暴露）
+FRONTEND_PORT=4001         # 网关/前端对外端口（宿主机只暴露这一处）
 ```
 
 #### 前端配置
@@ -79,8 +79,8 @@ FRONTEND_PORT=4001         # 前端服务端口
 # 浏览器可见的 API 前缀 - 保持相对路径
 NEXT_PUBLIC_API_URL=/api/v1
 
-# Next.js 服务器访问后端的内部地址
-INTERNAL_API_URL=http://localhost:4092/api/v1
+# Next.js 服务器访问后端的内部地址（容器网络）
+INTERNAL_API_URL=http://elizabeth-backend:4092/api/v1
 
 # App URL - 前端公开访问地址
 NEXT_PUBLIC_APP_URL=http://localhost:4001
@@ -191,9 +191,20 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # 后端 API
-    location /api/ {
-        proxy_pass http://localhost:4092;
+    # API / WebSocket（转发到容器内网关，再由网关转发到后端）
+    location /api/v1/ {
+        proxy_pass http://localhost:4001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /api/v1/ws {
+        proxy_pass http://localhost:4001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -332,7 +343,7 @@ docker-compose exec frontend env | grep NEXT_PUBLIC
 3. 确认后端服务正常：
 
 ```bash
-curl http://localhost:4092/api/v1/health
+curl http://localhost:4001/api/v1/health
 ```
 
 ### 数据库迁移失败
@@ -403,5 +414,5 @@ docker-compose -f docker-compose.dev.yml up -d
 如有问题，请查看：
 
 - [项目文档](../README.md)
-- [API 文档](http://localhost:4092/api/v1/scalar)
+- [API 文档](http://localhost:4001/api/v1/scalar)
 - [GitHub Issues](https://github.com/your-repo/issues)

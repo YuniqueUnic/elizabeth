@@ -14,7 +14,10 @@ app:
     level: "info"
 
   database:
-    url: "sqlite:/app/data/elizabeth.db"
+    # NOTE: For an absolute path, SQLx expects three slashes.
+    # - ✅ absolute: sqlite:///app/data/elizabeth.db
+    # - ❌ (treated as relative to CWD): sqlite:/app/data/elizabeth.db
+    url: "sqlite:///app/data/elizabeth.db"
     # SQLite 并发写入能力有限，连接池不宜过大
     max_connections: 10
     min_connections: 1
