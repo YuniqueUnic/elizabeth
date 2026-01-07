@@ -30,7 +30,14 @@ test.describe("文件上传和删除 - 自动化测试", () => {
 
     const bootstrapRoomPage = async (page: any): Promise<RoomPage> => {
         await page.addInitScript(
-            ({ roomName, token, refreshToken, expiresAt }) => {
+            (
+                { roomName, token, refreshToken, expiresAt }: {
+                    roomName: string;
+                    token: string;
+                    refreshToken?: string;
+                    expiresAt: string;
+                },
+            ) => {
                 const storageKey = "elizabeth_tokens";
                 const existing =
                     JSON.parse(window.localStorage.getItem(storageKey) || "{}") || {};

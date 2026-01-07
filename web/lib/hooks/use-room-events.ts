@@ -28,22 +28,22 @@ export const queryKeys = {
   /**
    * Query key for room files list
    */
-  roomFiles: (roomName: string) => ["room", roomName, "files"] as const,
+  roomFiles: (roomName: string) => ["files", roomName] as const,
 
   /**
    * Query key for room messages list
    */
-  roomMessages: (roomName: string) => ["room", roomName, "messages"] as const,
+  roomMessages: (roomName: string) => ["messages", roomName] as const,
 
   /**
    * Query key for room details
    */
-  roomDetails: (roomName: string) => ["room", roomName, "details"] as const,
+  roomDetails: (roomName: string) => ["room", roomName] as const,
 
   /**
    * Query key for room settings
    */
-  roomSettings: (roomName: string) => ["room", roomName, "settings"] as const,
+  roomSettings: (roomName: string) => ["room", roomName] as const,
 } as const;
 
 // ============================================================================

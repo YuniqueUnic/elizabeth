@@ -76,22 +76,14 @@ export async function getFilesList(
     { token: authToken },
   );
 
-  // Filter for non-text content (files only) and convert to FileItem
-  // Exclude text messages (ContentType.Text or text/plain files with message.txt pattern)
+  // Filter for non-text content (files only) and convert to FileItem.
+  // Messages are stored as ContentType.Text and should never appear here.
   const filtered = contents
     .filter((content) => {
       const contentType = parseContentType(content.content_type);
 
       // Exclude explicit text content
       if (contentType === CT.Text) {
-        return false;
-      }
-      // Exclude text files that are messages (mime_type is text/plain and filename includes message.txt)
-      if (
-        contentType === CT.File &&
-        content.mime_type === "text/plain" &&
-        content.file_name?.includes("message.txt")
-      ) {
         return false;
       }
       return true;

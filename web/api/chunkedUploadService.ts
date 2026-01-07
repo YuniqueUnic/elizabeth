@@ -245,12 +245,17 @@ export async function getChunkedUploadStatus(
     throw new Error("Authentication required to check upload status");
   }
 
+  const params: Record<string, string | number | boolean> = {};
+  if (query.upload_token) {
+    params.upload_token = query.upload_token;
+  }
+  if (query.reservation_id) {
+    params.reservation_id = query.reservation_id;
+  }
+
   return api.get<UploadStatusResponse>(
     API_ENDPOINTS.chunkedUpload.status(roomName),
-    {
-      upload_token: query.upload_token,
-      reservation_id: query.reservation_id,
-    },
+    params,
     { token: authToken },
   );
 }

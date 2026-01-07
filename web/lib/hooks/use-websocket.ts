@@ -12,6 +12,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { BackendContentType } from "../types";
 
 // ============================================================================
 // Type Definitions (matching backend WebSocket protocol)
@@ -77,8 +78,13 @@ export interface RoomInfo {
  * WebSocket event payload types
  */
 export interface ContentEventPayload {
-  content_id: number;
-  room_id: number;
+  content_id: number | null;
+  room_name: string;
+  content_type?: BackendContentType;
+  text?: string | null;
+  file_name?: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface UserEventPayload {
