@@ -10,9 +10,10 @@ use crate::websocket::server::WsServer;
 
 /// 创建 WebSocket 路由
 ///
-/// 返回一个包含 `/ws` 端点的路由器
+/// 返回一个包含 `/api/v1/ws` 端点的路由器
 pub fn api_router(app_state: Arc<AppState>) -> Router {
+    let ws_path = format!("{}/ws", super::API_PREFIX);
     Router::new()
-        .route("/ws", get(WsServer::handle_ws))
+        .route(&ws_path, get(WsServer::handle_ws))
         .with_state((*app_state).clone())
 }

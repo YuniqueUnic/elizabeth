@@ -1,6 +1,6 @@
 import { API_BASE_ORIGIN, PUBLIC_APP_ORIGIN } from "../config";
 
-export function resolveWebSocketUrl(path: string = "/ws"): string {
+export function resolveWebSocketUrl(path: string = "/api/v1/ws"): string {
   const explicit = process.env.NEXT_PUBLIC_WS_URL;
   if (explicit && explicit.trim()) {
     return explicit.trim();
