@@ -78,7 +78,7 @@ EXPOSE 4092
 
 # Set environment variables
 ENV RUST_LOG=info
-ENV DATABASE_PATH=/app/data/elizabeth.db
+ENV DATABASE_URL=sqlite:/app/data/elizabeth.db
 
 # Run the application
 ENTRYPOINT ["/app/board"]

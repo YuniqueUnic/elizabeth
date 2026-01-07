@@ -29,7 +29,7 @@ services:
       # Logging
       RUST_LOG: ${RUST_LOG:-info}
       # Database
-      DATABASE_PATH: /app/data/elizabeth.db
+      DATABASE_URL: sqlite:/app/data/elizabeth.db
     networks:
       - elizabeth-network
     healthcheck:

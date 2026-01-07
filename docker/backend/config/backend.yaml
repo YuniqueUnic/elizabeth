@@ -1,25 +1,66 @@
-# Elizabeth Backend Configuration
-# This file is used for Docker deployment
+# Elizabeth Backend Configuration (Docker)
+#
+# NOTE:
+# - 该文件必须匹配 `crates/configrs::Config` 的 schema（顶层为 `app:`）。
+# - 不要在这里写 "${JWT_SECRET}" 这类“伪插值”：YAML 不会自动从环境变量替换。
+#   真实的密钥请通过环境变量 `JWT_SECRET` 注入（`crates/board/src/init/cfg_service.rs` 会覆盖）。
 
-server:
-  host: "0.0.0.0"
-  port: 4092
+app:
+  server:
+    addr: "0.0.0.0"
+    port: 4092
 
-database:
-  url: "sqlite:/app/data/elizabeth.db"
-  max_connections: 10
-  min_connections: 1
-  journal_mode: "wal"
+  logging:
+    level: "info"
 
-storage:
-  root: "/app/storage"
-  upload_reservation_ttl_seconds: 3600
+  database:
+    url: "sqlite:/app/data/elizabeth.db"
+    # SQLite 并发写入能力有限，连接池不宜过大
+    max_connections: 10
+    min_connections: 1
+    # macOS Docker(virtiofs/gRPC FUSE) 下 WAL 可能触发“Device or resource busy”，默认用 delete 更稳
+    journal_mode: "delete"
 
-room:
-  max_content_size: 10485760  # 10MB
-  max_times_entered: 100
+  storage:
+    root: "/app/storage/rooms"
 
-auth:
-  jwt_secret: "${JWT_SECRET}"
-  ttl_seconds: 86400  # 24 hours
-  leeway_seconds: 60
+  jwt:
+    # 生产环境必须通过 env 覆盖（长度 >= 32）
+    secret: "please-change-this-secret-in-production-min-32-chars-long-for-security" # pragma: allowlist secret
+    ttl_seconds: 7200
+    leeway_seconds: 5
+    refresh_ttl_seconds: 604800
+    max_refresh_count: 10
+    cleanup_interval_seconds: 86400
+    enable_refresh_token_rotation: true
+
+  room:
+    max_size: 52428800 # 50MB
+    max_times_entered: 100
+
+  upload:
+    reservation_ttl_seconds: 3600
+
+  middleware:
+    compression:
+      enabled: true
+      min_content_length: 1024
+    cors:
+      enabled: true
+      allowed_origins:
+        - "*"
+      allowed_methods:
+        - "GET"
+        - "POST"
+        - "PUT"
+        - "DELETE"
+        - "OPTIONS"
+      allowed_headers:
+        - "*"
+      allow_credentials: false
+      max_age: 3600
+      expose_headers: []
+    security:
+      enabled: true
+    rate_limit:
+      enabled: false
