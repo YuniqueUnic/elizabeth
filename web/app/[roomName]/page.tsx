@@ -12,16 +12,26 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useAppStore } from "@/lib/store";
 import { RoomPasswordDialog } from "@/components/room/room-password-dialog";
 import { getRoomDetails } from "@/api/roomService";
-import { getAccessToken, hasValidToken } from "@/api/authService";
-import { getRoomTokenString } from "@/lib/utils/api";
+import { getAccessToken, hasValidToken, validateToken } from "@/api/authService";
+import { clearRoomToken, getRoomTokenString } from "@/lib/utils/api";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
-import { useRoomEvents } from "@/lib/hooks/use-room-events";
+import { useRoomEvents, type RoomUpdatePayload } from "@/lib/hooks/use-room-events";
 import { resolveWebSocketUrl } from "@/lib/utils/ws";
 import { ContentType, parseContentType } from "@/lib/types";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 
-function RoomRealtimeSync({ roomName, token }: { roomName: string; token: string }) {
+function RoomRealtimeSync({
+  roomName,
+  token,
+  onRoomUpdate,
+}: {
+  roomName: string;
+  token: string;
+  onRoomUpdate?: (payload: RoomUpdatePayload) => void;
+}) {
   const queryClient = useQueryClient();
   const syncMessagesFromServer = useAppStore((state) =>
     state.syncMessagesFromServer
@@ -48,7 +58,8 @@ function RoomRealtimeSync({ roomName, token }: { roomName: string; token: string
       // Deleted payload does not include content_type; refresh messages to stay consistent.
       void syncMessagesFromServer();
     },
-    onRoomUpdate: () => {
+    onRoomUpdate: (payload) => {
+      onRoomUpdate?.(payload);
       queryClient.invalidateQueries({ queryKey: ["room", roomName] });
     },
   });
@@ -60,6 +71,7 @@ export default function RoomPage() {
   const params = useParams();
   const router = useRouter();
   const isMobile = useIsMobile();
+  const { toast } = useToast();
   const { currentRoomId, setCurrentRoomId } = useAppStore();
 
   const roomName = params.roomName as string;
@@ -68,6 +80,7 @@ export default function RoomPage() {
   const [error, setError] = useState<string | null>(null);
   const [needsPassword, setNeedsPassword] = useState(false);
   const [tokenReady, setTokenReady] = useState(false);
+  const [roomRedirect, setRoomRedirect] = useState<string | null>(null);
   const wsToken = tokenReady ? getRoomTokenString(roomName) : null;
 
   useEffect(() => {
@@ -83,6 +96,7 @@ export default function RoomPage() {
       setError(null);
       setNeedsPassword(false);
       setTokenReady(false);
+      setRoomRedirect(null);
 
       // This logic runs every time the `roomName` in the URL changes.
       // 1. Set the global room identifier.
@@ -93,14 +107,23 @@ export default function RoomPage() {
       console.log(`[RoomPage] Checking token for ${roomName}:`, hasToken);
 
       if (hasToken) {
-        console.log(
-          `[RoomPage] Valid token found for ${roomName}, skipping authentication`,
-        );
-        if (!isCancelled) {
-          setLoading(false);
-          setTokenReady(true);
+        try {
+          await validateToken(roomName);
+          console.log(
+            `[RoomPage] Valid token verified for ${roomName}, skipping authentication`,
+          );
+          if (!isCancelled) {
+            setLoading(false);
+            setTokenReady(true);
+          }
+          return;
+        } catch (err) {
+          console.warn(
+            `[RoomPage] Stored token rejected by backend for ${roomName}, clearing it`,
+            err,
+          );
+          clearRoomToken(roomName);
         }
-        return;
       }
 
       console.log(
@@ -223,7 +246,67 @@ export default function RoomPage() {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background">
       {tokenReady && wsToken && (
-        <RoomRealtimeSync roomName={roomName} token={wsToken} />
+        <RoomRealtimeSync
+          roomName={roomName}
+          token={wsToken}
+          onRoomUpdate={(payload) => {
+            const nextSlug = payload?.room_info?.slug;
+            if (typeof nextSlug !== "string" || !nextSlug.trim()) return;
+
+            if (nextSlug !== roomName) {
+              clearRoomToken(roomName);
+              setRoomRedirect(nextSlug);
+              toast({
+                title: "房间地址已变更",
+                description: "该房间已切换到新的地址，请跳转继续。",
+              });
+            }
+          }}
+        />
+      )}
+      {roomRedirect && (
+        <div className="p-3">
+          <Alert>
+            <AlertTitle>房间地址已变更</AlertTitle>
+            <AlertDescription className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                该房间已切换到新的地址：<span className="font-mono">/{roomRedirect}</span>。
+                为继续使用，请跳转到新地址并重新登录。
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    router.push(`/${roomRedirect}`);
+                  }}
+                >
+                  跳转到新地址
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(
+                        `${window.location.origin}/${roomRedirect}`,
+                      );
+                      toast({ title: "已复制新链接" });
+                    } catch (err) {
+                      console.error("Failed to copy link:", err);
+                      toast({
+                        title: "复制失败",
+                        description: "无法复制链接，请手动复制。",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                >
+                  复制新链接
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        </div>
       )}
       <TopBar />
       {isMobile

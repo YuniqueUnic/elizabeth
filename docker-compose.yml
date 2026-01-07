@@ -67,10 +67,10 @@ services:
       - /tmp
     volumes:
       # Data persistence
-      - ./docker/backend/data:/app/data
-      - ./docker/backend/storage:/app/storage
+      - ${ELIZABETH_DATA_DIR:-./docker/backend/data}:/app/data
+      - ${ELIZABETH_STORAGE_DIR:-./docker/backend/storage}:/app/storage
       # Configuration
-      - ./docker/backend/config/backend.yaml:/app/config/backend.yaml:ro
+      - ${ELIZABETH_BACKEND_CONFIG:-./docker/backend/config/backend.yaml}:/app/config/backend.yaml:ro
     environment:
       # Security
       JWT_SECRET: ${JWT_SECRET:-please-change-this-secret-in-production-min-32-chars}

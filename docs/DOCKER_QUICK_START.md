@@ -209,6 +209,13 @@ MIDDLEWARE_CORS_ALLOWED_ORIGINS=*   # 生产环境改为具体域名
 - `app.database.journal_mode`：默认改为 `delete`，避免 SQLite WAL 在 macOS
   VirtioFS/gRPC FUSE 上触发 `Device or resource busy`
 
+如需把数据放到仓库之外（例如 `/var/lib/elizabeth`），可以在 `.env`
+中覆盖以下变量：
+
+- `ELIZABETH_DATA_DIR`：挂载到容器 `/app/data`
+- `ELIZABETH_STORAGE_DIR`：挂载到容器 `/app/storage`
+- `ELIZABETH_BACKEND_CONFIG`：挂载到容器 `/app/config/backend.yaml`
+
 `just docker-backend-up` 与 `scripts/docker_prepare_volumes.sh`
 会自动创建缺失的目录，并在端口冲突时给出提示。若需要自定义配置，可直接编辑上述
 YAML 文件后重建容器。

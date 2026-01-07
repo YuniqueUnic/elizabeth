@@ -74,6 +74,11 @@ export interface RoomInfo {
   current_times_entered: number;
 }
 
+export interface RoomUpdatePayload {
+  room_name: string;
+  room_info: RoomInfo;
+}
+
 /**
  * WebSocket event payload types
  */

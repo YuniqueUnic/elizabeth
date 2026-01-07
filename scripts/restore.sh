@@ -36,9 +36,27 @@ fi
 
 BACKUP_NAME=$1
 BACKUP_DIR="./backups"
-DATA_DIR="./docker/backend/data"
-STORAGE_DIR="./docker/backend/storage"
-CONFIG_DIR="./docker/backend/config"
+
+read_env_var() {
+    local key="$1"
+    local file="$2"
+    grep -E "^${key}=" "$file" 2>/dev/null | tail -n1 | cut -d'=' -f2- || true
+}
+
+ENV_FILE="./.env"
+ENV_DATA_DIR=""
+ENV_STORAGE_DIR=""
+ENV_CONFIG_FILE=""
+if [ -f "${ENV_FILE}" ]; then
+    ENV_DATA_DIR="$(read_env_var "ELIZABETH_DATA_DIR" "${ENV_FILE}")"
+    ENV_STORAGE_DIR="$(read_env_var "ELIZABETH_STORAGE_DIR" "${ENV_FILE}")"
+    ENV_CONFIG_FILE="$(read_env_var "ELIZABETH_BACKEND_CONFIG" "${ENV_FILE}")"
+fi
+
+DATA_DIR="${ELIZABETH_DATA_DIR:-${ENV_DATA_DIR:-./docker/backend/data}}"
+STORAGE_DIR="${ELIZABETH_STORAGE_DIR:-${ENV_STORAGE_DIR:-./docker/backend/storage}}"
+CONFIG_FILE="${ELIZABETH_BACKEND_CONFIG:-${ENV_CONFIG_FILE:-./docker/backend/config/backend.yaml}}"
+CONFIG_DIR="$(dirname "${CONFIG_FILE}")"
 
 # Check if backup files exist
 if [ ! -f "${BACKUP_DIR}/${BACKUP_NAME}_data.tar.gz" ]; then

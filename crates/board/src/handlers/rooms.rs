@@ -458,6 +458,9 @@ pub async fn update_permissions(
 
     let verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
     let token_perm = verified.claims.as_permission();
+    if !verified.room.permission.can_delete() {
+        return Err(AppError::permission_denied("Permission denied by room"));
+    }
     if !token_perm.can_delete() {
         return Err(AppError::permission_denied("Permission denied by token"));
     }
@@ -480,6 +483,7 @@ pub async fn update_permissions(
 
     let repo = RoomRepository::new(app_state.db_pool.clone());
     let mut room = verified.room;
+    let old_slug = room.slug.clone();
     let was_shareable = room.permission.can_share();
     room.permission = new_permission;
 
@@ -526,13 +530,20 @@ pub async fn update_permissions(
         max_times_entered: updated_room.max_times_entered,
         current_times_entered: updated_room.current_times_entered,
     };
-    let room_name_clone = name.clone();
+    let new_slug = updated_room.slug.clone();
     tokio::spawn(async move {
         if let Err(e) = broadcaster
-            .broadcast_room_update(&room_name_clone, &room_info)
+            .broadcast_room_update(&old_slug, &room_info)
             .await
         {
-            log::warn!("Failed to broadcast room update event: {}", e);
+            log::warn!("Failed to broadcast room update event (old slug): {}", e);
+        }
+        if new_slug != old_slug
+            && let Err(e) = broadcaster
+                .broadcast_room_update(&new_slug, &room_info)
+                .await
+        {
+            log::warn!("Failed to broadcast room update event (new slug): {}", e);
         }
     });
 
@@ -645,6 +656,11 @@ pub async fn update_room_settings(
     let token_perm = verified.claims.as_permission();
 
     // 需要删除权限才能更新房间设置
+    if !verified.room.permission.can_delete() {
+        return Err(AppError::permission_denied(
+            "Insufficient permissions to update room settings",
+        ));
+    }
     if !token_perm.can_delete() {
         return Err(AppError::permission_denied(
             "Insufficient permissions to update room settings",
@@ -715,10 +731,10 @@ pub async fn update_room_settings(
         max_times_entered: updated_room.max_times_entered,
         current_times_entered: updated_room.current_times_entered,
     };
-    let room_name_clone = name.clone();
+    let room_slug = updated_room.slug.clone();
     tokio::spawn(async move {
         if let Err(e) = broadcaster
-            .broadcast_room_update(&room_name_clone, &room_info)
+            .broadcast_room_update(&room_slug, &room_info)
             .await
         {
             log::warn!("Failed to broadcast room update event: {}", e);
