@@ -15,6 +15,7 @@ pub struct AppConfig {
     pub jwt: JwtConfig,
     pub room: RoomConfig,
     pub upload: UploadConfig,
+    pub gc: GcConfig,
     pub middleware: MiddlewareConfig,
 }
 
@@ -106,6 +107,22 @@ pub struct UploadConfig {
     #[default(3600)]
     #[merge(strategy = overwrite)]
     pub reservation_ttl_seconds: i64,
+}
+
+#[derive(Merge, Debug, Clone, SmartDefault, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
+pub struct GcConfig {
+    /// Room GC 扫描间隔（秒）
+    ///
+    /// 建议：生产环境 300~3600 秒；开发环境可以更短。
+    #[default(600)]
+    #[merge(strategy = overwrite)]
+    pub interval_seconds: u64,
+
+    /// 每次扫描最多处理的房间数量（防止一次扫太久）
+    #[default(200)]
+    #[merge(strategy = overwrite)]
+    pub batch_limit: u32,
 }
 
 // Middleware configurations - simplified without Merge trait
@@ -263,6 +280,8 @@ mod tests {
         assert_eq!(cfg.room.max_size, 50 * 1024 * 1024);
         assert_eq!(cfg.room.max_times_entered, 100);
         assert_eq!(cfg.upload.reservation_ttl_seconds, 3600);
+        assert_eq!(cfg.gc.interval_seconds, 600);
+        assert_eq!(cfg.gc.batch_limit, 200);
 
         // Test middleware defaults
         assert!(cfg.middleware.tracing.enabled);
@@ -308,6 +327,10 @@ mod tests {
             upload: UploadConfig {
                 reservation_ttl_seconds: 30,
             },
+            gc: GcConfig {
+                interval_seconds: 30,
+                batch_limit: 7,
+            },
             middleware: MiddlewareConfig::default(),
         };
 
@@ -327,6 +350,8 @@ mod tests {
         assert_eq!(left.room.max_size, 42);
         assert_eq!(left.room.max_times_entered, 7);
         assert_eq!(left.upload.reservation_ttl_seconds, 30);
+        assert_eq!(left.gc.interval_seconds, 30);
+        assert_eq!(left.gc.batch_limit, 7);
     }
 
     #[test]

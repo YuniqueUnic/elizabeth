@@ -116,7 +116,11 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
     // 创建应用状态
     let app_state = Arc::new(AppState::new(app_config, db_pool)?);
 
-    spawn_room_gc_task(app_state.clone());
+    spawn_room_gc_task(
+        app_state.clone(),
+        cfg.app.gc.interval_seconds,
+        cfg.app.gc.batch_limit,
+    );
 
     let addr: SocketAddr = format!("{}:{}", cfg.app.server.addr, cfg.app.server.port).parse()?;
     let listener = tokio::net::TcpListener::bind(addr).await?;
@@ -218,19 +222,18 @@ fn build_api_router(app_state: Arc<AppState>, cfg: &configrs::Config) -> (String
     (scalar_path, router)
 }
 
-fn spawn_room_gc_task(app_state: Arc<AppState>) {
-    const ROOM_GC_INTERVAL_SECS: u64 = 60 * 10;
-    const ROOM_GC_BATCH_LIMIT: u32 = 200;
+fn spawn_room_gc_task(app_state: Arc<AppState>, interval_seconds: u64, batch_limit: u32) {
+    let interval_seconds = interval_seconds.max(5);
+    let batch_limit = batch_limit.clamp(1, 10_000);
 
     tokio::spawn(async move {
-        let mut interval =
-            tokio::time::interval(std::time::Duration::from_secs(ROOM_GC_INTERVAL_SECS));
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(interval_seconds));
         loop {
             interval.tick().await;
             let cleaned = app_state
                 .services
                 .room_gc
-                .run_scheduled_gc(&app_state.connection_manager, ROOM_GC_BATCH_LIMIT)
+                .run_scheduled_gc(&app_state.connection_manager, batch_limit)
                 .await;
 
             match cleaned {

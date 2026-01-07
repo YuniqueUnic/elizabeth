@@ -2,7 +2,7 @@ use std::{fs::OpenOptions, path::PathBuf};
 
 use config::{FileFormat, FileSourceFile, builder::DefaultState};
 pub use configs::{
-    AppConfig, CompressionConfig, CorsConfig, DatabaseConfig, JwtConfig, LoggingConfig,
+    AppConfig, CompressionConfig, CorsConfig, DatabaseConfig, GcConfig, JwtConfig, LoggingConfig,
     MiddlewareConfig, RateLimitConfig, RequestIdConfig, RoomConfig, SecurityConfig, ServerConfig,
     StorageConfig, TracingConfig, UploadConfig,
 };
