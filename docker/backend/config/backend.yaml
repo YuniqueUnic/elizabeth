@@ -44,6 +44,12 @@ app:
   upload:
     reservation_ttl_seconds: 3600
 
+  gc:
+    # 扫描并清理“满且无过期、已空房”房间的间隔（秒）
+    interval_seconds: 600
+    # 单次最多处理的房间数量（防止一次扫太久）
+    batch_limit: 200
+
   middleware:
     compression:
       enabled: true
