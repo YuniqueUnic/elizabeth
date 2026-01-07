@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { TopBar } from "@/components/layout/top-bar";
 import { LeftSidebar } from "@/components/layout/left-sidebar";
 import { MiddleColumn } from "@/components/layout/middle-column";
@@ -12,10 +13,48 @@ import { useAppStore } from "@/lib/store";
 import { RoomPasswordDialog } from "@/components/room/room-password-dialog";
 import { getRoomDetails } from "@/api/roomService";
 import { getAccessToken, hasValidToken } from "@/api/authService";
-import { isTokenExpired } from "@/lib/utils/api";
+import { getRoomTokenString } from "@/lib/utils/api";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
+import { useRoomEvents } from "@/lib/hooks/use-room-events";
+import { resolveWebSocketUrl } from "@/lib/utils/ws";
+import { ContentType, parseContentType } from "@/lib/types";
+
+function RoomRealtimeSync({ roomName, token }: { roomName: string; token: string }) {
+  const queryClient = useQueryClient();
+  const syncMessagesFromServer = useAppStore((state) =>
+    state.syncMessagesFromServer
+  );
+
+  useRoomEvents({
+    wsUrl: resolveWebSocketUrl(),
+    roomName,
+    token,
+    enableCacheInvalidation: true,
+    onContentCreated: (payload) => {
+      const kind = parseContentType(payload.content_type);
+      if (kind === ContentType.Text) {
+        void syncMessagesFromServer();
+      }
+    },
+    onContentUpdated: (payload) => {
+      const kind = parseContentType(payload.content_type);
+      if (kind === ContentType.Text) {
+        void syncMessagesFromServer();
+      }
+    },
+    onContentDeleted: () => {
+      // Deleted payload does not include content_type; refresh messages to stay consistent.
+      void syncMessagesFromServer();
+    },
+    onRoomUpdate: () => {
+      queryClient.invalidateQueries({ queryKey: ["room", roomName] });
+    },
+  });
+
+  return null;
+}
 
 export default function RoomPage() {
   const params = useParams();
@@ -29,6 +68,7 @@ export default function RoomPage() {
   const [error, setError] = useState<string | null>(null);
   const [needsPassword, setNeedsPassword] = useState(false);
   const [tokenReady, setTokenReady] = useState(false);
+  const wsToken = tokenReady ? getRoomTokenString(roomName) : null;
 
   useEffect(() => {
     let isCancelled = false;
@@ -182,6 +222,9 @@ export default function RoomPage() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background">
+      {tokenReady && wsToken && (
+        <RoomRealtimeSync roomName={roomName} token={wsToken} />
+      )}
       <TopBar />
       {isMobile
         ? (

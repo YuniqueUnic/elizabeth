@@ -169,7 +169,7 @@ export async function updateRoomSettings(
   }
 
   if (settings.expiresAt !== undefined) {
-    payload.expire_at = settings.expiresAt;
+    payload.expire_at = settings.expiresAt ?? undefined;
   }
 
   if (settings.maxViews !== undefined) {

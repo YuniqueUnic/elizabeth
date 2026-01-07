@@ -173,6 +173,26 @@ fn build_api_router(app_state: Arc<AppState>, cfg: &configrs::Config) -> (String
     api.merge(room_api);
     api.merge(auth_api);
 
+    // Expose a machine-consumable OpenAPI document for client generation.
+    // Keep it in parallel with the JSON Schema exported via build.rs.
+    let openapi_path = format!("{}/openapi.json", route::API_PREFIX);
+    let openapi_json = serde_json::to_string_pretty(&api).unwrap_or_else(|e| {
+        log::error!("Failed to serialize OpenAPI: {e}");
+        "{}".to_string()
+    });
+    let router = router.route(
+        &openapi_path,
+        axum::routing::get({
+            let openapi_json = openapi_json.clone();
+            move || async move {
+                (
+                    [(axum::http::header::CONTENT_TYPE, "application/json")],
+                    openapi_json.clone(),
+                )
+            }
+        }),
+    );
+
     let (scalar, scalar_path) = route::scalar(api);
     let router = router.merge(scalar);
 

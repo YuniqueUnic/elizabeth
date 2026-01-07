@@ -1,0 +1,25 @@
+# Elizabeth Backend Configuration
+# This file is used for Docker deployment
+
+server:
+  host: "0.0.0.0"
+  port: 4092
+
+database:
+  url: "sqlite:/app/data/elizabeth.db"
+  max_connections: 10
+  min_connections: 1
+  journal_mode: "wal"
+
+storage:
+  root: "/app/storage"
+  upload_reservation_ttl_seconds: 3600
+
+room:
+  max_content_size: 10485760  # 10MB
+  max_times_entered: 100
+
+auth:
+  jwt_secret: "${JWT_SECRET}"
+  ttl_seconds: 86400  # 24 hours
+  leeway_seconds: 60

@@ -249,18 +249,28 @@ impl Default for ConfigManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
+    use std::sync::{Mutex, OnceLock};
+
+    fn env_lock() -> std::sync::MutexGuard<'static, ()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+            .lock()
+            .expect("env lock poisoned")
+    }
+
+    fn temp_config_file() -> (tempfile::TempDir, PathBuf) {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let config_path = temp.path().join("config.yaml");
+        std::fs::write(&config_path, "app: {}\n").expect("write temp config");
+        (temp, config_path)
+    }
 
     #[test]
     fn test_save() {
-        let config_manager = ConfigManager::new();
-        let _ = std::fs::remove_dir_all(
-            config_manager
-                .file_path()
-                .parse::<PathBuf>()
-                .unwrap()
-                .parent()
-                .unwrap(),
-        );
+        let _lock = env_lock();
+        let (_temp_dir, config_path) = temp_config_file();
+        let config_manager = ConfigManager::new_with_file(config_path.to_str().unwrap());
         let config = Config {
             app: AppConfig {
                 server: ServerConfig {
@@ -273,7 +283,7 @@ mod tests {
         config_manager.save(&config).unwrap();
 
         // Create a new ConfigManager instance to reload the configuration from file
-        let new_config_manager = ConfigManager::new();
+        let new_config_manager = ConfigManager::new_with_file(config_path.to_str().unwrap());
         let loaded_config: Config = new_config_manager.source().unwrap();
         assert_eq!(loaded_config.app.server.addr, "128.0.0.1");
         assert_eq!(loaded_config.app.server.port, 0);
@@ -325,7 +335,9 @@ mod tests {
         use std::sync::Arc;
         use std::thread;
 
-        let config_manager = Arc::new(ConfigManager::new());
+        let _lock = env_lock();
+        let (_temp_dir, config_path) = temp_config_file();
+        let config_manager = Arc::new(ConfigManager::new_with_file(config_path.to_str().unwrap()));
         let mut handles = vec![];
 
         // Create multiple threads that try to load configuration concurrently
@@ -349,16 +361,8 @@ mod tests {
 
     #[test]
     fn test_load_with_environment_override() {
-        // Clean up any existing config file first
-        let config_manager = ConfigManager::new();
-        let _ = std::fs::remove_dir_all(
-            config_manager
-                .file_path()
-                .parse::<PathBuf>()
-                .unwrap()
-                .parent()
-                .unwrap(),
-        );
+        let _lock = env_lock();
+        let (_temp_dir, config_path) = temp_config_file();
 
         // Test that environment variables properly override file settings
         unsafe {
@@ -367,7 +371,7 @@ mod tests {
         }
 
         // Create ConfigManager after setting environment variables
-        let config_manager = ConfigManager::new();
+        let config_manager = ConfigManager::new_with_file(config_path.to_str().unwrap());
         let config: Result<Config> = config_manager.source();
 
         // Clean up environment variables
