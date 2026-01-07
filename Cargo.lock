@@ -228,33 +228,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "axum_responses"
-version = "0.5.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "50a9a817cf5c2f11cbf917feb58ca50e26fbb44ec459b6676409e46b07dcf00b"
-dependencies = [
- "axum",
- "axum_responses_macros",
- "chrono",
- "serde",
- "serde_json",
- "thiserror 2.0.17",
- "tracing",
-]
-
-[[package]]
-name = "axum_responses_macros"
-version = "0.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab84ecadf0586fb9bce16f441345a2fc392ca08f3aa725665b414ce739301417"
-dependencies = [
- "axum",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "backon"
 version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -493,7 +466,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b30fa8254caad766fc03cb0ccae691e14bf3bd72bfff27f72802ce729551b3d6"
 dependencies = [
  "async-trait",
- "convert_case 0.6.0",
+ "convert_case",
  "indexmap",
  "json5",
  "pathdiff",
@@ -558,15 +531,6 @@ name = "convert_case"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec182b0ca2f35d8fc196cf3404988fd8b8c739a4d270ff118a398feb0cbec1ca"
-dependencies = [
- "unicode-segmentation",
-]
-
-[[package]]
-name = "convert_case"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "633458d4ef8c78b72454de2d54fd6ab2e60f9e02be22f3c6104cdc8a4e0fceb9"
 dependencies = [
  "unicode-segmentation",
 ]
@@ -717,29 +681,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "derive_more"
-version = "2.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d751e9e49156b02b44f9c1815bcb94b984cdcc4396ecc32521c739452808b134"
-dependencies = [
- "derive_more-impl",
-]
-
-[[package]]
-name = "derive_more-impl"
-version = "2.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "799a97264921d8623a957f6c3b9011f3b5492f557bbb7a5a19b7fa6d06ba8dcb"
-dependencies = [
- "convert_case 0.10.0",
- "proc-macro2",
- "quote",
- "rustc_version",
- "syn",
- "unicode-xid",
-]
-
-[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -805,9 +746,6 @@ dependencies = [
  "anyhow",
  "async-trait",
  "axum",
- "axum_responses",
- "bitflags",
- "bon",
  "chrono",
  "clap",
  "clap_complete",
@@ -818,9 +756,7 @@ dependencies = [
  "hex",
  "jsonwebtoken",
  "log",
- "mime",
  "mime_guess",
- "multer",
  "opendal",
  "regex",
  "sanitize-filename",
@@ -834,7 +770,6 @@ dependencies = [
  "thiserror 2.0.17",
  "tokio",
  "tokio-util",
- "toml",
  "tower",
  "tower-http",
  "tower_governor",
@@ -866,7 +801,6 @@ name = "elizabeth-configrs"
 version = "0.3.0"
 dependencies = [
  "config",
- "derive_more",
  "fs4",
  "merge",
  "serde",

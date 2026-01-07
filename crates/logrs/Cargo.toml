@@ -1,6 +1,6 @@
 [package]
 name = "elizabeth-logrs"
-version.workspace = true # 使用 workspace 版本
+version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -16,6 +16,6 @@ structured-log = ["tracing-subscriber/json"]
 disable-log = ["tracing/max_level_off"]
 
 [dependencies]
-log = { version = "0.4", optional = true }
-tracing = { version = "0.1" }
-tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+log = { workspace = true, optional = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
