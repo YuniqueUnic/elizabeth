@@ -185,8 +185,8 @@ just docker-deploy
 
 # 5. 访问应用
 # 前端: http://localhost:4001
-# 后端 API: http://localhost:4092/api/v1
-# API 文档: http://localhost:4092/api/v1/scalar
+# 后端 API（经由网关转发）: http://localhost:4001/api/v1
+# API 文档（经由网关转发）: http://localhost:4001/api/v1/scalar
 ```
 
 #### 常用 Docker 命令
@@ -253,8 +253,10 @@ docker-compose down         # 停止服务
 
 4. **访问应用**
    - 前端：http://localhost:4001
-   - 后端 API: http://localhost:4092/api/v1
-   - API 文档：http://localhost:4092/api/v1/scalar
+   - 后端 API：http://localhost:4092/api/v1（本地开发） /
+     http://localhost:4001/api/v1（Docker）
+   - API 文档：http://localhost:4092/api/v1/scalar（本地开发） /
+     http://localhost:4001/api/v1/scalar（Docker）
 
 #### 开发环境设置
 
@@ -276,8 +278,10 @@ docker-compose down         # 停止服务
 ### API 基础信息
 
 - **API 前缀**: `/api/v1`
-- **默认端口**: `4092`
-- **API 文档**: `http://localhost:4092/api/v1/scalar`
+- **默认端口**: `4092`（本地运行后端）
+- **Docker 访问入口**: `http://localhost:4001/api/v1`（后端不对宿主机暴露）
+- **API 文档**: `http://localhost:4092/api/v1/scalar`（本地） /
+  `http://localhost:4001/api/v1/scalar`（Docker）
 
 ### 主要 API 端点
 
@@ -337,22 +341,33 @@ docker-compose down         # 停止服务
 
 启动服务后，可以通过以下地址访问交互式 API 文档：
 
-- **Scalar UI**: `http://localhost:4092/api/v1/scalar`
+- **Scalar UI**: `http://localhost:4092/api/v1/scalar`（本地） /
+  `http://localhost:4001/api/v1/scalar`（Docker）
 
 ### 使用示例
 
 #### 1. 创建房间
 
 ```bash
+# Base URL:
+# - Local dev: http://localhost:4092/api/v1
+# - Docker:    http://localhost:4001/api/v1
+API_BASE="http://localhost:4092/api/v1"
+
 # 创建带密码的房间
-curl -X POST "http://localhost:4092/api/v1/rooms/myroom?password=secret123"
+curl -X POST "${API_BASE}/rooms/myroom?password=secret123"
 ```
 
 #### 2. 签发 Token
 
 ```bash
+# Base URL:
+# - Local dev: http://localhost:4092/api/v1
+# - Docker:    http://localhost:4001/api/v1
+API_BASE="http://localhost:4092/api/v1"
+
 # 使用密码签发 Token
-curl -X POST "http://localhost:4092/api/v1/rooms/myroom/tokens" \
+curl -X POST "${API_BASE}/rooms/myroom/tokens" \
   -H "Content-Type: application/json" \
   -d '{"password": "secret123", "with_refresh_token": true}' # pragma: allowlist secret
 ```
@@ -360,27 +375,42 @@ curl -X POST "http://localhost:4092/api/v1/rooms/myroom/tokens" \
 #### 3. 上传文件
 
 ```bash
+# Base URL:
+# - Local dev: http://localhost:4092/api/v1
+# - Docker:    http://localhost:4001/api/v1
+API_BASE="http://localhost:4092/api/v1"
+
 # 准备上传
-curl -X POST "http://localhost:4092/api/v1/rooms/myroom/contents/prepare" \
+curl -X POST "${API_BASE}/rooms/myroom/contents/prepare" \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"files": [{"file_name": "test.txt", "size": 1024, "mime_type": "text/plain"}]}'
 
 # 上传文件
-curl -X POST "http://localhost:4092/api/v1/rooms/myroom/contents?token=YOUR_TOKEN" \
+curl -X POST "${API_BASE}/rooms/myroom/contents?token=YOUR_TOKEN" \
   -F "files=@test.txt"
 ```
 
 #### 4. 列出房间内容
 
 ```bash
-curl -X GET "http://localhost:4092/api/v1/rooms/myroom/contents?token=YOUR_TOKEN"
+# Base URL:
+# - Local dev: http://localhost:4092/api/v1
+# - Docker:    http://localhost:4001/api/v1
+API_BASE="http://localhost:4092/api/v1"
+
+curl -X GET "${API_BASE}/rooms/myroom/contents?token=YOUR_TOKEN"
 ```
 
 #### 5. 下载文件
 
 ```bash
-curl -X GET "http://localhost:4092/api/v1/rooms/myroom/contents/1/download?token=YOUR_TOKEN" \
+# Base URL:
+# - Local dev: http://localhost:4092/api/v1
+# - Docker:    http://localhost:4001/api/v1
+API_BASE="http://localhost:4092/api/v1"
+
+curl -X GET "${API_BASE}/rooms/myroom/contents/1/download?token=YOUR_TOKEN" \
   -o downloaded_file.txt
 ```
 
@@ -446,7 +476,7 @@ Docker 部署时，所有配置通过 `.env` 文件管理。详见
 - Next.js
   服务端转发内部地址：`INTERNAL_API_URL=http://elizabeth-backend:4092/api/v1`
 - 重新构建前端镜像确保打包产物不再包含 `http://`
-  明文后端地址：`docker compose build --no-cache frontend && docker compose up -d frontend`
+  明文后端地址：`docker compose build --no-cache frontend && docker compose up -d frontend gateway`
 - 参考文档：[docs/https-proxy-unification.md](./docs/https-proxy-unification.md)
 
 #### 数据库选择（SQLite / PostgreSQL）
@@ -743,7 +773,8 @@ just docker-backup    # 备份数据
 ### 开发文档
 
 - [`README.md`](./README.md) - 项目主文档（本文档）
-- [`IMPLEMENTATION_GUIDE.md`](./docs/IMPLEMENTATION_GUIDE.md) - API Schema 和 WebSocket 实施指南
+- [`IMPLEMENTATION_GUIDE.md`](./docs/IMPLEMENTATION_GUIDE.md) - API Schema 和
+  WebSocket 实施指南
 - [`WEBSOCKET_GUIDE.md`](./docs/WEBSOCKET_GUIDE.md) - WebSocket 使用指南
 - [`web/README.md`](./web/README.md) - 前端项目文档
 - [`CHANGELOG.md`](./CHANGELOG.md) - 项目变更日志

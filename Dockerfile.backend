@@ -55,7 +55,11 @@ RUN cargo build --release -p elizabeth-board
 # ----------------------------------------------------------------------------
 # Stage 3: Runtime - Minimal production image
 # ----------------------------------------------------------------------------
-FROM debian:bookworm-slim AS runtime
+# NOTE: The cargo-chef base image is built against glibc >= 2.38.
+# Debian bookworm ships glibc 2.36, which will fail at runtime with:
+#   `GLIBC_2.38' not found
+# Use a runtime image with glibc >= 2.38.
+FROM debian:trixie-slim AS runtime
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \

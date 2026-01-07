@@ -92,8 +92,8 @@ docker compose ps
 部署成功后，您可以访问：
 
 - **前端界面**: http://localhost:4001
-- **后端 API**: http://localhost:4092/api/v1
-- **API 文档**: http://localhost:4092/api/v1/scalar
+- **后端 API（经由前端网关转发）**: http://localhost:4001/api/v1
+- **API 文档（经由前端网关转发）**: http://localhost:4001/api/v1/scalar
 
 ## 📝 常用命令
 
@@ -292,13 +292,13 @@ docker compose exec frontend ping backend
 docker compose exec frontend env | grep NEXT_PUBLIC
 
 # 测试后端 API
-curl http://localhost:4092/api/v1/health
+curl http://localhost:4001/api/v1/health
 ```
 
 ### macOS 出现“Device busy or not ready”
 
-1. 先运行 `./scripts/docker_prepare_volumes.sh`，脚本会检测端口 4092
-   是否被本地进程占用。
+1. 先运行 `./scripts/docker_prepare_volumes.sh`，脚本会检测
+   `docker/backend/data/elizabeth.db` 是否被本地进程占用。
 2. 确认本地未同时运行 `cargo run -p elizabeth-board -- run` 等后端服务，以避免
    SQLite 文件被锁定。
 3. 检查 `docker/backend/config/backend.yaml` 中 `app.database.journal_mode`
@@ -387,9 +387,20 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # 后端 API
-    location /api/ {
-        proxy_pass http://localhost:4092;
+    # API / WebSocket（由容器内网关转发到后端）
+    location /api/v1/ {
+        proxy_pass http://localhost:4001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /api/v1/ws {
+        proxy_pass http://localhost:4001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
