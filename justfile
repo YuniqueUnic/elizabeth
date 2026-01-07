@@ -1,7 +1,7 @@
 # ==============================================================
-# 🦀 Justfile for Rust + Axum + SQLx Projects
+# 🦀 Justfile for Elizabeth - Rust File Sharing Platform
 # --------------------------------------------------------------
-# 自动加载 .env 环境变量，包含常用开发、数据库与验证任务。
+# 自动加载 .env 环境变量，包含开发、数据库与 Docker 任务。
 # ==============================================================
 
 set dotenv-load
@@ -39,12 +39,11 @@ test: fmt
 verify: check test
     @echo "✅ 验证通过"
 
-# === 🧹 代码质量 (CI/CD) ===
-
 # 🧹 运行 pre-commit 检查
 prek: fmt clippy
     @echo "🧹 pre-commit 检查..."
     prek run -a
+
 
 # === 🗄️ 数据库操作 ===
 
@@ -179,61 +178,60 @@ clean-all: clean
     echo "✅ 完全清理完成"
 
 
-# === 🐳 Docker 部署任务 ===
+# === 🐳 Docker 操作 ===
 
-# 缓存层构建
-docker-backend-cache:
-    @echo "🔧 构建后端 cache 层 (planner)..."
-    docker build --target planner -f Dockerfile.backend -t elizabeth-backend-cache:latest .
-
-docker-frontend-cache:
-    @echo "🔧 构建前端 cache 层 (deps)..."
-    docker build --target deps -f Dockerfile.frontend -t elizabeth-frontend-cache:latest .
-
-# 二进制构建
-docker-backend-binary:
-    @echo "🔨 构建后端二进制 (builder)..."
-    docker build --target builder -f Dockerfile.backend -t elizabeth-backend-builder:latest .
-
-docker-frontend-binary:
-    @echo "🔨 构建前端二进制 (builder)..."
-    docker build --target builder -f Dockerfile.frontend -t elizabeth-frontend-builder:latest .
-
-# 镜像构建
-docker-backend-image:
-    @echo "🐳 构建后端运行时镜像..."
+# 🔨 构建后端镜像
+docker-build-backend:
+    @echo "🐳 构建后端镜像..."
     docker build --target runtime -f Dockerfile.backend -t elizabeth-backend:latest .
 
-docker-frontend-image:
-    @echo "🐳 构建前端运行时镜像..."
+# 🔨 构建前端镜像
+docker-build-frontend:
+    @echo "🐳 构建前端镜像..."
     docker build --target runner -f Dockerfile.frontend -t elizabeth-frontend:latest .
 
-# 容器生命周期
-docker-backend-up:
-    @echo "▶️ 启动后端容器..."
+# 🔨 构建所有镜像
+docker-build: docker-build-backend docker-build-frontend
+    @echo "✅ 所有镜像构建完成"
+
+# ▶️ 启动所有服务
+docker-up:
+    @echo "▶️ 启动所有服务..."
     ./scripts/docker_prepare_volumes.sh
-    docker compose up -d backend
+    docker compose up -d
 
-docker-frontend-up: docker-backend-up
-    @echo "▶️ 启动前端容器..."
-    docker compose up -d frontend gateway
+# ⏹️ 停止所有服务
+docker-down:
+    @echo "⏹️ 停止所有服务..."
+    docker compose down
 
-docker-backend-stop:
-    @echo "⏹️ 停止后端容器..."
-    docker compose stop backend
-
-docker-frontend-stop:
-    @echo "⏹️ 停止前端容器..."
-    docker compose stop gateway frontend
-
-docker-backend-recreate:
-    @echo "🔄 重建后端容器..."
+# 🔄 重建并启动所有服务
+docker-rebuild:
+    @echo "🔄 重建并启动所有服务..."
     ./scripts/docker_prepare_volumes.sh
-    docker compose up -d --force-recreate backend
+    docker compose up -d --force-recreate --build
 
-docker-frontend-recreate: docker-backend-recreate
-    @echo "🔄 重建前端容器..."
-    docker compose up -d --force-recreate frontend gateway
+# 📜 查看服务日志
+docker-logs:
+    @echo "📜 查看服务日志..."
+    docker compose logs -f
+
+# 📜 查看后端日志
+docker-logs-backend:
+    @echo "📜 查看后端日志..."
+    docker compose logs -f backend
+
+# 📜 查看前端日志
+docker-logs-frontend:
+    @echo "📜 查看前端日志..."
+    docker compose logs -f frontend
+
+# 🧹 清理 Docker 资源
+docker-clean:
+    @echo "🧹 清理 Docker 资源..."
+    docker compose down -v
+    docker system prune -f
+
 
 # === 🔤 命令别名 ===
 alias f := fmt            # 格式化代码
@@ -246,15 +244,8 @@ alias dq := dev-quick     # 快速检查
 alias i := info           # 显示项目信息
 
 # Docker 别名
-alias dbc := docker-backend-cache
-alias dfc := docker-frontend-cache
-alias dbb := docker-backend-binary
-alias dfb := docker-frontend-binary
-alias dbi := docker-backend-image
-alias dfi := docker-frontend-image
-alias dbu := docker-backend-up
-alias dfu := docker-frontend-up
-alias dbs := docker-backend-stop
-alias dfs := docker-frontend-stop
-alias dbr := docker-backend-recreate
-alias dfr := docker-frontend-recreate
+alias db := docker-build          # 构建所有镜像
+alias du := docker-up             # 启动服务
+alias dd := docker-down           # 停止服务
+alias dr := docker-rebuild        # 重建服务
+alias dl := docker-logs           # 查看日志
