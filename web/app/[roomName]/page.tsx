@@ -11,7 +11,7 @@ import { MobileLayout } from "@/components/layout/mobile-layout";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAppStore } from "@/lib/store";
 import { RoomPasswordDialog } from "@/components/room/room-password-dialog";
-import { getRoomDetails } from "@/api/roomService";
+import { createRoom, getRoomDetails } from "@/api/roomService";
 import { getAccessToken, hasValidToken, validateToken } from "@/api/authService";
 import { clearRoomToken, getRoomTokenString } from "@/lib/utils/api";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -147,13 +147,70 @@ export default function RoomPage() {
           }
         }
       } catch (err: any) {
-        if (!isCancelled) {
-          if (err.message?.includes("404")) {
-            setError("房间不存在");
-          } else {
-            setError("无法访问房间，请稍后重试");
-          }
+        if (isCancelled) return;
+
+        const status: number | undefined =
+          err?.code ?? err?.status ?? err?.response?.status;
+        const message: string =
+          typeof err?.message === "string" ? err.message : "";
+
+        if (status === 400) {
+          setError(
+            "房间名称不合法：仅支持 3-50 位字母/数字/下划线/连字符，且不能以下划线或连字符开头/结尾。",
+          );
+          return;
         }
+
+        if (status === 401 || status === 403) {
+          setError(
+            "房间无法通过该链接进入：可能已过期、达到最大进入次数，或已切换为私密地址（请使用新的分享链接）。",
+          );
+          return;
+        }
+
+        if (status === 404) {
+          // Fallback: some deployments may not auto-create rooms on GET.
+          // Try explicit create, then continue normal auth flow.
+          try {
+            await createRoom(roomName);
+            const room = await getRoomDetails(roomName, undefined, true);
+
+            if (room.settings.passwordProtected && !hasValidToken(roomName)) {
+              setNeedsPassword(true);
+              return;
+            }
+
+            await getAccessToken(roomName);
+            setTokenReady(true);
+            return;
+          } catch (createErr: any) {
+            const createStatus: number | undefined =
+              createErr?.code ?? createErr?.status ?? createErr?.response?.status;
+            if (createStatus === 409) {
+              // Race: room created by someone else. Retry as existing room.
+              try {
+                const room = await getRoomDetails(roomName, undefined, true);
+                if (room.settings.passwordProtected && !hasValidToken(roomName)) {
+                  setNeedsPassword(true);
+                  return;
+                }
+                await getAccessToken(roomName);
+                setTokenReady(true);
+                return;
+              } catch {
+                // Fall through to generic error
+              }
+            }
+          }
+
+          setError("房间不存在，且自动创建失败。请稍后重试。");
+          return;
+        }
+
+        setError(
+          message ||
+            "无法访问房间，请稍后重试（请检查后端服务是否可用以及前端 API 代理配置）。",
+        );
       } finally {
         if (!isCancelled) {
           setLoading(false);

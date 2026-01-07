@@ -9,7 +9,7 @@
  */
 
 import { API_ENDPOINTS } from "../lib/config";
-import { api, clearRoomToken } from "../lib/utils/api";
+import { api } from "../lib/utils/api";
 import { getValidToken } from "./authService";
 import type {
   BackendRoom,
@@ -185,10 +185,6 @@ export async function updateRoomSettings(
     payload,
     { token: authToken },
   );
-
-  if (settings.password !== undefined) {
-    clearRoomToken(roomName);
-  }
 
   return convertRoom(room);
 }

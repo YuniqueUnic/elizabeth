@@ -3,19 +3,19 @@
 /**
  * 刷新令牌验证响应结构
  */
-export type RefreshTokenResponse = { 
+export type RefreshTokenResponse = {
 /**
  * 新的访问令牌
  */
-access_token: string, 
+access_token: string,
 /**
  * 新的刷新令牌
  */
-refresh_token: string, 
+refresh_token: string,
 /**
  * 访问令牌过期时间
  */
-access_token_expires_at: string, 
+access_token_expires_at: string,
 /**
  * 刷新令牌过期时间
  */

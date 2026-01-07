@@ -17,6 +17,9 @@ pub mod storage;
 pub mod validation;
 pub mod websocket;
 
+#[cfg(test)]
+mod tests;
+
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;

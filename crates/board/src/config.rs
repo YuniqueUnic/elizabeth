@@ -31,8 +31,8 @@ pub struct DatabaseConfig {
     /// 数据库连接 URL
     /// 支持：
     /// - SQLite: sqlite:path/to/db.sqlite
-    /// - PostgreSQL: postgresql://user:password@host:port/database
-    /// - Supabase: postgresql://postgres:[PASSWORD]@db.[PROJECT].supabase.co:5432/postgres
+    /// - PostgreSQL: postgresql://user:password@host:port/database # pragma: allowlist secret
+    /// - Supabase: postgresql://postgres:[PASSWORD]@db.[PROJECT].supabase.co:5432/postgres # pragma: allowlist secret
     pub url: String,
 
     /// 连接池最大连接数

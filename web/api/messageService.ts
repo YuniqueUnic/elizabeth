@@ -36,34 +36,29 @@ export async function getMessages(
   roomName: string,
   token?: string,
 ): Promise<Message[]> {
-  try {
-    const authToken = token || await getValidToken(roomName);
+  const authToken = token || await getValidToken(roomName);
 
-    if (!authToken) {
-      throw new Error("Authentication required to get messages");
-    }
-
-    const contents = await api.get<BackendRoomContent[]>(
-      API_ENDPOINTS.content.base(roomName),
-      undefined,
-      { token: authToken },
-    );
-
-    // Filter only ContentType.Text (content_type = 0)
-    const filteredContents = contents.filter((content) => {
-      const contentType = parseContentType(content.content_type);
-      return contentType === CT.Text;
-    });
-
-    return filteredContents
-      .map(convertMessage)
-      .sort((a, b) =>
-        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-      );
-  } catch (error) {
-    console.error("getMessages fallback to empty list:", error);
-    return [];
+  if (!authToken) {
+    throw new Error("Authentication required to get messages");
   }
+
+  const contents = await api.get<BackendRoomContent[]>(
+    API_ENDPOINTS.content.base(roomName),
+    undefined,
+    { token: authToken },
+  );
+
+  // Filter only ContentType.Text (content_type = 0)
+  const filteredContents = contents.filter((content) => {
+    const contentType = parseContentType(content.content_type);
+    return contentType === CT.Text;
+  });
+
+  return filteredContents
+    .map(convertMessage)
+    .sort((a, b) =>
+      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
 }
 
 /**

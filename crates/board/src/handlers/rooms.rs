@@ -274,14 +274,22 @@ pub async fn issue_token(
         room
     };
 
-    if !room.can_enter() {
-        return Err(AppError::authentication("Room cannot be entered"));
-    }
-
     // ✅ FIX: Only increment view count for NEW entries
     // If previous_jti is None, this is a new entry (first time or after token expiry)
     // If previous_jti is Some, this is a token refresh/replacement, don't count it
     let should_increment_view_count = previous_jti.is_none();
+
+    if should_increment_view_count {
+        if !room.can_enter() {
+            return Err(AppError::authentication("Room cannot be entered"));
+        }
+    } else {
+        // Token refresh: do not block on max_times_entered.
+        // Still respect room expiry / close status to avoid resurrecting dead rooms.
+        if room.is_expired() || room.status() == crate::models::RoomStatus::Close {
+            return Err(AppError::authentication("Room cannot be entered"));
+        }
+    }
 
     if should_increment_view_count {
         room.current_times_entered += 1;
@@ -301,41 +309,8 @@ pub async fn issue_token(
     }
 
     let repository = RoomRepository::new(app_state.db_pool.clone());
-    if room.current_times_entered >= room.max_times_entered {
-        // Reset room by deleting its content and resetting its state
-        let content_repo = RoomContentRepository::new(app_state.db_pool.clone());
-
-        // 1. 获取房间的所有内容
-        if let Some(room_id) = room.id {
-            let contents = content_repo
-                .list_by_room(room_id)
-                .await
-                .map_err(|e| AppError::internal(format!("Failed to list room contents: {}", e)))?;
-
-            // 2. 删除文件系统中的文件
-            for content in &contents {
-                if let Some(path) = &content.path {
-                    tokio::fs::remove_file(path).await.ok();
-                }
-            }
-
-            // 3. 删除数据库中的内容记录
-            content_repo
-                .delete_by_room_id(room_id)
-                .await
-                .map_err(|e| AppError::internal(format!("Failed to clear room content: {}", e)))?;
-        }
-
-        room.current_size = 0;
-        room.current_times_entered = 0;
-        logrs::info!(
-            "Room {} reached max view count, content cleared and counters reset",
-            room.slug
-        );
-    }
-
-    // Only update room if view count was incremented or room was reset
-    if should_increment_view_count || room.current_times_entered == 0 {
+    // Only update room if view count was incremented.
+    if should_increment_view_count {
         repository
             .update(&room)
             .await

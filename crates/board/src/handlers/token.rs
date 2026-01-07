@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::errors::{AppError, AppResult};
-use crate::models::{Room, RoomToken};
+use crate::models::{Room, RoomStatus, RoomToken};
 use crate::repository::{
     IRoomRepository, IRoomTokenRepository, RoomRepository, RoomTokenRepository,
 };
@@ -53,7 +53,7 @@ pub async fn verify_room_token(
     if room.is_expired() {
         return Err(AppError::authentication("Room expired"));
     }
-    if !room.can_enter() {
+    if room.status() == RoomStatus::Close {
         return Err(AppError::authentication("Room cannot be entered"));
     }
 
