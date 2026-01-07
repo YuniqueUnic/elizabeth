@@ -105,6 +105,15 @@ fn merge_config_with_cli_args(
 fn apply_program_env_overrides(cfg: &mut configrs::Config) {
     apply_env!(env_string, "LOG_LEVEL", cfg.app.logging.level);
 
+    // Database URL overrides
+    // - Prefer `DATABASE_URL` (recommended, also used by sqlx)
+    // - Fallback to legacy `DATABASE_PATH` (historical Docker config)
+    if let Some(database_url) = env_string("DATABASE_URL") {
+        cfg.app.database.url = database_url;
+    } else if let Some(database_path) = env_string("DATABASE_PATH") {
+        cfg.app.database.url = normalize_database_url_from_path(database_path);
+    }
+
     apply_env!(
         env_u32,
         "DB_MAX_CONNECTIONS",
@@ -300,6 +309,20 @@ fn env_string(key: &str) -> Option<String> {
             trimmed.trim_matches('"').trim_matches('\'').to_string()
         })
         .filter(|v| !v.is_empty())
+}
+
+fn normalize_database_url_from_path(value: String) -> String {
+    let trimmed = value.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    if lower.starts_with("sqlite:")
+        || lower.starts_with("postgres:")
+        || lower.starts_with("postgresql:")
+        || lower.starts_with("mysql:")
+    {
+        trimmed.to_string()
+    } else {
+        format!("sqlite:{trimmed}")
+    }
 }
 
 fn env_list(key: &str) -> Option<Vec<String>> {

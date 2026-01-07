@@ -115,11 +115,12 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
 
     let addr: SocketAddr = format!("{}:{}", cfg.app.server.addr, cfg.app.server.port).parse()?;
     let listener = tokio::net::TcpListener::bind(addr).await?;
+    let actual_addr = listener.local_addr()?;
 
     let (scalar_path, router) = build_api_router(app_state, cfg);
 
-    println!("Server listening on http://{addr}");
-    println!("Scalar listening on http://{addr}{}", &scalar_path);
+    println!("Server listening on http://{actual_addr}");
+    println!("Scalar listening on http://{actual_addr}{}", &scalar_path);
 
     axum::serve(
         listener,
