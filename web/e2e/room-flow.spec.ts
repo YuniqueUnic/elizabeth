@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+const BASE_URL = "http://localhost:4001";
+
 test.describe("Elizabeth Room Flow", () => {
   const roomName = `test-room-${Date.now()}`;
   const password = "test123"; // pragma: allowlist secret`
