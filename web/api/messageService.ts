@@ -77,41 +77,30 @@ export async function postMessage(
   content: string,
   token?: string,
 ): Promise<Message> {
-  try {
-    const authToken = token || await getValidToken(roomName);
+  const authToken = token || await getValidToken(roomName);
 
-    if (!authToken) {
-      throw new Error("Authentication required to send messages");
-    }
-
-    const contentString = typeof content === "string"
-      ? content
-      : String(content);
-
-    const response = await api.post<CreateMessageResponse>(
-      API_ENDPOINTS.content.messages(roomName),
-      { text: contentString },
-      { token: authToken },
-    );
-
-    const message = response.message;
-
-    return {
-      id: String(message.id),
-      content: contentString,
-      timestamp: message.created_at,
-      isOwn: true,
-    };
-  } catch (error) {
-    console.error("postMessage fallback (optimistic):", error);
-    const now = new Date().toISOString();
-    return {
-      id: `temp-${now}`,
-      content,
-      timestamp: now,
-      isOwn: true,
-    };
+  if (!authToken) {
+    throw new Error("Authentication required to send messages");
   }
+
+  const contentString = typeof content === "string"
+    ? content
+    : String(content);
+
+  const response = await api.post<CreateMessageResponse>(
+    API_ENDPOINTS.content.messages(roomName),
+    { text: contentString },
+    { token: authToken },
+  );
+
+  const message = response.message;
+
+  return {
+    id: String(message.id),
+    content: contentString,
+    timestamp: message.created_at,
+    isOwn: true,
+  };
 }
 
 /**
