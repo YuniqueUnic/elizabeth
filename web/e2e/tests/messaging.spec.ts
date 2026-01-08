@@ -7,80 +7,80 @@ import { expect, test } from "@playwright/test";
 import { RoomPage } from "../page-objects/room-page";
 
 const BASE_URL = "http://localhost:4001";
-const TEST_ROOM = "messaging-test-room";
-const TEST_ROOM_URL = `${BASE_URL}/${TEST_ROOM}`;
+const API_BASE_URL = process.env.API_BASE_URL || "http://localhost:4092/api/v1";
+const TOKEN_STORAGE_KEY = "elizabeth_tokens";
+
+async function ensureRoomExists(roomName: string) {
+    const response = await fetch(
+        `${API_BASE_URL}/rooms/${encodeURIComponent(roomName)}`,
+        { method: "POST" },
+    );
+
+    if (!response.ok && response.status !== 409) {
+        throw new Error(
+            `Failed to create room ${roomName}: ${response.status} ${response.statusText}`,
+        );
+    }
+}
+
+async function issueRoomToken(roomName: string) {
+    const response = await fetch(
+        `${API_BASE_URL}/rooms/${encodeURIComponent(roomName)}/tokens`,
+        {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+        },
+    );
+
+    if (!response.ok) {
+        const errorBody = await response.text().catch(() => "");
+        throw new Error(
+            `Failed to issue token for ${roomName}: ${response.status} ${response.statusText} ${errorBody}`,
+        );
+    }
+
+    const token = await response.json();
+    return {
+        token: token.token as string,
+        refreshToken: token.refresh_token as string | undefined,
+        expiresAt: token.expires_at as string,
+    };
+}
 
 test.describe("消息系统功能测试", () => {
     let roomPage: RoomPage;
-    let tokenInfo: {
-        token: string;
-        refresh_token?: string;
-        expires_at: string;
-    };
+    let currentRoom: string;
+    let currentRoomUrl: string;
 
-    test.beforeAll(async ({ request }) => {
-        // 确保测试房间存在，若已存在则忽略错误
-        await request
-            .post(`${BASE_URL}/api/v1/rooms/${TEST_ROOM}?password=`, {
-                data: {},
-                timeout: 15_000,
-            })
-            .catch(() => {});
+    test.beforeEach(async ({ page }) => {
+        // 使用唯一房间名避免 max_times_entered 限制
+        currentRoom = `messaging-test-room-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+        currentRoomUrl = `${BASE_URL}/${currentRoom}`;
 
-        // 预获取一次访问令牌并复用，避免频繁请求导致 429
-        const tokenResp = await request.post(
-            `${BASE_URL}/api/v1/rooms/${TEST_ROOM}/tokens`,
-            {
-                data: {
-                    password: null,
-                    with_refresh_token: true,
-                },
-                timeout: 15_000,
-            },
-        );
+        await ensureRoomExists(currentRoom);
+        const token = await issueRoomToken(currentRoom);
 
-        if (!tokenResp.ok()) {
-            throw new Error(
-                `无法获取访问令牌，status=${tokenResp.status()}`,
-            );
-        }
-        tokenInfo = await tokenResp.json();
-    });
-
-    test.beforeEach(async ({ page, request }) => {
-        // 预注入 token 到 localStorage，避免首次加载 401/加载失败
         await page.addInitScript(
-            ({
-                roomName,
-                token,
-                refreshToken,
-                expiresAt,
-            }) => {
-                const storageKey = "elizabeth_tokens";
-                const existing =
-                    JSON.parse(
-                        window.localStorage.getItem(storageKey) || "{}",
-                    ) || {};
-                existing[roomName] = {
-                    token,
-                    refreshToken,
-                    expiresAt,
-                };
+            ({ storageKey, roomName, tokenInfo }) => {
+                const existing = JSON.parse(
+                    window.localStorage.getItem(storageKey) || "{}",
+                );
+                existing[roomName] = tokenInfo;
                 window.localStorage.setItem(
                     storageKey,
                     JSON.stringify(existing),
                 );
             },
             {
-                roomName: TEST_ROOM,
-                token: tokenInfo.token,
-                refreshToken: tokenInfo.refresh_token,
-                expiresAt: tokenInfo.expires_at,
+                storageKey: TOKEN_STORAGE_KEY,
+                roomName: currentRoom,
+                tokenInfo: token,
             },
         );
 
         roomPage = new RoomPage(page);
-        await roomPage.goto(TEST_ROOM_URL);
+        await roomPage.goto(currentRoomUrl);
         await roomPage.waitForRoomLoad();
     });
 

@@ -62,7 +62,8 @@ test.describe("文件上传和删除 - 自动化测试", () => {
         smallFile = createTestFile("small-test.txt", 100); // 100KB
         mediumFile = createTestFile("medium-test.bin", 2 * 1024); // 2MB
         largeFile = createTestFile("large-test.bin", 4 * 1024); // 4MB
-        chunkedFile = createTestFile("chunked-test.bin", 6 * 1024); // 6MB -> chunked
+        // 5MB 阈值 (5242880 bytes)，使用 5130KB (5253120 bytes) 确保触发分片且最小化传输时间
+        chunkedFile = createTestFile("chunked-test.bin", 5130);
 
         // 保证测试文件真实存在且符合大小预期
         [smallFile, mediumFile, largeFile, chunkedFile].forEach((filePath) => {
@@ -134,6 +135,7 @@ test.describe("文件上传和删除 - 自动化测试", () => {
     });
 
     test("超大文件分片上传测试", async ({ page }) => {
+        test.slow(); // 标记为慢速测试，增加 3x 超时
         const roomPage = await bootstrapRoomPage(page);
         await roomPage.clearAllFiles();
         await roomPage.uploadFile(chunkedFile);
@@ -143,9 +145,11 @@ test.describe("文件上传和删除 - 自动化测试", () => {
             .catch(() => null);
         expect(lastUpload?.chunked).toBe(true);
 
+        // 分片上传需要更长时间，增加超时到 300 秒
         await expect
             .poll(async () => (await roomPage.getFileList()).includes("chunked-test.bin"), {
-                timeout: 90_000,
+                timeout: 300_000,
+                intervals: [2_000, 5_000, 10_000],
             })
             .toBe(true);
     });

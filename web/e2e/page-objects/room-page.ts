@@ -497,6 +497,31 @@ export class RoomPage extends BasePage {
             htmlSelectors.leftSidebar.roomCapacity.info,
         );
     }
+
+    /**
+     * 处理房间密码对话框
+     */
+    async enterRoomPassword(password: string): Promise<void> {
+        const dialog = htmlSelectors.dialogs.passwordDialog;
+        const passwordInput = new InputElement(this.page, dialog.input);
+        const confirmBtn = new ButtonElement(this.page, dialog.confirmBtn);
+
+        // 等待对话框出现，增加超时时间以应对网络延迟
+        await this.page.waitForSelector(dialog.container, { timeout: 10000 }).catch(() => {
+            // 如果对话框没有出现，可能已经验证过，或者不需要密码
+            return;
+        });
+
+        // 检查密码输入框是否可见
+        if (await passwordInput.isVisible()) {
+            await passwordInput.fill(password);
+            await confirmBtn.click();
+            // 等待对话框消失
+            await this.page.locator(dialog.container).waitFor({ state: "hidden", timeout: 5000 });
+            // 密码验证后房间会重新加载，需要等待就绪
+            await this.waitForRoomLoad();
+        }
+    }
 }
 
 export default RoomPage;

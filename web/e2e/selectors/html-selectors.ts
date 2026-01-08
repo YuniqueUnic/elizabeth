@@ -35,12 +35,11 @@ export const htmlSelectors = {
 
         // 房间设置部分
         roomSettings: {
-            section: 'heading:has-text("房间设置")',
+            section: 'heading:has-text("房间配置")',
 
             expirationTime: {
                 label: 'text="过期时间"',
-                select:
-                    'text=房间设置 >> .. >> button[data-slot="select-trigger"]',
+                select: 'role=combobox >> nth=0',
                 options: {
                     oneMinute: 'role=option[name="1 分钟"]',
                     tenMinutes: 'role=option[name="10 分钟"]',
@@ -54,16 +53,16 @@ export const htmlSelectors = {
 
             password: {
                 label: 'text="房间密码"',
-                input: "text=房间密码 >> .. >> input",
+                input: 'role=textbox[name="房间密码"]',
                 toggleBtn: "button >> nth=1",
             },
 
             maxViewCount: {
                 label: 'text="最大查看次数"',
-                input: 'text=最大查看次数 >> .. >> input[type="number"]',
+                input: 'role=spinbutton[name="最大查看次数"]',
             },
 
-            saveBtn: 'text=房间设置 >> .. >> button:has-text("保存设置")',
+            saveBtn: 'aside >> button:has-text("保存配置")',
         },
 
         // 房间权限部分
@@ -78,7 +77,7 @@ export const htmlSelectors = {
             },
 
             hint: "text=/提示：/",
-            saveBtn: 'aside >> button:has-text("保存权限")',
+            saveBtn: 'aside >> button:has-text("保存配置")',
         },
 
         // 分享房间部分
@@ -154,8 +153,8 @@ export const htmlSelectors = {
                 helpBtn: 'button:has-text("Open help")',
             },
 
-            // 使用 textarea 选择器，因为 MDEditor 的 textarea 无法添加 data-testid 属性
-            input: "textarea",
+            // 使用 placeholder 属性选择器定位消息输入框，避免与密码输入框等其他 textbox 冲突
+            input: 'textarea[placeholder*="输入消息"]',
 
             actions: {
                 expandBtn: 'button:has-text("展开编辑器")',
@@ -241,6 +240,14 @@ export const htmlSelectors = {
             container: "role=dialog",
             title: 'heading:has-text("权限设置")',
             closeBtn: 'button[aria-label="Close"]',
+        },
+
+        passwordDialog: {
+            container: "role=dialog",
+            title: 'heading:has-text("房间已加密")',
+            input: 'role=textbox[name="密码"]',
+            confirmBtn: 'button:has-text("进入房间")',
+            cancelBtn: 'button:has-text("取消")',
         },
     },
 
