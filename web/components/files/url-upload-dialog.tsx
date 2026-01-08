@@ -13,7 +13,28 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Link as LinkIcon } from "lucide-react";
+
+// 支持的协议列表
+const URL_PROTOCOLS = [
+  { value: "https://", label: "https://" },
+  { value: "http://", label: "http://" },
+  { value: "ftp://", label: "ftp://" },
+  { value: "ftps://", label: "ftps://" },
+  { value: "sftp://", label: "sftp://" },
+  { value: "mailto:", label: "mailto:" },
+  { value: "tel:", label: "tel:" },
+  { value: "manual", label: "手动输入" },
+] as const;
+
+type ProtocolValue = (typeof URL_PROTOCOLS)[number]["value"];
 
 interface UrlUploadDialogProps {
   open: boolean;
@@ -34,14 +55,24 @@ export function UrlUploadDialog({
   onSubmit,
   isUploading,
 }: UrlUploadDialogProps) {
-  const [url, setUrl] = useState("");
+  const [protocol, setProtocol] = useState<ProtocolValue>("https://");
+  const [urlInput, setUrlInput] = useState("");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [urlError, setUrlError] = useState("");
 
-  const validateUrl = (value: string): boolean => {
+  // 根据协议和输入值构建完整 URL
+  const buildFullUrl = (): string => {
+    const input = urlInput.trim();
+    if (protocol === "manual") {
+      return input;
+    }
+    return `${protocol}${input}`;
+  };
+
+  const validateUrl = (fullUrl: string): boolean => {
     try {
-      new URL(value);
+      new URL(fullUrl);
       setUrlError("");
       return true;
     } catch {
@@ -50,52 +81,62 @@ export function UrlUploadDialog({
     }
   };
 
+  // 验证当前输入
+  const validateCurrentInput = (): boolean => {
+    const fullUrl = buildFullUrl();
+    return validateUrl(fullUrl);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!url.trim()) {
+    if (!urlInput.trim()) {
       setUrlError("URL 不能为空");
       return;
     }
 
-    if (!validateUrl(url.trim())) {
+    const fullUrl = buildFullUrl();
+
+    if (!validateUrl(fullUrl)) {
       return;
     }
 
     if (!name.trim()) {
       // Auto-generate name from URL if not provided
       try {
-        const urlObj = new URL(url.trim());
+        const urlObj = new URL(fullUrl);
         const autoName = urlObj.hostname + urlObj.pathname;
         onSubmit({
-          url: url.trim(),
+          url: fullUrl,
           name: autoName || "未命名链接",
           description: description.trim() || undefined,
         });
       } catch {
         onSubmit({
-          url: url.trim(),
+          url: fullUrl,
           name: "未命名链接",
           description: description.trim() || undefined,
         });
       }
     } else {
       onSubmit({
-        url: url.trim(),
+        url: fullUrl,
         name: name.trim(),
         description: description.trim() || undefined,
       });
     }
 
     // Reset form
-    setUrl("");
+    setProtocol("https://");
+    setUrlInput("");
     setName("");
     setDescription("");
     setUrlError("");
   };
 
   const handleCancel = () => {
-    setUrl("");
+    setProtocol("https://");
+    setUrlInput("");
     setName("");
     setDescription("");
     setUrlError("");
@@ -121,21 +162,64 @@ export function UrlUploadDialog({
               <Label htmlFor="url">
                 URL <span className="text-destructive">*</span>
               </Label>
-              <Input
-                id="url"
-                type="url"
-                placeholder="https://example.com"
-                value={url}
-                onChange={(e) => {
-                  setUrl(e.target.value);
-                  if (urlError) validateUrl(e.target.value);
-                }}
-                onBlur={() => url && validateUrl(url)}
-                disabled={isUploading}
-                className={urlError ? "border-destructive" : ""}
-              />
+              <div className="flex gap-0">
+                <Select
+                  value={protocol}
+                  onValueChange={(value: ProtocolValue) => {
+                    setProtocol(value);
+                    if (urlError) {
+                      // 当协议改变时重新验证
+                      const newFullUrl =
+                        value === "manual"
+                          ? urlInput.trim()
+                          : `${value}${urlInput.trim()}`;
+                      if (urlInput.trim()) validateUrl(newFullUrl);
+                    }
+                  }}
+                  disabled={isUploading}
+                >
+                  <SelectTrigger className="w-[130px] rounded-r-none border-r-0 shrink-0">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {URL_PROTOCOLS.map((proto) => (
+                      <SelectItem key={proto.value} value={proto.value}>
+                        {proto.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  id="url"
+                  type="text"
+                  placeholder={
+                    protocol === "manual"
+                      ? "https://example.com/path"
+                      : "example.com/path"
+                  }
+                  value={urlInput}
+                  onChange={(e) => {
+                    setUrlInput(e.target.value);
+                    if (urlError) {
+                      const newFullUrl =
+                        protocol === "manual"
+                          ? e.target.value.trim()
+                          : `${protocol}${e.target.value.trim()}`;
+                      if (e.target.value.trim()) validateUrl(newFullUrl);
+                    }
+                  }}
+                  onBlur={() => urlInput && validateCurrentInput()}
+                  disabled={isUploading}
+                  className={`flex-1 rounded-l-none ${urlError ? "border-destructive" : ""}`}
+                />
+              </div>
               {urlError && (
                 <p className="text-sm text-destructive">{urlError}</p>
+              )}
+              {protocol !== "manual" && urlInput.trim() && (
+                <p className="text-xs text-muted-foreground">
+                  完整链接：{buildFullUrl()}
+                </p>
               )}
             </div>
 
@@ -183,7 +267,7 @@ export function UrlUploadDialog({
             >
               取消
             </Button>
-            <Button type="submit" disabled={isUploading || !url.trim()}>
+            <Button type="submit" disabled={isUploading || !urlInput.trim()}>
               {isUploading ? "添加中..." : "添加链接"}
             </Button>
           </DialogFooter>
