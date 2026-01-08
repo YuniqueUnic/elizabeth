@@ -132,7 +132,9 @@ function canTogglePermission(
 
 export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
   const currentRoomId = useAppStore((state) => state.currentRoomId);
-  const hasUnsavedChanges = useAppStore((state) => state.hasUnsavedChanges);
+  const setRoomRedirectTarget = useAppStore((state) =>
+    state.setRoomRedirectTarget
+  );
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { can } = useRoomPermissions();
@@ -146,9 +148,6 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
   const [permissionFlags, setPermissionFlags] = useState(() =>
     permissionsToFlags(roomDetails.permissions)
   );
-
-  const [pendingRedirect, setPendingRedirect] = useState<string | null>(null);
-  const [redirectDialogOpen, setRedirectDialogOpen] = useState(false);
 
   useEffect(() => {
     setExpiryOption(getExpiryOptionFromDate(roomDetails.settings.expiresAt));
@@ -293,8 +292,7 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
       if (newIdentifier !== oldIdentifier) {
         // slug 变更：保持当前页可用（避免 refetch 触发 401），并提示用户手动跳转
         clearRoomToken(oldIdentifier);
-        setPendingRedirect(newIdentifier);
-        setRedirectDialogOpen(true);
+        setRoomRedirectTarget(newIdentifier);
         return;
       }
 
@@ -338,31 +336,6 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
           <p className="text-xs text-muted-foreground mb-3 p-2 bg-muted rounded-md">
             只有房间管理员（拥有删除权限）可以修改房间配置
           </p>
-        )}
-
-        {pendingRedirect && (
-          <Alert>
-            <AlertTitle>房间地址已变更</AlertTitle>
-            <AlertDescription className="space-y-2">
-              <p className="text-sm text-muted-foreground">
-                该房间已切换到新的地址：
-                <span className="font-mono"> /{pendingRedirect}</span>。为继续使用，
-                请跳转到新地址并重新登录。
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" onClick={() => (window.location.href = `/${pendingRedirect}`)}>
-                  跳转到新地址
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => void copyRedirectUrl(pendingRedirect)}
-                >
-                  复制新链接
-                </Button>
-              </div>
-            </AlertDescription>
-          </Alert>
         )}
 
         <div className="space-y-2 mt-2">
@@ -499,55 +472,6 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
             只有房间管理员可以保存配置
           </p>
         )}
-
-        <Dialog open={redirectDialogOpen} onOpenChange={setRedirectDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>房间地址已变更</DialogTitle>
-              <DialogDescription className="space-y-2">
-                <p>
-                  该房间已切换到新的地址：
-                  <span className="font-mono"> /{pendingRedirect}</span>。
-                </p>
-                <p>
-                  为继续使用，请跳转到新地址并重新登录。跳转后当前页面的未保存内容可能会丢失。
-                </p>
-                {hasUnsavedChanges() && (
-                  <p className="text-destructive">
-                    检测到你有未保存的消息更改，建议先复制/备份再跳转。
-                  </p>
-                )}
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => pendingRedirect && void copyRedirectUrl(pendingRedirect)}
-                disabled={!pendingRedirect}
-              >
-                复制新链接
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setRedirectDialogOpen(false)}
-              >
-                稍后跳转
-              </Button>
-              <Button
-                type="button"
-                onClick={() => {
-                  if (!pendingRedirect) return;
-                  window.location.href = `/${pendingRedirect}`;
-                }}
-                disabled={!pendingRedirect}
-              >
-                立即跳转
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </div>
     </div>
   );

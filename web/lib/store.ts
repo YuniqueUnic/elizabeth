@@ -82,6 +82,15 @@ interface AppState {
   hasUnsavedChanges: () => boolean;
   saveMessages: () => Promise<void>;
   syncMessagesFromServer: () => Promise<void>;
+
+  // Upload state
+  activeUploads: number;
+  incrementActiveUploads: () => void;
+  decrementActiveUploads: () => void;
+
+  // Global redirect state (for room renaming)
+  roomRedirectTarget: string | null;
+  setRoomRedirectTarget: (target: string | null) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -268,7 +277,11 @@ export const useAppStore = create<AppState>()(
       },
       hasUnsavedChanges: () => {
         const messages = get().messages;
-        return messages.some((m) => m.isNew || m.isDirty || m.isPendingDelete);
+        const activeUploads = get().activeUploads;
+        return (
+          messages.some((m) => m.isNew || m.isDirty || m.isPendingDelete) ||
+          activeUploads > 0
+        );
       },
       saveMessages: async () => {
         const { messages, currentRoomId } = get();
@@ -355,6 +368,19 @@ export const useAppStore = create<AppState>()(
           return { messages: merged };
         });
       },
+
+      // Upload state
+      activeUploads: 0,
+      incrementActiveUploads: () =>
+        set((state) => ({ activeUploads: state.activeUploads + 1 })),
+      decrementActiveUploads: () =>
+        set((state) => ({
+          activeUploads: Math.max(0, state.activeUploads - 1),
+        })),
+
+      // Global redirect state
+      roomRedirectTarget: null,
+      setRoomRedirectTarget: (target) => set({ roomRedirectTarget: target }),
     }),
     {
       name: "elizabeth-storage",

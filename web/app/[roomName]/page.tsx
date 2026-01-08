@@ -36,6 +36,9 @@ function RoomRealtimeSync({
   const syncMessagesFromServer = useAppStore((state) =>
     state.syncMessagesFromServer
   );
+  const setRoomRedirectTarget = useAppStore((state) =>
+    state.setRoomRedirectTarget
+  );
 
   useRoomEvents({
     wsUrl: resolveWebSocketUrl(),
@@ -73,6 +76,11 @@ export default function RoomPage() {
   const isMobile = useIsMobile();
   const { toast } = useToast();
   const { currentRoomId, setCurrentRoomId } = useAppStore();
+  const roomRedirectTarget = useAppStore((state) => state.roomRedirectTarget);
+  const setRoomRedirectTarget = useAppStore((state) =>
+    state.setRoomRedirectTarget
+  );
+  const hasUnsavedChanges = useAppStore((state) => state.hasUnsavedChanges);
 
   const roomName = params.roomName as string;
 
@@ -80,7 +88,6 @@ export default function RoomPage() {
   const [error, setError] = useState<string | null>(null);
   const [needsPassword, setNeedsPassword] = useState(false);
   const [tokenReady, setTokenReady] = useState(false);
-  const [roomRedirect, setRoomRedirect] = useState<string | null>(null);
   const wsToken = tokenReady ? getRoomTokenString(roomName) : null;
 
   useEffect(() => {
@@ -96,7 +103,7 @@ export default function RoomPage() {
       setError(null);
       setNeedsPassword(false);
       setTokenReady(false);
-      setRoomRedirect(null);
+      setRoomRedirectTarget(null);
 
       // This logic runs every time the `roomName` in the URL changes.
       // 1. Set the global room identifier.
@@ -312,7 +319,7 @@ export default function RoomPage() {
 
             if (nextSlug !== roomName) {
               clearRoomToken(roomName);
-              setRoomRedirect(nextSlug);
+              setRoomRedirectTarget(nextSlug);
               toast({
                 title: "房间地址已变更",
                 description: "该房间已切换到新的地址，请跳转继续。",
@@ -321,20 +328,25 @@ export default function RoomPage() {
           }}
         />
       )}
-      {roomRedirect && (
+      {roomRedirectTarget && (
         <div className="p-3">
           <Alert>
             <AlertTitle>房间地址已变更</AlertTitle>
             <AlertDescription className="space-y-2">
               <p className="text-sm text-muted-foreground">
-                该房间已切换到新的地址：<span className="font-mono">/{roomRedirect}</span>。
+                该房间已切换到新的地址：<span className="font-mono">/{roomRedirectTarget}</span>。
                 为继续使用，请跳转到新地址并重新登录。
               </p>
+              {hasUnsavedChanges() && (
+                <p className="text-sm font-medium text-destructive">
+                  检测到你有未保存的消息更改或正在进行的上传，建议先完成或备份再跳转。
+                </p>
+              )}
               <div className="flex flex-wrap gap-2">
                 <Button
                   size="sm"
                   onClick={() => {
-                    router.push(`/${roomRedirect}`);
+                    router.push(`/${roomRedirectTarget}`);
                   }}
                 >
                   跳转到新地址
@@ -345,7 +357,7 @@ export default function RoomPage() {
                   onClick={async () => {
                     try {
                       await navigator.clipboard.writeText(
-                        `${window.location.origin}/${roomRedirect}`,
+                        `${window.location.origin}/${roomRedirectTarget}`,
                       );
                       toast({ title: "已复制新链接" });
                     } catch (err) {
