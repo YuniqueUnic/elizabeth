@@ -44,6 +44,9 @@ export function RightSidebar() {
   const clearFileSelection = useAppStore((state) => state.clearFileSelection);
   const selectAllFiles = useAppStore((state) => state.selectAllFiles);
   const invertFileSelection = useAppStore((state) => state.invertFileSelection);
+  const incrementActiveUploads = useAppStore((state) => state.incrementActiveUploads);
+  const decrementActiveUploads = useAppStore((state) => state.decrementActiveUploads);
+  const activeUploads = useAppStore((state) => state.activeUploads);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const isMobile = useIsMobile();
@@ -65,6 +68,8 @@ export function RightSidebar() {
 
   const uploadMutation = useMutation({
     mutationFn: (file: File) => uploadFile(roomName, file),
+    onMutate: () => incrementActiveUploads(),
+    onSettled: () => decrementActiveUploads(),
     onSuccess: () => {
       console.log(
         `[uploadMutation.onSuccess] 上传成功，失效缓存 roomName=${roomName}`,
@@ -103,6 +108,8 @@ export function RightSidebar() {
 
   const uploadUrlMutation = useMutation({
     mutationFn: (data: UrlUploadData) => uploadUrl(roomName, data),
+    onMutate: () => incrementActiveUploads(),
+    onSettled: () => decrementActiveUploads(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["files", roomName] });
       queryClient.invalidateQueries({ queryKey: ["room", currentRoomId] });
@@ -274,7 +281,7 @@ export function RightSidebar() {
             <div className="p-4 pt-2">
               <FileUploadZone
                 onUpload={handleUpload}
-                isUploading={uploadMutation.isPending}
+                isUploading={activeUploads > 0}
               />
             </div>
           )}
