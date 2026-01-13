@@ -3,6 +3,8 @@
 .context
 skills
 storage
+TODO.md
+
 
 # 环境变量和敏感信息
 .env
