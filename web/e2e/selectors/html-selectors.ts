@@ -154,7 +154,7 @@ export const htmlSelectors = {
             },
 
             // 使用 placeholder 属性选择器定位消息输入框，避免与密码输入框等其他 textbox 冲突
-            input: 'textarea[placeholder*="输入消息"]',
+            input: '[data-testid="message-input-editor"] .mdxeditor-content[contenteditable]',
 
             actions: {
                 expandBtn: 'button:has-text("展开编辑器")',
@@ -165,11 +165,12 @@ export const htmlSelectors = {
 
     // ==================== 右侧边栏（文件管理）====================
     rightSidebar: {
-        container: "aside",
+        // 第 2 个 aside 是文件管理（第 1 个是房间控制）
+        container: "aside >> nth=1",
 
         header: {
-            title: 'heading:has-text("文件管理")',
-            uploadBtn: 'button[title="上传文件"]',
+            title: 'aside >> nth=1 >> heading:has-text("文件管理")',
+            uploadBtn: 'aside >> nth=1 >> button[title="上传文件"]',
         },
 
         fileManager: {

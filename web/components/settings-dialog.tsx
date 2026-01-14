@@ -130,8 +130,8 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
             <div className="flex items-center gap-4">
               <Slider
                 id="editor-font-size"
-                min={12}
-                max={24}
+                min={4}
+                max={64}
                 step={1}
                 value={[editorFontSize]}
                 onValueChange={([value]) => setEditorFontSize(value)}
@@ -139,12 +139,12 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
               />
               <Input
                 type="number"
-                min={12}
-                max={24}
+                min={4}
+                max={64}
                 value={editorFontSize}
                 onChange={(e) => {
                   const value = parseInt(e.target.value, 10);
-                  if (!isNaN(value) && value >= 12 && value <= 24) {
+                  if (!isNaN(value) && value >= 4 && value <= 64) {
                     setEditorFontSize(value);
                   }
                 }}
@@ -152,7 +152,7 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
               />
             </div>
             <p className="text-sm text-muted-foreground">
-              调整 Markdown 编辑器的字体大小（12-24px）
+              调整 Markdown 编辑器的字体大小（4-64px）
             </p>
           </div>
 
@@ -195,8 +195,8 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
             <div className="flex items-center gap-4">
               <Slider
                 id="message-font-size"
-                min={12}
-                max={20}
+                min={4}
+                max={64}
                 step={1}
                 value={[messageFontSize]}
                 onValueChange={([value]) => setMessageFontSize(value)}
@@ -204,12 +204,12 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
               />
               <Input
                 type="number"
-                min={12}
-                max={20}
+                min={4}
+                max={64}
                 value={messageFontSize}
                 onChange={(e) => {
                   const value = parseInt(e.target.value, 10);
-                  if (!isNaN(value) && value >= 12 && value <= 20) {
+                  if (!isNaN(value) && value >= 4 && value <= 64) {
                     setMessageFontSize(value);
                   }
                 }}
@@ -217,7 +217,7 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
               />
             </div>
             <p className="text-sm text-muted-foreground">
-              调整聊天消息的字体大小（12-20px）
+              调整聊天消息的字体大小（4-64px）
             </p>
           </div>
         </div>

@@ -402,7 +402,17 @@ export class RoomPage extends BasePage {
      */
     async sendMessage(content: string): Promise<void> {
         await this.messages.input.fill(content);
-        await this.messages.sendBtn.click();
+        const sendOnEnter = await this.page.evaluate(() => {
+            const store = (window as any).__ELIZABETH_STORE__;
+            const value = store?.getState?.().sendOnEnter;
+            return typeof value === "boolean" ? value : true;
+        }).catch(() => true);
+
+        // Prefer keyboard send to avoid click being intercepted by toast overlays.
+        await this.messages.input.getLocator().press(
+            sendOnEnter ? "Enter" : "Control+Enter",
+        );
+
         await this.page.waitForTimeout(500);
         unsavedFlag = true;
     }

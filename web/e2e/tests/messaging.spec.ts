@@ -6,6 +6,7 @@
 import { expect, test } from "@playwright/test";
 import { RoomPage } from "../page-objects/room-page";
 import { htmlSelectors } from "../selectors/html-selectors";
+import path from "node:path";
 
 const BASE_URL = "http://localhost:4001";
 const API_BASE_URL = process.env.API_BASE_URL || "http://localhost:4092/api/v1";
@@ -319,21 +320,91 @@ test.describe("消息系统功能测试", () => {
             const testText = "Pasted content";
             await roomPage.messages.input.focus();
 
-            // 模拟粘贴
-            await roomPage.page.evaluate((text) => {
-                const textarea = document.querySelector(
-                    'textarea[placeholder*="输入消息"]',
-                ) as HTMLTextAreaElement;
-                if (textarea) {
-                    textarea.value = text;
-                    textarea.dispatchEvent(
-                        new Event("input", { bubbles: true }),
-                    );
-                }
-            }, testText);
+            // 模拟粘贴（contenteditable）
+            await roomPage.page.evaluate(({ selector, text }) => {
+                const editable = document.querySelector(selector) as HTMLElement | null;
+                if (!editable) return;
+                editable.focus();
+                const data = new DataTransfer();
+                data.setData("text/plain", text);
+                editable.dispatchEvent(
+                    new ClipboardEvent("paste", { clipboardData: data, bubbles: true }),
+                );
+            }, { selector: htmlSelectors.middleColumn.editor.input, text: testText });
 
             const value = await roomPage.messages.input.getValue();
             expect(value).toContain("Pasted");
+        });
+
+        test("MSG-013A: resize 后未发送草稿不应丢失", async () => {
+            const draft = `Draft ${Date.now()}`;
+
+            await roomPage.messages.input.fill(draft);
+            await roomPage.page.waitForTimeout(200);
+
+            await roomPage.page.setViewportSize({ width: 390, height: 844 });
+            await roomPage.page
+                .getByRole("tab", { name: "聊天" })
+                .waitFor({ state: "visible", timeout: 10_000 });
+            await roomPage.page
+                .getByRole("tab", { name: "聊天" })
+                .click()
+                .catch(() => {});
+
+            const value = await roomPage.messages.input.getValue();
+            expect(value).toContain("Draft");
+        });
+
+        test("MSG-013B: resize 后编辑中的草稿不应丢失", async () => {
+            const originalText = `Original ${Date.now()}`;
+            const draftEdit = `Editing draft ${Date.now()}`;
+
+            await roomPage.sendMessage(originalText);
+            await roomPage.topBar.saveBtn.click();
+
+            await expect(
+                roomPage.page.locator(
+                    htmlSelectors.middleColumn.messageList.message.unsavedBadge,
+                ),
+            ).toHaveCount(0, { timeout: 15_000 });
+
+            const lastMessage = roomPage.page
+                .locator(htmlSelectors.middleColumn.messageList.message.container)
+                .last();
+            await lastMessage.hover();
+            const editBtn = lastMessage.locator('button[title="编辑"]');
+            await editBtn.waitFor({ state: "visible", timeout: 5_000 });
+            await editBtn.click();
+
+            await expect(
+                lastMessage.locator(
+                    htmlSelectors.middleColumn.messageList.message.editingBadge,
+                ),
+            ).toBeVisible({ timeout: 5_000 });
+
+            await roomPage.messages.input.fill(draftEdit);
+            await roomPage.page.waitForTimeout(200);
+
+            await roomPage.page.setViewportSize({ width: 390, height: 844 });
+            await roomPage.page
+                .getByRole("tab", { name: "聊天" })
+                .waitFor({ state: "visible", timeout: 10_000 });
+            await roomPage.page
+                .getByRole("tab", { name: "聊天" })
+                .click()
+                .catch(() => {});
+
+            const value = await roomPage.messages.input.getValue();
+            expect(value).toContain("Editing draft");
+
+            const lastMessageAfter = roomPage.page
+                .locator(htmlSelectors.middleColumn.messageList.message.container)
+                .last();
+            await expect(
+                lastMessageAfter.locator(
+                    htmlSelectors.middleColumn.messageList.message.editingBadge,
+                ),
+            ).toBeVisible();
         });
 
         test("MSG-014: 发送按钮在有输入时应该启用", async () => {
@@ -544,6 +615,60 @@ test.describe("消息系统功能测试", () => {
             await roomPage.page.waitForTimeout(500);
             const finalCount = await roomPage.getMessageCount();
             expect(finalCount).toBeGreaterThan(initialCount);
+        });
+
+        test("MSG-031: Markdown 图片应可渲染并可访问", async () => {
+            const imagePath = path.resolve(process.cwd(), "public/placeholder.jpg");
+            await roomPage.uploadFile(imagePath);
+
+            const firstFile = roomPage.page
+                .locator(
+                    htmlSelectors.rightSidebar.fileManager.fileList.fileItem
+                        .container,
+                )
+                .first();
+            await firstFile.waitFor({ state: "visible", timeout: 10_000 });
+            await firstFile
+                .locator(
+                    htmlSelectors.rightSidebar.fileManager.fileList.fileItem
+                        .actions.preview,
+                )
+                .click();
+
+            await roomPage.page
+                .getByRole("button", { name: "插入到编辑器" })
+                .click({ timeout: 10_000 });
+
+            // 关闭预览弹窗（避免遮挡发送按钮）
+            await roomPage.page.keyboard.press("Escape").catch(() => {});
+
+            // 等待编辑器内容同步（图片插入是异步的）
+            await expect(roomPage.messages.sendBtn.getLocator()).toBeEnabled({
+                timeout: 10_000,
+            });
+
+            await roomPage.messages.sendBtn.click();
+
+            await expect(
+                roomPage.page.locator(
+                    htmlSelectors.middleColumn.messageList.message.container,
+                ),
+            ).toHaveCount(1, { timeout: 10_000 });
+
+            const lastMessage = roomPage.page
+                .locator(htmlSelectors.middleColumn.messageList.message.content)
+                .last();
+            const image = lastMessage.locator("img").first();
+            await expect(image).toBeVisible({ timeout: 10_000 });
+
+            const src = await image.getAttribute("src");
+            expect(src).toContain("/api/v1/rooms/");
+            expect(src).toContain("token=");
+
+            const isLoaded = await image.evaluate((el: HTMLImageElement) =>
+                el.complete && el.naturalWidth > 0
+            );
+            expect(isLoaded).toBe(true);
         });
     });
 });

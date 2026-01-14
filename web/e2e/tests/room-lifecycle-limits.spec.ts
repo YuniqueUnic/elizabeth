@@ -91,7 +91,7 @@ test.describe("房间生命周期与限制测试", () => {
         await visitorARoomPage.waitForRoomLoad();
 
         // 验证访问成功
-        await expect(visitorAPage.locator("textarea")).toBeVisible();
+        await expect(visitorARoomPage.messages.input.getLocator()).toBeVisible();
         await visitorAPage.close();
 
         // 3. 访客 B：尝试第 3 次访问，应失败

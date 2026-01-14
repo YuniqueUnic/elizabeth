@@ -235,22 +235,29 @@
   --message-font-size: 14px;
 }
 
-.w-md-editor {
+.mdxeditor-content {
   font-size: var(--editor-font-size) !important;
 }
 
-.w-md-editor-toolbar {
-  min-height: calc(var(--toolbar-button-size) + 10px) !important;
-  padding: 5px !important;
+.mdxeditor-content[data-empty="true"][data-focused="false"]::before {
+  content: attr(data-placeholder);
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  right: 0.75rem;
+  color: var(--muted-foreground);
+  opacity: 0.8;
+  pointer-events: none;
 }
 
-.w-md-editor-toolbar button {
+.mdxeditor [class*="_toolbarToggleItem_"],
+.mdxeditor [class*="_toolbarButton_"] {
   width: var(--toolbar-button-size) !important;
   height: var(--toolbar-button-size) !important;
-  font-size: calc(var(--toolbar-button-size) * 0.5) !important;
 }
 
-.w-md-editor-toolbar svg {
+.mdxeditor [class*="_toolbarToggleItem_"] svg,
+.mdxeditor [class*="_toolbarButton_"] svg {
   width: calc(var(--toolbar-button-size) * 0.6) !important;
   height: calc(var(--toolbar-button-size) * 0.6) !important;
 }
