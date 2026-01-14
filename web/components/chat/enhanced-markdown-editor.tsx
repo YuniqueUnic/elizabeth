@@ -1,134 +1,341 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import {
+  BlockTypeSelect,
+  BoldItalicUnderlineToggles,
+  ButtonWithTooltip,
+  CodeToggle,
+  CreateLink,
+  InsertCodeBlock,
+  InsertImage,
+  ListsToggle,
+  MDXEditor,
+  type MDXEditorMethods,
+  codeBlockPlugin,
+  codeMirrorPlugin,
+  headingsPlugin,
+  imagePlugin,
+  linkDialogPlugin,
+  linkPlugin,
+  listsPlugin,
+  markdownShortcutPlugin,
+  quotePlugin,
+  tablePlugin,
+  thematicBreakPlugin,
+  toolbarPlugin,
+  UndoRedo,
+} from "@mdxeditor/editor";
+import { Paperclip } from "lucide-react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { uploadFile } from "@/api/fileService";
+import type { FileItem } from "@/lib/types";
 import { useAppStore } from "@/lib/store";
-import dynamic from "next/dynamic";
-import "@uiw/react-md-editor/markdown-editor.css";
-import "@uiw/react-markdown-preview/markdown.css";
-
-const MDEditor = dynamic(
-  // @ts-ignore - Module may not be found in some environments
-  () => import("@uiw/react-md-editor"),
-  { ssr: false },
-) as any;
+import { useToast } from "@/hooks/use-toast";
+import { registerComposerEditor, unregisterComposerEditor } from "@/lib/composer-editor";
+import "@mdxeditor/editor/style.css";
 
 interface EnhancedMarkdownEditorProps {
   value: string;
   onChange: (value: string) => void;
+  onRequestSend?: () => void;
   placeholder?: string;
   height?: number | string;
-  showPreview?: boolean;
+  disabled?: boolean;
+  sendOnEnter: boolean;
+}
+
+function isLikelyImageFile(file: File): boolean {
+  if (file.type.startsWith("image/")) return true;
+  return /\.(png|jpe?g|gif|webp|svg)$/i.test(file.name);
+}
+
+function fileToRoomPath(roomName: string, file: FileItem): string {
+  if (file.url) return file.url;
+  return `/rooms/${encodeURIComponent(roomName)}/contents/${file.id}`;
+}
+
+function buildMarkdownForFile(
+  roomName: string,
+  file: FileItem,
+  original: File,
+): string {
+  const href = fileToRoomPath(roomName, file);
+  if (isLikelyImageFile(original)) {
+    return `\n\n![](${href})\n`;
+  }
+  return `\n\n[${file.name}](${href})\n`;
+}
+
+function UploadFileButton({
+  disabled,
+  onUpload,
+}: {
+  disabled?: boolean;
+  onUpload: (files: File[]) => void | Promise<void>;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <>
+      <ButtonWithTooltip
+        title="上传文件"
+        onClick={() => inputRef.current?.click()}
+        disabled={disabled}
+      >
+        <Paperclip />
+      </ButtonWithTooltip>
+      <input
+        ref={inputRef}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          const files = Array.from(e.target.files || []);
+          if (files.length > 0) {
+            void onUpload(files);
+            e.target.value = "";
+          }
+        }}
+      />
+    </>
+  );
 }
 
 export function EnhancedMarkdownEditor({
   value,
   onChange,
+  onRequestSend,
   placeholder,
   height = 120,
-  showPreview = false,
+  disabled,
+  sendOnEnter,
 }: EnhancedMarkdownEditorProps) {
-  const theme = useAppStore((state) => state.theme);
-  const sendOnEnter = useAppStore((state) => state.sendOnEnter);
-  const [mounted, setMounted] = useState(false);
-  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">(
-    "light",
-  );
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const roomName = useAppStore((state) => state.currentRoomId);
+  const incrementActiveUploads = useAppStore((state) => state.incrementActiveUploads);
+  const decrementActiveUploads = useAppStore((state) => state.decrementActiveUploads);
+  const composerInsertRequest = useAppStore((state) => state.composerInsertRequest);
+  const clearInsertMarkdownRequest = useAppStore((state) => state.clearInsertMarkdownRequest);
+
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<MDXEditorMethods>(null);
+  const lastMarkdownRef = useRef(value);
+  const lastInsertRequestIdRef = useRef<number | null>(null);
 
   useEffect(() => {
-    setMounted(true);
+    const editor = editorRef.current;
+    registerComposerEditor(editor);
+    return () => unregisterComposerEditor(editor);
   }, []);
 
-  // 解析主题：如果是 system，则根据系统偏好设置
+  const handleUpload = useCallback(
+    async (file: File): Promise<{ markdown: string; url: string }> => {
+      if (!roomName) {
+        throw new Error("Room name missing");
+      }
+
+      incrementActiveUploads();
+      try {
+        const uploaded = await uploadFile(roomName, file);
+        queryClient.invalidateQueries({ queryKey: ["files", roomName] });
+        queryClient.invalidateQueries({ queryKey: ["room", roomName] });
+
+        const markdown = buildMarkdownForFile(roomName, uploaded, file);
+        const url = fileToRoomPath(roomName, uploaded);
+
+        toast({
+          title: "上传成功",
+          description: uploaded.name,
+        });
+
+        return { markdown, url };
+      } finally {
+        decrementActiveUploads();
+      }
+    },
+    [
+      decrementActiveUploads,
+      incrementActiveUploads,
+      queryClient,
+      roomName,
+      toast,
+    ],
+  );
+
+  const handleUploadFiles = useCallback(
+    async (files: File[]) => {
+      for (const file of files) {
+        const { markdown } = await handleUpload(file);
+        editorRef.current?.focus(() => {
+          editorRef.current?.insertMarkdown(markdown);
+        });
+      }
+    },
+    [handleUpload],
+  );
+
+  const imageUploadHandler = useCallback(
+    async (image: File): Promise<string> => {
+      const { url } = await handleUpload(image);
+      return url;
+    },
+    [handleUpload],
+  );
+
+  const plugins = useMemo(() => {
+    return [
+      headingsPlugin(),
+      listsPlugin(),
+      quotePlugin(),
+      linkPlugin(),
+      linkDialogPlugin(),
+      tablePlugin(),
+      thematicBreakPlugin(),
+      markdownShortcutPlugin(),
+      codeBlockPlugin({ defaultCodeBlockLanguage: "txt" }),
+      codeMirrorPlugin({
+        codeBlockLanguages: {
+          txt: "Text",
+          js: "JavaScript",
+          ts: "TypeScript",
+          json: "JSON",
+          bash: "Bash",
+          rust: "Rust",
+        },
+        autoLoadLanguageSupport: true,
+      }),
+      imagePlugin({ imageUploadHandler }),
+      toolbarPlugin({
+        toolbarContents: () => (
+          <>
+            <UndoRedo />
+            <BoldItalicUnderlineToggles />
+            <CodeToggle />
+            <ListsToggle />
+            <BlockTypeSelect />
+            <CreateLink />
+            <InsertImage />
+            <InsertCodeBlock />
+            <UploadFileButton disabled={disabled} onUpload={handleUploadFiles} />
+          </>
+        ),
+      }),
+    ];
+  }, [disabled, handleUploadFiles, imageUploadHandler]);
+
   useEffect(() => {
-    if (theme === "system") {
-      const mediaQuery = window.matchMedia(
-        "(prefers-color-scheme: dark)",
-      );
-      const updateTheme = () => {
-        setResolvedTheme(mediaQuery.matches ? "dark" : "light");
-      };
+    if (value === lastMarkdownRef.current) return;
+    if (!editorRef.current) return;
+    editorRef.current.setMarkdown(value);
+    lastMarkdownRef.current = value;
+  }, [value]);
 
-      updateTheme();
-      mediaQuery.addEventListener("change", updateTheme);
+  useLayoutEffect(() => {
+    const request = composerInsertRequest;
+    if (!request) return;
 
-      return () => mediaQuery.removeEventListener("change", updateTheme);
+    if (lastInsertRequestIdRef.current === request.id) return;
+    lastInsertRequestIdRef.current = request.id;
+
+    editorRef.current?.focus(() => {
+      editorRef.current?.insertMarkdown(request.markdown);
+    });
+
+    clearInsertMarkdownRequest(request.id);
+  }, [composerInsertRequest, clearInsertMarkdownRequest]);
+
+  useEffect(() => {
+    const root = wrapperRef.current;
+    if (!root) return;
+
+    const editable = root.querySelector<HTMLElement>(".mdxeditor-content[contenteditable]");
+    if (!editable) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!onRequestSend || disabled) return;
+      if (event.key !== "Enter") return;
+
+      const isSend = sendOnEnter
+        ? !event.shiftKey && !event.ctrlKey && !event.metaKey
+        : (event.ctrlKey || event.metaKey);
+
+      if (!isSend) return;
+      event.preventDefault();
+      onRequestSend();
+    };
+
+    editable.addEventListener("keydown", handleKeyDown);
+    return () => {
+      editable.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [disabled, onRequestSend, sendOnEnter]);
+
+  useEffect(() => {
+    const root = wrapperRef.current;
+    if (!root) return;
+
+    const editable = root.querySelector<HTMLElement>(".mdxeditor-content[contenteditable]");
+    if (!editable) return;
+
+    if (placeholder) {
+      editable.dataset.placeholder = placeholder;
     } else {
-      setResolvedTheme(theme);
+      delete editable.dataset.placeholder;
     }
-  }, [theme]);
 
-  // 如果 showPreview 为 true（全屏模式），强制使用 100% 高度
-  const editorHeight = showPreview ? "100%" : height;
+    editable.dataset.empty = value.trim() ? "false" : "true";
+  }, [placeholder, value]);
 
-  if (!mounted) {
-    return (
-      <div
-        className="flex items-center justify-center border rounded-md bg-muted/50"
-        style={{ height: `${height}px` }}
-      >
-        <span className="text-sm text-muted-foreground">
-          加载编辑器...
-        </span>
-      </div>
-    );
-  }
+  useEffect(() => {
+    const root = wrapperRef.current;
+    if (!root) return;
+
+    const editable = root.querySelector<HTMLElement>(".mdxeditor-content[contenteditable]");
+    if (!editable) return;
+
+    const setFocused = (focused: boolean) => {
+      editable.dataset.focused = focused ? "true" : "false";
+    };
+
+    setFocused(false);
+
+    const handleFocusIn = () => {
+      registerComposerEditor(editorRef.current);
+      setFocused(true);
+    };
+    const handleFocusOut = () => setFocused(false);
+
+    editable.addEventListener("focusin", handleFocusIn);
+    editable.addEventListener("focusout", handleFocusOut);
+
+    return () => {
+      editable.removeEventListener("focusin", handleFocusIn);
+      editable.removeEventListener("focusout", handleFocusOut);
+    };
+  }, []);
 
   return (
     <div
-      data-color-mode={resolvedTheme}
+      ref={wrapperRef}
       className="h-full flex flex-col overflow-hidden"
       data-testid="message-input-editor"
+      style={{ height }}
     >
-      <MDEditor
-        value={value || ""}
-        onChange={(val: any) => {
-          const newValue = val || "";
-          if (newValue !== value) {
-            onChange(newValue);
-          }
+      <MDXEditor
+        ref={editorRef}
+        markdown={value}
+        className="h-full flex flex-col"
+        contentEditableClassName="prose prose-sm dark:prose-invert max-w-none flex-1 min-h-0 overflow-auto mdxeditor-content relative"
+        onChange={(markdown) => {
+          lastMarkdownRef.current = markdown;
+          onChange(markdown);
         }}
-        height={editorHeight}
-        preview={showPreview ? "live" : "edit"}
-        hideToolbar={false}
-        textareaProps={{
-          placeholder: placeholder || "输入消息...",
-          onKeyDown: (e: any) => {
-            const currentValue = (e.target as HTMLTextAreaElement).value;
-
-            // sendOnEnter 为 true: Enter 发送，Shift+Enter 换行
-            if (
-              sendOnEnter && e.key === "Enter" && !e.shiftKey && !e.ctrlKey &&
-              !e.metaKey
-            ) {
-              e.preventDefault();
-              if (currentValue.trim()) {
-                onChange(currentValue.trim());
-                // Trigger send via custom event
-                const sendEvent = new CustomEvent("sendMessage", {
-                  detail: { content: currentValue.trim() },
-                });
-                window.dispatchEvent(sendEvent);
-              }
-            }
-
-            // sendOnEnter 为 false: Ctrl/Cmd+Enter发送
-            if (
-              !sendOnEnter && e.key === "Enter" && (e.ctrlKey || e.metaKey)
-            ) {
-              e.preventDefault();
-              if (currentValue.trim()) {
-                onChange(currentValue.trim());
-                // Trigger send via custom event
-                const sendEvent = new CustomEvent("sendMessage", {
-                  detail: { content: currentValue.trim() },
-                });
-                window.dispatchEvent(sendEvent);
-              }
-            }
-          },
+        onError={(payload) => {
+          console.error("[MDXEditor] markdown parse error:", payload);
         }}
-        className="w-full flex-1"
-        style={showPreview ? { flex: 1 } : { maxHeight: editorHeight }}
+        plugins={plugins}
       />
     </div>
   );

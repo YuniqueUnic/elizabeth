@@ -57,7 +57,7 @@ repos:
         language: system
         types: [rust]
         pass_filenames: false
-        stages: [push]
+        stages: [pre-push]
 
   # Rust 快速编译检查 - 仅在 push 阶段运行
   - repo: local
@@ -68,7 +68,7 @@ repos:
         language: system
         types: [rust]
         pass_filenames: false
-        stages: [push]
+        stages: [pre-push]
 
   # Rust 测试 - 仅在 push 阶段运行
   - repo: local
@@ -78,7 +78,7 @@ repos:
         entry: cargo test --all-features --all-targets
         language: system
         pass_filenames: false
-        stages: [push]
+        stages: [pre-push]
 
   # 拼写检查 - 使用 typos (Rust 编写，性能优秀)
   - repo: https://github.com/crate-ci/typos

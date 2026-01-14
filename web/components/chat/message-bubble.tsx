@@ -42,6 +42,7 @@ export function MessageBubble(
   const includeMetadataInCopy = useAppStore(
     (state) => state.includeMetadataInCopy,
   );
+  const useHeti = useAppStore((state) => state.useHeti);
 
   const isSelected = selectedMessages.has(message.id);
 
@@ -102,7 +103,9 @@ export function MessageBubble(
       <div
         className={`message-content prose prose-sm dark:prose-invert max-w-none ${
           showCheckbox ? "ml-6" : ""
-        } ${message.isPendingDelete ? "line-through" : ""}`}
+        } ${message.isPendingDelete ? "line-through" : ""} ${
+          useHeti ? "heti" : ""
+        }`}
         data-testid={`message-content-${message.id}`}
       >
         <MarkdownRenderer content={message.content} />

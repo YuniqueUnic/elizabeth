@@ -287,6 +287,21 @@ export class InputElement extends BaseElement {
         return this;
     }
 
+    async getValue(): Promise<string> {
+        try {
+            return await this.locator.inputValue({ timeout: this.options.timeout });
+        } catch {
+            const value = await this.locator.evaluate((el: any) => {
+                if (typeof el?.value === "string") return el.value as string;
+                if (el instanceof HTMLElement && el.isContentEditable) {
+                    return el.textContent ?? "";
+                }
+                return el?.textContent ?? "";
+            });
+            return String(value ?? "");
+        }
+    }
+
     async selectAll(): Promise<this> {
         await this.locator.press("Control+A");
         return this;
@@ -298,10 +313,7 @@ export class InputElement extends BaseElement {
  */
 export class ButtonElement extends BaseElement {
     async click(): Promise<this> {
-        await this.locator.click({
-            timeout: this.options.timeout,
-            force: true, // 避免被临时 toast/遮罩拦截
-        });
+        await this.locator.click({ timeout: this.options.timeout });
         return this;
     }
 

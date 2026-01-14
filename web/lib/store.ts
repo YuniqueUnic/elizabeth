@@ -118,6 +118,18 @@ interface AppState {
   saveMessages: () => Promise<void>;
   syncMessagesFromServer: () => Promise<void>;
 
+  // Composer state (draft + edit mode). Not persisted.
+  composerContent: string;
+  setComposerContent: (content: string) => void;
+  composerEditingMessageId: string | null;
+  beginEditMessage: (messageId: string) => void;
+  cancelEditMessage: () => void;
+
+  // Request the active editor to insert markdown at the cursor position.
+  composerInsertRequest: { id: number; markdown: string } | null;
+  requestInsertMarkdown: (markdown: string) => void;
+  clearInsertMarkdownRequest: (requestId: number) => void;
+
   // Upload state
   activeUploads: number;
   incrementActiveUploads: () => void;
@@ -223,7 +235,15 @@ export const useAppStore = create<AppState>()(
       // Room
       currentRoomId: "demo-room-123",
       setCurrentRoomId: (roomId) =>
-        set({ currentRoomId: roomId, messages: [] }),
+        set({
+          currentRoomId: roomId,
+          messages: [],
+          selectedMessages: new Set(),
+          selectedFiles: new Set(),
+          composerContent: "",
+          composerEditingMessageId: null,
+          composerInsertRequest: null,
+        }),
 
       // Authentication (derived from localStorage tokens)
       isAuthenticated: (roomName) => {
@@ -370,6 +390,29 @@ export const useAppStore = create<AppState>()(
         }));
       },
 
+      composerContent: "",
+      setComposerContent: (content) => set({ composerContent: content }),
+      composerEditingMessageId: null,
+      beginEditMessage: (messageId) => {
+        const message = get().messages.find((m) => m.id === messageId);
+        set({
+          composerEditingMessageId: messageId,
+          composerContent: message?.content ?? "",
+        });
+      },
+      cancelEditMessage: () =>
+        set({ composerEditingMessageId: null, composerContent: "" }),
+
+      composerInsertRequest: null,
+      requestInsertMarkdown: (markdown) =>
+        set({ composerInsertRequest: { id: Date.now(), markdown } }),
+      clearInsertMarkdownRequest: (requestId) =>
+        set((state) =>
+          state.composerInsertRequest?.id === requestId
+            ? { composerInsertRequest: null }
+            : {}
+        ),
+
       // Upload state
       activeUploads: 0,
       incrementActiveUploads: () =>
@@ -402,3 +445,7 @@ export const useAppStore = create<AppState>()(
     },
   ),
 );
+
+if (typeof window !== "undefined" && process.env.NODE_ENV !== "production") {
+  (window as any).__ELIZABETH_STORE__ = useAppStore;
+}

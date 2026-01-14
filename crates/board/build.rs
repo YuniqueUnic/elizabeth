@@ -138,14 +138,14 @@ fn generate_frontend_bindings() -> anyhow::Result<()> {
     let schema_path = output_dir.join("api.schema.json");
     fs::write(&schema_path, schema_json)?;
 
-    println!(
-        "cargo:warning=generated TypeScript types into {:?}",
-        &output_dir
-    );
-    println!(
-        "cargo:warning=generated JSON schema into {:?}",
-        &schema_path
-    );
+    println!("cargo:rerun-if-env-changed=ELIZABETH_CODEGEN_VERBOSE");
+    if env::var("ELIZABETH_CODEGEN_VERBOSE").is_ok() {
+        eprintln!(
+            "[codegen] generated TypeScript types into {:?}",
+            &output_dir
+        );
+        eprintln!("[codegen] generated JSON schema into {:?}", &schema_path);
+    }
 
     // 通知 cargo 在以下文件变化时重新运行
     println!("cargo:rerun-if-changed=../board-protocol/src/constants.rs");
@@ -196,6 +196,7 @@ fn clean_generated_dir(dir: &std::path::Path) -> anyhow::Result<()> {
 
 #[cfg(feature = "typescript-export")]
 fn write_ts_index(output_dir: &std::path::Path) -> anyhow::Result<()> {
+    use std::env;
     use std::fs;
 
     let index_file = output_dir.join("api.types.ts");
@@ -214,6 +215,9 @@ fn write_ts_index(output_dir: &std::path::Path) -> anyhow::Result<()> {
     }
 
     fs::write(&index_file, content)?;
-    println!("cargo:warning=generated TS index {:?}", &index_file);
+    println!("cargo:rerun-if-env-changed=ELIZABETH_CODEGEN_VERBOSE");
+    if env::var("ELIZABETH_CODEGEN_VERBOSE").is_ok() {
+        eprintln!("[codegen] generated TS index {:?}", &index_file);
+    }
     Ok(())
 }

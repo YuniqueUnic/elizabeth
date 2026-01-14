@@ -8,10 +8,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Maximize2, Send, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useAppStore } from "@/lib/store";
 import type { Message } from "@/lib/types";
 import { EnhancedMarkdownEditor } from "./enhanced-markdown-editor";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MarkdownRenderer } from "./markdown-renderer";
 
 interface MessageInputProps {
   onSend: (content: string) => void;
@@ -20,47 +22,39 @@ interface MessageInputProps {
   isLoading: boolean;
 }
 
+function getSendableContent(markdown: string): string {
+  const decodedEntities = markdown
+    .replace(/&#x([0-9a-fA-F]+);/g, (_match, hex: string) => {
+      const codePoint = Number.parseInt(hex, 16);
+      return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : "";
+    })
+    .replace(/&#([0-9]+);/g, (_match, decimal: string) => {
+      const codePoint = Number.parseInt(decimal, 10);
+      return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : "";
+    })
+    .replace(/&nbsp;/gi, "\u00A0");
+
+  const withoutComments = decodedEntities.replace(/<!--[\s\S]*?-->/g, "");
+  const normalized = withoutComments
+    .replace(/[\p{Cc}\p{Cf}]/gu, "")
+    .replace(/\u00A0/g, " ");
+  return normalized.trim();
+}
+
 export function MessageInput(
   { onSend, editingMessage, onCancelEdit, isLoading }: MessageInputProps,
 ) {
-  const [content, setContent] = useState("");
   const [isExpanded, setIsExpanded] = useState(false);
   const sendOnEnter = useAppStore((state) => state.sendOnEnter);
+  const content = useAppStore((state) => state.composerContent);
+  const setContent = useAppStore((state) => state.setComposerContent);
 
-  useEffect(() => {
-    if (editingMessage) {
-      setContent(editingMessage.content);
-    } else {
-      setContent("");
-    }
-  }, [editingMessage]);
-
-  const handleSend = (text: string) => {
-    if (text.trim() && !isLoading) {
-      onSend(text.trim());
-      setContent("");
-      setIsExpanded(false);
-    }
-  };
-
-  useEffect(() => {
-    const handleCustomSend = (e: Event) => {
-      const customEvent = e as CustomEvent<{ content: string }>;
-      if (
-        customEvent.detail?.content && customEvent.detail.content.trim() &&
-        !isLoading
-      ) {
-        onSend(customEvent.detail.content.trim());
-        setContent("");
-        setIsExpanded(false);
-      }
-    };
-
-    window.addEventListener("sendMessage", handleCustomSend);
-    return () => {
-      window.removeEventListener("sendMessage", handleCustomSend);
-    };
-  }, [isLoading, onSend]);
+  const handleSend = useCallback(() => {
+    const sendable = getSendableContent(content);
+    if (!sendable || isLoading) return;
+    onSend(sendable);
+    setIsExpanded(false);
+  }, [content, isLoading, onSend]);
 
   return (
     <>
@@ -85,11 +79,13 @@ export function MessageInput(
             <EnhancedMarkdownEditor
               value={content}
               onChange={setContent}
+              onRequestSend={handleSend}
+              disabled={isLoading}
               placeholder={sendOnEnter
                 ? "输入消息... (Enter 发送, Shift+Enter 换行)"
                 : "输入消息... (Ctrl/Cmd+Enter 发送)"}
               height="100%"
-              showPreview={false}
+              sendOnEnter={sendOnEnter}
             />
           </div>
 
@@ -105,8 +101,8 @@ export function MessageInput(
             </Button>
             <Button
               size="sm"
-              onClick={() => handleSend(content)}
-              disabled={!content.trim() || isLoading}
+              onClick={handleSend}
+              disabled={!getSendableContent(content) || isLoading}
             >
               <Send className="mr-2 h-4 w-4" />
               发送
@@ -119,14 +115,37 @@ export function MessageInput(
         <DialogContent className="max-w-none w-screen h-screen sm:h-[90vh] sm:max-w-4xl lg:max-w-6xl sm:w-full p-0 sm:p-6 gap-0 flex flex-col sm:rounded-lg rounded-none">
           <DialogTitle className="sr-only">Markdown 编辑器</DialogTitle>
           <div className="flex-1 overflow-hidden sm:px-0 sm:py-0 min-h-0">
-            <div className="h-full">
-              <EnhancedMarkdownEditor
-                value={content}
-                onChange={setContent}
-                placeholder="输入消息..."
-                showPreview={true}
-              />
-            </div>
+            <Tabs
+              defaultValue="edit"
+              className="h-full flex flex-col min-h-0"
+            >
+              <div className="border-b px-4 py-2 sm:px-0 sm:py-0 sm:border-0">
+                <TabsList>
+                  <TabsTrigger value="edit">编辑</TabsTrigger>
+                  <TabsTrigger value="preview">预览</TabsTrigger>
+                </TabsList>
+              </div>
+              <TabsContent value="edit" className="min-h-0">
+                <div className="h-full">
+                  <EnhancedMarkdownEditor
+                    value={content}
+                    onChange={setContent}
+                    onRequestSend={handleSend}
+                    disabled={isLoading}
+                    placeholder="输入消息..."
+                    height="100%"
+                    sendOnEnter={sendOnEnter}
+                  />
+                </div>
+              </TabsContent>
+              <TabsContent value="preview" className="min-h-0">
+                <div className="h-full overflow-auto p-4 sm:p-0">
+                  <div className="message-content prose prose-sm dark:prose-invert max-w-none">
+                    <MarkdownRenderer content={content || "（空）"} />
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
           </div>
 
           <div className="flex justify-end gap-2 px-4 pb-4 sm:px-0 sm:pb-0 pt-3 border-t">
@@ -134,8 +153,8 @@ export function MessageInput(
               取消
             </Button>
             <Button
-              onClick={() => handleSend(content)}
-              disabled={!content.trim() || isLoading}
+              onClick={handleSend}
+              disabled={!getSendableContent(content) || isLoading}
             >
               <Send className="mr-2 h-4 w-4" />
               发送
