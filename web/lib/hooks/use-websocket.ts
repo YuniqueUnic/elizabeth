@@ -208,6 +208,30 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
   const heartbeatTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptRef = useRef(0);
   const isManualCloseRef = useRef(false);
+  const connectingRef = useRef(false);
+  const connectRef = useRef<() => void>(() => {});
+
+  type CallbackRefs = Pick<
+    UseWebSocketOptions,
+    "onOpen" | "onMessage" | "onClose" | "onError" | "onReconnect"
+  >;
+  const callbacksRef = useRef<CallbackRefs>({
+    onOpen,
+    onMessage,
+    onClose,
+    onError,
+    onReconnect,
+  });
+
+  useEffect(() => {
+    callbacksRef.current = {
+      onOpen,
+      onMessage,
+      onClose,
+      onError,
+      onReconnect,
+    };
+  }, [onOpen, onMessage, onClose, onError, onReconnect]);
 
   // State
   const [connected, setConnected] = useState(false);
@@ -278,10 +302,11 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
    */
   const connect = useCallback(() => {
     // Don't connect if already connected or connecting
-    if (wsRef.current?.readyState === WebSocket.OPEN || connecting) {
+    if (wsRef.current?.readyState === WebSocket.OPEN || connectingRef.current) {
       return;
     }
 
+    connectingRef.current = true;
     setConnecting(true);
     setError(null);
 
@@ -293,6 +318,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
 
       ws.onopen = (event) => {
         setConnected(true);
+        connectingRef.current = false;
         setConnecting(false);
         setReconnecting(false);
         setError(null);
@@ -305,12 +331,12 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
           payload: {
             token,
             room_name: roomName,
-          } as ConnectRequest,
-          timestamp: Date.now(),
-        };
+        } as ConnectRequest,
+        timestamp: Date.now(),
+      };
         ws.send(JSON.stringify(connectMessage));
 
-        onOpen?.(event);
+        callbacksRef.current.onOpen?.(event);
       };
 
       ws.onmessage = (event) => {
@@ -335,7 +361,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
             }
           }
 
-          onMessage?.(message);
+          callbacksRef.current.onMessage?.(message);
         } catch (err) {
           console.error("Failed to parse WebSocket message:", err);
         }
@@ -343,13 +369,14 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
 
       ws.onclose = (event) => {
         setConnected(false);
+        connectingRef.current = false;
         setConnecting(false);
         stopHeartbeat();
 
         // Don't reconnect if manually closed
         if (isManualCloseRef.current) {
           isManualCloseRef.current = false;
-          onClose?.(event);
+          callbacksRef.current.onClose?.(event);
           return;
         }
 
@@ -361,39 +388,38 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
           reconnectTimeoutRef.current = setTimeout(() => {
             reconnectAttemptRef.current += 1;
             setReconnectAttempt(reconnectAttemptRef.current);
-            onReconnect?.(reconnectAttemptRef.current);
-            connect();
+            callbacksRef.current.onReconnect?.(reconnectAttemptRef.current);
+            connectRef.current();
           }, delay);
         } else {
           setError(new Error(`WebSocket closed: ${event.reason || "Unknown error"}`));
-          onClose?.(event);
+          callbacksRef.current.onClose?.(event);
         }
       };
 
       ws.onerror = (event) => {
         setError(new Error("WebSocket error occurred"));
-        onError?.(event);
+        callbacksRef.current.onError?.(event);
       };
     } catch (err) {
       const errorObj = err instanceof Error ? err : new Error("Failed to create WebSocket");
       setError(errorObj);
+      connectingRef.current = false;
       setConnecting(false);
     }
   }, [
     url,
     token,
     roomName,
-    connecting,
     enableReconnect,
-    onOpen,
-    onMessage,
-    onClose,
-    onError,
-    onReconnect,
     sendPong,
     startHeartbeat,
     stopHeartbeat,
   ]);
+
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
 
   /**
    * Manually trigger reconnection
@@ -410,8 +436,8 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     }
 
     // Connect again
-    connect();
-  }, [connect, clearReconnectTimeout]);
+    connectRef.current();
+  }, [clearReconnectTimeout]);
 
   /**
    * Disconnect from WebSocket server
@@ -427,6 +453,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     }
 
     setConnected(false);
+    connectingRef.current = false;
     setConnecting(false);
     setReconnecting(false);
   }, [clearReconnectTimeout, stopHeartbeat]);
@@ -440,7 +467,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     return () => {
       disconnect();
     };
-  }, [url, token, roomName]); // Only reconnect when these change
+  }, [connect, disconnect]);
 
   /**
    * Effect: Cleanup on unmount

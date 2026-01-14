@@ -191,10 +191,12 @@ export async function updateMessage(
   return convertMessage(response.updated);
 }
 
-export default {
+const messageService = {
   getMessages,
   postMessage,
   updateMessage,
   deleteMessage,
   deleteMessages,
 };
+
+export default messageService;

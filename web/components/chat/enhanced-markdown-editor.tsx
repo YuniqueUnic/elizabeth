@@ -6,7 +6,6 @@ import dynamic from "next/dynamic";
 import "@uiw/react-md-editor/markdown-editor.css";
 import "@uiw/react-markdown-preview/markdown.css";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-var-requires
 const MDEditor = dynamic(
   // @ts-ignore - Module may not be found in some environments
   () => import("@uiw/react-md-editor"),

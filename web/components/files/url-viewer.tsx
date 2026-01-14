@@ -63,7 +63,7 @@ export function UrlViewer({ url, name, description }: UrlViewerProps) {
                 <AlertCircle className="h-4 w-4" />
                 <p className="text-sm text-muted-foreground pr-3">
                   某些网站可能不允许在 iframe
-                  中显示。如果预览失败，请使用"新标签页打开"
+                  中显示。如果预览失败，请使用“新标签页打开”
                 </p>
               </div>
             )}
@@ -131,9 +131,9 @@ export function UrlViewer({ url, name, description }: UrlViewerProps) {
           <div className="flex flex-col items-center justify-center h-full p-8 text-muted-foreground">
             <ExternalLink className="h-12 w-12 mb-4 opacity-50" />
             <p className="text-center">
-              点击"预览"按钮查看链接内容
+              点击“预览”按钮查看链接内容
               <br />
-              或点击"新标签页打开"在浏览器中打开
+              或点击“新标签页打开”在浏览器中打开
             </p>
           </div>
         )}
@@ -158,7 +158,7 @@ export function UrlViewer({ url, name, description }: UrlViewerProps) {
                 无法在预览中加载此链接。该网站可能不允许嵌入显示。
                 <br />
                 <br />
-                请点击"新标签页打开"按钮在浏览器中查看。
+                请点击“新标签页打开”按钮在浏览器中查看。
               </AlertDescription>
             </Alert>
             <Button

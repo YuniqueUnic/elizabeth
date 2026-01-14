@@ -216,10 +216,12 @@ export async function listRoomTokens(
 // Legacy compatibility exports (for existing components)
 // getRoomDetails is already exported above
 
-export default {
+const roomService = {
   createRoom,
   getRoomDetails,
   deleteRoom,
   updateRoomPermissions,
   listRoomTokens,
 };
+
+export default roomService;

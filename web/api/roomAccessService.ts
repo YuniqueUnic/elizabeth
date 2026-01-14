@@ -341,7 +341,7 @@ async function getRoomDetailsWithToken(
   return convertRoom(room);
 }
 
-export default {
+const roomAccessService = {
   checkRoomAvailability,
   generateRoomUUID,
   getAccessibleRoomName,
@@ -349,3 +349,5 @@ export default {
   accessShareableRoom,
   accessRoom,
 };
+
+export default roomAccessService;

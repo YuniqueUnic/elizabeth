@@ -41,7 +41,7 @@ pub struct LoggingConfig {
 #[derive(Merge, Debug, Clone, SmartDefault, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct DatabaseConfig {
-    #[default("sqlite:app.db")]
+    #[default("sqlite://app.db?mode=rwc")]
     #[merge(strategy = overwrite_not_empty_string)]
     pub url: String,
     #[default(Some(20))]
@@ -266,7 +266,7 @@ mod tests {
         assert_eq!(cfg.server.addr, "127.0.0.1");
         assert_eq!(cfg.server.port, 4092);
         assert_eq!(cfg.logging.level.to_lowercase(), "info");
-        assert_eq!(cfg.database.url, "sqlite:app.db");
+        assert_eq!(cfg.database.url, "sqlite://app.db?mode=rwc");
         assert_eq!(cfg.database.max_connections, Some(20));
         assert_eq!(cfg.database.min_connections, Some(5));
         assert_eq!(cfg.database.journal_mode.to_lowercase(), "wal");

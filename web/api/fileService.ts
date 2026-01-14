@@ -389,7 +389,7 @@ export async function uploadUrl(
 
 // Legacy compatibility exports (for existing components)
 // getFilesList is already exported above
-export default {
+const fileService = {
   getFilesList,
   uploadFile,
   uploadUrl,
@@ -398,3 +398,5 @@ export default {
   downloadFile,
   downloadFilesBatch,
 };
+
+export default fileService;

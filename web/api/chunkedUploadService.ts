@@ -345,7 +345,7 @@ export function formatTimeRemaining(seconds: number): string {
   }
 }
 
-export default {
+const chunkedUploadService = {
   uploadFileChunked,
   getChunkedUploadStatus,
   completeChunkedUpload,
@@ -353,3 +353,5 @@ export default {
   formatUploadSpeed,
   formatTimeRemaining,
 };
+
+export default chunkedUploadService;

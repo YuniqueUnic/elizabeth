@@ -313,7 +313,7 @@ export function createPermissionAwareAPI<
   }) as T;
 }
 
-export default {
+const permissionService = {
   setRoomPermissions,
   getUserPermissions,
   hasPermission,
@@ -328,3 +328,5 @@ export default {
   getPermissionColor,
   createPermissionAwareAPI,
 };
+
+export default permissionService;

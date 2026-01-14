@@ -5,6 +5,7 @@
 
 import { expect, test } from "@playwright/test";
 import { RoomPage } from "../page-objects/room-page";
+import { htmlSelectors } from "../selectors/html-selectors";
 
 const BASE_URL = "http://localhost:4001";
 const API_BASE_URL = process.env.API_BASE_URL || "http://localhost:4092/api/v1";
@@ -179,6 +180,108 @@ test.describe("消息系统功能测试", () => {
 
             const isEnabled = await roomPage.topBar.saveBtn.isEnabled();
             expect(isEnabled).toBe(true);
+        });
+
+        test("MSG-009A: resize 后未保存消息不应丢失", async () => {
+            const messageText = `Resize unsaved ${Date.now()}`;
+
+            await roomPage.sendMessage(messageText);
+
+            // 确认消息已渲染在列表中，并带有未保存标签
+            const lastTextBefore = await roomPage.getLastMessageText();
+            expect(lastTextBefore).toContain(messageText);
+
+            const lastMessageBefore = roomPage.page
+                .locator(htmlSelectors.middleColumn.messageList.message.container)
+                .last();
+            await expect(
+                lastMessageBefore.locator(
+                    htmlSelectors.middleColumn.messageList.message.unsavedBadge,
+                ),
+            ).toBeVisible();
+
+            // 触发响应式布局切换（桌面 -> 移动）
+            await roomPage.page.setViewportSize({ width: 390, height: 844 });
+            await roomPage.page
+                .getByRole("tab", { name: "聊天" })
+                .waitFor({ state: "visible", timeout: 10_000 });
+
+            // 确认未保存消息仍存在
+            const lastTextAfter = await roomPage.getLastMessageText();
+            expect(lastTextAfter).toContain(messageText);
+
+            const lastMessageAfter = roomPage.page
+                .locator(htmlSelectors.middleColumn.messageList.message.container)
+                .last();
+            await expect(
+                lastMessageAfter.locator(
+                    htmlSelectors.middleColumn.messageList.message.unsavedBadge,
+                ),
+            ).toBeVisible();
+        });
+
+        test("MSG-009B: resize 后未保存的编辑内容不应丢失", async () => {
+            const originalText = `Original ${Date.now()}`;
+            const editedText = `Edited ${Date.now()}`;
+
+            await roomPage.sendMessage(originalText);
+            await roomPage.topBar.saveBtn.click();
+
+            await expect(
+                roomPage.page.locator(
+                    htmlSelectors.middleColumn.messageList.message.unsavedBadge,
+                ),
+            ).toHaveCount(0, { timeout: 15_000 });
+
+            const lastMessage = roomPage.page
+                .locator(htmlSelectors.middleColumn.messageList.message.container)
+                .last();
+            await lastMessage.hover();
+            const editBtn = lastMessage.locator('button[title="编辑"]');
+            await editBtn.waitFor({ state: "visible", timeout: 5_000 });
+            await editBtn.click();
+
+            await expect(
+                lastMessage.locator(
+                    htmlSelectors.middleColumn.messageList.message.editingBadge,
+                ),
+            ).toBeVisible({ timeout: 5_000 });
+
+            await roomPage.messages.input.fill(editedText);
+            // 使用 Enter 触发发送（走自定义 sendMessage 事件），更贴近真实交互
+            await roomPage.messages.input.getLocator().press("Enter");
+
+            const lastMessageContentBefore = roomPage.page
+                .locator(htmlSelectors.middleColumn.messageList.message.content)
+                .last();
+            await expect(lastMessageContentBefore).toContainText(editedText, {
+                timeout: 5_000,
+            });
+
+            await expect(
+                roomPage.page
+                    .locator(
+                        htmlSelectors.middleColumn.messageList.message.editedBadge,
+                    )
+                    .last(),
+            ).toBeVisible({ timeout: 5_000 });
+
+            await roomPage.page.setViewportSize({ width: 390, height: 844 });
+            await roomPage.page
+                .getByRole("tab", { name: "聊天" })
+                .waitFor({ state: "visible", timeout: 10_000 });
+
+            const lastEditedTextAfter = await roomPage.getLastMessageText();
+            expect(lastEditedTextAfter).toContain(editedText);
+
+            const lastMessageAfter = roomPage.page
+                .locator(htmlSelectors.middleColumn.messageList.message.container)
+                .last();
+            await expect(
+                lastMessageAfter.locator(
+                    htmlSelectors.middleColumn.messageList.message.editedBadge,
+                ),
+            ).toBeVisible();
         });
     });
 

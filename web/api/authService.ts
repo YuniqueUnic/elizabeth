@@ -218,7 +218,7 @@ export function hasValidToken(roomName: string): boolean {
   return !isTokenExpired(tokenInfo.expiresAt);
 }
 
-export default {
+const authService = {
   getAccessToken,
   validateToken,
   refreshToken,
@@ -227,3 +227,5 @@ export default {
   getValidToken,
   hasValidToken,
 };
+
+export default authService;
