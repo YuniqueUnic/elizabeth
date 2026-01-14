@@ -15,6 +15,7 @@ repos:
       - id: end-of-file-fixer
       # 检查 YAML 文件语法 (内置快速实现)
       - id: check-yaml
+        exclude: "pnpm-lock.yaml"
       # 检查 TOML 文件语法 (内置快速实现)
       - id: check-toml
       # 防止提交大文件 (内置快速实现)

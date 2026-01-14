@@ -6,6 +6,7 @@ import {
   ButtonWithTooltip,
   CodeToggle,
   CreateLink,
+  DiffSourceToggleWrapper,
   InsertCodeBlock,
   InsertImage,
   ListsToggle,
@@ -13,6 +14,7 @@ import {
   type MDXEditorMethods,
   codeBlockPlugin,
   codeMirrorPlugin,
+  diffSourcePlugin,
   headingsPlugin,
   imagePlugin,
   linkDialogPlugin,
@@ -43,6 +45,7 @@ interface EnhancedMarkdownEditorProps {
   height?: number | string;
   disabled?: boolean;
   sendOnEnter: boolean;
+  diffMarkdown?: string;
 }
 
 function isLikelyImageFile(file: File): boolean {
@@ -110,6 +113,7 @@ export function EnhancedMarkdownEditor({
   height = 120,
   disabled,
   sendOnEnter,
+  diffMarkdown,
 }: EnhancedMarkdownEditorProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -209,7 +213,15 @@ export function EnhancedMarkdownEditor({
       imagePlugin({ imageUploadHandler }),
       toolbarPlugin({
         toolbarContents: () => (
-          <>
+          <DiffSourceToggleWrapper
+            options={["rich-text", "source", "diff"]}
+            SourceToolbar={(
+              <>
+                <UndoRedo />
+                <UploadFileButton disabled={disabled} onUpload={handleUploadFiles} />
+              </>
+            )}
+          >
             <UndoRedo />
             <BoldItalicUnderlineToggles />
             <CodeToggle />
@@ -219,11 +231,15 @@ export function EnhancedMarkdownEditor({
             <InsertImage />
             <InsertCodeBlock />
             <UploadFileButton disabled={disabled} onUpload={handleUploadFiles} />
-          </>
+          </DiffSourceToggleWrapper>
         ),
       }),
+      diffSourcePlugin({
+        viewMode: "rich-text",
+        diffMarkdown: diffMarkdown ?? "",
+      }),
     ];
-  }, [disabled, handleUploadFiles, imageUploadHandler]);
+  }, [diffMarkdown, disabled, handleUploadFiles, imageUploadHandler]);
 
   useEffect(() => {
     if (value === lastMarkdownRef.current) return;
@@ -319,14 +335,13 @@ export function EnhancedMarkdownEditor({
   return (
     <div
       ref={wrapperRef}
-      className="h-full flex flex-col overflow-hidden"
+      className="h-full flex flex-col min-h-0 overflow-visible"
       data-testid="message-input-editor"
       style={{ height }}
     >
       <MDXEditor
         ref={editorRef}
         markdown={value}
-        className="h-full flex flex-col"
         contentEditableClassName="prose prose-sm dark:prose-invert max-w-none flex-1 min-h-0 overflow-auto mdxeditor-content relative"
         onChange={(markdown) => {
           lastMarkdownRef.current = markdown;
