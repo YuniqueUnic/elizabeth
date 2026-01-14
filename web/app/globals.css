@@ -241,13 +241,13 @@
   --basePageBg: var(--popover);
   --baseBase: var(--card);
   --baseBgSubtle: var(--muted);
-  --baseBg: var(--muted);
-  --baseBgHover: color-mix(in oklch, var(--muted) 80%, var(--foreground) 6%);
-  --baseBgActive: color-mix(in oklch, var(--muted) 70%, var(--foreground) 10%);
+  --baseBg: var(--background);
+  --baseBgHover: var(--muted);
+  --baseBgActive: var(--muted);
   --baseLine: var(--border);
   --baseBorder: var(--border);
   --baseBorderHover: color-mix(in oklch, var(--border) 75%, var(--foreground) 10%);
-  --baseText: var(--muted-foreground);
+  --baseText: var(--foreground);
   --baseTextContrast: var(--foreground);
 
   --accentBase: var(--background);
@@ -273,8 +273,9 @@
   --mdxeditor-content-padding-y: 0.75rem;
   --mdxeditor-content-padding-x: 1rem;
   padding: var(--mdxeditor-content-padding-y) var(--mdxeditor-content-padding-x) !important;
-  min-height: 10rem;
+  min-height: 0;
   flex: 1 1 auto;
+  cursor: text;
 }
 
 .mdxeditor-content[data-empty="true"][data-focused="false"]::before {
@@ -308,6 +309,12 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+/* 防止工具栏被压缩 */
+.mdxeditor [class*="_toolbarRoot_"],
+.mdxeditor [class*="_toolbarWrapper_"] {
+  flex-shrink: 0 !important;
 }
 
 .mdxeditor [class*="_contentEditable_"] {

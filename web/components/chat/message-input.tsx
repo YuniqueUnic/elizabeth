@@ -59,7 +59,7 @@ export function MessageInput(
       <div className="bg-background h-full flex flex-col">
         {/* Editing Banner */}
         {editingMessage && (
-          <div className="mb-2 flex items-center justify-between rounded-md bg-muted px-3 py-2 text-sm">
+          <div className="flex-shrink-0 mb-2 flex items-center justify-between rounded-md bg-muted px-3 py-2 text-sm">
             <span>正在编辑消息</span>
             <Button
               variant="ghost"
@@ -82,13 +82,12 @@ export function MessageInput(
               placeholder={sendOnEnter
                 ? "输入消息... (Enter 发送, Shift+Enter 换行)"
                 : "输入消息... (Ctrl/Cmd+Enter 发送)"}
-              height="100%"
               sendOnEnter={sendOnEnter}
               diffMarkdown={diffMarkdown}
             />
           </div>
 
-          <div className="flex justify-end gap-2 mb-2">
+          <div className="flex-shrink-0 flex justify-end gap-2 mb-2">
             <Button
               variant="outline"
               size="sm"
@@ -120,13 +119,12 @@ export function MessageInput(
               onRequestSend={handleSend}
               disabled={isLoading}
               placeholder="输入消息..."
-              height="100%"
               sendOnEnter={sendOnEnter}
               diffMarkdown={diffMarkdown}
             />
           </div>
 
-          <div className="flex justify-end gap-2 px-4 pb-4 sm:px-0 sm:pb-0 pt-3 border-t">
+          <div className="flex-shrink-0 flex justify-end gap-2 px-4 pb-4 sm:px-0 sm:pb-0 pt-3 border-t">
             <Button variant="outline" onClick={() => setIsExpanded(false)}>
               取消
             </Button>

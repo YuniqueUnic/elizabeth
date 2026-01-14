@@ -42,7 +42,6 @@ interface EnhancedMarkdownEditorProps {
   onChange: (value: string) => void;
   onRequestSend?: () => void;
   placeholder?: string;
-  height?: number | string;
   disabled?: boolean;
   sendOnEnter: boolean;
   diffMarkdown?: string;
@@ -110,7 +109,6 @@ export function EnhancedMarkdownEditor({
   onChange,
   onRequestSend,
   placeholder,
-  height = 120,
   disabled,
   sendOnEnter,
   diffMarkdown,
@@ -218,6 +216,13 @@ export function EnhancedMarkdownEditor({
             SourceToolbar={(
               <>
                 <UndoRedo />
+                <BoldItalicUnderlineToggles />
+                <CodeToggle />
+                <ListsToggle />
+                <BlockTypeSelect />
+                <CreateLink />
+                <InsertImage />
+                <InsertCodeBlock />
                 <UploadFileButton disabled={disabled} onUpload={handleUploadFiles} />
               </>
             )}
@@ -335,9 +340,8 @@ export function EnhancedMarkdownEditor({
   return (
     <div
       ref={wrapperRef}
-      className="h-full flex flex-col min-h-0 overflow-visible"
+      className="h-full flex flex-col min-h-0 overflow-hidden"
       data-testid="message-input-editor"
-      style={{ height }}
     >
       <MDXEditor
         ref={editorRef}
