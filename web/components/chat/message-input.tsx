@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Maximize2, Send, X } from "lucide-react";
@@ -12,8 +11,6 @@ import { useCallback, useState } from "react";
 import { useAppStore } from "@/lib/store";
 import type { Message } from "@/lib/types";
 import { EnhancedMarkdownEditor } from "./enhanced-markdown-editor";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MarkdownRenderer } from "./markdown-renderer";
 
 interface MessageInputProps {
   onSend: (content: string) => void;
@@ -48,6 +45,7 @@ export function MessageInput(
   const sendOnEnter = useAppStore((state) => state.sendOnEnter);
   const content = useAppStore((state) => state.composerContent);
   const setContent = useAppStore((state) => state.setComposerContent);
+  const diffMarkdown = editingMessage?.originalContent ?? editingMessage?.content;
 
   const handleSend = useCallback(() => {
     const sendable = getSendableContent(content);
@@ -74,8 +72,8 @@ export function MessageInput(
           </div>
         )}
 
-        <div className="flex-1 flex flex-col gap-2 min-h-0 overflow-hidden">
-          <div className="flex-1 min-h-0 overflow-hidden">
+        <div className="flex-1 flex flex-col gap-2 min-h-0">
+          <div className="flex-1 min-h-0">
             <EnhancedMarkdownEditor
               value={content}
               onChange={setContent}
@@ -86,6 +84,7 @@ export function MessageInput(
                 : "输入消息... (Ctrl/Cmd+Enter 发送)"}
               height="100%"
               sendOnEnter={sendOnEnter}
+              diffMarkdown={diffMarkdown}
             />
           </div>
 
@@ -112,40 +111,19 @@ export function MessageInput(
       </div>
 
       <Dialog open={isExpanded} onOpenChange={setIsExpanded}>
-        <DialogContent className="max-w-none w-screen h-screen sm:h-[90vh] sm:max-w-4xl lg:max-w-6xl sm:w-full p-0 sm:p-6 gap-0 flex flex-col sm:rounded-lg rounded-none">
+        <DialogContent className="max-w-none w-screen h-screen sm:h-[90vh] sm:max-w-4xl lg:max-w-6xl sm:w-full p-0 sm:p-6 gap-0 !flex !flex-col sm:rounded-lg rounded-none">
           <DialogTitle className="sr-only">Markdown 编辑器</DialogTitle>
-          <div className="flex-1 overflow-hidden sm:px-0 sm:py-0 min-h-0">
-            <Tabs
-              defaultValue="edit"
-              className="h-full flex flex-col min-h-0"
-            >
-              <div className="border-b px-4 py-2 sm:px-0 sm:py-0 sm:border-0">
-                <TabsList>
-                  <TabsTrigger value="edit">编辑</TabsTrigger>
-                  <TabsTrigger value="preview">预览</TabsTrigger>
-                </TabsList>
-              </div>
-              <TabsContent value="edit" className="min-h-0">
-                <div className="h-full">
-                  <EnhancedMarkdownEditor
-                    value={content}
-                    onChange={setContent}
-                    onRequestSend={handleSend}
-                    disabled={isLoading}
-                    placeholder="输入消息..."
-                    height="100%"
-                    sendOnEnter={sendOnEnter}
-                  />
-                </div>
-              </TabsContent>
-              <TabsContent value="preview" className="min-h-0">
-                <div className="h-full overflow-auto p-4 sm:p-0">
-                  <div className="message-content prose prose-sm dark:prose-invert max-w-none">
-                    <MarkdownRenderer content={content || "（空）"} />
-                  </div>
-                </div>
-              </TabsContent>
-            </Tabs>
+          <div className="flex-1 min-h-0">
+            <EnhancedMarkdownEditor
+              value={content}
+              onChange={setContent}
+              onRequestSend={handleSend}
+              disabled={isLoading}
+              placeholder="输入消息..."
+              height="100%"
+              sendOnEnter={sendOnEnter}
+              diffMarkdown={diffMarkdown}
+            />
           </div>
 
           <div className="flex justify-end gap-2 px-4 pb-4 sm:px-0 sm:pb-0 pt-3 border-t">
