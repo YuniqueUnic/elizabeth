@@ -3,12 +3,13 @@
 # Service Management Script
 
 # --- Configuration ---
-BACKEND_DIR="/Users/unic/dev/projs/rs/elizabeth"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BACKEND_DIR="$SCRIPT_DIR"
 BACKEND_CMD="cargo run -p elizabeth-board -- run"
 BACKEND_LOG_FILE="$BACKEND_DIR/backend.log"
 BACKEND_PID_FILE="$BACKEND_DIR/backend.pid"
 
-FRONTEND_DIR="/Users/unic/dev/projs/rs/elizabeth/web"
+FRONTEND_DIR="$SCRIPT_DIR/web"
 FRONTEND_BUILD_CMD="pnpm build"
 FRONTEND_CMD="node .next/standalone/server.js"
 FRONTEND_LOG_FILE="$FRONTEND_DIR/frontend.log"

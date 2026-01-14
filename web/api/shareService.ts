@@ -385,7 +385,7 @@ export function isWebShareAvailable(): boolean {
   return typeof navigator !== "undefined" && "share" in navigator;
 }
 
-export default {
+const shareService = {
   getShareLink,
   createShareToken,
   getShareData,
@@ -396,3 +396,5 @@ export default {
   shareViaWebShare,
   isWebShareAvailable,
 };
+
+export default shareService;

@@ -11,6 +11,41 @@ import {
   updateMessage,
 } from "@/api/messageService";
 
+function mergeServerMessagesWithPending(
+  existing: LocalMessage[],
+  serverMessages: Message[],
+): LocalMessage[] {
+  const pending = existing.filter((m) => m.isNew || m.isDirty || m.isPendingDelete);
+  const pendingById = new Map(pending.map((m) => [m.id, m]));
+  const serverIds = new Set(serverMessages.map((m) => m.id));
+
+  const merged: LocalMessage[] = serverMessages.map((msg) => {
+    const existingPending = pendingById.get(msg.id);
+    if (existingPending) return existingPending;
+    return {
+      ...msg,
+      isNew: false,
+      isDirty: false,
+      isPendingDelete: false,
+      originalContent: undefined,
+    } satisfies LocalMessage;
+  });
+
+  // Keep local pending messages that don't exist on server yet (e.g., temp ids).
+  for (const msg of pending) {
+    if (!serverIds.has(msg.id)) {
+      merged.push(msg);
+    }
+  }
+
+  merged.sort(
+    (a, b) =>
+      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+  );
+
+  return merged;
+}
+
 interface AppState {
   // Theme management
   theme: Theme;
@@ -212,14 +247,9 @@ export const useAppStore = create<AppState>()(
       // Local message management
       messages: [],
       setMessages: (messages) =>
-        set({
-          messages: messages.map((m) => ({
-            ...m,
-            isNew: false,
-            isDirty: false,
-            isPendingDelete: false,
-          })),
-        }),
+        set((state) => ({
+          messages: mergeServerMessagesWithPending(state.messages, messages),
+        })),
       addMessage: (content) => {
         const newMessage: LocalMessage = {
           id: `temp-${Date.now()}`,
@@ -335,38 +365,9 @@ export const useAppStore = create<AppState>()(
           return;
         }
 
-        set((state) => {
-          const pending = state.messages.filter((m) =>
-            m.isNew || m.isDirty || m.isPendingDelete
-          );
-          const pendingById = new Map(pending.map((m) => [m.id, m]));
-          const serverIds = new Set(serverMessages.map((m) => m.id));
-
-          const merged = serverMessages.map((msg) => {
-            const existing = pendingById.get(msg.id);
-            if (existing) return existing;
-            return {
-              ...msg,
-              isNew: false,
-              isDirty: false,
-              isPendingDelete: false,
-              originalContent: undefined,
-            } satisfies LocalMessage;
-          });
-
-          // Keep local pending messages that don't exist on server yet (e.g., temp ids).
-          for (const msg of pending) {
-            if (!serverIds.has(msg.id)) {
-              merged.push(msg);
-            }
-          }
-
-          merged.sort((a, b) =>
-            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-          );
-
-          return { messages: merged };
-        });
+        set((state) => ({
+          messages: mergeServerMessagesWithPending(state.messages, serverMessages),
+        }));
       },
 
       // Upload state
