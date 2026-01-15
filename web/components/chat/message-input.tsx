@@ -10,7 +10,7 @@ import { Maximize2, Send, X } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useAppStore } from "@/lib/store";
 import type { Message } from "@/lib/types";
-import { EnhancedMarkdownEditor } from "./enhanced-markdown-editor";
+import { MinimalTiptapEditor } from "./minimal-tiptap-editor";
 
 interface MessageInputProps {
   onSend: (content: string) => void;
@@ -45,7 +45,7 @@ export function MessageInput(
   const sendOnEnter = useAppStore((state) => state.sendOnEnter);
   const content = useAppStore((state) => state.composerContent);
   const setContent = useAppStore((state) => state.setComposerContent);
-  const diffMarkdown = editingMessage?.originalContent ?? editingMessage?.content;
+  // const diffMarkdown = editingMessage?.originalContent ?? editingMessage?.content;
 
   const handleSend = useCallback(() => {
     const sendable = getSendableContent(content);
@@ -74,7 +74,7 @@ export function MessageInput(
 
         <div className="flex-1 flex flex-col gap-2 min-h-0">
           <div className="flex-1 min-h-0">
-            <EnhancedMarkdownEditor
+            <MinimalTiptapEditor
               value={content}
               onChange={setContent}
               onRequestSend={handleSend}
@@ -83,7 +83,7 @@ export function MessageInput(
                 ? "输入消息... (Enter 发送, Shift+Enter 换行)"
                 : "输入消息... (Ctrl/Cmd+Enter 发送)"}
               sendOnEnter={sendOnEnter}
-              diffMarkdown={diffMarkdown}
+              className="h-full border-0 rounded-none bg-transparent"
             />
           </div>
 
@@ -113,14 +113,14 @@ export function MessageInput(
         <DialogContent className="max-w-none w-screen h-screen sm:h-[90vh] sm:max-w-4xl lg:max-w-6xl sm:w-full p-0 sm:p-6 gap-0 !flex !flex-col sm:rounded-lg rounded-none">
           <DialogTitle className="sr-only">Markdown 编辑器</DialogTitle>
           <div className="flex-1 min-h-0">
-            <EnhancedMarkdownEditor
+            <MinimalTiptapEditor
               value={content}
               onChange={setContent}
               onRequestSend={handleSend}
               disabled={isLoading}
               placeholder="输入消息..."
               sendOnEnter={sendOnEnter}
-              diffMarkdown={diffMarkdown}
+              className="h-full border-0"
             />
           </div>
 

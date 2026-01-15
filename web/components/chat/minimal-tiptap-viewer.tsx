@@ -3,7 +3,6 @@
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
-import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import { Markdown } from "@tiptap/markdown";
@@ -11,6 +10,7 @@ import { common, createLowlight } from "lowlight";
 import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { useEffect } from "react";
+import { ImageAuth } from "./tiptap-extensions/image-auth";
 
 const lowlight = createLowlight(common);
 
@@ -39,7 +39,7 @@ export function MinimalTiptapViewer({ content, className }: MinimalTiptapViewerP
         },
       }),
       Underline,
-      Image.configure({
+      ImageAuth.configure({
         HTMLAttributes: {
           class: "max-w-full rounded-md border border-border",
         },
