@@ -8,7 +8,7 @@ import Link from "@tiptap/extension-link";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import { Markdown } from "@tiptap/markdown";
 import { common, createLowlight } from "lowlight";
-import { useCallback, useEffect, useRef, useImperativeHandle, forwardRef } from "react";
+import { useCallback, useEffect, useRef, useImperativeHandle, forwardRef, useState } from "react";
 import { useTheme } from "next-themes";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -35,7 +35,9 @@ import {
   Image as ImageIcon,
   Link as LinkIcon,
   Paperclip,
+  FileCode,
 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 
 const lowlight = createLowlight(common);
 
@@ -106,10 +108,12 @@ function buildMarkdownForFile(
 }
 
 // Toolbar 组件
-function EditorToolbar({ editor, onUpload, disabled }: {
+function EditorToolbar({ editor, onUpload, disabled, isSourceMode, onToggleSourceMode }: {
   editor: Editor | null;
   onUpload: (files: File[]) => void;
   disabled?: boolean;
+  isSourceMode: boolean;
+  onToggleSourceMode: () => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -131,7 +135,7 @@ function EditorToolbar({ editor, onUpload, disabled }: {
       variant="ghost"
       size="sm"
       onClick={onClick}
-      disabled={disabled}
+      disabled={disabled || isSourceMode}
       className={cn(
         "h-8 w-8 p-0",
         active && "bg-muted"
@@ -253,6 +257,23 @@ function EditorToolbar({ editor, onUpload, disabled }: {
         <Paperclip className="h-4 w-4" />
       </ToolbarButton>
 
+      <div className="flex-1" />
+
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={onToggleSourceMode}
+        disabled={disabled}
+        className={cn(
+          "h-8 w-8 p-0",
+          isSourceMode && "bg-muted"
+        )}
+        title={isSourceMode ? "切换回预览模式" : "切换到源码模式"}
+      >
+        <FileCode className="h-4 w-4" />
+      </Button>
+
       <input
         ref={fileInputRef}
         type="file"
@@ -284,6 +305,7 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
     const composerInsertRequest = useAppStore((state) => state.composerInsertRequest);
     const clearInsertMarkdownRequest = useAppStore((state) => state.clearInsertMarkdownRequest);
     const editorFontSize = useAppStore((state) => state.editorFontSize);
+    const [isSourceMode, setIsSourceMode] = useState(false);
 
     const lastInsertRequestIdRef = useRef<number | null>(null);
     const isUpdatingFromProp = useRef(false);
@@ -403,27 +425,10 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
     }, [editor]);
 
     // 同步 value prop 到 editor
-    useEffect(() => {
-      if (editor && value !== getMarkdownFromEditor(editor) && value !== editor.getText()) {
-        isUpdatingFromProp.current = true;
-        setMarkdownToEditor(editor, value);
-        isUpdatingFromProp.current = false;
-      }
-    }, [value, editor]);
+    useEffect(() => {\n      // 如果处于源码模式，不需要同步 Tiptap editor，因为我们直接显示 value\n      // 但如果 value 改变了（比如外部更新），我们需要确保 editor 状态也正确，以便切换回来时是对的\n      if (editor && value !== getMarkdownFromEditor(editor) && value !== editor.getText()) {\n        isUpdatingFromProp.current = true;\n        setMarkdownToEditor(editor, value);\n        isUpdatingFromProp.current = false;\n      }\n    }, [value, editor]);
 
     // 处理插入请求
-    useEffect(() => {
-      const request = composerInsertRequest;
-      if (!request || !editor) return;
-
-      if (lastInsertRequestIdRef.current === request.id) return;
-      lastInsertRequestIdRef.current = request.id;
-
-      editor.commands.focus("end");
-      editor.commands.insertContent(request.markdown);
-
-      clearInsertMarkdownRequest(request.id);
-    }, [composerInsertRequest, editor, clearInsertMarkdownRequest]);
+    useEffect(() => {\n      const request = composerInsertRequest;\n      if (!request || !editor) return;\n\n      if (lastInsertRequestIdRef.current === request.id) return;\n      lastInsertRequestIdRef.current = request.id;\n\n      if (isSourceMode) {\n        // 如果在源码模式，直接追加到 value\n        // 这里其实应该通过 update value 来实现，但我们通过 onChange 通知父组件\n        const newValue = value + request.markdown;\n        onChange(newValue);\n      } else {\n        editor.commands.focus(\"end\");\n        editor.commands.insertContent(request.markdown);\n      }\n\n      clearInsertMarkdownRequest(request.id);\n    }, [composerInsertRequest, editor, clearInsertMarkdownRequest, isSourceMode, value, onChange]);
 
     // 文件上传处理
     const handleUploadFiles = useCallback(
@@ -438,7 +443,12 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
             queryClient.invalidateQueries({ queryKey: ["room", roomName] });
 
             const markdown = buildMarkdownForFile(roomName, uploaded, file);
-            editor.commands.insertContent(markdown);
+
+            if (isSourceMode) {
+              onChange(value + markdown);
+            } else {
+              editor.commands.insertContent(markdown);
+            }
 
             toast({
               title: "上传成功",
@@ -455,7 +465,7 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
           }
         }
       },
-      [roomName, editor, incrementActiveUploads, decrementActiveUploads, queryClient, toast]
+      [roomName, editor, incrementActiveUploads, decrementActiveUploads, queryClient, toast, isSourceMode, value, onChange]
     );
 
     return (
@@ -467,8 +477,33 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
         )}
         style={{ fontSize: `${editorFontSize}px` }}
       >
-        <EditorToolbar editor={editor} onUpload={handleUploadFiles} disabled={disabled} />
-        <EditorContent editor={editor} className="tiptap-editor-content" />
+        <EditorToolbar
+          editor={editor}
+          onUpload={handleUploadFiles}
+          disabled={disabled}
+          isSourceMode={isSourceMode}
+          onToggleSourceMode={() => setIsSourceMode(!isSourceMode)}
+        />
+        {isSourceMode ? (
+          <div className="flex-1 min-h-0 relative">
+            <Textarea
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              className="w-full h-full resize-none p-3 font-mono border-0 focus-visible:ring-0 rounded-none bg-transparent"
+              placeholder={placeholder}
+              disabled={disabled}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey && sendOnEnter && onRequestSend) {
+                  e.preventDefault();
+                  onRequestSend();
+                }
+              }}
+              style={{ fontSize: `${editorFontSize}px` }}
+            />
+          </div>
+        ) : (
+          <EditorContent editor={editor} className="tiptap-editor-content" />
+        )}
       </div>
     );
   }
