@@ -425,10 +425,36 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
     }, [editor]);
 
     // 同步 value prop 到 editor
-    useEffect(() => {\n      // 如果处于源码模式，不需要同步 Tiptap editor，因为我们直接显示 value\n      // 但如果 value 改变了（比如外部更新），我们需要确保 editor 状态也正确，以便切换回来时是对的\n      if (editor && value !== getMarkdownFromEditor(editor) && value !== editor.getText()) {\n        isUpdatingFromProp.current = true;\n        setMarkdownToEditor(editor, value);\n        isUpdatingFromProp.current = false;\n      }\n    }, [value, editor]);
+    useEffect(() => {
+      // 如果处于源码模式，不需要同步 Tiptap editor，因为我们直接显示 value
+      // 但如果 value 改变了（比如外部更新），我们需要确保 editor 状态也正确，以便切换回来时是对的
+      if (editor && value !== getMarkdownFromEditor(editor) && value !== editor.getText()) {
+        isUpdatingFromProp.current = true;
+        setMarkdownToEditor(editor, value);
+        isUpdatingFromProp.current = false;
+      }
+    }, [value, editor]);
 
     // 处理插入请求
-    useEffect(() => {\n      const request = composerInsertRequest;\n      if (!request || !editor) return;\n\n      if (lastInsertRequestIdRef.current === request.id) return;\n      lastInsertRequestIdRef.current = request.id;\n\n      if (isSourceMode) {\n        // 如果在源码模式，直接追加到 value\n        // 这里其实应该通过 update value 来实现，但我们通过 onChange 通知父组件\n        const newValue = value + request.markdown;\n        onChange(newValue);\n      } else {\n        editor.commands.focus(\"end\");\n        editor.commands.insertContent(request.markdown);\n      }\n\n      clearInsertMarkdownRequest(request.id);\n    }, [composerInsertRequest, editor, clearInsertMarkdownRequest, isSourceMode, value, onChange]);
+    useEffect(() => {
+      const request = composerInsertRequest;
+      if (!request || !editor) return;
+
+      if (lastInsertRequestIdRef.current === request.id) return;
+      lastInsertRequestIdRef.current = request.id;
+
+      if (isSourceMode) {
+        // 如果在源码模式，直接追加到 value
+        // 这里其实应该通过 update value 来实现，但我们通过 onChange 通知父组件
+        const newValue = value + request.markdown;
+        onChange(newValue);
+      } else {
+        editor.commands.focus("end");
+        editor.commands.insertContent(request.markdown);
+      }
+
+      clearInsertMarkdownRequest(request.id);
+    }, [composerInsertRequest, editor, clearInsertMarkdownRequest, isSourceMode, value, onChange]);
 
     // 文件上传处理
     const handleUploadFiles = useCallback(
