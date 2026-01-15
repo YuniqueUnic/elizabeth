@@ -44,24 +44,26 @@ const EXPIRY_OPTIONS = [
   { label: "12 小时", value: "12hr", ms: 12 * 60 * 60 * 1000 },
   { label: "1 天", value: "1day", ms: 24 * 60 * 60 * 1000 },
   { label: "1 周", value: "1week", ms: 7 * 24 * 60 * 60 * 1000 },
-  { label: "永不过期", value: "never", ms: 0 },
+  // { label: "永不过期", value: "never", ms: 0 }, // 暂不提供，未来可能支持
 ];
 
 function getExpiryOptionFromDate(expiresAt: string | null | undefined): string {
-  if (!expiresAt) return "never";
+  // 如果没有过期时间，默认设置为 1 周（因为已移除"永不过期"选项）
+  if (!expiresAt) return "1week";
 
   const expiresAtUTC = expiresAt.endsWith("Z") ? expiresAt : `${expiresAt}Z`;
   const expireTime = new Date(expiresAtUTC).getTime();
   const now = Date.now();
   const diff = expireTime - now;
 
+  // 如果已过期或即将过期，默认 1 分钟
   if (diff <= 0) return "1min";
 
   let closestOption = EXPIRY_OPTIONS[0];
   let minDiff = Math.abs(diff - closestOption.ms);
 
   for (const option of EXPIRY_OPTIONS) {
-    if (option.ms === 0) continue;
+    if (option.ms === 0) continue; // 跳过永不过期选项（如果未来启用）
     const currentDiff = Math.abs(diff - option.ms);
     if (currentDiff < minDiff) {
       minDiff = currentDiff;

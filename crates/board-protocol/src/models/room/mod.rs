@@ -165,7 +165,7 @@ impl Room {
 
     pub fn is_expired(&self) -> bool {
         if let Some(expire_at) = self.expire_at {
-            Utc::now().naive_utc() > expire_at
+            Utc::now().naive_utc() >= expire_at
         } else {
             false
         }
