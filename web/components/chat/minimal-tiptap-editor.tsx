@@ -4,7 +4,6 @@ import { useEditor, EditorContent, Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Underline from "@tiptap/extension-underline";
-import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import { Markdown } from "@tiptap/markdown";
@@ -19,6 +18,7 @@ import type { FileItem } from "@/lib/types";
 import { registerComposerEditor, unregisterComposerEditor } from "@/lib/composer-editor";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { ImageAuth } from "./tiptap-extensions/image-auth";
 import {
   Bold,
   Italic,
@@ -307,7 +307,7 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
           placeholder: placeholder || "输入消息...",
         }),
         Underline,
-        Image.configure({
+        ImageAuth.configure({
           HTMLAttributes: {
             class: "max-w-full rounded-md border border-border",
           },
