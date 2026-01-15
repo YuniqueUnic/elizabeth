@@ -1,15 +1,15 @@
-import type { MDXEditorMethods } from "@mdxeditor/editor";
+import type { MinimalTiptapEditorMethods } from "@/components/chat/minimal-tiptap-editor";
 
-let activeComposerEditor: MDXEditorMethods | null = null;
+let activeComposerEditor: MinimalTiptapEditorMethods | null = null;
 
-export function registerComposerEditor(editor: MDXEditorMethods | null) {
+export function registerComposerEditor(editor: MinimalTiptapEditorMethods | null) {
   activeComposerEditor = editor;
   if (typeof window !== "undefined" && process.env.NODE_ENV !== "production") {
     (window as any).__ELIZABETH_ACTIVE_EDITOR__ = editor;
   }
 }
 
-export function unregisterComposerEditor(editor: MDXEditorMethods | null) {
+export function unregisterComposerEditor(editor: MinimalTiptapEditorMethods | null) {
   if (!editor) return;
   if (activeComposerEditor === editor) {
     activeComposerEditor = null;
@@ -18,8 +18,7 @@ export function unregisterComposerEditor(editor: MDXEditorMethods | null) {
 
 export function insertMarkdownIntoComposer(markdown: string): boolean {
   if (!activeComposerEditor) return false;
-  activeComposerEditor.focus(() => {
-    activeComposerEditor?.insertMarkdown(markdown);
-  });
+  activeComposerEditor.focus({ position: "end" });
+  activeComposerEditor.insertMarkdown(markdown);
   return true;
 }
