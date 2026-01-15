@@ -68,6 +68,78 @@ function setMarkdownToEditor(editor: Editor, markdown: string): void {
   }
 }
 
+// 辅助函数：在 Textarea 中应用 Markdown 语法
+function applyMarkdownSyntax(
+  textarea: HTMLTextAreaElement,
+  format: string,
+  value: string,
+  onChange: (value: string) => void
+) {
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const selection = value.substring(start, end);
+  let before = value.substring(0, start);
+  let after = value.substring(end);
+  let newSelection = selection;
+  let cursorOffset = 0;
+
+  switch (format) {
+    case "bold":
+      newSelection = `**${selection}**`;
+      cursorOffset = 2;
+      break;
+    case "italic":
+      newSelection = `*${selection}*`;
+      cursorOffset = 1;
+      break;
+    case "strike":
+      newSelection = `~~${selection}~~`;
+      cursorOffset = 2;
+      break;
+    case "code":
+      newSelection = `\`${selection}\``;
+      cursorOffset = 1;
+      break;
+    case "heading-1":
+      before = `${before}# `;
+      cursorOffset = 2;
+      break;
+    case "heading-2":
+      before = `${before}## `;
+      cursorOffset = 3;
+      break;
+    case "heading-3":
+      before = `${before}### `;
+      cursorOffset = 4;
+      break;
+    case "bulletList":
+      before = `${before}- `;
+      cursorOffset = 2;
+      break;
+    case "orderedList":
+      before = `${before}1. `;
+      cursorOffset = 3;
+      break;
+    case "blockquote":
+      before = `${before}> `;
+      cursorOffset = 2;
+      break;
+  }
+
+  const newValue = before + newSelection + after;
+  onChange(newValue);
+
+  // 恢复焦点和光标位置
+  requestAnimationFrame(() => {
+    textarea.focus();
+    if (selection) {
+      textarea.setSelectionRange(start + cursorOffset, end + cursorOffset);
+    } else {
+      textarea.setSelectionRange(start + cursorOffset, start + cursorOffset);
+    }
+  });
+}
+
 export interface MinimalTiptapEditorMethods {
   setMarkdown: (markdown: string) => void;
   getMarkdown: () => string;
@@ -108,12 +180,13 @@ function buildMarkdownForFile(
 }
 
 // Toolbar 组件
-function EditorToolbar({ editor, onUpload, disabled, isSourceMode, onToggleSourceMode }: {
+function EditorToolbar({ editor, onUpload, disabled, isSourceMode, onToggleSourceMode, onAction }: {
   editor: Editor | null;
   onUpload: (files: File[]) => void;
   disabled?: boolean;
   isSourceMode: boolean;
   onToggleSourceMode: () => void;
+  onAction: (format: string) => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -123,19 +196,21 @@ function EditorToolbar({ editor, onUpload, disabled, isSourceMode, onToggleSourc
     onClick,
     active,
     children,
-    title
+    title,
+    disabled: buttonDisabled
   }: {
     onClick: () => void;
     active?: boolean;
     children: React.ReactNode;
     title: string;
+    disabled?: boolean;
   }) => (
     <Button
       type="button"
       variant="ghost"
       size="sm"
       onClick={onClick}
-      disabled={disabled || isSourceMode}
+      disabled={disabled || buttonDisabled}
       className={cn(
         "h-8 w-8 p-0",
         active && "bg-muted"
@@ -146,35 +221,43 @@ function EditorToolbar({ editor, onUpload, disabled, isSourceMode, onToggleSourc
     </Button>
   );
 
+  const handleAction = (format: string, run: () => void) => {
+    if (isSourceMode) {
+      onAction(format);
+    } else {
+      run();
+    }
+  };
+
   return (
     <div className="flex flex-wrap items-center gap-0.5 border-b border-border bg-muted/30 p-1">
       <ToolbarButton
-        onClick={() => editor.chain().focus().toggleBold().run()}
-        active={editor.isActive("bold")}
+        onClick={() => handleAction("bold", () => editor.chain().focus().toggleBold().run())}
+        active={!isSourceMode && editor.isActive("bold")}
         title="粗体 (Ctrl+B)"
       >
         <Bold className="h-4 w-4" />
       </ToolbarButton>
 
       <ToolbarButton
-        onClick={() => editor.chain().focus().toggleItalic().run()}
-        active={editor.isActive("italic")}
+        onClick={() => handleAction("italic", () => editor.chain().focus().toggleItalic().run())}
+        active={!isSourceMode && editor.isActive("italic")}
         title="斜体 (Ctrl+I)"
       >
         <Italic className="h-4 w-4" />
       </ToolbarButton>
 
       <ToolbarButton
-        onClick={() => editor.chain().focus().toggleStrike().run()}
-        active={editor.isActive("strike")}
+        onClick={() => handleAction("strike", () => editor.chain().focus().toggleStrike().run())}
+        active={!isSourceMode && editor.isActive("strike")}
         title="删除线"
       >
         <Strikethrough className="h-4 w-4" />
       </ToolbarButton>
 
       <ToolbarButton
-        onClick={() => editor.chain().focus().toggleCode().run()}
-        active={editor.isActive("code")}
+        onClick={() => handleAction("code", () => editor.chain().focus().toggleCode().run())}
+        active={!isSourceMode && editor.isActive("code")}
         title="行内代码"
       >
         <Code className="h-4 w-4" />
@@ -183,24 +266,24 @@ function EditorToolbar({ editor, onUpload, disabled, isSourceMode, onToggleSourc
       <div className="w-px h-6 bg-border mx-1" />
 
       <ToolbarButton
-        onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-        active={editor.isActive("heading", { level: 1 })}
+        onClick={() => handleAction("heading-1", () => editor.chain().focus().toggleHeading({ level: 1 }).run())}
+        active={!isSourceMode && editor.isActive("heading", { level: 1 })}
         title="标题 1"
       >
         <Heading1 className="h-4 w-4" />
       </ToolbarButton>
 
       <ToolbarButton
-        onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-        active={editor.isActive("heading", { level: 2 })}
+        onClick={() => handleAction("heading-2", () => editor.chain().focus().toggleHeading({ level: 2 }).run())}
+        active={!isSourceMode && editor.isActive("heading", { level: 2 })}
         title="标题 2"
       >
         <Heading2 className="h-4 w-4" />
       </ToolbarButton>
 
       <ToolbarButton
-        onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-        active={editor.isActive("heading", { level: 3 })}
+        onClick={() => handleAction("heading-3", () => editor.chain().focus().toggleHeading({ level: 3 }).run())}
+        active={!isSourceMode && editor.isActive("heading", { level: 3 })}
         title="标题 3"
       >
         <Heading3 className="h-4 w-4" />
@@ -209,24 +292,24 @@ function EditorToolbar({ editor, onUpload, disabled, isSourceMode, onToggleSourc
       <div className="w-px h-6 bg-border mx-1" />
 
       <ToolbarButton
-        onClick={() => editor.chain().focus().toggleBulletList().run()}
-        active={editor.isActive("bulletList")}
+        onClick={() => handleAction("bulletList", () => editor.chain().focus().toggleBulletList().run())}
+        active={!isSourceMode && editor.isActive("bulletList")}
         title="无序列表"
       >
         <List className="h-4 w-4" />
       </ToolbarButton>
 
       <ToolbarButton
-        onClick={() => editor.chain().focus().toggleOrderedList().run()}
-        active={editor.isActive("orderedList")}
+        onClick={() => handleAction("orderedList", () => editor.chain().focus().toggleOrderedList().run())}
+        active={!isSourceMode && editor.isActive("orderedList")}
         title="有序列表"
       >
         <ListOrdered className="h-4 w-4" />
       </ToolbarButton>
 
       <ToolbarButton
-        onClick={() => editor.chain().focus().toggleBlockquote().run()}
-        active={editor.isActive("blockquote")}
+        onClick={() => handleAction("blockquote", () => editor.chain().focus().toggleBlockquote().run())}
+        active={!isSourceMode && editor.isActive("blockquote")}
         title="引用"
       >
         <Quote className="h-4 w-4" />
@@ -235,14 +318,14 @@ function EditorToolbar({ editor, onUpload, disabled, isSourceMode, onToggleSourc
       <div className="w-px h-6 bg-border mx-1" />
 
       <ToolbarButton
-        onClick={() => editor.chain().focus().undo().run()}
+        onClick={() => handleAction("undo", () => editor.chain().focus().undo().run())}
         title="撤销 (Ctrl+Z)"
       >
         <Undo className="h-4 w-4" />
       </ToolbarButton>
 
       <ToolbarButton
-        onClick={() => editor.chain().focus().redo().run()}
+        onClick={() => handleAction("redo", () => editor.chain().focus().redo().run())}
         title="重做 (Ctrl+Shift+Z)"
       >
         <Redo className="h-4 w-4" />
@@ -306,6 +389,7 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
     const clearInsertMarkdownRequest = useAppStore((state) => state.clearInsertMarkdownRequest);
     const editorFontSize = useAppStore((state) => state.editorFontSize);
     const [isSourceMode, setIsSourceMode] = useState(false);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     const lastInsertRequestIdRef = useRef<number | null>(null);
     const isUpdatingFromProp = useRef(false);
@@ -456,6 +540,23 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
       clearInsertMarkdownRequest(request.id);
     }, [composerInsertRequest, editor, clearInsertMarkdownRequest, isSourceMode, value, onChange]);
 
+    // 处理工具栏操作
+    const handleToolbarAction = useCallback((format: string) => {
+      if (textareaRef.current) {
+        if (format === "undo") {
+          textareaRef.current.focus();
+          document.execCommand("undo");
+          return;
+        }
+        if (format === "redo") {
+          textareaRef.current.focus();
+          document.execCommand("redo");
+          return;
+        }
+        applyMarkdownSyntax(textareaRef.current, format, value, onChange);
+      }
+    }, [value, onChange]);
+
     // 文件上传处理
     const handleUploadFiles = useCallback(
       async (files: File[]) => {
@@ -509,10 +610,12 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
           disabled={disabled}
           isSourceMode={isSourceMode}
           onToggleSourceMode={() => setIsSourceMode(!isSourceMode)}
+          onAction={handleToolbarAction}
         />
         {isSourceMode ? (
           <div className="flex-1 min-h-0 relative">
             <Textarea
+              ref={textareaRef}
               value={value}
               onChange={(e) => onChange(e.target.value)}
               className="w-full h-full resize-none p-3 font-mono border-0 focus-visible:ring-0 rounded-none bg-transparent"
