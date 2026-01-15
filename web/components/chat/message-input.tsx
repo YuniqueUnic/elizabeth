@@ -33,7 +33,11 @@ function getSendableContent(markdown: string): string {
 
   const withoutComments = decodedEntities.replace(/<!--[\s\S]*?-->/g, "");
   const normalized = withoutComments
-    .replace(/[\p{Cc}\p{Cf}]/gu, "")
+    .replace(/[\p{Cc}\p{Cf}]/gu, (match) => {
+      // 保留换行符、回车符和制表符
+      if (match === "\n" || match === "\r" || match === "\t") return match;
+      return "";
+    })
     .replace(/\u00A0/g, " ");
   return normalized.trim();
 }
