@@ -23,7 +23,7 @@ export function MinimalTiptapViewer({ content, className }: MinimalTiptapViewerP
   const messageFontSize = useAppStore((state) => state.messageFontSize);
 
   const editor = useEditor({
-    editable: false, // 只读模式
+    editable: false,
     extensions: [
       StarterKit.configure({
         codeBlock: false,
@@ -32,12 +32,7 @@ export function MinimalTiptapViewer({ content, className }: MinimalTiptapViewerP
         lowlight,
         defaultLanguage: "plaintext",
       }),
-      Markdown.configure({
-        markedOptions: {
-          gfm: true,
-          breaks: true,
-        },
-      }),
+      Markdown,
       Underline,
       ImageAuth.configure({
         HTMLAttributes: {
@@ -45,7 +40,7 @@ export function MinimalTiptapViewer({ content, className }: MinimalTiptapViewerP
         },
       }),
       Link.configure({
-        openOnClick: false, // 我们通过点击事件处理链接跳转
+        openOnClick: false,
         HTMLAttributes: {
           class: "text-primary hover:underline cursor-pointer",
           target: "_blank",
@@ -53,7 +48,7 @@ export function MinimalTiptapViewer({ content, className }: MinimalTiptapViewerP
         },
       }),
     ],
-    content: content,
+    content, // 直接传递 markdown 内容
     editorProps: {
       attributes: {
         class: cn(
@@ -69,21 +64,9 @@ export function MinimalTiptapViewer({ content, className }: MinimalTiptapViewerP
 
   // 当内容变化时更新编辑器
   useEffect(() => {
-    if (editor) {
-        // 尝试解析 markdown 并设置内容
-        try {
-            const json = editor.storage.markdown?.manager?.parse(content);
-            if (json) {
-                // 如果内容实际上没有变化，setContent 可能会被优化掉，但这里我们无法轻易比较
-                // 所以我们依赖 Tiptap 内部的 diff
-                editor.commands.setContent(json);
-            } else {
-                editor.commands.setContent(content);
-            }
-        } catch (e) {
-            console.error("Failed to parse markdown in viewer:", e);
-            editor.commands.setContent(content);
-        }
+    if (editor && !editor.isDestroyed) {
+      // 使用 setContent 更新内容，Markdown 扩展会自动解析
+      editor.commands.setContent(content);
     }
   }, [content, editor]);
 

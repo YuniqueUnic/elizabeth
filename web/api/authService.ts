@@ -47,10 +47,21 @@ export async function getAccessToken(
   // Check if we have an existing token for this room
   const existingToken = getRoomToken(roomName);
 
+  // Only use the existing token if it's not expired
+  // If it's expired, don't pass it to avoid 401 errors
+  const validToken = existingToken && !isTokenExpired(existingToken.expiresAt)
+    ? existingToken.token
+    : undefined;
+
+  // If we have an expired token, clear it from storage
+  if (existingToken && isTokenExpired(existingToken.expiresAt)) {
+    clearRoomToken(roomName);
+  }
+
   const requestBody: IssueTokenRequest = {
     password,
-    // Pass existing token if available (for token refresh without incrementing view count)
-    token: existingToken?.token,
+    // Pass existing token if available and valid (for token refresh without incrementing view count)
+    token: validToken,
     with_refresh_token: true, // Always request refresh token
   };
 
