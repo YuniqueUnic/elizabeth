@@ -428,11 +428,13 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
           style: `font-size: ${editorFontSize}px`, // 在编辑器内部也应用字体大小
         },
         handleKeyDown: (view, event) => {
-          if (event.key === "Enter" && !event.shiftKey && sendOnEnter && onRequestSend) {
+          // Ctrl+Enter (or Cmd+Enter on Mac) 发送消息
+          if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && onRequestSend) {
             event.preventDefault();
             onRequestSend();
             return true;
           }
+          // Enter 换行（默认行为，不需要处理）
           return false;
         },
       },
@@ -614,10 +616,12 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
               placeholder={placeholder}
               disabled={disabled}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey && sendOnEnter && onRequestSend) {
+                // Ctrl+Enter (or Cmd+Enter on Mac) 发送消息
+                if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && onRequestSend) {
                   e.preventDefault();
                   onRequestSend();
                 }
+                // Enter 换行（默认行为）
               }}
               style={{ fontSize: `${editorFontSize}px` }}
             />
