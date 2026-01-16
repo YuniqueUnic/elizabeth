@@ -2,8 +2,6 @@
 
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import Underline from "@tiptap/extension-underline";
-import Link from "@tiptap/extension-link";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import { Markdown } from "@tiptap/markdown";
 import { common, createLowlight } from "lowlight";
@@ -25,30 +23,25 @@ export function MinimalTiptapViewer({ content, className }: MinimalTiptapViewerP
   const editor = useEditor({
     editable: false,
     extensions: [
+      // StarterKit 在 v3 已经包含了 Link 和 Underline，所以不需要单独导入
       StarterKit.configure({
-        codeBlock: false,
+        codeBlock: false, // 禁用默认的 codeBlock，使用 CodeBlockLowlight
       }),
       CodeBlockLowlight.configure({
         lowlight,
         defaultLanguage: "plaintext",
       }),
       Markdown,
-      Underline,
       ImageAuth.configure({
         HTMLAttributes: {
-          class: "max-w-full rounded-md border border-border",
-        },
-      }),
-      Link.configure({
-        openOnClick: false,
-        HTMLAttributes: {
-          class: "text-primary hover:underline cursor-pointer",
-          target: "_blank",
-          rel: "noopener noreferrer",
+          // 限制图片默认大小，添加点击放大功能
+          class: "max-w-sm max-h-64 object-contain rounded-md border border-border cursor-zoom-in",
         },
       }),
     ],
-    content, // 直接传递 markdown 内容
+    content,
+    // 关键修复：指定内容类型为 markdown
+    contentType: "markdown",
     editorProps: {
       attributes: {
         class: cn(
@@ -65,8 +58,8 @@ export function MinimalTiptapViewer({ content, className }: MinimalTiptapViewerP
   // 当内容变化时更新编辑器
   useEffect(() => {
     if (editor && !editor.isDestroyed) {
-      // 使用 setContent 更新内容，Markdown 扩展会自动解析
-      editor.commands.setContent(content);
+      // 关键修复：使用 contentType: 'markdown' 告诉编辑器解析 markdown
+      editor.commands.setContent(content, { contentType: "markdown" });
     }
   }, [content, editor]);
 

@@ -142,6 +142,12 @@ type Toast = Omit<ToasterToast, "id">;
 function toast({ ...props }: Toast) {
   const id = genId();
 
+  // 自动设置 duration
+  // 成功状态（无 variant 或 variant !== "destructive"）：1200ms
+  // 错误状态（variant === "destructive"）：5000ms
+  const defaultDuration = props.variant === "destructive" ? 5000 : 1200;
+  const duration = props.duration !== undefined ? props.duration : defaultDuration;
+
   const update = (props: ToasterToast) =>
     dispatch({
       type: "UPDATE_TOAST",
@@ -155,6 +161,7 @@ function toast({ ...props }: Toast) {
       ...props,
       id,
       open: true,
+      duration,
       onOpenChange: (open) => {
         if (!open) dismiss();
       },
