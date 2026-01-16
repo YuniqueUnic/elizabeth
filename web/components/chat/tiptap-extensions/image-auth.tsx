@@ -4,7 +4,7 @@ import { Image as BaseImage } from "@tiptap/extension-image";
 import { ReactNodeViewRenderer, NodeViewWrapper } from "@tiptap/react";
 import { useAppStore } from "@/lib/store";
 import { getRoomTokenString } from "@/lib/utils/api";
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Zoom from "react-medium-image-zoom";
 import "react-medium-image-zoom/dist/styles.css";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -14,16 +14,18 @@ function ImageWithAuth({ node, updateAttributes }: any) {
   const currentRoomId = useAppStore((state) => state.currentRoomId);
   const [hasError, setHasError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [imageKey, setImageKey] = useState(0); // 用于强制重新加载图片
+  const [imageKey, setImageKey] = useState(0);
 
-  // 直接计算带 token 的 URL
-  const getAuthenticatedUrl = (originalSrc: string): string => {
+  // 使用 useMemo 确保 URL 计算是响应式的
+  const authenticatedSrc = useMemo(() => {
+    const originalSrc = node.attrs.src;
+
     // 只处理相对路径的图片（以 / 开头）
     if (typeof originalSrc === "string" && originalSrc.startsWith("/")) {
       const token = getRoomTokenString(currentRoomId);
 
       if (!token) {
-        console.warn("[ImageAuth] No token found for room:", currentRoomId, "src:", originalSrc);
+        console.warn("[ImageAuth] No token for room:", currentRoomId);
         return originalSrc;
       }
 
@@ -39,27 +41,28 @@ function ImageWithAuth({ node, updateAttributes }: any) {
         url.searchParams.set("token", token);
         const finalUrl = `${url.pathname}${url.search}`;
 
-        console.log("[ImageAuth] Authenticated URL:", finalUrl);
+        console.log("[ImageAuth] Final URL:", finalUrl);
         return finalUrl;
       } catch (e) {
-        console.error("[ImageAuth] Failed to parse image URL:", e);
+        console.error("[ImageAuth] URL parse error:", e);
         return originalSrc;
       }
     }
 
-    // 外部图片或 data URL，直接使用
     return originalSrc;
-  };
+  }, [node.attrs.src, currentRoomId]);
 
-  const authenticatedSrc = getAuthenticatedUrl(node.attrs.src);
+  // 监听 src 变化，重置加载状态
+  useEffect(() => {
+    console.log("[ImageAuth] SRC changed, resetting load state");
+    setIsLoading(true);
+    setHasError(false);
+  }, [authenticatedSrc]);
 
-  // 当图片加载失败时，尝试重新加载
   const handleError = () => {
-    console.error("[ImageAuth] Image load failed:", authenticatedSrc);
+    console.error("[ImageAuth] Load failed, attempt:", imageKey + 1);
 
-    // 等待一小段时间后重试（可能是文件还在处理中）
     if (imageKey < 3) {
-      console.log("[ImageAuth] Retrying in 1s...");
       setTimeout(() => {
         setImageKey(k => k + 1);
         setIsLoading(true);
@@ -69,6 +72,11 @@ function ImageWithAuth({ node, updateAttributes }: any) {
       setHasError(true);
       setIsLoading(false);
     }
+  };
+
+  const handleLoad = () => {
+    console.log("[ImageAuth] Load success:", authenticatedSrc);
+    setIsLoading(false);
   };
 
   return (
@@ -86,16 +94,12 @@ function ImageWithAuth({ node, updateAttributes }: any) {
           <Zoom>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              key={imageKey}
+              key={`${imageKey}-${authenticatedSrc}`}
               src={authenticatedSrc}
               alt={node.attrs.alt || "图片"}
               title={node.attrs.title}
               className="max-w-sm max-h-64 object-contain rounded-md border border-border cursor-zoom-in"
-              loading="lazy"
-              onLoad={() => {
-                console.log("[ImageAuth] Image loaded successfully:", authenticatedSrc);
-                setIsLoading(false);
-              }}
+              onLoad={handleLoad}
               onError={handleError}
             />
           </Zoom>
@@ -106,6 +110,9 @@ function ImageWithAuth({ node, updateAttributes }: any) {
 }
 
 export const ImageAuth = BaseImage.extend({
+  name: "image",
+  priority: 1000,
+
   addNodeView() {
     return ReactNodeViewRenderer(ImageWithAuth);
   },
