@@ -3,8 +3,6 @@
 import { useEditor, EditorContent, Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
-import Underline from "@tiptap/extension-underline";
-import Link from "@tiptap/extension-link";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import { Markdown } from "@tiptap/markdown";
 import { common, createLowlight } from "lowlight";
@@ -396,6 +394,7 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
 
     const editor = useEditor({
       extensions: [
+        // StarterKit 在 v3 已经包含了 Link 和 Underline
         StarterKit.configure({
           codeBlock: false, // 使用 CodeBlockLowlight 替代
         }),
@@ -412,16 +411,9 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
         Placeholder.configure({
           placeholder: placeholder || "输入消息...",
         }),
-        Underline,
         ImageAuth.configure({
           HTMLAttributes: {
             class: "max-w-full rounded-md border border-border",
-          },
-        }),
-        Link.configure({
-          openOnClick: false,
-          HTMLAttributes: {
-            class: "text-primary hover:underline cursor-pointer",
           },
         }),
       ],
