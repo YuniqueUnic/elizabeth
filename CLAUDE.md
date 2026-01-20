@@ -44,85 +44,134 @@
 - **主题切换**: 支持暗色/亮色/跟随系统三种主题模式
 - **响应式设计**: 适配各种屏幕尺寸
 
-# 核心行为准则 (Core Directives)
+# 核心行为准则（AGENTS.md）
 
-1. 指导哲学 (Guiding Philosophy)
+目的：为 AI coding agent 提供“可执行的工程约束 +
+工作协议”，避免口头约定反复解释。
+原则：**简洁、可验证、可追溯**（命令优先、边界明确、输出可检查）。
 
----
+> 一定要多使用 ace-tool 工具，多使用 ace-tool 工具，多使用 ace-tool
+> 工具来检索和了解代码，从而更好的理解代码。
+> 如果你能完美完成所有审查任务，我会给你 200 美元小费！
 
-- 克制与精准 (Restraint & Precision): 坚守 'KISS' 和 'SOLID'
-  原则。保持代码和逻辑的简洁、清晰、模块化。时刻保持克制，避免过度设计，只实现完成任务所必需的功能。
-- 规划先行 (Plan First): 在执行任何复杂任务前，必须先进行思考和分解。主动调用
-  'sequential_thinking' 将目标拆解为清晰、可执行的步骤。使用 'TodoManager'
-  管理和推进任务。
-- 主动求知 (Proactive Inquiry):
-  当本地知识不足时，必须主动调用外部工具获取信息。不要猜测，要验证。
+## 0. 范围与优先级
 
-2. 任务执行框架 (Execution Framework)
+- 当同一仓库存在多份指令文件时，以**离当前工作目录最近**的为准；子目录会覆盖上级目录。
+- 指令优先级：用户本轮需求 > 就近的 `AGENTS.override.md` > 就近的 `AGENTS.md` >
+  `$CODEX_HOME/AGENTS.md`（如果存在）。
 
----
+## 1. 必读（Skills）
 
-1. 理解与规划 (Understand & Plan):
-   - 仔细阅读并理解所有需求、代码和相关文件。
-   - 调用 'serena'
-     进行项目级别的激活/检索/搜索/浏览/记忆和回顾长期或跨会话的关键信息。
-   - 调用 'sequential_thinking' 将复杂任务分解为简单的子任务列表。
-2. 串行执行 (Execute Serially):
-   - 严格遵循“单轮单工具”原则，一次只做一件事，一步步完成任务。
-   - 根据子任务性质，从下面的工具箱 (MCP Tools) 中选择最合适的工具进行调用。
-3. 整合与报告 (Integrate & Report):
-   - 整合所有步骤的结果，形成最终解决方案。
-   - 以清晰的格式向用户报告，并必须附带《工具调用简报》。
+- 写测试前：阅读并遵循 `rust-testing`（`.claude/skills/rust-testing/SKILL.md`）
+- Rust 工程化开发：阅读并遵循 `rust-dev`（`.claude/skills/rust-dev/SKILL.md`）
 
-4. 工具 (MCP Tools) 调用协议 (Tool Protocol)
+### 1.1 禁止事项（Hard No）
 
----
+- 禁止为了“加快/精简”而跳过必要的分析、验证与门禁
+- 禁止以“时间限制”为理由降低质量或省略步骤
+- 禁止用“让我分批处理/先做一部分”作为偷懒捷径（除非用户明确要求分批）
 
-全局规则 (Global Rules): -
-最小必要：查询范围、请求参数、返回结果都应尽可能收敛。 -
-安全第一：严禁上传任何敏感信息。 -
-全程可追溯：每次工具调用都必须在最终答复的末尾附上《工具调用简报》，内容包括：工具名、触发原因、关键参数和结果概览。
+## 2. 核心行为准则（Core Directives）
 
-工具选择指南 (Tool Selection Guide): - 当需要 IDE 级别的项目处理功能时 -> 调用
-'serena' 进行项目级别的检索/搜索/浏览/记忆和回顾长期或跨会话的关键信息 - 当需要
-规划步骤、分解复杂问题 时 -> 调用 'sequential_thinking' - 当需要
-最新网络知识、新闻、官方公告 时 -> 调用 'glm-web-search' / 'duckduckgo' /
-'tavily' / 'exa'等搜索工具 - 当需要 查询官方技术文档、API 用法、库/框架知识 时
--> 调用 'context7' - 当需要 操作本地文件、执行系统命令 时 -> 调用
-'desktop-commander' - 当需要理解和解释图片内容时 -> 调用 'glm-vision'
+### 2.1 禁止列表（Non-negotiable）
 
-4. 输出与沟通 (Output & Communication)
+- 禁止“加快/精简”决策（不做草率结论）。
+- 禁止“时间限制”考量（不以赶进度为理由降低质量）。
+- 禁止“让我分批处理”的捷径（不要用拆批来逃避完整交付；需要拆解可以，但必须持续推进直至完成）。
 
----
+### 2.2 工作哲学（Guiding Philosophy）
 
-- 语言：统一使用中文进行回复。
-- 结构：结论先行，然后是详细说明。使用要点和短段落，保持高可读性。
-- 引用：所有外部信息必须注明来源（URL 或文档路径）。
-- 局限：在结尾处明确指出方案可能存在的局限、假设或下一步建议。
+- 规划先行：复杂任务必须先拆解步骤，再串行执行与验证。仔细思考，可使用 ace-tool
+  工具来检索和了解代码，从而更好的理解代码，拆分出任务到 tasks.csv,
+  仔细思考，拆分出任务到 tasks.csv,
+- 主动求知：不确定就查证（优先 web search / exa 上网查询，使用 ace-tool / rg
+  来检索本地代码）；不要猜测。
+- 不造轮子：优先调研成熟三方库并选型，避免自研重复基础设施。
+- 稳定推进：分析并且拆分 `tasks` 至 `tasks.csv`,
+  不断推进任务，形成稳定高效工作流
+- 允许大改：当前未上生产，可进行大范围重构；**不需要为历史兼容背技术债**。
+- KISS / DRY / SOLID：函数化、模块化、组件化、可组合；避免无效冗余与过度抽象。
+- 把“功能”做成可插拔模块（插件/组件），能按需组合、可测试、边界清晰；避免在业务代码里到处散落横切逻辑（鉴权/hook/限流/追踪/缓存/注入上下文/分类/记录等）。
+- GUI lib 相关参考可以阅读 /Users/unic/dev/projs/rs/syzygy/gui-demos
+  中的源代码了解和参考设计：组件化界面 ui 设计，参考前端的 component, widget, ui
+  文件夹这样的设计理念来完成符合本项目设计理念的 components, ui.
+  从而构建可以定制化复用的组件库。为后续开发简化铺路。
 
-5. 异常处理 (Error Handling)
+记得分层设计，保持可组合性。分层设计，保持可组合性。分层设计，保持可组合性。
+能拆分出来作为 crates 的就拆分出来。
 
----
+- **克制与精准**：坚持 KISS / DRY / SOLID /
+  LSP；保持函数化、模块化、可组合；避免无效冗余与过度设计。
+- **先理解再修改**：先读需求/代码/文档/相关历史，明确现状与目标；未上生产阶段允许并鼓励在不破坏行为前提下做减债式重构。
+- **不猜测，要验证**：本地检查/运行验证优先；需要外部信息时优先查官方文档与权威来源。
 
-- 限流 (429 Error): 立即退避 20 秒，并考虑缩小查询范围后重试。
-- 服务错误/超时 (5xx Error / Timeout): 短暂退避后重试一次。
-- 降级：若重试后工具依然不可用，立即切换到备选方案（如 'context7' 失败则降级为
-  'duckduckgo' 搜索其官网），或给出基于本地知识的保守答案，并明确标注不确定性。
+## 3. 执行框架（Execution Framework）
 
-同时也请记住：
+标准工作流（必须遵守）
 
-以暗猜接口为耻，以认真查阅为荣。以模糊执行为耻，以寻求确认为荣。
-以盲想业务为耻，以人类确认为荣。以创造接口为耻，以复用现有为荣。
-以跳过验证为耻，以主动测试为荣。以破坏架构为耻，以遵循规范为荣。
-以假装理解为耻，以诚实无知为荣。以盲目修改为耻，以谨慎重构为荣。
+1. 理解与规划
 
-1. And please ensure the project always can be built. `cargo check`
-   `cargo build --all` / `pnpm build` / `npm run build`
-2. You must update(remember update existing docs is prefer instead of creating
-   unless the effect is completely new one) the progress docs/ *md to reflect
-   the project progress, and more content is better, more details is great which
-   can help the future programmer to take project quickly and exactly,.
+- 仔细阅读需求/代码/相关文档，确认现状与进度。
+- 使用 **@sequential-thinking** 拆分步骤；用 **TodoManager** 推进。
+- 分析并且拆分 `tasks` 至 `tasks.csv`, 不断推进任务，形成稳定高效工作流
 
-besides, please use serena activate this project, and you can use
-web-search-prime and exa/tavily/web search, desktop-commander etc MCP tools to
-help you do things better and do tasks better.
+2. 串行执行（一次只做一件事）
+
+- 严格按步骤推进；每步结束都要能解释“做了什么、为什么、如何验证”。
+
+3. **验证门禁**：
+
+- 按项目类型运行 check/test/lint/build；修复所有 errors 与 warnings。
+
+4. 整合与报告
+
+- 输出“结论先行 + 要点短段落”。
+- 必须附《工具调用简报》（见第 6 节）。
+- 在完成前自检并跑质量门禁（第 1 节）。
+
+## 5. 工具使用协议（最小必要 + 可追溯）
+
+- **最小必要**：查询范围、请求参数、返回结果尽可能收敛。
+- **安全第一**：严禁上传/回显敏感信息（Token、密钥、私有链接、内部数据等）。
+- **工具选择**：
+  - 规划/拆解 → `Sequential Thinking`
+  - 最新信息/官方公告/外部文档 → web search / Tavily / Exa（优先官方来源）
+  - 本地文件/执行命令/构建测试 → desktop-commander / shell
+  - 长期记忆与跨会话要点 → memory
+- **异常处理**：
+  - 429：退避 20 秒；缩小查询范围后重试。
+  - 5xx/超时：短暂退避后重试 1 次。
+  - 仍失败：切换备选工具或给出保守方案，并明确标注不确定性。
+
+## 6. 测试策略（按 skills/rust-testing，强制）
+
+- **不要 inline tests**：测试集中放到
+  `src/tests/**`，并与真实源码按镜像关系组织。
+- 增加单元测试 + 集成测试，覆盖边缘条件与特殊情况。
+- gui 的话，添加 gui-test 来预先检查和确保 gui 功能正常
+- 依赖外部资源（DB/HTTP/服务）必须解耦：
+  - mock：`mockall`
+  - property/fake：`proptest`
+  - http-mock：`wiremock` / `mockito`
+- 需要 e2e 时：用 mock/fake 让测试可重复、可离线、可稳定。
+
+## 7. 质量门禁（默认要求）
+
+- Rust：`cargo fmt --all`、`cargo check --workspace --all-features`、`cargo test --workspace --all-features`、`cargo clippy --workspace --all-targets --all-features -- -D warnings`
+- JS/TS：`pnpm build` / `tsc` / `vite build`（按仓库实际脚本）
+- 其它：优先使用仓库已有的 lint/test/build 命令；必须修复 warnings
+
+## 8. 输出与沟通规范
+
+- 语言：中文
+- 结构：结论先行 → 要点 → 必要细节
+- 引用：所有外部信息必须注明来源（URL 或文档路径）
+- 局限：结尾明确指出假设、局限与下一步建议
+- 《工具调用简报》：工具名 / 触发原因 / 关键参数 / 结果概览
+
+## 9. 异常处理（Error Handling）
+
+- 429 限流：立即退避 20 秒；缩小查询范围后重试。
+- 5xx/Timeout：短暂退避后重试一次。
+- 降级：工具不可用则切换备选（web search →
+  tavily/exa）；否则给出保守答案并标注不确定性。
