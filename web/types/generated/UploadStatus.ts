@@ -3,4 +3,9 @@
 /**
  * 上传状态枚举
  */
-export type UploadStatus = "pending" | "uploading" | "completed" | "failed" | "expired";
+export type UploadStatus =
+  | "pending"
+  | "uploading"
+  | "completed"
+  | "failed"
+  | "expired";

@@ -4,4 +4,18 @@ import type { RoomStatus } from "./RoomStatus";
 /**
  * 数据库与 API Room 模型
  */
-export type Room = { id: number | null, name: string, slug: string, password: string | null, status: RoomStatus, max_size: number, current_size: number, max_times_entered: number, current_times_entered: number, expire_at: string | null, created_at: string, updated_at: string, permission: number, };
+export type Room = {
+  id: number | null;
+  name: string;
+  slug: string;
+  password: string | null;
+  status: RoomStatus;
+  max_size: number;
+  current_size: number;
+  max_times_entered: number;
+  current_times_entered: number;
+  expire_at: string | null;
+  created_at: string;
+  updated_at: string;
+  permission: number;
+};

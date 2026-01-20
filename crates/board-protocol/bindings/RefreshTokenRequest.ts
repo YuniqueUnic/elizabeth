@@ -4,7 +4,8 @@
  * 刷新令牌验证请求结构
  */
 export type RefreshTokenRequest = {
-/**
- * 刷新令牌（明文）
- */
-refresh_token: string, };
+  /**
+   * 刷新令牌（明文）
+   */
+  refresh_token: string;
+};

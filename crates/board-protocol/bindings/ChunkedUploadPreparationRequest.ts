@@ -4,4 +4,6 @@ import type { UploadFileDescriptor } from "./UploadFileDescriptor";
 /**
  * 分块上传预留请求
  */
-export type ChunkedUploadPreparationRequest = { files: Array<UploadFileDescriptor>, };
+export type ChunkedUploadPreparationRequest = {
+  files: Array<UploadFileDescriptor>;
+};

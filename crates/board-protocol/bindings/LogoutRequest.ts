@@ -4,7 +4,8 @@
  * 登出请求结构（撤销访问令牌）
  */
 export type LogoutRequest = {
-/**
- * 访问令牌
- */
-access_token: string, };
+  /**
+   * 访问令牌
+   */
+  access_token: string;
+};

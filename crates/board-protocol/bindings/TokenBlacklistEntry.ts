@@ -4,19 +4,20 @@
  * 令牌黑名单条目结构
  */
 export type TokenBlacklistEntry = {
-/**
- * 主键 ID
- */
-id: number | null,
-/**
- * 令牌 JTI
- */
-jti: string,
-/**
- * 过期时间（黑名单记录的过期时间）
- */
-expires_at: string,
-/**
- * 创建时间
- */
-created_at: string, };
+  /**
+   * 主键 ID
+   */
+  id: number | null;
+  /**
+   * 令牌 JTI
+   */
+  jti: string;
+  /**
+   * 过期时间（黑名单记录的过期时间）
+   */
+  expires_at: string;
+  /**
+   * 创建时间
+   */
+  created_at: string;
+};
