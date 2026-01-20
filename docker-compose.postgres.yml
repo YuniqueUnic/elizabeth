@@ -1,0 +1,41 @@
+# Optional Docker Compose override to run Elizabeth with PostgreSQL.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --build
+#
+# Notes:
+# - Set POSTGRES_PASSWORD in .env for production.
+# - If your password contains special characters, URL-encode it in DATABASE_URL.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: elizabeth-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-elizabeth}
+      POSTGRES_USER: ${POSTGRES_USER:-elizabeth}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-please-change-me} # pragma: allowlist secret
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - elizabeth-network
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-elizabeth} -d ${POSTGRES_DB:-elizabeth}",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-elizabeth}:${POSTGRES_PASSWORD:-please-change-me}@postgres:5432/${POSTGRES_DB:-elizabeth}} # pragma: allowlist secret
+
+volumes:
+  postgres-data:

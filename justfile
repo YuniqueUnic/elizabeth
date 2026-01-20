@@ -30,10 +30,20 @@ check: fmt
 # 运行所有测试（含工作区）
 test: fmt
     @echo "运行测试..."
-    cargo test --workspace -- --nocapture
+    cargo test --workspace --all-features
 
-# 完整代码验证（check + test）
-verify: check test
+# 运行测试并输出日志
+test-nocapture: fmt
+    @echo "运行测试（--nocapture）..."
+    cargo test --workspace --all-features -- --nocapture
+
+# Release 构建（用于发布/性能验证）
+build-release: fmt
+    @echo "Release 构建..."
+    cargo build --workspace --all-targets --all-features --release
+
+# 完整代码验证（fmt + check + test + clippy + build）
+verify: check test clippy build-release
     @echo "验证通过"
 
 # 运行 pre-commit 检查
@@ -43,118 +53,57 @@ prek: fmt clippy
 
 # === 数据库操作 ===
 
-# 检查必要环境变量是否存在
-_check-env:
+# 说明：
+# - 运行时迁移由后端自动执行（启动时会按 DATABASE_URL 选择迁移目录）。见 `crates/board/src/db/mod.rs`。
+# - 下面命令仅用于“本地手工运行 sqlx-cli”场景（需要自行安装 sqlx-cli）。
+
+db-migrate:
     #!/usr/bin/env bash
+    set -euo pipefail
     : "${DATABASE_URL:?错误: DATABASE_URL 环境变量未设置}"
-    : "${DATABASE_FILE:?错误: DATABASE_FILE 环境变量未设置}"
-    : "${MIGRATIONS_DIR:?错误: MIGRATIONS_DIR 环境变量未设置}"
-
-# 创建数据库文件（如不存在）
-db-create: _check-env
-    #!/usr/bin/env bash
-    if [[ ! -f "$DATABASE_FILE" ]]; then
-        echo "创建数据库文件: $DATABASE_FILE"
-        mkdir -p "$(dirname "$DATABASE_FILE")"
-        sqlite3 "$DATABASE_FILE" "SELECT 1;" >/dev/null
-    else
-        echo "数据库文件已存在: $DATABASE_FILE"
-    fi
-
-# 检查 migration 目录与文件状态
-_check-migrations: _check-env
-    #!/usr/bin/env bash
-    if [[ ! -d "$MIGRATIONS_DIR" ]]; then
-        echo "错误: Migration 目录不存在: $MIGRATIONS_DIR"
+    if ! command -v sqlx >/dev/null 2>&1; then
+        echo "未找到 sqlx-cli。安装："
+        echo "  cargo install sqlx-cli --no-default-features --features sqlite,postgres"
         exit 1
     fi
-    count=$(find "$MIGRATIONS_DIR" -name "*.sql" | wc -l)
-    if [[ $count -eq 0 ]]; then
-        echo "未找到 migration 文件"
-    else
-        echo "找到 $count 个 migration 文件"
+    url="${DATABASE_URL}"
+    src="crates/board/migrations"
+    if [[ "$url" == postgres* ]]; then
+        src="crates/board/migrations_pg"
     fi
-
-# 执行数据库迁移（sqlx migrate run）
-migrate: db-create _check-migrations
-    #!/usr/bin/env bash
-    echo "运行数据库迁移..."
-    if sqlx migrate run --source "$MIGRATIONS_DIR"; then
-        echo "Migration 执行成功"
-    else
-        echo "Migration 执行失败"
-        exit 1
-    fi
-
-# 重新生成 SQLx 查询缓存（sqlx prepare）
-sqlx-prepare: migrate
-    #!/usr/bin/env bash
-    echo "重新生成 SQLx 查询缓存..."
-    if cargo sqlx prepare --workspace; then
-        echo "SQLx 缓存生成成功"
-    else
-        echo "SQLx prepare 失败"
-        exit 1
-    fi
-
-# 检查 SQLx 缓存是否最新
-sqlx-check:
-    @echo "检查 SQLx 缓存..."
-    cargo sqlx prepare --workspace --check
-
-# 删除并重建数据库（重新执行迁移）
-db-reset: _check-env
-    #!/usr/bin/env bash
-    echo "重置数据库..."
-    if [[ -f "$DATABASE_FILE" ]]; then
-        rm -f "$DATABASE_FILE"
-        echo "已删除旧数据库文件"
-    fi
-    just migrate
-    rm ./app.db*
-    cp -f "$DATABASE_FILE" .
-    echo "数据库重置完成"
-
-# 数据库初始化（含 prepare 缓存）
-db-bootstrap: sqlx-prepare
-    @echo "数据库初始化完成"
+    echo "运行迁移目录: $src"
+    sqlx migrate run --source "$src"
 
 # === 开发工作流 ===
 
-# 完整开发验证流程（fmt + sqlx + test）
-dev: fmt sqlx-prepare verify
+# 完整开发验证流程（门禁全套）
+dev: verify
     @echo "开发验证完成"
 
-# 快速检查流程（fmt + sqlx + check）
-dev-quick: fmt sqlx-prepare check
+# 快速检查流程（编译 + clippy）
+dev-quick: check clippy
     @echo "快速检查完成"
 
 # === 实用工具 ===
 
 # 显示项目环境信息
-info: _check-env
+info:
     #!/usr/bin/env bash
     echo "项目信息:"
     echo "  当前目录: $(pwd)"
-    echo "  数据库文件: $DATABASE_FILE"
-    echo "  Migration 目录: $MIGRATIONS_DIR"
-    echo "  数据库 URL: $DATABASE_URL"
-    if [[ -f "$DATABASE_FILE" ]]; then
-        echo "  数据库状态: 存在"
-        echo "  数据库大小: $(du -h "$DATABASE_FILE" | cut -f1)"
-    else
-        echo "  数据库状态: 不存在"
-    fi
+    echo "  数据库 URL: ${DATABASE_URL:-<unset>}"
 
-# 列出所有 migration 文件
-list-migrations: _check-env
+# 列出迁移文件（按 DATABASE_URL 选择目录）
+list-migrations:
     #!/usr/bin/env bash
-    echo "Migration 文件列表:"
-    if [[ -d "$MIGRATIONS_DIR" ]]; then
-        find "$MIGRATIONS_DIR" -name "*.sql" | sort | sed 's/^/  /'
-    else
-        echo "  Migration 目录不存在"
+    set -euo pipefail
+    url="${DATABASE_URL:-sqlite}"
+    dir="crates/board/migrations"
+    if [[ "$url" == postgres* ]]; then
+        dir="crates/board/migrations_pg"
     fi
+    echo "Migration 目录: $dir"
+    find "$dir" -name "*.sql" | sort | sed 's/^/  /'
 
 # 清理构建产物（cargo clean）
 clean:
@@ -165,10 +114,22 @@ clean:
 # 完全清理（包含数据库文件）
 clean-all: clean
     #!/usr/bin/env bash
-    if [[ -f "$DATABASE_FILE" ]]; then
-        rm -f "$DATABASE_FILE"
-        echo "数据库文件已删除"
+    set -euo pipefail
+    url="${DATABASE_URL:-}"
+    if [[ -n "$url" && "$url" == sqlite* ]]; then
+        path="${url#sqlite://}"
+        path="${path#sqlite:}"
+        path="${path%%\\?*}"
+        if [[ -n "$path" ]]; then
+            if [[ "$path" == /* ]]; then
+                echo "跳过删除绝对路径 SQLite 文件（安全）：$path"
+            else
+                rm -f "$path" "$path-shm" "$path-wal"
+                echo "已删除 SQLite 文件：$path"
+            fi
+        fi
     fi
+    rm -f app.db app.db-shm app.db-wal elizabeth.db elizabeth.db-shm elizabeth.db-wal || true
     echo "完全清理完成"
 
 # === Docker 操作 ===
@@ -191,7 +152,13 @@ docker-build: docker-build-backend docker-build-frontend
 docker-up:
     @echo "启动所有服务..."
     ./scripts/docker_prepare_volumes.sh
-    docker compose up -d
+    docker compose up -d --build
+
+# 启动所有服务（PostgreSQL）
+docker-up-pg:
+    @echo "启动所有服务（PostgreSQL）..."
+    ./scripts/docker_prepare_volumes.sh
+    docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --build
 
 # 停止所有服务
 docker-down:
@@ -203,6 +170,12 @@ docker-rebuild:
     @echo "重建并启动所有服务..."
     ./scripts/docker_prepare_volumes.sh
     docker compose up -d --force-recreate --build
+
+# 重建并启动所有服务（PostgreSQL）
+docker-rebuild-pg:
+    @echo "重建并启动所有服务（PostgreSQL）..."
+    ./scripts/docker_prepare_volumes.sh
+    docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --force-recreate --build
 
 # 查看服务日志
 docker-logs:
@@ -231,7 +204,7 @@ alias f := fmt
 alias c := check
 alias t := test
 alias p := prek
-alias m := migrate
+alias m := db-migrate
 alias d := dev
 alias dq := dev-quick
 alias i := info
@@ -243,3 +216,5 @@ alias du := docker-up
 alias dd := docker-down
 alias dr := docker-rebuild
 alias dl := docker-logs
+alias dupg := docker-up-pg
+alias drpg := docker-rebuild-pg

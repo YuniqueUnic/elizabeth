@@ -73,6 +73,7 @@ WORKDIR /app
 # Copy the compiled binary and migrations from builder
 COPY --from=builder /app/target/release/board /app/board
 COPY --from=builder /app/crates/board/migrations /app/migrations/
+COPY --from=builder /app/crates/board/migrations_pg /app/migrations_pg/
 
 # Create data directories
 RUN mkdir -p /app/data /app/storage/rooms /app/config
@@ -82,7 +83,7 @@ EXPOSE 4092
 
 # Set environment variables
 ENV RUST_LOG=info
-ENV DATABASE_URL=sqlite:/app/data/elizabeth.db
+ENV DATABASE_URL=sqlite:///app/data/elizabeth.db
 
 # Run the application
 ENTRYPOINT ["/app/board"]

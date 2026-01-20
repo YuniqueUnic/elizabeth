@@ -39,7 +39,15 @@ services:
       frontend:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:4001/"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://127.0.0.1:4001/",
+        ]
       interval: 30s
       timeout: 3s
       retries: 3
@@ -75,9 +83,15 @@ services:
       # Security
       JWT_SECRET: ${JWT_SECRET:-please-change-this-secret-in-production-min-32-chars}
       # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-info}
       RUST_LOG: ${RUST_LOG:-info}
       # Database
-      DATABASE_URL: sqlite:///app/data/elizabeth.db
+      # Default: SQLite (file in /app/data)
+      # Override in .env to switch to PostgreSQL, e.g.
+      #   DATABASE_URL=postgresql://elizabeth:password@postgres:5432/elizabeth
+      DATABASE_URL: ${DATABASE_URL:-sqlite:///app/data/elizabeth.db}
+      DB_MAX_CONNECTIONS: ${DB_MAX_CONNECTIONS:-10}
+      DB_MIN_CONNECTIONS: ${DB_MIN_CONNECTIONS:-1}
     expose:
       - "4092"
     networks:
@@ -123,7 +137,15 @@ services:
       backend:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:4001/"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://127.0.0.1:4001/",
+        ]
       interval: 30s
       timeout: 3s
       retries: 3
