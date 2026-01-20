@@ -35,12 +35,11 @@ export const htmlSelectors = {
 
         // 房间设置部分
         roomSettings: {
-            section: 'heading:has-text("房间设置")',
+            section: 'heading:has-text("房间配置")',
 
             expirationTime: {
                 label: 'text="过期时间"',
-                select:
-                    'text=房间设置 >> .. >> button[data-slot="select-trigger"]',
+                select: 'role=combobox >> nth=0',
                 options: {
                     oneMinute: 'role=option[name="1 分钟"]',
                     tenMinutes: 'role=option[name="10 分钟"]',
@@ -54,31 +53,31 @@ export const htmlSelectors = {
 
             password: {
                 label: 'text="房间密码"',
-                input: "text=房间密码 >> .. >> input",
+                input: 'role=textbox[name="房间密码"]',
                 toggleBtn: "button >> nth=1",
             },
 
             maxViewCount: {
                 label: 'text="最大查看次数"',
-                input: 'text=最大查看次数 >> .. >> input[type="number"]',
+                input: 'role=spinbutton[name="最大查看次数"]',
             },
 
-            saveBtn: 'text=房间设置 >> .. >> button:has-text("保存设置")',
+            saveBtn: 'aside >> button:has-text("保存配置")',
         },
 
         // 房间权限部分
         roomPermissions: {
-            section: 'heading:has-text("房间权限")',
+            section: 'aside >> heading:has-text("房间权限")',
 
             buttons: {
-                preview: 'text=房间权限 >> .. >> button:has-text("预览")',
-                edit: 'text=房间权限 >> .. >> button:has-text("编辑")',
-                share: 'text=房间权限 >> .. >> button:has-text("分享")',
-                delete: 'text=房间权限 >> .. >> button:has-text("删除")',
+                preview: 'aside button[aria-pressed][title^="预览"]',
+                edit: 'aside button[aria-pressed][title^="编辑"]',
+                share: 'aside button[aria-pressed][title^="分享"]',
+                delete: 'aside button[aria-pressed][title^="删除"]',
             },
 
             hint: "text=/提示：/",
-            saveBtn: 'text=房间权限 >> .. >> button:has-text("保存权限")',
+            saveBtn: 'aside >> button:has-text("保存配置")',
         },
 
         // 分享房间部分
@@ -154,8 +153,8 @@ export const htmlSelectors = {
                 helpBtn: 'button:has-text("Open help")',
             },
 
-            // 使用 textarea 选择器，因为 MDEditor 的 textarea 无法添加 data-testid 属性
-            input: "textarea",
+            // 使用 placeholder 属性选择器定位消息输入框，避免与密码输入框等其他 textbox 冲突
+            input: '[data-testid="message-input-editor"] .mdxeditor-content[contenteditable]',
 
             actions: {
                 expandBtn: 'button:has-text("展开编辑器")',
@@ -166,11 +165,12 @@ export const htmlSelectors = {
 
     // ==================== 右侧边栏（文件管理）====================
     rightSidebar: {
-        container: "aside",
+        // 第 2 个 aside 是文件管理（第 1 个是房间控制）
+        container: "aside >> nth=1",
 
         header: {
-            title: 'heading:has-text("文件管理")',
-            uploadBtn: 'button[title="上传文件"]',
+            title: 'aside >> nth=1 >> heading:has-text("文件管理")',
+            uploadBtn: 'aside >> nth=1 >> button[title="上传文件"]',
         },
 
         fileManager: {
@@ -182,22 +182,23 @@ export const htmlSelectors = {
             },
 
             fileList: {
-                container: "div.space-y-2",
+                container: "div.space-y-1",
                 emptyState: 'text="暂无文件"',
+                loading: 'text="加载中..."',
 
                 fileItem: {
-                    // 文件卡片是一个 div，包含边框
+                    // 文件卡片容器
                     container:
                         "div.group.relative.flex.items-center.gap-3.rounded-lg.border",
 
-                    // 复选框
-                    checkbox: "[data-slot='checkbox']",
+                    // 复选框（shadcn Checkbox 渲染为 role=checkbox 的按钮）
+                    checkbox: "[role='checkbox']",
 
                     // 文件名元素
-                    name: ".file-name",
+                    name: "p.text-sm.font-medium",
 
                     // 文件大小
-                    size: ".text-xs.text-muted-foreground",
+                    size: "p.text-xs",
 
                     // 操作按钮
                     actions: {
@@ -212,7 +213,7 @@ export const htmlSelectors = {
             uploadZone: {
                 // 上传区域在底部
                 container: ".p-4.pt-2",
-                input: "input[type='file']",
+                input: ".p-4.pt-2 input[type='file']",
                 icon: "img, svg",
                 text: 'text="拖拽文件到此处或点击上传"',
             },
@@ -240,6 +241,14 @@ export const htmlSelectors = {
             container: "role=dialog",
             title: 'heading:has-text("权限设置")',
             closeBtn: 'button[aria-label="Close"]',
+        },
+
+        passwordDialog: {
+            container: "role=dialog",
+            title: 'heading:has-text("房间已加密")',
+            input: 'role=textbox[name="密码"]',
+            confirmBtn: 'button:has-text("进入房间")',
+            cancelBtn: 'button:has-text("取消")',
         },
     },
 

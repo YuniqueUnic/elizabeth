@@ -8,7 +8,7 @@
  * - Logging out (revoking tokens)
  */
 
-import { API_ENDPOINTS, TOKEN_CONFIG } from "../lib/config";
+import { API_ENDPOINTS } from "../lib/config";
 import {
   api,
   clearRoomToken,
@@ -17,45 +17,12 @@ import {
   setRoomToken,
 } from "../lib/utils/api";
 import type {
-  BackendTokenResponse,
-  BackendTokenValidation,
+  IssueTokenRequest,
+  IssueTokenResponse,
+  RefreshTokenResponse,
+  ValidateTokenResponse,
   TokenInfo,
 } from "../lib/types";
-
-// ============================================================================
-// Token Request/Response Types
-// ============================================================================
-
-export interface IssueTokenRequest {
-  password?: string;
-  token?: string; // Existing token for refresh (avoids incrementing view count)
-  with_refresh_token?: boolean; // Request refresh token pair
-  permission?: number;
-  ttl_seconds?: number;
-  max_uses?: number;
-  expires_at?: string;
-}
-
-export interface IssueTokenResponse {
-  token: string;
-  jti: string;
-  permission: number;
-  room_name: string;
-  max_uses: number | null;
-  uses: number;
-  expires_at: string;
-  created_at: string;
-  refresh_token?: string; // Optional refresh token
-  refresh_token_expires_at?: string; // Optional refresh token expiry
-}
-
-export interface RefreshTokenRequest {
-  refresh_token: string;
-}
-
-export interface RefreshTokenResponse extends BackendTokenResponse {
-  // Same as BackendTokenResponse
-}
 
 // ============================================================================
 // Authentication Functions
@@ -76,17 +43,26 @@ export interface RefreshTokenResponse extends BackendTokenResponse {
 export async function getAccessToken(
   roomName: string,
   password?: string,
-  options?: Omit<IssueTokenRequest, "password">,
 ): Promise<IssueTokenResponse> {
   // Check if we have an existing token for this room
   const existingToken = getRoomToken(roomName);
 
+  // Only use the existing token if it's not expired
+  // If it's expired, don't pass it to avoid 401 errors
+  const validToken = existingToken && !isTokenExpired(existingToken.expiresAt)
+    ? existingToken.token
+    : undefined;
+
+  // If we have an expired token, clear it from storage
+  if (existingToken && isTokenExpired(existingToken.expiresAt)) {
+    clearRoomToken(roomName);
+  }
+
   const requestBody: IssueTokenRequest = {
     password,
-    // Pass existing token if available (for token refresh without incrementing view count)
-    token: existingToken?.token,
+    // Pass existing token if available and valid (for token refresh without incrementing view count)
+    token: validToken,
     with_refresh_token: true, // Always request refresh token
-    ...options,
   };
 
   const response = await api.post<IssueTokenResponse>(
@@ -116,14 +92,14 @@ export async function getAccessToken(
 export async function validateToken(
   roomName: string,
   token?: string,
-): Promise<BackendTokenValidation> {
+): Promise<ValidateTokenResponse> {
   const tokenToValidate = token || getRoomToken(roomName)?.token;
 
   if (!tokenToValidate) {
     throw new Error("No token available for validation");
   }
 
-  return api.post<BackendTokenValidation>(
+  return api.post<ValidateTokenResponse>(
     API_ENDPOINTS.rooms.validateToken(roomName),
     { token: tokenToValidate },
     { skipTokenInjection: true },
@@ -176,9 +152,15 @@ export async function revokeRoomToken(
   jti: string,
   token?: string,
 ): Promise<void> {
+  const authToken = token || await getValidToken(roomName);
+  if (!authToken) {
+    throw new Error("Authentication required to revoke room tokens");
+  }
+
   await api.delete(
     API_ENDPOINTS.rooms.revokeToken(roomName, jti),
-    { token },
+    undefined,
+    { token: authToken },
   );
 
   // If this was the currently stored token, clear it
@@ -212,12 +194,12 @@ export async function getValidToken(roomName: string): Promise<string | null> {
       try {
         const newTokenInfo = await refreshToken(tokenInfo.refreshToken);
         const updatedToken: TokenInfo = {
-          token: newTokenInfo.token,
-          expiresAt: newTokenInfo.expires_at,
+          token: newTokenInfo.access_token,
+          expiresAt: newTokenInfo.access_token_expires_at,
           refreshToken: newTokenInfo.refresh_token,
         };
         setRoomToken(roomName, updatedToken);
-        return newTokenInfo.token;
+        return newTokenInfo.access_token;
       } catch (error) {
         console.error("Failed to refresh token:", error);
         clearRoomToken(roomName);
@@ -247,7 +229,7 @@ export function hasValidToken(roomName: string): boolean {
   return !isTokenExpired(tokenInfo.expiresAt);
 }
 
-export default {
+const authService = {
   getAccessToken,
   validateToken,
   refreshToken,
@@ -256,3 +238,5 @@ export default {
   getValidToken,
   hasValidToken,
 };
+
+export default authService;

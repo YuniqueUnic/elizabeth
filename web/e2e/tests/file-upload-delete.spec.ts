@@ -1,292 +1,188 @@
-/**
- * 文件上传和删除功能自动化测试
- *
- * 测试场景：
- * 1. 小文件上传 (<1MB)
- * 2. 中等文件上传 (5MB)
- * 3. 大文件上传 (15MB)
- * 4. 文件删除
- * 5. 批量操作
- */
-
 import { expect, test } from "@playwright/test";
 import * as fs from "fs";
 import * as path from "path";
+import { RoomPage } from "../page-objects/room-page";
 
 const BASE_URL = "http://localhost:4001";
-const TEST_ROOM = "file-auto-test-" + Date.now();
+const API_BASE = "http://localhost:4092/api/v1";
+const TEST_ROOM = `file-auto-test-${Date.now()}`;
 const TEST_ROOM_URL = `${BASE_URL}/${TEST_ROOM}`;
 
-// 创建测试文件
-function createTestFile(name: string, sizeInKB: number): string {
-    const testDir = path.join(__dirname, "../../test-files");
-    if (!fs.existsSync(testDir)) {
-        fs.mkdirSync(testDir, { recursive: true });
-    }
-    const filePath = path.join(testDir, name);
-    const buffer = Buffer.alloc(sizeInKB * 1024);
-    fs.writeFileSync(filePath, buffer);
-    return filePath;
-}
+test.describe.configure({ mode: "serial" });
 
 test.describe("文件上传和删除 - 自动化测试", () => {
     let smallFile: string;
     let mediumFile: string;
     let largeFile: string;
+    let chunkedFile: string;
+    let tokenInfo: { token: string; refresh_token?: string; expires_at: string };
 
-    test.beforeAll(() => {
-        // 创建测试文件
+    const createTestFile = (name: string, sizeInKB: number): string => {
+        const testDir = path.join(__dirname, "../../test-files");
+        if (!fs.existsSync(testDir)) {
+            fs.mkdirSync(testDir, { recursive: true });
+        }
+        const filePath = path.join(testDir, name);
+        const buffer = Buffer.alloc(sizeInKB * 1024);
+        fs.writeFileSync(filePath, buffer);
+        return filePath;
+    };
+
+    const bootstrapRoomPage = async (page: any): Promise<RoomPage> => {
+        await page.addInitScript(
+            (
+                { roomName, token, refreshToken, expiresAt }: {
+                    roomName: string;
+                    token: string;
+                    refreshToken?: string;
+                    expiresAt: string;
+                },
+            ) => {
+                const storageKey = "elizabeth_tokens";
+                const existing =
+                    JSON.parse(window.localStorage.getItem(storageKey) || "{}") || {};
+                existing[roomName] = { token, refreshToken, expiresAt };
+                window.localStorage.setItem(storageKey, JSON.stringify(existing));
+            },
+            {
+                roomName: TEST_ROOM,
+                token: tokenInfo.token,
+                refreshToken: tokenInfo.refresh_token,
+                expiresAt: tokenInfo.expires_at,
+            },
+        );
+
+        const roomPage = new RoomPage(page);
+        await roomPage.goto(TEST_ROOM_URL);
+        await roomPage.waitForRoomLoad();
+        return roomPage;
+    };
+
+    test.beforeAll(async ({ request }) => {
         smallFile = createTestFile("small-test.txt", 100); // 100KB
-        mediumFile = createTestFile("medium-test.bin", 5 * 1024); // 5MB
-        largeFile = createTestFile("large-test.bin", 15 * 1024); // 15MB
+        mediumFile = createTestFile("medium-test.bin", 2 * 1024); // 2MB
+        largeFile = createTestFile("large-test.bin", 4 * 1024); // 4MB
+        // 5MB 阈值 (5242880 bytes)，使用 5130KB (5253120 bytes) 确保触发分片且最小化传输时间
+        chunkedFile = createTestFile("chunked-test.bin", 5130);
 
-        console.log("✓ 测试文件已创建");
-        console.log(`  - 小文件：${smallFile} (100KB)`);
-        console.log(`  - 中等文件：${mediumFile} (5MB)`);
-        console.log(`  - 大文件：${largeFile} (15MB)`);
+        // 保证测试文件真实存在且符合大小预期
+        [smallFile, mediumFile, largeFile, chunkedFile].forEach((filePath) => {
+            if (!fs.existsSync(filePath)) {
+                throw new Error(`Test file missing: ${filePath}`);
+            }
+        });
+
+        await request
+            .post(`${API_BASE}/rooms/${TEST_ROOM}?password=`, { data: {}, timeout: 15_000 })
+            .catch(() => {});
+
+        const tokenResp = await request.post(`${API_BASE}/rooms/${TEST_ROOM}/tokens`, {
+            data: { password: "", with_refresh_token: true },
+            timeout: 15_000,
+        });
+        if (!tokenResp.ok()) {
+            throw new Error(`无法获取文件房间令牌，status=${tokenResp.status()}`);
+        }
+        tokenInfo = await tokenResp.json();
     });
 
     test.afterAll(() => {
-        // 清理测试文件
-        [smallFile, mediumFile, largeFile].forEach((file) => {
-            if (fs.existsSync(file)) {
+        [smallFile, mediumFile, largeFile, chunkedFile].forEach((file) => {
+            if (file && fs.existsSync(file)) {
                 fs.unlinkSync(file);
             }
         });
     });
 
     test("初始化 - 访问房间并验证 UI", async ({ page }) => {
-        console.log("\n========== 初始化测试 ==========");
-        await page.goto(TEST_ROOM_URL);
-        await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(
-            () => {},
-        );
+        const roomPage = await bootstrapRoomPage(page);
+        await roomPage.clearAllFiles();
 
-        // 验证页面加载
-        const main = page.locator("main");
-        await expect(main).toBeVisible();
+        const mainVisible = await page.locator("main").isVisible();
+        expect(mainVisible).toBe(true);
 
-        // 验证右侧栏
-        const aside = page.locator("aside");
-        const asideCount = await aside.count();
-        console.log(`✓ 找到 ${asideCount} 个 aside 容器`);
+        const asideCount = await page.locator("aside").count();
         expect(asideCount).toBeGreaterThan(0);
 
-        // 验证文件输入存在
-        const fileInput = page.locator("input[type='file']");
-        await expect(fileInput).toHaveCount(1);
-        console.log("✓ 文件输入元素已找到");
+        const uploadZone = page.locator(".p-4.pt-2 input[type='file']");
+        await expect(uploadZone).toHaveCount(1);
     });
 
     test("小文件上传测试", async ({ page }) => {
-        console.log("\n========== 小文件上传测试 ==========");
-        await page.goto(TEST_ROOM_URL);
-        await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(
-            () => {},
-        );
+        const roomPage = await bootstrapRoomPage(page);
+        await roomPage.uploadFile(smallFile);
 
-        // 等待页面完全加载
-        await page.waitForTimeout(1000);
-
-        // 上传文件
-        console.log(`上传：small-test.txt (100KB)`);
-        const fileInput = page.locator("input[type='file']");
-        await fileInput.setInputFiles(smallFile);
-
-        // 等待上传完成 (小文件应该很快)
-        await page.waitForTimeout(2000);
-
-        // 验证文件出现在列表中
-        const fileItems = page.locator(
-            "div.group.relative.flex.items-center.gap-3.rounded-lg.border",
-        );
-        let itemCount = await fileItems.count();
-        console.log(`✓ 文件列表中有 ${itemCount} 项`);
-        expect(itemCount).toBeGreaterThan(0);
-
-        // 获取文件名
-        const firstItem = fileItems.first();
-        const fileName = await firstItem.locator(".file-name").textContent();
-        console.log(`✓ 上传的文件：${fileName}`);
-        expect(fileName).toContain("small-test.txt");
+        const files = await roomPage.getFileList();
+        expect(files).toContain("small-test.txt");
     });
 
     test("中等文件上传测试", async ({ page }) => {
-        console.log("\n========== 中等文件上传测试 ==========");
-        await page.goto(TEST_ROOM_URL);
-        await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(
-            () => {},
-        );
+        const roomPage = await bootstrapRoomPage(page);
+        await roomPage.uploadFile(mediumFile);
 
-        // 等待页面完全加载
-        await page.waitForTimeout(1000);
-
-        // 上传文件
-        console.log(`上传：medium-test.bin (5MB)`);
-        const fileInput = page.locator("input[type='file']");
-        const startTime = Date.now();
-
-        await fileInput.setInputFiles(mediumFile);
-
-        // 等待上传完成 (中等文件可能需要几秒)
-        const maxWait = 15000;
-        let uploaded = false;
-
-        for (let i = 0; i < maxWait / 500; i++) {
-            const fileItems = page.locator(
-                "div.group.relative.flex.items-center.gap-3.rounded-lg.border",
-            );
-            const itemCount = await fileItems.count();
-
-            if (itemCount >= 2) { // 应该有小文件 + 中等文件
-                uploaded = true;
-                const elapsed = Math.round((Date.now() - startTime) / 1000);
-                console.log(`✓ 中等文件上传完成 (耗时：${elapsed}s)`);
-                break;
-            }
-
-            if (i % 4 === 0) {
-                console.log(`  等待中... (${i / 2}s)`);
-            }
-            await page.waitForTimeout(500);
-        }
-
-        expect(uploaded).toBe(true);
+        await expect.poll(async () => (await roomPage.getFileList()).length, {
+            timeout: 20_000,
+        }).toBeGreaterThanOrEqual(2);
     });
 
     test("大文件上传测试", async ({ page }) => {
-        console.log("\n========== 大文件上传测试 ==========");
-        await page.goto(TEST_ROOM_URL);
-        await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(
-            () => {},
-        );
+        const roomPage = await bootstrapRoomPage(page);
+        await roomPage.uploadFile(largeFile);
 
-        // 等待页面完全加载
-        await page.waitForTimeout(1000);
-
-        // 上传文件
-        console.log(`上传：large-test.bin (15MB)`);
-        const fileInput = page.locator("input[type='file']");
-        const startTime = Date.now();
-
-        await fileInput.setInputFiles(largeFile);
-
-        // 等待上传完成 (大文件可能需要 30 秒左右)
-        const maxWait = 60000;
-        let uploaded = false;
-
-        for (let i = 0; i < maxWait / 1000; i++) {
-            const fileItems = page.locator(
-                "div.group.relative.flex.items-center.gap-3.rounded-lg.border",
-            );
-            const itemCount = await fileItems.count();
-
-            if (itemCount >= 3) { // 应该有小文件 + 中等文件 + 大文件
-                uploaded = true;
-                const elapsed = Math.round((Date.now() - startTime) / 1000);
-                console.log(`✓ 大文件上传完成 (耗时：${elapsed}s)`);
-                break;
-            }
-
-            if (i % 5 === 0) {
-                console.log(`  等待中... (${i}s)`);
-            }
-            await page.waitForTimeout(1000);
-        }
-
-        expect(uploaded).toBe(true);
+        await expect.poll(async () => (await roomPage.getFileList()).length, {
+            timeout: 60_000,
+        }).toBeGreaterThanOrEqual(3);
     });
 
-    test("文件删除测试", async ({ page }) => {
-        console.log("\n========== 文件删除测试 ==========");
-        await page.goto(TEST_ROOM_URL);
-        await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(
-            () => {},
-        );
+    test("超大文件分片上传测试", async ({ page }) => {
+        test.slow(); // 标记为慢速测试，增加 3x 超时
+        const roomPage = await bootstrapRoomPage(page);
+        await roomPage.clearAllFiles();
+        await roomPage.uploadFile(chunkedFile);
 
-        // 等待页面完全加载
-        await page.waitForTimeout(1000);
+        const lastUpload = await page
+            .evaluate(() => (window as any).__elizabethLastUpload || null)
+            .catch(() => null);
+        expect(lastUpload?.chunked).toBe(true);
 
-        // 获取文件列表
-        const fileItems = page.locator(
-            "div.group.relative.flex.items-center.gap-3.rounded-lg.border",
-        );
-        let initialCount = await fileItems.count();
-        console.log(`✓ 初始文件数：${initialCount}`);
-        expect(initialCount).toBeGreaterThan(0);
-
-        // 删除第一个文件
-        const firstItem = fileItems.first();
-        const fileName = await firstItem.locator(".file-name").textContent();
-        console.log(`准备删除：${fileName}`);
-
-        // 鼠标悬停显示删除按钮
-        await firstItem.hover();
-        await page.waitForTimeout(300);
-
-        // 点击删除按钮
-        const deleteBtn = firstItem.locator("button[title='删除文件']");
-        await deleteBtn.click();
-        console.log("✓ 删除按钮已点击");
-
-        // 等待确认对话框或直接执行删除
-        await page.waitForTimeout(500);
-
-        // 检查是否有确认对话框
-        const dialog = page.locator("[role='dialog']");
-        const hasDialog = await dialog.isVisible().catch(() => false);
-
-        if (hasDialog) {
-            console.log("✓ 确认对话框出现");
-            // 点击确认按钮
-            const confirmBtn = dialog.locator("button").filter({
-                hasText: /确定|删除|确认/,
-            }).first();
-            await confirmBtn.click();
-            console.log("✓ 确认删除");
-        }
-
-        // 等待删除完成
-        await page.waitForTimeout(1000);
-
-        // 验证文件已删除
-        const fileItemsAfter = page.locator(
-            "div.group.relative.flex.items-center.gap-3.rounded-lg.border",
-        );
-        let finalCount = await fileItemsAfter.count();
-        console.log(`✓ 删除后文件数：${finalCount}`);
-        expect(finalCount).toBeLessThan(initialCount);
+        // 分片上传需要更长时间，增加超时到 300 秒
+        await expect
+            .poll(async () => (await roomPage.getFileList()).includes("chunked-test.bin"), {
+                timeout: 300_000,
+                intervals: [2_000, 5_000, 10_000],
+            })
+            .toBe(true);
     });
 
     test("文件选择和批量操作", async ({ page }) => {
-        console.log("\n========== 文件选择测试 ==========");
-        await page.goto(TEST_ROOM_URL);
-        await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(
-            () => {},
-        );
+        const roomPage = await bootstrapRoomPage(page);
+        let files = await roomPage.getFileList();
+        if (files.length === 0) {
+            await roomPage.uploadFile(smallFile);
+            files = await roomPage.getFileList();
+        }
 
-        // 等待页面完全加载
-        await page.waitForTimeout(1000);
-
-        // 获取文件列表
         const fileItems = page.locator(
             "div.group.relative.flex.items-center.gap-3.rounded-lg.border",
         );
-        const itemCount = await fileItems.count();
-        console.log(`✓ 文件总数：${itemCount}`);
 
-        if (itemCount > 0) {
-            const firstItem = fileItems.first();
-            const checkbox = firstItem.locator("[role='checkbox']");
-            const isChecked = await checkbox.isChecked();
-            console.log(`✓ 文件复选框状态：${isChecked ? "已选" : "未选"}`);
-
+        if ((await fileItems.count()) > 0) {
+            const firstCheckbox = fileItems.first().locator("[role='checkbox']");
+            const isChecked = await firstCheckbox.isChecked();
             if (!isChecked) {
-                await checkbox.click();
-                const afterClick = await checkbox.isChecked();
-                console.log(`✓ 点击后状态：${afterClick ? "已选" : "未选"}`);
-                expect(afterClick).toBe(true);
+                await firstCheckbox.click();
             }
+            expect(await firstCheckbox.isChecked()).toBe(true);
         }
+    });
+
+    test("文件删除测试", async ({ page }) => {
+        const roomPage = await bootstrapRoomPage(page);
+        const filesBefore = await roomPage.getFileList();
+        expect(filesBefore.length).toBeGreaterThan(0);
+
+        await roomPage.clearAllFiles();
+        const filesAfter = await roomPage.getFileList();
+        expect(filesAfter.length).toBe(0);
     });
 });

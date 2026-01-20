@@ -1,5 +1,10 @@
 import { defineConfig, devices } from "@playwright/test";
 
+// 强制本地调试绕过系统代理，避免 localhost 被代理导致 502
+process.env.NO_PROXY = "localhost,127.0.0.1,::1";
+delete process.env.http_proxy;
+delete process.env.https_proxy;
+
 /**
  * See https://playwright.dev/docs/test-configuration.
  */
@@ -52,7 +57,12 @@ export default defineConfig({
 
   /* 尝试连接到现有服务器，如果不存在则启动 */
   webServer: {
-    command: "pnpm dev --port 4001",
+    command:
+      `lsof -i :4001 -sTCP:LISTEN -n -P >/dev/null 2>&1 || ` +
+      `INTERNAL_API_URL=http://localhost:4092/api/v1 ` +
+      `NEXT_PUBLIC_API_URL=/api/v1 ` +
+      `NEXT_PUBLIC_APP_URL=http://localhost:4001 ` +
+      `pnpm dev --port 4001`,
     url: "http://localhost:4001",
     reuseExistingServer: true,
     timeout: 180 * 1000,

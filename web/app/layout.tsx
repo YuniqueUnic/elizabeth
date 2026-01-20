@@ -10,7 +10,7 @@ import { FontSizeManager } from "@/components/font-size-manager";
 export const metadata: Metadata = {
   title: "Elizabeth - Secure File Sharing",
   description: "A modern, room-centric file sharing and collaboration platform",
-  generator: "v0.app",
+  generator: "unic",
 };
 
 export default function RootLayout({

@@ -62,6 +62,7 @@ export function RoomSharing({ roomId }: RoomSharingProps) {
         ? (
           <div className="flex justify-center rounded-lg border border-border bg-background p-4">
             <Zoom>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={qrCodeUrl}
                 alt="Room QR Code"

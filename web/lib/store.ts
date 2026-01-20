@@ -11,6 +11,41 @@ import {
   updateMessage,
 } from "@/api/messageService";
 
+function mergeServerMessagesWithPending(
+  existing: LocalMessage[],
+  serverMessages: Message[],
+): LocalMessage[] {
+  const pending = existing.filter((m) => m.isNew || m.isDirty || m.isPendingDelete);
+  const pendingById = new Map(pending.map((m) => [m.id, m]));
+  const serverIds = new Set(serverMessages.map((m) => m.id));
+
+  const merged: LocalMessage[] = serverMessages.map((msg) => {
+    const existingPending = pendingById.get(msg.id);
+    if (existingPending) return existingPending;
+    return {
+      ...msg,
+      isNew: false,
+      isDirty: false,
+      isPendingDelete: false,
+      originalContent: undefined,
+    } satisfies LocalMessage;
+  });
+
+  // Keep local pending messages that don't exist on server yet (e.g., temp ids).
+  for (const msg of pending) {
+    if (!serverIds.has(msg.id)) {
+      merged.push(msg);
+    }
+  }
+
+  merged.sort(
+    (a, b) =>
+      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+  );
+
+  return merged;
+}
+
 interface AppState {
   // Theme management
   theme: Theme;
@@ -81,6 +116,28 @@ interface AppState {
   revertMessageChanges: (messageId: string) => void;
   hasUnsavedChanges: () => boolean;
   saveMessages: () => Promise<void>;
+  syncMessagesFromServer: () => Promise<void>;
+
+  // Composer state (draft + edit mode). Not persisted.
+  composerContent: string;
+  setComposerContent: (content: string) => void;
+  composerEditingMessageId: string | null;
+  beginEditMessage: (messageId: string) => void;
+  cancelEditMessage: () => void;
+
+  // Request the active editor to insert markdown at the cursor position.
+  composerInsertRequest: { id: number; markdown: string } | null;
+  requestInsertMarkdown: (markdown: string) => void;
+  clearInsertMarkdownRequest: (requestId: number) => void;
+
+  // Upload state
+  activeUploads: number;
+  incrementActiveUploads: () => void;
+  decrementActiveUploads: () => void;
+
+  // Global redirect state (for room renaming)
+  roomRedirectTarget: string | null;
+  setRoomRedirectTarget: (target: string | null) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -178,7 +235,15 @@ export const useAppStore = create<AppState>()(
       // Room
       currentRoomId: "demo-room-123",
       setCurrentRoomId: (roomId) =>
-        set({ currentRoomId: roomId, messages: [] }),
+        set({
+          currentRoomId: roomId,
+          messages: [],
+          selectedMessages: new Set(),
+          selectedFiles: new Set(),
+          composerContent: "",
+          composerEditingMessageId: null,
+          composerInsertRequest: null,
+        }),
 
       // Authentication (derived from localStorage tokens)
       isAuthenticated: (roomName) => {
@@ -202,14 +267,9 @@ export const useAppStore = create<AppState>()(
       // Local message management
       messages: [],
       setMessages: (messages) =>
-        set({
-          messages: messages.map((m) => ({
-            ...m,
-            isNew: false,
-            isDirty: false,
-            isPendingDelete: false,
-          })),
-        }),
+        set((state) => ({
+          messages: mergeServerMessagesWithPending(state.messages, messages),
+        })),
       addMessage: (content) => {
         const newMessage: LocalMessage = {
           id: `temp-${Date.now()}`,
@@ -267,7 +327,11 @@ export const useAppStore = create<AppState>()(
       },
       hasUnsavedChanges: () => {
         const messages = get().messages;
-        return messages.some((m) => m.isNew || m.isDirty || m.isPendingDelete);
+        const activeUploads = get().activeUploads;
+        return (
+          messages.some((m) => m.isNew || m.isDirty || m.isPendingDelete) ||
+          activeUploads > 0
+        );
       },
       saveMessages: async () => {
         const { messages, currentRoomId } = get();
@@ -309,6 +373,58 @@ export const useAppStore = create<AppState>()(
           })),
         });
       },
+
+      syncMessagesFromServer: async () => {
+        const { currentRoomId } = get();
+        if (!currentRoomId) return;
+        let serverMessages: Message[];
+        try {
+          serverMessages = await getMessages(currentRoomId);
+        } catch (error) {
+          console.error("[syncMessagesFromServer] Failed to sync messages:", error);
+          return;
+        }
+
+        set((state) => ({
+          messages: mergeServerMessagesWithPending(state.messages, serverMessages),
+        }));
+      },
+
+      composerContent: "",
+      setComposerContent: (content) => set({ composerContent: content }),
+      composerEditingMessageId: null,
+      beginEditMessage: (messageId) => {
+        const message = get().messages.find((m) => m.id === messageId);
+        set({
+          composerEditingMessageId: messageId,
+          composerContent: message?.content ?? "",
+        });
+      },
+      cancelEditMessage: () =>
+        set({ composerEditingMessageId: null, composerContent: "" }),
+
+      composerInsertRequest: null,
+      requestInsertMarkdown: (markdown) =>
+        set({ composerInsertRequest: { id: Date.now(), markdown } }),
+      clearInsertMarkdownRequest: (requestId) =>
+        set((state) =>
+          state.composerInsertRequest?.id === requestId
+            ? { composerInsertRequest: null }
+            : {}
+        ),
+
+      // Upload state
+      activeUploads: 0,
+      incrementActiveUploads: () =>
+        set((state) => ({ activeUploads: state.activeUploads + 1 })),
+      decrementActiveUploads: () =>
+        set((state) => ({
+          activeUploads: Math.max(0, state.activeUploads - 1),
+        })),
+
+      // Global redirect state
+      roomRedirectTarget: null,
+      setRoomRedirectTarget: (target) => set({ roomRedirectTarget: target }),
     }),
     {
       name: "elizabeth-storage",
@@ -329,3 +445,7 @@ export const useAppStore = create<AppState>()(
     },
   ),
 );
+
+if (typeof window !== "undefined" && process.env.NODE_ENV !== "production") {
+  (window as any).__ELIZABETH_STORE__ = useAppStore;
+}

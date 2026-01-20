@@ -31,12 +31,13 @@ const EXPIRY_OPTIONS = [
   { label: "12 小时", value: "12hr", ms: 12 * 60 * 60 * 1000 },
   { label: "1 天", value: "1day", ms: 24 * 60 * 60 * 1000 },
   { label: "1 周", value: "1week", ms: 7 * 24 * 60 * 60 * 1000 },
-  { label: "永不过期", value: "never", ms: 0 },
+  // { label: "永不过期", value: "never", ms: 0 }, // 暂不提供，未来可能支持
 ];
 
 // 根据过期时间计算最接近的选项
 function getExpiryOptionFromDate(expiresAt: string | null | undefined): string {
-  if (!expiresAt) return "never";
+  // 如果没有过期时间，默认设置为 1 周（因为已移除"永不过期"选项）
+  if (!expiresAt) return "1week";
 
   // 后端返回的是 NaiveDateTime (UTC 时间，无时区标记)
   // 需要手动添加 'Z' 后缀来表示这是 UTC 时间
@@ -53,7 +54,7 @@ function getExpiryOptionFromDate(expiresAt: string | null | undefined): string {
   let minDiff = Math.abs(diff - closestOption.ms);
 
   for (const option of EXPIRY_OPTIONS) {
-    if (option.ms === 0) continue; // 跳过"永不过期"
+    if (option.ms === 0) continue; // 跳过永不过期选项（如果未来启用）
     const currentDiff = Math.abs(diff - option.ms);
     if (currentDiff < minDiff) {
       minDiff = currentDiff;
@@ -158,15 +159,16 @@ export function RoomSettingsForm({ roomDetails }: RoomSettingsFormProps) {
       expiresAt = expireDate.toISOString().replace("Z", "");
     }
 
-    // ✅ FIX: Detect if password was changed
-    // Send empty string "" to clear password, not null
+    // Detect if password was changed
+    // - If unchanged, omit the field to avoid unintended token side effects.
+    // - If changed to empty string, backend treats it as "clear password".
     const newPassword = password.trim();
     const oldPassword = roomDetails.password || "";
     const passwordChanged = newPassword !== oldPassword;
 
     updateMutation.mutate({
       expiresAt: expiresAt ?? undefined,
-      password: newPassword, // Send empty string to clear password
+      password: passwordChanged ? newPassword : undefined,
       maxViews,
       passwordChanged,
     });

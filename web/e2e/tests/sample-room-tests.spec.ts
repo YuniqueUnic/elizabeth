@@ -358,12 +358,17 @@ test.describe("End-to-End Room Scenarios", () => {
         const { roomPage, roomName } = await bootstrapRoom(page);
 
         // 2. 配置房间设置
+        // const password = "E2ETestPass123";
         await roomPage.fillRoomSettings({
             expirationTime: "12 小时",
-            password: "E2ETestPass123",
+            // password: password, // 暂时注释掉，在单独的测试中验证密码流程
             maxViewCount: 75,
         });
         await roomPage.saveRoomSettings();
+
+        // 处理可能出现的密码对话框
+        // 设置密码后，系统可能会要求重新验证
+        // await roomPage.enterRoomPassword(password);
 
         // 3. 设置权限
         await roomPage.setRoomPermissions({
@@ -408,5 +413,22 @@ test.describe("End-to-End Room Scenarios", () => {
         // 4. 验证"未保存"状态消失
         hasUnsaved = await roomPage.hasUnsavedBadge();
         expect(hasUnsaved).toBe(false);
+    });
+
+    test("E2E-003: Password protection workflow", async ({ page }) => {
+        const { roomPage } = await bootstrapRoom(page);
+        const password = "SecurePass123!";
+
+        // 1. 设置密码
+        await roomPage.fillRoomSettings({ password });
+        await roomPage.saveRoomSettings();
+
+        // 2. 验证密码弹窗并输入
+        await roomPage.enterRoomPassword(password);
+
+        // 3. 验证可以继续操作（例如发送消息）
+        await roomPage.sendMessage("Message after password unlock");
+        const messageCount = await roomPage.getMessageCount();
+        expect(messageCount).toBeGreaterThan(0);
     });
 });

@@ -11,33 +11,19 @@
 import { API_ENDPOINTS } from "../lib/config";
 import { api } from "../lib/utils/api";
 import { getAccessToken, getValidToken } from "./authService";
-import type { BackendRoomContent, FileItem } from "../lib/types";
+import type {
+  BackendRoomContent,
+  FileItem,
+  UpdateContentResponse,
+  UploadContentResponse,
+  UploadPreparationRequest,
+  UploadPreparationResponse,
+} from "../lib/types";
 import {
   backendContentToFileItem as convertFile,
   ContentType as CT,
   parseContentType,
 } from "../lib/types";
-
-// ============================================================================
-// File Request/Response Types
-// ============================================================================
-
-export interface PrepareUploadRequest {
-  files: Array<{
-    name: string;
-    size: number;
-    mime: string;
-  }>;
-}
-
-export interface PrepareUploadResponse {
-  reservation_id: string;
-  reservations: Array<{
-    file_name: string;
-    expected_size: number;
-    mime_type: string;
-  }>;
-}
 
 export interface UploadUrlRequest {
   url: string;
@@ -90,22 +76,14 @@ export async function getFilesList(
     { token: authToken },
   );
 
-  // Filter for non-text content (files only) and convert to FileItem
-  // Exclude text messages (ContentType.Text or text/plain files with message.txt pattern)
+  // Filter for non-text content (files only) and convert to FileItem.
+  // Messages are stored as ContentType.Text and should never appear here.
   const filtered = contents
     .filter((content) => {
       const contentType = parseContentType(content.content_type);
 
       // Exclude explicit text content
       if (contentType === CT.Text) {
-        return false;
-      }
-      // Exclude text files that are messages (mime_type is text/plain and filename includes message.txt)
-      if (
-        contentType === CT.File &&
-        content.mime_type === "text/plain" &&
-        content.file_name?.includes("message.txt")
-      ) {
         return false;
       }
       return true;
@@ -148,6 +126,16 @@ export async function uploadFile(
   const useChunkedUpload = options?.useChunkedUpload ??
     file.size > CHUNKED_UPLOAD_THRESHOLD;
 
+  if (typeof window !== "undefined") {
+    (window as any).__elizabethLastUpload = {
+      room: roomName,
+      name: file.name,
+      size: file.size,
+      threshold: CHUNKED_UPLOAD_THRESHOLD,
+      chunked: useChunkedUpload,
+    };
+  }
+
   if (useChunkedUpload) {
     const { uploadFileChunked } = await import("./chunkedUploadService");
     const mergeResponse = await uploadFileChunked(
@@ -162,6 +150,9 @@ export async function uploadFile(
     const mergedFile = mergeResponse.merged_files?.[0];
     if (!mergedFile) {
       throw new Error("No merged files in response");
+    }
+    if (mergedFile.content_id == null) {
+      throw new Error("Merged file missing content_id");
     }
 
     const timestamp = new Date().toISOString();
@@ -178,7 +169,7 @@ export async function uploadFile(
     };
   }
 
-  const prepareRequest: PrepareUploadRequest = {
+  const prepareRequest: UploadPreparationRequest = {
     files: [{
       name: file.name,
       size: file.size,
@@ -186,7 +177,7 @@ export async function uploadFile(
     }],
   };
 
-  const prepareResponse = await api.post<PrepareUploadResponse>(
+  const prepareResponse = await api.post<UploadPreparationResponse>(
     API_ENDPOINTS.content.prepare(roomName),
     prepareRequest,
     { token: authToken },
@@ -195,10 +186,8 @@ export async function uploadFile(
   const formData = new FormData();
   formData.append("file", file);
 
-  const uploadOnce = async (reservationId: string) => {
-    const response = await api.post<
-      { uploaded: BackendRoomContent[]; current_size: number }
-    >(
+  const uploadOnce = async (reservationId: number) => {
+    const response = await api.post<UploadContentResponse>(
       `${API_ENDPOINTS.content.base(roomName)}?reservation_id=${reservationId}`,
       formData,
       { token: authToken },
@@ -213,7 +202,7 @@ export async function uploadFile(
     if (err?.code !== 400) {
       throw err;
     }
-    const retryPrepare = await api.post<PrepareUploadResponse>(
+    const retryPrepare = await api.post<UploadPreparationResponse>(
       API_ENDPOINTS.content.prepare(roomName),
       prepareRequest,
       { token: authToken },
@@ -385,7 +374,7 @@ export async function uploadUrl(
   );
 
   // Step 3: Update the content to URL type
-  const updateResponse = await api.put<{ updated: BackendRoomContent }>(
+  const updateResponse = await api.put<UpdateContentResponse>(
     `${API_ENDPOINTS.content.byId(roomName, uploadedContent.id)}`,
     {
       url: data.url,
@@ -400,7 +389,7 @@ export async function uploadUrl(
 
 // Legacy compatibility exports (for existing components)
 // getFilesList is already exported above
-export default {
+const fileService = {
   getFilesList,
   uploadFile,
   uploadUrl,
@@ -409,3 +398,5 @@ export default {
   downloadFile,
   downloadFilesBatch,
 };
+
+export default fileService;

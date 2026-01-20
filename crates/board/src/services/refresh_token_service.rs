@@ -9,10 +9,10 @@ use uuid::Uuid;
 
 use crate::models::{RefreshTokenResponse, Room, RoomRefreshToken, TokenBlacklistEntry};
 use crate::repository::room_refresh_token_repository::{
-    IRoomRefreshTokenRepository, ITokenBlacklistRepository, SqliteRoomRefreshTokenRepository,
-    SqliteTokenBlacklistRepository,
+    IRoomRefreshTokenRepository, ITokenBlacklistRepository, RoomRefreshTokenRepository,
+    TokenBlacklistRepository,
 };
-use crate::repository::room_repository::{IRoomRepository, SqliteRoomRepository};
+use crate::repository::room_repository::{IRoomRepository, RoomRepository};
 use crate::services::token::{RoomTokenClaims, RoomTokenService, TokenType};
 
 /// 刷新令牌服务，简化版本
@@ -313,20 +313,81 @@ impl RefreshTokenService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::DbPool;
+    use crate::db::{DbPoolSettings, run_migrations};
     use crate::repository::room_refresh_token_repository::{
-        SqliteRoomRefreshTokenRepository, SqliteTokenBlacklistRepository,
+        RoomRefreshTokenRepository, TokenBlacklistRepository,
     };
     use chrono::Duration;
-    use sqlx::SqlitePool;
 
-    async fn create_test_pool() -> DbPool {
-        let pool = SqlitePool::connect(":memory:").await.unwrap();
+    const TEST_DB_URL: &str = "sqlite::memory:";
 
-        // 运行迁移
-        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
-
-        pool
+    async fn create_test_pool() -> Arc<crate::db::DbPool> {
+        let settings = DbPoolSettings::new(TEST_DB_URL)
+            .with_max_connections(1)
+            .with_min_connections(1);
+        let pool = settings.create_pool().await.unwrap();
+        run_migrations(&pool, TEST_DB_URL).await.unwrap();
+        sqlx::query("DROP TABLE IF EXISTS rooms")
+            .execute(&pool)
+            .await
+            .ok();
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS rooms (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                slug TEXT NOT NULL UNIQUE,
+                password TEXT,
+                status INTEGER NOT NULL DEFAULT 0,
+                max_size INTEGER NOT NULL DEFAULT 10485760,
+                current_size INTEGER NOT NULL DEFAULT 0,
+                max_times_entered INTEGER NOT NULL DEFAULT 100,
+                current_times_entered INTEGER NOT NULL DEFAULT 0,
+                expire_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                permission INTEGER NOT NULL DEFAULT 1
+            )
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS token_blacklist (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                jti TEXT NOT NULL UNIQUE,
+                expires_at TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query("DROP TABLE IF EXISTS room_refresh_tokens")
+            .execute(&pool)
+            .await
+            .ok();
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS room_refresh_tokens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                room_id INTEGER NOT NULL,
+                access_token_jti TEXT NOT NULL,
+                token_hash TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                last_used_at TEXT,
+                is_revoked INTEGER NOT NULL DEFAULT 0
+            )
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        Arc::new(pool)
     }
 
     #[tokio::test]
@@ -335,10 +396,9 @@ mod tests {
         let secret = Arc::new("test_secret".to_string());
 
         let base_service = RoomTokenService::new(secret.clone());
-        let pool_arc = Arc::new(pool.clone());
-        let refresh_repo = Arc::new(SqliteRoomRefreshTokenRepository::new(pool_arc.clone()));
-        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(pool_arc.clone()));
-        let room_repo = Arc::new(SqliteRoomRepository::new(pool_arc));
+        let refresh_repo = Arc::new(RoomRefreshTokenRepository::new(pool.clone()));
+        let blacklist_repo = Arc::new(TokenBlacklistRepository::new(pool.clone()));
+        let room_repo = Arc::new(RoomRepository::new(pool.clone()));
 
         let refresh_service = RefreshTokenService::new(
             base_service,
@@ -372,10 +432,9 @@ mod tests {
         let secret = Arc::new("test_secret".to_string());
 
         let base_service = RoomTokenService::new(secret.clone());
-        let pool_arc = Arc::new(pool.clone());
-        let refresh_repo = Arc::new(SqliteRoomRefreshTokenRepository::new(pool_arc.clone()));
-        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(pool_arc.clone()));
-        let room_repo = Arc::new(SqliteRoomRepository::new(pool_arc));
+        let refresh_repo = Arc::new(RoomRefreshTokenRepository::new(pool.clone()));
+        let blacklist_repo = Arc::new(TokenBlacklistRepository::new(pool.clone()));
+        let room_repo = Arc::new(RoomRepository::new(pool.clone()));
 
         let refresh_service = RefreshTokenService::new(
             base_service,
@@ -420,10 +479,9 @@ mod tests {
         let secret = Arc::new("test_secret".to_string());
 
         let base_service = RoomTokenService::new(secret.clone());
-        let pool_arc = Arc::new(pool.clone());
-        let refresh_repo = Arc::new(SqliteRoomRefreshTokenRepository::new(pool_arc.clone()));
-        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(pool_arc.clone()));
-        let room_repo = Arc::new(SqliteRoomRepository::new(pool_arc));
+        let refresh_repo = Arc::new(RoomRefreshTokenRepository::new(pool.clone()));
+        let blacklist_repo = Arc::new(TokenBlacklistRepository::new(pool.clone()));
+        let room_repo = Arc::new(RoomRepository::new(pool.clone()));
 
         let refresh_service = RefreshTokenService::new(
             base_service.clone(),

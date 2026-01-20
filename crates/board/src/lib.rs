@@ -6,13 +6,19 @@ pub mod errors;
 mod handlers;
 mod init;
 pub mod middleware;
-pub mod models;
+pub use board_protocol::dto;
+pub use board_protocol::models;
 pub mod permissions;
 pub mod repository;
 pub mod route;
 pub mod services;
 pub mod state;
+pub mod storage;
 pub mod validation;
+pub mod websocket;
+
+#[cfg(test)]
+mod tests;
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -28,10 +34,10 @@ use crate::config::{AppConfig, AuthConfig, RoomConfig, ServerConfig, StorageConf
 use crate::constants::{
     storage::DEFAULT_STORAGE_ROOT, upload::DEFAULT_UPLOAD_RESERVATION_TTL_SECONDS,
 };
-use crate::db::{DbPoolSettings, init_db, run_migrations};
+use crate::db::{DbKind, DbPoolSettings, init_db, run_migrations};
 use crate::init::{cfg_service, const_service, log_service};
 use crate::repository::room_refresh_token_repository::{
-    SqliteRoomRefreshTokenRepository, SqliteTokenBlacklistRepository,
+    RoomRefreshTokenRepository, TokenBlacklistRepository,
 };
 use crate::services::{RoomTokenService, refresh_token_service::RefreshTokenService};
 use crate::state::AppState;
@@ -61,14 +67,16 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
     log_service::init(cfg);
 
     // 初始化数据库
-    let db_settings = DbPoolSettings::new(cfg.app.database.url.clone())
+    let db_url = cfg.app.database.url.clone();
+    let sqlite_journal = parse_sqlite_journal_mode(cfg.app.database.journal_mode.as_str());
+    let db_settings = DbPoolSettings::new(db_url.clone())
         .with_max_connections(cfg.app.database.max_connections)
-        .with_min_connections(cfg.app.database.min_connections)
-        .with_journal_mode(parse_sqlite_journal_mode(
-            cfg.app.database.journal_mode.as_str(),
-        ));
+        .with_min_connections(cfg.app.database.min_connections);
     let db_pool = init_db(&db_settings).await?;
-    run_migrations(&db_pool).await?;
+    if matches!(DbKind::detect(&db_url), DbKind::Sqlite) {
+        apply_sqlite_journal_mode(&db_pool, sqlite_journal).await?;
+    }
+    run_migrations(&db_pool, &db_url).await?;
     let db_pool = Arc::new(db_pool);
 
     // 创建应用配置
@@ -76,6 +84,12 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
         server: ServerConfig {
             host: cfg.app.server.addr.clone(),
             port: cfg.app.server.port,
+        },
+        database: crate::config::DatabaseConfig {
+            url: cfg.app.database.url.clone(),
+            max_connections: cfg.app.database.max_connections.unwrap_or(10),
+            min_connections: cfg.app.database.min_connections.unwrap_or(1),
+            journal_mode: cfg.app.database.journal_mode.clone(),
         },
         storage: StorageConfig {
             root: if cfg.app.storage.root.trim().is_empty() {
@@ -102,13 +116,20 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
     // 创建应用状态
     let app_state = Arc::new(AppState::new(app_config, db_pool)?);
 
+    spawn_room_gc_task(
+        app_state.clone(),
+        cfg.app.gc.interval_seconds,
+        cfg.app.gc.batch_limit,
+    );
+
     let addr: SocketAddr = format!("{}:{}", cfg.app.server.addr, cfg.app.server.port).parse()?;
     let listener = tokio::net::TcpListener::bind(addr).await?;
+    let actual_addr = listener.local_addr()?;
 
     let (scalar_path, router) = build_api_router(app_state, cfg);
 
-    println!("Server listening on http://{addr}");
-    println!("Scalar listening on http://{addr}{}", &scalar_path);
+    println!("Server listening on http://{actual_addr}");
+    println!("Scalar listening on http://{actual_addr}{}", &scalar_path);
 
     axum::serve(
         listener,
@@ -136,21 +157,94 @@ fn parse_sqlite_journal_mode(value: &str) -> SqliteJournalMode {
     }
 }
 
+async fn apply_sqlite_journal_mode(
+    pool: &crate::db::DbPool,
+    mode: SqliteJournalMode,
+) -> anyhow::Result<()> {
+    let pragma_value = match mode {
+        SqliteJournalMode::Delete => "DELETE",
+        SqliteJournalMode::Truncate => "TRUNCATE",
+        SqliteJournalMode::Persist => "PERSIST",
+        SqliteJournalMode::Memory => "MEMORY",
+        SqliteJournalMode::Off => "OFF",
+        SqliteJournalMode::Wal => "WAL",
+    };
+    let statement = format!("PRAGMA journal_mode = {pragma_value}");
+    sqlx::query(&statement).execute(pool).await?;
+    Ok(())
+}
+
 fn build_api_router(app_state: Arc<AppState>, cfg: &configrs::Config) -> (String, axum::Router) {
     let (status_router, mut api) = route::status::api_router().split_for_parts();
     let (room_router, room_api) = route::room::api_router(app_state.clone()).split_for_parts();
-    let (auth_router, auth_api) = route::auth::auth_router(app_state).split_for_parts();
+    let (auth_router, auth_api) = route::auth::auth_router(app_state.clone()).split_for_parts();
+    let (admin_router, admin_api) = route::admin::api_router(app_state.clone()).split_for_parts();
 
-    let router = status_router.merge(room_router).merge(auth_router);
+    let router = status_router
+        .merge(room_router)
+        .merge(auth_router)
+        .merge(admin_router);
     api.merge(room_api);
     api.merge(auth_api);
+    api.merge(admin_api);
+
+    // Expose a machine-consumable OpenAPI document for client generation.
+    // Keep it in parallel with the JSON Schema exported via build.rs.
+    let openapi_path = format!("{}/openapi.json", route::API_PREFIX);
+    let openapi_json = serde_json::to_string_pretty(&api).unwrap_or_else(|e| {
+        log::error!("Failed to serialize OpenAPI: {e}");
+        "{}".to_string()
+    });
+    let router = router.route(
+        &openapi_path,
+        axum::routing::get({
+            let openapi_json = openapi_json.clone();
+            move || async move {
+                (
+                    [(axum::http::header::CONTENT_TYPE, "application/json")],
+                    openapi_json.clone(),
+                )
+            }
+        }),
+    );
 
     let (scalar, scalar_path) = route::scalar(api);
     let router = router.merge(scalar);
+
+    // 集成 WebSocket 路由
+    let ws_router = route::ws::api_router(app_state.clone());
+    let router = router.merge(ws_router);
 
     // Apply middleware configuration
     let middleware_config = crate::middleware::from_app_config(cfg);
     let router = crate::middleware::apply(&middleware_config, router);
 
     (scalar_path, router)
+}
+
+fn spawn_room_gc_task(app_state: Arc<AppState>, interval_seconds: u64, batch_limit: u32) {
+    let interval_seconds = interval_seconds.max(5);
+    let batch_limit = batch_limit.clamp(1, 10_000);
+
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(interval_seconds));
+        loop {
+            interval.tick().await;
+            let cleaned = app_state
+                .services
+                .room_gc
+                .run_scheduled_gc(&app_state.connection_manager, batch_limit)
+                .await;
+
+            match cleaned {
+                Ok(count) if count > 0 => {
+                    log::info!("Room GC cleaned {} rooms", count);
+                }
+                Ok(_) => {}
+                Err(e) => {
+                    log::warn!("Room GC task error: {}", e);
+                }
+            }
+        }
+    });
 }

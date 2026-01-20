@@ -1,5 +1,8 @@
 use smart_default::SmartDefault;
 
+const DEFAULT_JWT_SECRET: &str =
+    "default-secret-change-in-productiondefault-secret-change-in-production"; // pragma: allowlist secret
+
 use crate::merge::{Merge, overwrite, overwrite_not_empty_string};
 
 #[derive(Merge, Debug, Clone, serde::Deserialize, serde::Serialize, Default)]
@@ -12,6 +15,7 @@ pub struct AppConfig {
     pub jwt: JwtConfig,
     pub room: RoomConfig,
     pub upload: UploadConfig,
+    pub gc: GcConfig,
     pub middleware: MiddlewareConfig,
 }
 
@@ -37,7 +41,7 @@ pub struct LoggingConfig {
 #[derive(Merge, Debug, Clone, SmartDefault, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct DatabaseConfig {
-    #[default("sqlite:app.db")]
+    #[default("sqlite://app.db?mode=rwc")]
     #[merge(strategy = overwrite_not_empty_string)]
     pub url: String,
     #[default(Some(20))]
@@ -54,7 +58,7 @@ pub struct DatabaseConfig {
 #[derive(Merge, Debug, Clone, SmartDefault, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct JwtConfig {
-    #[default("default-secret-change-in-production".repeat(2))] // pragma: allowlist secret
+    #[default(DEFAULT_JWT_SECRET.to_string())] // pragma: allowlist secret
     #[merge(strategy = overwrite_not_empty_string)]
     pub secret: String,
     #[default(30 * 60)]
@@ -103,6 +107,22 @@ pub struct UploadConfig {
     #[default(3600)]
     #[merge(strategy = overwrite)]
     pub reservation_ttl_seconds: i64,
+}
+
+#[derive(Merge, Debug, Clone, SmartDefault, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
+pub struct GcConfig {
+    /// Room GC 扫描间隔（秒）
+    ///
+    /// 建议：生产环境 300~3600 秒；开发环境可以更短。
+    #[default(600)]
+    #[merge(strategy = overwrite)]
+    pub interval_seconds: u64,
+
+    /// 每次扫描最多处理的房间数量（防止一次扫太久）
+    #[default(200)]
+    #[merge(strategy = overwrite)]
+    pub batch_limit: u32,
 }
 
 // Middleware configurations - simplified without Merge trait
@@ -246,30 +266,32 @@ mod tests {
         assert_eq!(cfg.server.addr, "127.0.0.1");
         assert_eq!(cfg.server.port, 4092);
         assert_eq!(cfg.logging.level.to_lowercase(), "info");
-        assert_eq!(cfg.database.url, "sqlite:app.db");
+        assert_eq!(cfg.database.url, "sqlite://app.db?mode=rwc");
         assert_eq!(cfg.database.max_connections, Some(20));
         assert_eq!(cfg.database.min_connections, Some(5));
         assert_eq!(cfg.database.journal_mode.to_lowercase(), "wal");
-        assert_eq!(cfg.jwt.secret, "secret");
+        assert_eq!(cfg.jwt.secret, DEFAULT_JWT_SECRET);
         assert_eq!(cfg.jwt.ttl_seconds, 30 * 60);
         assert_eq!(cfg.jwt.refresh_ttl_seconds, 7 * 24 * 60 * 60);
         assert_eq!(cfg.jwt.max_refresh_count, 10);
         assert_eq!(cfg.jwt.cleanup_interval_seconds, 24 * 60 * 60);
-        assert_eq!(cfg.jwt.enable_refresh_token_rotation, true);
+        assert!(cfg.jwt.enable_refresh_token_rotation);
         assert_eq!(cfg.storage.root, "storage/rooms");
-        assert_eq!(cfg.room.max_size, 10 * 1024 * 1024);
+        assert_eq!(cfg.room.max_size, 50 * 1024 * 1024);
         assert_eq!(cfg.room.max_times_entered, 100);
         assert_eq!(cfg.upload.reservation_ttl_seconds, 3600);
+        assert_eq!(cfg.gc.interval_seconds, 600);
+        assert_eq!(cfg.gc.batch_limit, 200);
 
         // Test middleware defaults
-        assert_eq!(cfg.middleware.tracing.enabled, true);
+        assert!(cfg.middleware.tracing.enabled);
         assert_eq!(cfg.middleware.tracing.level, "info");
-        assert_eq!(cfg.middleware.request_id.enabled, true);
+        assert!(cfg.middleware.request_id.enabled);
         assert_eq!(cfg.middleware.request_id.header_name, "X-Request-Id");
-        assert_eq!(cfg.middleware.compression.enabled, false);
-        assert_eq!(cfg.middleware.cors.enabled, false);
-        assert_eq!(cfg.middleware.security.enabled, true);
-        assert_eq!(cfg.middleware.rate_limit.enabled, false);
+        assert!(!cfg.middleware.compression.enabled);
+        assert!(!cfg.middleware.cors.enabled);
+        assert!(cfg.middleware.security.enabled);
+        assert!(!cfg.middleware.rate_limit.enabled);
     }
 
     #[test]
@@ -305,6 +327,10 @@ mod tests {
             upload: UploadConfig {
                 reservation_ttl_seconds: 30,
             },
+            gc: GcConfig {
+                interval_seconds: 30,
+                batch_limit: 7,
+            },
             middleware: MiddlewareConfig::default(),
         };
 
@@ -324,6 +350,8 @@ mod tests {
         assert_eq!(left.room.max_size, 42);
         assert_eq!(left.room.max_times_entered, 7);
         assert_eq!(left.upload.reservation_ttl_seconds, 30);
+        assert_eq!(left.gc.interval_seconds, 30);
+        assert_eq!(left.gc.batch_limit, 7);
     }
 
     #[test]

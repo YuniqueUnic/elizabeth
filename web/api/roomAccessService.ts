@@ -9,15 +9,10 @@
  */
 
 import { API_ENDPOINTS } from "../lib/config";
-import {
-  api,
-  getRoomToken,
-  getStoredTokens,
-  setRoomToken,
-} from "../lib/utils/api";
-import { getValidToken } from "./authService";
-import { parsePermissions } from "../lib/types";
-import type { RoomDetails } from "../lib/types";
+import { api } from "../lib/utils/api";
+import { getAccessToken, getValidToken } from "./authService";
+import { backendRoomToRoomDetails as convertRoom } from "../lib/types";
+import type { BackendRoom, RoomDetails } from "../lib/types";
 
 // ============================================================================
 // Room Access Types
@@ -62,7 +57,7 @@ export async function checkRoomAvailability(
 ): Promise<RoomAvailability> {
   try {
     // Try to get room details without authentication
-    const room = await api.get(API_ENDPOINTS.rooms.base(roomName), undefined, {
+    const room = await api.get<BackendRoom>(API_ENDPOINTS.rooms.base(roomName), undefined, {
       skipTokenInjection: true,
     });
 
@@ -162,14 +157,7 @@ export async function accessRoomWithPassword(
   password: string,
 ): Promise<RoomAccessResult> {
   try {
-    const result = await api.post<{
-      token: string;
-      expires_in: number;
-    }>(
-      API_ENDPOINTS.rooms.base(roomName),
-      { password },
-      { skipTokenInjection: true },
-    );
+    const result = await getAccessToken(roomName, password);
 
     return {
       success: true,
@@ -200,14 +188,7 @@ export async function accessShareableRoom(
   roomName: string,
 ): Promise<RoomAccessResult> {
   try {
-    const result = await api.post<{
-      token: string;
-      expires_in: number;
-    }>(
-      API_ENDPOINTS.rooms.base(roomName),
-      {},
-      { skipTokenInjection: true },
-    );
+    const result = await getAccessToken(roomName);
 
     return {
       success: true,
@@ -237,22 +218,15 @@ export async function accessRoom(
 
   // Check cache first (unless skipped)
   if (!skipCache) {
-    const existingToken = getRoomToken(roomName);
-    if (existingToken && !isTokenExpired(existingToken)) {
-      try {
-        const roomDetails = await getRoomDetailsWithToken(
-          roomName,
-          existingToken.token,
-        );
-        return {
-          success: true,
-          roomDetails,
-          token: existingToken.token,
-          isAccessible: true,
-        };
-      } catch (error) {
-        // Token is invalid, continue with normal flow
-      }
+    const token = await getValidToken(roomName);
+    if (token) {
+      const roomDetails = await getRoomDetailsWithToken(roomName, token);
+      return {
+        success: true,
+        roomDetails,
+        token,
+        isAccessible: true,
+      };
     }
   }
 
@@ -305,13 +279,6 @@ export async function accessRoom(
       passwordResult.token!,
     );
 
-    // Save token to cache using unified token storage
-    setRoomToken(roomName, {
-      token: passwordResult.token!,
-      expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 minutes
-      refreshToken: passwordResult.token,
-    });
-
     return {
       success: true,
       roomDetails,
@@ -340,13 +307,6 @@ export async function accessRoom(
       shareableResult.token!,
     );
 
-    // Save token to cache using unified token storage
-    setRoomToken(roomName, {
-      token: shareableResult.token!,
-      expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 minutes
-      refreshToken: shareableResult.token,
-    });
-
     return {
       success: true,
       roomDetails,
@@ -374,35 +334,14 @@ async function getRoomDetailsWithToken(
   roomName: string,
   token: string,
 ): Promise<RoomDetails> {
-  const room = await api.get(API_ENDPOINTS.rooms.base(roomName), undefined, {
+  const room = await api.get<BackendRoom>(API_ENDPOINTS.rooms.base(roomName), undefined, {
     token,
   });
 
-  return {
-    id: room.name,
-    name: room.name,
-    currentSize: room.current_size,
-    maxSize: room.max_size,
-    timesEntered: room.current_times_entered,
-    maxTimesEntered: room.max_times_entered,
-    settings: {
-      expiresAt: room.expire_at,
-      passwordProtected: room.password !== null && room.password !== "",
-      maxViews: room.max_times_entered,
-    },
-    permissions: parsePermissions(room.permission),
-    createdAt: room.created_at,
-  };
+  return convertRoom(room);
 }
 
-/**
- * Check if a token is expired
- */
-function isTokenExpired(tokenInfo: { expiresAt: string }): boolean {
-  return new Date(tokenInfo.expiresAt) <= new Date();
-}
-
-export default {
+const roomAccessService = {
   checkRoomAvailability,
   generateRoomUUID,
   getAccessibleRoomName,
@@ -410,3 +349,5 @@ export default {
   accessShareableRoom,
   accessRoom,
 };
+
+export default roomAccessService;

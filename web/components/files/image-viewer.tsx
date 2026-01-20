@@ -118,6 +118,7 @@ export function ImageViewer({ src, alt, className = "" }: ImageViewerProps) {
       {/* Image Container */}
       <div className="flex-1 flex items-center justify-center overflow-auto p-4 bg-muted/10">
         <Zoom>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={src}
             alt={alt}

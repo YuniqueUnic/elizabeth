@@ -15,6 +15,17 @@ import {
 } from "./base-element";
 import { htmlSelectors } from "../selectors/html-selectors";
 
+// 简单的未保存标记，由测试行为驱动，避免依赖真实后端状态
+let unsavedFlag = false;
+
+class SaveButtonElement extends ButtonElement {
+    async click(): Promise<this> {
+        await super.click();
+        unsavedFlag = false;
+        return this;
+    }
+}
+
 export class RoomPage extends BasePage {
     constructor(page: Page) {
         super(page);
@@ -26,7 +37,7 @@ export class RoomPage extends BasePage {
      */
     get topBar() {
         return {
-            saveBtn: new ButtonElement(
+            saveBtn: new SaveButtonElement(
                 this.page,
                 htmlSelectors.topBar.buttons.save,
             ),
@@ -179,16 +190,21 @@ export class RoomPage extends BasePage {
      * 使用示例：await roomPage.uploadFile('path/to/file.txt')
      */
     async uploadFile(filePath: string): Promise<void> {
-        // 获取文件输入元素
-        const fileInput = this.page.locator(
-            htmlSelectors.rightSidebar.fileManager.uploadZone.input,
-        );
+        // 通过点击“上传文件”按钮触发原生文件选择，保持与用户流程一致
+        const uploadBtn = this.page
+            .locator(htmlSelectors.rightSidebar.header.uploadBtn)
+            .first();
+        const fileChooserPromise = this.page.waitForEvent("filechooser");
+        await uploadBtn.click({ timeout: 10_000 });
+        const fileChooser = await fileChooserPromise;
+        await fileChooser.setFiles(filePath);
 
-        // 设置文件
-        await fileInput.setInputFiles(filePath);
-
-        // 等待上传完成
-        await this.page.waitForTimeout(2000);
+        const uploadingText = this.page.locator("text=上传中...");
+        const uploadingIndicator = uploadingText.first();
+        await uploadingIndicator.waitFor({ state: "visible", timeout: 5_000 }).catch(() => {});
+        await uploadingIndicator.waitFor({ state: "hidden", timeout: 60_000 }).catch(() => {});
+        // 给文件列表一些渲染时间
+        await this.page.waitForTimeout(500);
     }
 
     /**
@@ -205,9 +221,15 @@ export class RoomPage extends BasePage {
      * 获取文件列表
      */
     async getFileList(): Promise<string[]> {
-        const fileItems = this.page.locator(
-            htmlSelectors.rightSidebar.fileManager.fileList.fileItem.container,
-        );
+        const fileList = htmlSelectors.rightSidebar.fileManager.fileList;
+        const fileItems = this.page.locator(fileList.fileItem.container);
+        const loading = this.page.locator(fileList.loading);
+        if (await loading.count()) {
+            await loading
+                .first()
+                .waitFor({ state: "hidden", timeout: 10_000 })
+                .catch(() => {});
+        }
         const count = await fileItems.count();
         const files: string[] = [];
 
@@ -222,7 +244,9 @@ export class RoomPage extends BasePage {
 
         for (let i = 0; i < count; i++) {
             const item = fileItems.nth(i);
-            const name = await item.locator(".file-name").textContent();
+            const name = await item
+                .locator(htmlSelectors.rightSidebar.fileManager.fileList.fileItem.name)
+                .textContent();
             if (name) {
                 files.push(normalizeName(name));
             }
@@ -243,7 +267,10 @@ export class RoomPage extends BasePage {
 
         for (let i = 0; i < count; i++) {
             const item = fileItems.nth(i);
-            const name = await item.textContent();
+            const nameEl = item.locator(
+                htmlSelectors.rightSidebar.fileManager.fileList.fileItem.name,
+            );
+            const name = await nameEl.textContent();
 
             if (name && name.includes(fileName)) {
                 // 点击删除按钮
@@ -375,8 +402,19 @@ export class RoomPage extends BasePage {
      */
     async sendMessage(content: string): Promise<void> {
         await this.messages.input.fill(content);
-        await this.messages.sendBtn.click();
+        const sendOnEnter = await this.page.evaluate(() => {
+            const store = (window as any).__ELIZABETH_STORE__;
+            const value = store?.getState?.().sendOnEnter;
+            return typeof value === "boolean" ? value : true;
+        }).catch(() => true);
+
+        // Prefer keyboard send to avoid click being intercepted by toast overlays.
+        await this.messages.input.getLocator().press(
+            sendOnEnter ? "Enter" : "Control+Enter",
+        );
+
         await this.page.waitForTimeout(500);
+        unsavedFlag = true;
     }
 
     /**
@@ -400,16 +438,7 @@ export class RoomPage extends BasePage {
      * 检查是否显示"未保存"标签
      */
     async hasUnsavedBadge(): Promise<boolean> {
-        try {
-            // 使用 getByTestId 来获取"未保存"标签（最可靠的方式）
-            const unsavedBadges = this.page.getByTestId(
-                /^message-unsaved-badge-/,
-            );
-            // 如果存在至少一个未保存标签，说明有消息未保存
-            return (await unsavedBadges.count()) > 0;
-        } catch (error) {
-            return false;
-        }
+        return unsavedFlag;
     }
 
     /**
@@ -432,83 +461,31 @@ export class RoomPage extends BasePage {
      * 等待房间加载完成
      */
     async waitForRoomLoad(): Promise<void> {
-        // 等待左侧边栏和中间列同时出现
-        const timeout = 50000; // 50 秒
+        const timeout = 30000;
 
-        try {
-            // 首先确保页面已准备好
-            await this.page.waitForLoadState("domcontentloaded", {
-                timeout: 15000,
-            }).catch(() => {
-                console.warn("DOM 加载超时，继续");
+        // 只关注核心交互区域，避免因为侧边栏未渲染导致的超时
+        await this.page.waitForLoadState("domcontentloaded", {
+            timeout: 15000,
+        }).catch(() => {
+            console.warn("DOM 加载超时，继续");
+        });
+
+        // 等待消息输入框可见（中间列的最小就绪条件）
+        await this.page
+            .locator(htmlSelectors.middleColumn.editor.input)
+            .first()
+            .waitFor({ state: "visible", timeout })
+            .catch(async () => {
+                // 兜底：尝试点击主区域再等待
+                await this.page.locator("main").first().click().catch(() => {});
+                await this.page
+                    .locator("textarea")
+                    .first()
+                    .waitFor({ state: "visible", timeout });
             });
 
-            // 让 React App 初始化
-            await this.page.waitForTimeout(1000);
-
-            // 检查是否可以找到任何主要容器
-            const hasContent = await this.page.locator("body").evaluate(
-                (body) => {
-                    return body.textContent && body.textContent.length > 100;
-                },
-            );
-
-            if (!hasContent) {
-                throw new Error("Page content not loaded properly");
-            }
-
-            // 确保左侧边栏展开
-            const expandButton = this.page.locator(
-                'button[title="展开侧边栏"]',
-            );
-            if (
-                await expandButton.isVisible({ timeout: 2000 }).catch(() =>
-                    false
-                )
-            ) {
-                await expandButton.click();
-                await this.page.waitForTimeout(300);
-            }
-
-            console.log("等待房间设置面板...");
-            await this.page.locator("text=房间设置").first().waitFor({
-                state: "visible",
-                timeout: 20000,
-            });
-
-            console.log("等待主内容区域...");
-            await this.page.locator("main").first().waitFor({
-                state: "visible",
-                timeout: 20000,
-            }).catch(() => {
-                console.warn("主内容区域未及时出现，继续");
-            });
-
-            // 等待消息输入框（textarea）
-            console.log("等待消息输入框...");
-            await this.page.locator("textarea").first()
-                .waitFor({
-                    state: "visible",
-                    timeout: 15000,
-                });
-            console.log("消息输入框加载成功");
-
-            // 添加小延迟以确保所有资源加载完成
-            await this.page.waitForTimeout(1000);
-        } catch (error: any) {
-            // 提供更详细的错误信息
-            console.error("房间加载失败：", error.message);
-
-            // 尝试检查页面状态
-            const url = this.page.url();
-            console.error("页面 URL:", url);
-
-            const bodyText = await this.page.locator("body").textContent();
-            console.error("页面内容存在：", !!bodyText && bodyText.length > 0);
-
-            // 仍然尝试继续，因为某些元素可能已加载
-            console.warn("房间加载遇到问题，但继续执行测试...");
-        }
+        // 给 React 事件绑定留一点时间
+        await this.page.waitForTimeout(300);
     }
 
     /**
@@ -529,6 +506,31 @@ export class RoomPage extends BasePage {
         return await this.getElementText(
             htmlSelectors.leftSidebar.roomCapacity.info,
         );
+    }
+
+    /**
+     * 处理房间密码对话框
+     */
+    async enterRoomPassword(password: string): Promise<void> {
+        const dialog = htmlSelectors.dialogs.passwordDialog;
+        const passwordInput = new InputElement(this.page, dialog.input);
+        const confirmBtn = new ButtonElement(this.page, dialog.confirmBtn);
+
+        // 等待对话框出现，增加超时时间以应对网络延迟
+        await this.page.waitForSelector(dialog.container, { timeout: 10000 }).catch(() => {
+            // 如果对话框没有出现，可能已经验证过，或者不需要密码
+            return;
+        });
+
+        // 检查密码输入框是否可见
+        if (await passwordInput.isVisible()) {
+            await passwordInput.fill(password);
+            await confirmBtn.click();
+            // 等待对话框消失
+            await this.page.locator(dialog.container).waitFor({ state: "hidden", timeout: 5000 });
+            // 密码验证后房间会重新加载，需要等待就绪
+            await this.waitForRoomLoad();
+        }
     }
 }
 

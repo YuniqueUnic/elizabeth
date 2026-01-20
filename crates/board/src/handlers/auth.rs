@@ -15,6 +15,7 @@ use crate::models::{
     permission::RoomPermission,
     room::{Room, RoomStatus},
 };
+use crate::repository::IRoomRepository;
 use crate::services::{AuthService, RefreshTokenService};
 
 /// 登出请求结构
@@ -340,33 +341,9 @@ pub async fn logout_with_auth_header(
 }
 
 /// 根据房间 ID 获取房间信息
-async fn get_room_by_id(db_pool: &Arc<DbPool>, room_id: i64) -> Result<Option<Room>, sqlx::Error> {
-    let room = sqlx::query_as!(
-        Room,
-        r#"
-        SELECT
-            id,
-            name,
-            slug,
-            password,
-            status as "status: RoomStatus",
-            max_size,
-            current_size,
-            max_times_entered,
-            current_times_entered,
-            expire_at,
-            created_at,
-            updated_at,
-            permission as "permission: RoomPermission"
-        FROM rooms
-        WHERE id = ?
-        "#,
-        room_id,
-    )
-    .fetch_optional(db_pool.as_ref())
-    .await?;
-
-    Ok(room)
+async fn get_room_by_id(db_pool: &Arc<DbPool>, room_id: i64) -> Result<Option<Room>> {
+    let repo = crate::repository::RoomRepository::new(db_pool.clone());
+    repo.find_by_id(room_id).await
 }
 
 #[cfg(test)]

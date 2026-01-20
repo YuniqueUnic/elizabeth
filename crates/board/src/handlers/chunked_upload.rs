@@ -4,7 +4,6 @@ use axum::{
 };
 use chrono::{NaiveDateTime, Utc};
 use hex;
-use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
 use tokio::fs;
@@ -12,54 +11,26 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use uuid::Uuid;
 
 use crate::{
+    dto::chunked_upload::{
+        ChunkStatusInfo, ChunkUploadRequest, ChunkUploadResponse, ChunkedUploadPreparationRequest,
+        ChunkedUploadPreparationResponse, FileMergeRequest, FileMergeResponse, MergedFileInfo,
+        ReservedFileInfo, UploadStatusQuery, UploadStatusResponse,
+    },
+    errors::{AppError, AppResult},
     models::room::{
-        chunk_upload::{
-            ChunkStatus, FileMergeRequest, FileMergeResponse, MergedFileInfo, RoomChunkUpload,
-        },
-        upload_reservation::{ChunkedUploadPreparationRequest, UploadFileDescriptor, UploadStatus},
+        chunk_upload::{ChunkStatus, RoomChunkUpload},
+        upload_reservation::{UploadFileDescriptor, UploadStatus},
     },
     repository::room_chunk_upload_repository::{
-        IRoomChunkUploadRepository, SqliteRoomChunkUploadRepository,
+        IRoomChunkUploadRepository, RoomChunkUploadRepository,
     },
-    repository::room_repository::{IRoomRepository, SqliteRoomRepository},
+    repository::room_repository::{IRoomRepository, RoomRepository},
     repository::room_upload_reservation_repository::{
-        IRoomUploadReservationRepository, SqliteRoomUploadReservationRepository,
+        IRoomUploadReservationRepository, RoomUploadReservationRepository,
     },
     state::AppState,
 };
-use axum_responses::http::HttpResponse;
-
-type HandlerResult<T> = Result<Json<T>, HttpResponse>;
-
-/// 分块上传预留响应
-#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
-pub struct ChunkedUploadPreparationResponse {
-    /// 预留 ID
-    pub reservation_id: String,
-    /// 上传令牌
-    pub upload_token: String,
-    /// 预留过期时间
-    pub expires_at: NaiveDateTime,
-    /// 文件清单
-    pub files: Vec<ReservedFileInfo>,
-}
-
-/// 预留文件信息
-#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
-pub struct ReservedFileInfo {
-    /// 文件名
-    pub name: String,
-    /// 文件大小
-    pub size: i64,
-    /// MIME 类型
-    pub mime: Option<String>,
-    /// 分块大小
-    pub chunk_size: i64,
-    /// 总分块数
-    pub total_chunks: i64,
-    /// 文件哈希
-    pub file_hash: Option<String>,
-}
+type HandlerResult<T> = AppResult<Json<T>>;
 
 /// 预留分块上传空间
 #[utoipa::path(
@@ -85,55 +56,51 @@ pub async fn prepare_chunked_upload(
 ) -> HandlerResult<ChunkedUploadPreparationResponse> {
     // 验证房间名称
     if room_name.is_empty() {
-        return Err(HttpResponse::BadRequest().message("房间名称不能为空"));
+        return Err(AppError::validation("房间名称不能为空"));
     }
 
     // 验证请求参数
     if payload.files.is_empty() {
-        return Err(HttpResponse::BadRequest().message("文件列表不能为空"));
+        return Err(AppError::validation("文件列表不能为空"));
     }
 
     // 验证每个文件的信息
     for file in &payload.files {
         if file.name.is_empty() {
-            return Err(HttpResponse::BadRequest().message("文件名不能为空"));
+            return Err(AppError::validation("文件名不能为空"));
         }
         if file.size <= 0 {
-            return Err(HttpResponse::BadRequest().message("文件大小必须大于 0"));
+            return Err(AppError::validation("文件大小必须大于 0"));
         }
         if let Some(chunk_size) = file.chunk_size
             && chunk_size <= 0
         {
-            return Err(HttpResponse::BadRequest().message("分块大小必须大于 0"));
+            return Err(AppError::validation("分块大小必须大于 0"));
         }
     }
 
     // 查找房间
-    let room_repository = SqliteRoomRepository::new(app_state.db_pool.clone());
+    let room_repository = RoomRepository::new(app_state.db_pool.clone());
     let room = room_repository
         .find_by_name(&room_name)
         .await
-        .map_err(|e| {
-            HttpResponse::InternalServerError().message(format!("数据库查询错误：{}", e))
-        })?;
+        .map_err(|e| AppError::internal(format!("数据库查询错误：{}", e)))?;
 
-    let room = room.ok_or_else(|| HttpResponse::NotFound().message("房间不存在"))?;
+    let room = room.ok_or_else(|| AppError::not_found("房间不存在"))?;
 
     // 计算总预留大小
     let total_reserved_size: i64 = payload.files.iter().map(|f| f.size).sum();
 
     if !room.can_add_content(total_reserved_size) {
-        return Err(HttpResponse::Forbidden().message("房间空间不足或无上传权限"));
+        return Err(AppError::permission_denied("房间空间不足或无上传权限"));
     }
 
     let upload_token = Uuid::new_v4().to_string();
     let expires_at = Utc::now().naive_utc() + app_state.upload_reservation_ttl();
-    let file_manifest = serde_json::to_string(&payload.files).map_err(|e| {
-        HttpResponse::InternalServerError().message(format!("序列化文件清单失败：{}", e))
-    })?;
+    let file_manifest = serde_json::to_string(&payload.files)
+        .map_err(|e| AppError::internal(format!("序列化文件清单失败：{}", e)))?;
 
-    let reservation_repository =
-        SqliteRoomUploadReservationRepository::new(app_state.db_pool.clone());
+    let reservation_repository = RoomUploadReservationRepository::new(app_state.db_pool.clone());
 
     // 计算每个文件的分块信息并构建响应
     let mut reserved_files = Vec::new();
@@ -164,29 +131,34 @@ pub async fn prepare_chunked_upload(
             app_state.upload_reservation_ttl(),
         )
         .await
-        .map_err(|e| {
-            HttpResponse::InternalServerError().message(format!("创建预留记录失败：{}", e))
-        })?;
+        .map_err(|e| AppError::internal(format!("创建预留记录失败：{}", e)))?;
 
     // 设置 chunked_upload 标记和 chunk 信息
     let db_reservation_id = saved_reservation.id.expect("预留 ID 不能为空");
     let status_str = UploadStatus::Pending.to_string();
+    let reservation_chunk_size = reserved_files
+        .first()
+        .map(|file| file.chunk_size)
+        .unwrap_or(1024 * 1024);
+
     sqlx::query(
         r#"
         UPDATE room_upload_reservations
         SET chunked_upload = true,
             total_chunks = ?,
             uploaded_chunks = 0,
+            chunk_size = ?,
             upload_status = ?
         WHERE id = ?
         "#,
     )
     .bind(total_chunks)
+    .bind(reservation_chunk_size)
     .bind(&status_str)
     .bind(db_reservation_id)
     .execute(app_state.db_pool.as_ref())
     .await
-    .map_err(|e| HttpResponse::InternalServerError().message(format!("更新预留记录失败：{}", e)))?;
+    .map_err(|e| AppError::internal(format!("更新预留记录失败：{}", e)))?;
 
     // 构建响应
     let response = ChunkedUploadPreparationResponse {
@@ -197,87 +169,6 @@ pub async fn prepare_chunked_upload(
     };
 
     Ok(Json(response))
-}
-
-/// 单个分块上传请求
-#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
-pub struct ChunkUploadRequest {
-    /// 上传令牌
-    pub upload_token: String,
-    /// 分块索引（从 0 开始）
-    pub chunk_index: i32,
-    /// 分块大小
-    pub chunk_size: i64,
-    /// 分块哈希（可选，用于完整性验证）
-    pub chunk_hash: Option<String>,
-}
-
-/// 单个分块上传响应
-#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
-pub struct ChunkUploadResponse {
-    /// 分块索引
-    pub chunk_index: i32,
-    /// 分块大小
-    pub chunk_size: i64,
-    /// 分块哈希
-    pub chunk_hash: Option<String>,
-    /// 上传状态
-    pub upload_status: ChunkStatus,
-    /// 上传时间
-    pub uploaded_at: NaiveDateTime,
-}
-
-/// 上传状态查询请求
-#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
-pub struct UploadStatusQuery {
-    /// 上传令牌（与 reservation_id 二选一）
-    pub upload_token: Option<String>,
-    /// 预留 ID（与 upload_token 二选一）
-    pub reservation_id: Option<String>,
-}
-
-/// 单个分块状态信息
-#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
-pub struct ChunkStatusInfo {
-    /// 分块索引
-    pub chunk_index: i64,
-    /// 分块大小
-    pub chunk_size: i64,
-    /// 分块哈希
-    pub chunk_hash: Option<String>,
-    /// 上传状态
-    pub upload_status: ChunkStatus,
-    /// 上传时间
-    pub uploaded_at: Option<NaiveDateTime>,
-}
-
-/// 上传状态查询响应
-#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
-pub struct UploadStatusResponse {
-    /// 预留 ID
-    pub reservation_id: String,
-    /// 上传令牌
-    pub upload_token: String,
-    /// 上传状态
-    pub upload_status: UploadStatus,
-    /// 总分块数
-    pub total_chunks: i64,
-    /// 已上传分块数
-    pub uploaded_chunks: i64,
-    /// 上传进度百分比（0-100）
-    pub progress_percentage: f64,
-    /// 预留过期时间
-    pub expires_at: NaiveDateTime,
-    /// 已上传分块详细信息
-    pub chunk_details: Vec<ChunkStatusInfo>,
-    /// 预留大小
-    pub reserved_size: i64,
-    /// 已上传大小
-    pub uploaded_size: i64,
-    /// 是否超时
-    pub is_expired: bool,
-    /// 剩余时间（秒）
-    pub remaining_seconds: Option<i64>,
 }
 
 /// 上传单个分块
@@ -305,7 +196,7 @@ pub async fn upload_chunk(
 ) -> HandlerResult<ChunkUploadResponse> {
     // 验证房间名称
     if room_name.is_empty() {
-        return Err(HttpResponse::BadRequest().message("房间名称不能为空"));
+        return Err(AppError::validation("房间名称不能为空"));
     }
 
     // 解析 multipart 数据
@@ -315,48 +206,55 @@ pub async fn upload_chunk(
     let mut chunk_hash: Option<String> = None;
     let mut chunk_data: Option<Vec<u8>> = None;
 
-    while let Some(field) = multipart.next_field().await.map_err(|e| {
-        HttpResponse::BadRequest().message(format!("解析 multipart 数据失败：{}", e))
-    })? {
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| AppError::validation(format!("解析 multipart 数据失败：{}", e)))?
+    {
         let name = field.name().unwrap_or("").to_string();
 
         match name.as_str() {
             "upload_token" => {
-                let token = field.text().await.map_err(|e| {
-                    HttpResponse::BadRequest().message(format!("读取上传令牌失败：{}", e))
-                })?;
+                let token = field
+                    .text()
+                    .await
+                    .map_err(|e| AppError::validation(format!("读取上传令牌失败：{}", e)))?;
                 upload_token = Some(token);
             }
             "chunk_index" => {
-                let index_str = field.text().await.map_err(|e| {
-                    HttpResponse::BadRequest().message(format!("读取分块索引失败：{}", e))
-                })?;
+                let index_str = field
+                    .text()
+                    .await
+                    .map_err(|e| AppError::validation(format!("读取分块索引失败：{}", e)))?;
                 chunk_index = Some(
                     index_str
-                        .parse()
-                        .map_err(|_| HttpResponse::BadRequest().message("分块索引格式错误"))?,
+                        .parse::<i32>()
+                        .map_err(|_| AppError::validation("分块索引格式错误"))?,
                 );
             }
             "chunk_size" => {
-                let size_str = field.text().await.map_err(|e| {
-                    HttpResponse::BadRequest().message(format!("读取分块大小失败：{}", e))
-                })?;
+                let size_str = field
+                    .text()
+                    .await
+                    .map_err(|e| AppError::validation(format!("读取分块大小失败：{}", e)))?;
                 chunk_size = Some(
                     size_str
-                        .parse()
-                        .map_err(|_| HttpResponse::BadRequest().message("分块大小格式错误"))?,
+                        .parse::<i32>()
+                        .map_err(|_| AppError::validation("分块大小格式错误"))?,
                 );
             }
             "chunk_hash" => {
-                let hash = field.text().await.map_err(|e| {
-                    HttpResponse::BadRequest().message(format!("读取分块哈希失败：{}", e))
-                })?;
+                let hash = field
+                    .text()
+                    .await
+                    .map_err(|e| AppError::validation(format!("读取分块哈希失败：{}", e)))?;
                 chunk_hash = Some(hash);
             }
             "chunk_data" => {
-                let data = field.bytes().await.map_err(|e| {
-                    HttpResponse::BadRequest().message(format!("读取分块数据失败：{}", e))
-                })?;
+                let data = field
+                    .bytes()
+                    .await
+                    .map_err(|e| AppError::validation(format!("读取分块数据失败：{}", e)))?;
                 chunk_data = Some(data.to_vec());
             }
             _ => {
@@ -366,72 +264,62 @@ pub async fn upload_chunk(
     }
 
     // 验证必需字段
-    let upload_token =
-        upload_token.ok_or_else(|| HttpResponse::BadRequest().message("缺少上传令牌"))?;
+    let upload_token = upload_token.ok_or_else(|| AppError::validation("缺少上传令牌"))?;
 
-    let chunk_index =
-        chunk_index.ok_or_else(|| HttpResponse::BadRequest().message("缺少分块索引"))?;
+    let chunk_index = chunk_index.ok_or_else(|| AppError::validation("缺少分块索引"))?;
 
-    let chunk_size =
-        chunk_size.ok_or_else(|| HttpResponse::BadRequest().message("缺少分块大小"))?;
+    let chunk_size = chunk_size.ok_or_else(|| AppError::validation("缺少分块大小"))?;
 
-    let chunk_data =
-        chunk_data.ok_or_else(|| HttpResponse::BadRequest().message("缺少分块数据"))?;
+    let chunk_data = chunk_data.ok_or_else(|| AppError::validation("缺少分块数据"))?;
 
     // 验证分块数据大小
     if chunk_data.len() != chunk_size as usize {
-        return Err(HttpResponse::BadRequest().message("分块数据大小不匹配"));
+        return Err(AppError::validation("分块数据大小不匹配"));
     }
 
     // 查找预留记录
-    let reservation_repository =
-        SqliteRoomUploadReservationRepository::new(app_state.db_pool.clone());
+    let reservation_repository = RoomUploadReservationRepository::new(app_state.db_pool.clone());
 
     let reservation = reservation_repository
         .find_by_token(&upload_token)
         .await
-        .map_err(|e| {
-            HttpResponse::InternalServerError().message(format!("查询预留记录失败：{}", e))
-        })?;
+        .map_err(|e| AppError::internal(format!("查询预留记录失败：{}", e)))?;
 
-    let reservation =
-        reservation.ok_or_else(|| HttpResponse::NotFound().message("预留记录不存在"))?;
+    let reservation = reservation.ok_or_else(|| AppError::not_found("预留记录不存在"))?;
     let reservation_id = reservation.id.expect("预留 ID 不能为空");
 
     // 验证预留记录是否有效
     if reservation.expires_at < Utc::now().naive_utc() {
-        return Err(HttpResponse::Forbidden().message("预留记录已过期"));
+        return Err(AppError::permission_denied("预留记录已过期"));
     }
 
     // 验证是否为分块上传
     if reservation.chunked_upload != Some(true) {
-        return Err(HttpResponse::BadRequest().message("非分块上传预留记录"));
+        return Err(AppError::validation("非分块上传预留记录"));
     }
 
     // 验证房间名称
-    let room_repository = SqliteRoomRepository::new(app_state.db_pool.clone());
+    let room_repository = RoomRepository::new(app_state.db_pool.clone());
     let room = room_repository
         .find_by_id(reservation.room_id)
         .await
-        .map_err(|e| HttpResponse::InternalServerError().message(format!("查询房间失败：{}", e)))?;
+        .map_err(|e| AppError::internal(format!("查询房间失败：{}", e)))?;
 
-    let room = room.ok_or_else(|| HttpResponse::NotFound().message("房间不存在"))?;
+    let room = room.ok_or_else(|| AppError::not_found("房间不存在"))?;
 
     if room.name != room_name {
-        return Err(HttpResponse::Forbidden().message("房间名称不匹配"));
+        return Err(AppError::permission_denied("房间名称不匹配"));
     }
 
     // 检查分块是否已存在
-    let chunk_repository = SqliteRoomChunkUploadRepository::new(app_state.db_pool.clone());
+    let chunk_repository = RoomChunkUploadRepository::new(app_state.db_pool.clone());
     let existing_chunk = chunk_repository
         .find_by_reservation_and_index(reservation_id, chunk_index.into())
         .await
-        .map_err(|e| {
-            HttpResponse::InternalServerError().message(format!("查询分块记录失败：{}", e))
-        })?;
+        .map_err(|e| AppError::internal(format!("查询分块记录失败：{}", e)))?;
 
     if existing_chunk.is_some() {
-        return Err(HttpResponse::Conflict().message("分块已存在"));
+        return Err(AppError::conflict("分块已存在"));
     }
 
     // 计算分块哈希
@@ -445,24 +333,25 @@ pub async fn upload_chunk(
     if let Some(ref provided_hash) = chunk_hash
         && provided_hash != &calculated_hash
     {
-        return Err(HttpResponse::BadRequest().message("分块哈希验证失败"));
+        return Err(AppError::validation("分块哈希验证失败"));
     }
 
     // 创建临时存储目录
     let temp_dir = format!("/tmp/elizabeth/chunks/{reservation_id}/");
-    fs::create_dir_all(&temp_dir).await.map_err(|e| {
-        HttpResponse::InternalServerError().message(format!("创建临时目录失败：{}", e))
-    })?;
+    fs::create_dir_all(&temp_dir)
+        .await
+        .map_err(|e| AppError::internal(format!("创建临时目录失败：{}", e)))?;
 
     // 保存分块数据到临时文件
     let chunk_file_path = format!("{}chunk_{}", temp_dir, chunk_index);
-    let mut file = fs::File::create(&chunk_file_path).await.map_err(|e| {
-        HttpResponse::InternalServerError().message(format!("创建分块文件失败：{}", e))
-    })?;
+    let mut file = fs::File::create(&chunk_file_path)
+        .await
+        .map_err(|e| AppError::internal(format!("创建分块文件失败：{}", e)))?;
 
-    file.write_all(&chunk_data).await.map_err(|e| {
-        HttpResponse::InternalServerError().message(format!("写入分块数据失败：{}", e))
-    })?;
+    use tokio::io::AsyncWriteExt;
+    file.write_all(&chunk_data)
+        .await
+        .map_err(|e| AppError::internal(format!("写入分块数据失败：{}", e)))?;
 
     // 创建分块记录
     let chunk_record = RoomChunkUpload {
@@ -477,25 +366,22 @@ pub async fn upload_chunk(
     };
 
     // 保存分块记录到数据库
-    chunk_repository.create(chunk_record).await.map_err(|e| {
-        HttpResponse::InternalServerError().message(format!("创建分块记录失败：{}", e))
-    })?;
+    chunk_repository
+        .create(&chunk_record)
+        .await
+        .map_err(|e| AppError::internal(format!("创建分块记录失败：{}", e)))?;
 
     // 更新预留记录的上传进度
     let uploaded_chunks = chunk_repository
         .count_by_reservation_id(reservation_id)
         .await
-        .map_err(|e| {
-            HttpResponse::InternalServerError().message(format!("统计已上传分块数失败：{}", e))
-        })?;
+        .map_err(|e| AppError::internal(format!("统计已上传分块数失败：{}", e)))?;
 
     // 更新预留记录
     reservation_repository
         .update_uploaded_chunks(reservation_id, uploaded_chunks as i64)
         .await
-        .map_err(|e| {
-            HttpResponse::InternalServerError().message(format!("更新上传进度失败：{}", e))
-        })?;
+        .map_err(|e| AppError::internal(format!("更新上传进度失败：{}", e)))?;
 
     // 构建响应
     let response = ChunkUploadResponse {
@@ -534,63 +420,60 @@ pub async fn get_upload_status(
 ) -> HandlerResult<UploadStatusResponse> {
     // 验证房间名称
     if room_name.is_empty() {
-        return Err(HttpResponse::BadRequest().message("房间名称不能为空"));
+        return Err(AppError::validation("房间名称不能为空"));
     }
 
     // 验证查询参数
     if query.upload_token.is_none() && query.reservation_id.is_none() {
-        return Err(HttpResponse::BadRequest().message("必须提供 upload_token 或 reservation_id"));
+        return Err(AppError::validation(
+            "必须提供 upload_token 或 reservation_id",
+        ));
     }
 
     if query.upload_token.is_some() && query.reservation_id.is_some() {
-        return Err(
-            HttpResponse::BadRequest().message("upload_token 和 reservation_id 只能提供一个")
-        );
+        return Err(AppError::validation(
+            "upload_token 和 reservation_id 只能提供一个",
+        ));
     }
 
     // 查找房间
-    let room_repository = SqliteRoomRepository::new(app_state.db_pool.clone());
+    let room_repository = RoomRepository::new(app_state.db_pool.clone());
     let room = room_repository
         .find_by_name(&room_name)
         .await
-        .map_err(|e| {
-            HttpResponse::InternalServerError().message(format!("数据库查询错误：{}", e))
-        })?;
+        .map_err(|e| AppError::internal(format!("数据库查询错误：{}", e)))?;
 
-    let room = room.ok_or_else(|| HttpResponse::NotFound().message("房间不存在"))?;
+    let room = room.ok_or_else(|| AppError::not_found("房间不存在"))?;
 
     // 查找预留记录
-    let reservation_repository =
-        SqliteRoomUploadReservationRepository::new(app_state.db_pool.clone());
+    let reservation_repository = RoomUploadReservationRepository::new(app_state.db_pool.clone());
     let reservation = if let Some(ref token) = query.upload_token {
         reservation_repository
             .find_by_token(token)
             .await
-            .map_err(|e| {
-                HttpResponse::InternalServerError().message(format!("查询预留记录失败：{}", e))
-            })?
+            .map_err(|e| AppError::internal(format!("查询预留记录失败：{}", e)))?
     } else if let Some(ref reservation_id) = query.reservation_id {
+        let reservation_id: i64 = reservation_id
+            .parse()
+            .map_err(|_| AppError::validation("reservation_id 必须是数字"))?;
         reservation_repository
             .find_by_reservation_id(reservation_id)
             .await
-            .map_err(|e| {
-                HttpResponse::InternalServerError().message(format!("查询预留记录失败：{}", e))
-            })?
+            .map_err(|e| AppError::internal(format!("查询预留记录失败：{}", e)))?
     } else {
-        return Err(HttpResponse::BadRequest().message("缺少查询参数"));
+        return Err(AppError::validation("缺少查询参数"));
     };
 
-    let reservation =
-        reservation.ok_or_else(|| HttpResponse::NotFound().message("预留记录不存在"))?;
+    let reservation = reservation.ok_or_else(|| AppError::not_found("预留记录不存在"))?;
 
     // 验证预留记录是否属于指定房间
     if reservation.room_id != room.id.expect("房间 ID 不能为空") {
-        return Err(HttpResponse::Forbidden().message("预留记录不属于指定房间"));
+        return Err(AppError::permission_denied("预留记录不属于指定房间"));
     }
 
     // 验证预留记录是否为分块上传
     if reservation.chunked_upload != Some(true) {
-        return Err(HttpResponse::BadRequest().message("非分块上传预留记录"));
+        return Err(AppError::validation("非分块上传预留记录"));
     }
 
     // 检查是否过期
@@ -603,14 +486,12 @@ pub async fn get_upload_status(
     };
 
     // 查询分块记录
-    let chunk_repository = SqliteRoomChunkUploadRepository::new(app_state.db_pool.clone());
+    let chunk_repository = RoomChunkUploadRepository::new(app_state.db_pool.clone());
     let reservation_db_id = reservation.id.expect("预留 ID 不能为空");
     let chunks = chunk_repository
         .find_by_reservation_id(reservation_db_id)
         .await
-        .map_err(|e| {
-            HttpResponse::InternalServerError().message(format!("查询分块记录失败：{}", e))
-        })?;
+        .map_err(|e| AppError::internal(format!("查询分块记录失败：{}", e)))?;
 
     // 计算统计信息
     let total_chunks = reservation.total_chunks.unwrap_or(0);
@@ -691,75 +572,71 @@ pub async fn complete_file_merge(
 ) -> HandlerResult<FileMergeResponse> {
     // 验证房间名称
     if room_name.is_empty() {
-        return Err(HttpResponse::BadRequest().message("房间名称不能为空"));
+        return Err(AppError::validation("房间名称不能为空"));
     }
 
     // 查找房间
-    let room_repository = SqliteRoomRepository::new(app_state.db_pool.clone());
+    let room_repository = RoomRepository::new(app_state.db_pool.clone());
     let room = room_repository
         .find_by_name(&room_name)
         .await
-        .map_err(|e| {
-            HttpResponse::InternalServerError().message(format!("数据库查询错误：{}", e))
-        })?;
+        .map_err(|e| AppError::internal(format!("数据库查询错误：{}", e)))?;
 
-    let room = room.ok_or_else(|| HttpResponse::NotFound().message("房间不存在"))?;
+    let room = room.ok_or_else(|| AppError::not_found("房间不存在"))?;
 
     // 查找预留记录
-    let reservation_repository =
-        SqliteRoomUploadReservationRepository::new(app_state.db_pool.clone());
+    let reservation_repository = RoomUploadReservationRepository::new(app_state.db_pool.clone());
+    let reservation_id: i64 = payload
+        .reservation_id
+        .parse()
+        .map_err(|_| AppError::validation("reservation_id 必须是数字"))?;
     let reservation = reservation_repository
-        .find_by_reservation_id(&payload.reservation_id)
+        .find_by_reservation_id(reservation_id)
         .await
-        .map_err(|e| {
-            HttpResponse::InternalServerError().message(format!("查询预留记录失败：{}", e))
-        })?;
+        .map_err(|e| AppError::internal(format!("查询预留记录失败：{}", e)))?;
 
-    let reservation =
-        reservation.ok_or_else(|| HttpResponse::NotFound().message("预留记录不存在"))?;
+    let reservation = reservation.ok_or_else(|| AppError::not_found("预留记录不存在"))?;
 
     // 验证预留记录是否属于指定房间
     if reservation.room_id != room.id.expect("房间 ID 不能为空") {
-        return Err(HttpResponse::Forbidden().message("预留记录不属于指定房间"));
+        return Err(AppError::permission_denied("预留记录不属于指定房间"));
     }
 
     // 验证预留记录是否为分块上传
     if reservation.chunked_upload != Some(true) {
-        return Err(HttpResponse::BadRequest().message("非分块上传预留记录"));
+        return Err(AppError::validation("非分块上传预留记录"));
     }
 
     // 验证预留记录是否已过期
     if reservation.expires_at < Utc::now().naive_utc() {
-        return Err(HttpResponse::Forbidden().message("预留记录已过期"));
+        return Err(AppError::permission_denied("预留记录已过期"));
     }
 
     // 验证预留记录状态
     if reservation.upload_status == Some(UploadStatus::Completed) {
-        return Err(HttpResponse::Conflict().message("文件已完成合并"));
+        return Err(AppError::conflict("文件已完成合并"));
     }
 
     if reservation.upload_status == Some(UploadStatus::Failed) {
-        return Err(HttpResponse::Conflict().message("上传已失败，无法合并"));
+        return Err(AppError::conflict("上传已失败，无法合并"));
     }
 
     // 查询所有分块记录
-    let chunk_repository = SqliteRoomChunkUploadRepository::new(app_state.db_pool.clone());
+    let chunk_repository = RoomChunkUploadRepository::new(app_state.db_pool.clone());
     let reservation_db_id = reservation.id.expect("预留 ID 不能为空");
     let chunks = chunk_repository
         .find_by_reservation_id(reservation_db_id)
         .await
-        .map_err(|e| {
-            HttpResponse::InternalServerError().message(format!("查询分块记录失败：{}", e))
-        })?;
+        .map_err(|e| AppError::internal(format!("查询分块记录失败：{}", e)))?;
 
     // 验证所有分块是否已上传
     let total_chunks = reservation.total_chunks.unwrap_or(0);
     if total_chunks == 0 {
-        return Err(HttpResponse::BadRequest().message("总分块数为 0"));
+        return Err(AppError::validation("总分块数为 0"));
     }
 
     if chunks.len() != total_chunks as usize {
-        return Err(HttpResponse::BadRequest().message(format!(
+        return Err(AppError::validation(format!(
             "分块未全部上传，已上传：{}，总分块：{}",
             chunks.len(),
             total_chunks
@@ -769,9 +646,10 @@ pub async fn complete_file_merge(
     // 验证所有分块状态
     for chunk in &chunks {
         if !chunk.is_uploaded() {
-            return Err(
-                HttpResponse::BadRequest().message(format!("分块{}未上传完成", chunk.chunk_index))
-            );
+            return Err(AppError::validation(format!(
+                "分块{}未上传完成",
+                chunk.chunk_index
+            )));
         }
     }
 
@@ -792,20 +670,17 @@ pub async fn complete_file_merge(
                     // 移动文件到最终存储位置
                     let storage_dir =
                         format!("storage/rooms/{}/", room.id.expect("房间 ID 不能为空"));
-                    fs::create_dir_all(&storage_dir).await.map_err(|e| {
-                        HttpResponse::InternalServerError()
-                            .message(format!("创建存储目录失败：{}", e))
-                    })?;
+                    fs::create_dir_all(&storage_dir)
+                        .await
+                        .map_err(|e| AppError::internal(format!("创建存储目录失败：{}", e)))?;
 
                     // 从文件清单中获取文件名
                     let file_manifest: Vec<UploadFileDescriptor> =
-                        serde_json::from_str(&reservation.file_manifest).map_err(|e| {
-                            HttpResponse::InternalServerError()
-                                .message(format!("解析文件清单失败：{}", e))
-                        })?;
+                        serde_json::from_str(&reservation.file_manifest)
+                            .map_err(|e| AppError::internal(format!("解析文件清单失败：{}", e)))?;
 
                     if file_manifest.is_empty() {
-                        return Err(HttpResponse::InternalServerError().message("文件清单为空"));
+                        return Err(AppError::internal("文件清单为空"));
                     }
 
                     let file_name = &file_manifest[0].name;
@@ -837,36 +712,26 @@ pub async fn complete_file_merge(
 
                         // Prevent infinite loop
                         if counter > 1000 {
-                            return Err(HttpResponse::InternalServerError()
-                                .message("Too many files with the same name"));
+                            return Err(AppError::internal("Too many files with the same name"));
                         }
                     }
 
                     // 移动合并后的文件到最终位置
                     fs::rename(&final_file_path, &final_storage_path)
                         .await
-                        .map_err(|e| {
-                            HttpResponse::InternalServerError()
-                                .message(format!("移动文件失败：{}", e))
-                        })?;
+                        .map_err(|e| AppError::internal(format!("移动文件失败：{}", e)))?;
 
                     // 更新预留记录状态为已完成
                     reservation_repository
                         .update_upload_status(reservation_db_id, UploadStatus::Completed)
                         .await
-                        .map_err(|e| {
-                            HttpResponse::InternalServerError()
-                                .message(format!("更新上传状态失败：{}", e))
-                        })?;
+                        .map_err(|e| AppError::internal(format!("更新上传状态失败：{}", e)))?;
 
                     // 设置预留记录为已消费
                     reservation_repository
                         .consume_upload(reservation_db_id)
                         .await
-                        .map_err(|e| {
-                            HttpResponse::InternalServerError()
-                                .message(format!("消费预留记录失败：{}", e))
-                        })?;
+                        .map_err(|e| AppError::internal(format!("消费预留记录失败：{}", e)))?;
 
                     // 清理临时分块文件
                     if let Err(e) = fs::remove_dir_all(&temp_dir).await {
@@ -881,7 +746,10 @@ pub async fn complete_file_merge(
                         .unwrap_or_else(|| "application/octet-stream".to_string());
 
                     use crate::repository::IRoomContentRepository;
-                    let content_repository = crate::repository::room_content_repository::SqliteRoomContentRepository::new(app_state.db_pool.clone());
+                    let content_repository =
+                        crate::repository::room_content_repository::RoomContentRepository::new(
+                            app_state.db_pool.clone(),
+                        );
 
                     // 构建 RoomContent 对象
                     let now = chrono::Utc::now().naive_utc();
@@ -900,25 +768,21 @@ pub async fn complete_file_merge(
                         updated_at: now,
                     };
 
-                    let created_content =
-                        content_repository
-                            .create(&room_content)
-                            .await
-                            .map_err(|e| {
-                                HttpResponse::InternalServerError()
-                                    .message(format!("创建内容记录失败：{}", e))
-                            })?;
+                    let created_content = content_repository
+                        .create(&room_content)
+                        .await
+                        .map_err(|e| AppError::internal(format!("创建内容记录失败：{}", e)))?;
 
                     // 更新房间的 current_size
                     let file_size = file_manifest[0].size;
                     let mut updated_room = room.clone();
                     updated_room.current_size += file_size;
                     use crate::repository::IRoomRepository;
-                    let room_repository = SqliteRoomRepository::new(app_state.db_pool.clone());
-                    room_repository.update(&updated_room).await.map_err(|e| {
-                        HttpResponse::InternalServerError()
-                            .message(format!("更新房间大小失败：{}", e))
-                    })?;
+                    let room_repository = RoomRepository::new(app_state.db_pool.clone());
+                    room_repository
+                        .update(&updated_room)
+                        .await
+                        .map_err(|e| AppError::internal(format!("更新房间大小失败：{}", e)))?;
 
                     // 构建响应
                     let merged_file_info = MergedFileInfo {
@@ -946,7 +810,7 @@ pub async fn complete_file_merge(
                         .update_upload_status(reservation_db_id, UploadStatus::Failed)
                         .await;
 
-                    Err(HttpResponse::BadRequest().message("文件哈希验证失败"))
+                    Err(AppError::validation("文件哈希验证失败"))
                 }
                 Err(e) => {
                     // 哈希验证错误
@@ -958,8 +822,7 @@ pub async fn complete_file_merge(
                         .update_upload_status(reservation_db_id, UploadStatus::Failed)
                         .await;
 
-                    Err(HttpResponse::InternalServerError()
-                        .message(format!("文件哈希验证失败：{}", e)))
+                    Err(AppError::internal(format!("文件哈希验证失败：{}", e)))
                 }
             }
         }
@@ -970,7 +833,7 @@ pub async fn complete_file_merge(
                 .update_upload_status(reservation_db_id, UploadStatus::Failed)
                 .await;
 
-            Err(HttpResponse::InternalServerError().message(format!("文件合并失败：{}", e)))
+            Err(AppError::internal(format!("文件合并失败：{}", e)))
         }
     }
 }

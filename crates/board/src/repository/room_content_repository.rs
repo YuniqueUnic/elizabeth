@@ -1,13 +1,30 @@
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use chrono::Utc;
-use sqlx::{Executor, QueryBuilder, Sqlite};
+use sqlx::{Any, QueryBuilder};
 use std::sync::Arc;
 
+use crate::models::room::row_utils::format_naive_datetime;
 use crate::{
     db::DbPool,
     models::content::{ContentType, RoomContent},
 };
+
+const CONTENT_SELECT_BASE: &str = r#"
+    SELECT
+        id,
+        room_id,
+        content_type,
+        text,
+        url,
+        path,
+        file_name,
+        size,
+        mime_type,
+        CAST(created_at AS TEXT) as created_at,
+        CAST(updated_at AS TEXT) as updated_at
+    FROM room_contents
+"#;
 
 #[async_trait]
 pub trait IRoomContentRepository: Send + Sync {
@@ -22,11 +39,11 @@ pub trait IRoomContentRepository: Send + Sync {
     async fn delete(&self, room_name: &str) -> Result<bool>;
 }
 
-pub struct SqliteRoomContentRepository {
+pub struct RoomContentRepository {
     pool: Arc<DbPool>,
 }
 
-impl SqliteRoomContentRepository {
+impl RoomContentRepository {
     pub fn new(pool: Arc<DbPool>) -> Self {
         Self { pool }
     }
@@ -36,37 +53,19 @@ impl SqliteRoomContentRepository {
         content_id: i64,
     ) -> Result<Option<RoomContent>>
     where
-        E: Executor<'e, Database = Sqlite>,
+        E: sqlx::Executor<'e, Database = Any>,
     {
-        let content = sqlx::query_as!(
-            RoomContent,
-            r#"
-            SELECT
-                id,
-                room_id,
-                content_type as "content_type: ContentType",
-                text,
-                url,
-                path,
-                file_name,
-                size,
-                mime_type,
-                created_at,
-                updated_at
-            FROM room_contents
-            WHERE id = ?
-            "#,
-            content_id
-        )
-        .fetch_optional(executor)
-        .await?;
-
+        let sql = format!("{CONTENT_SELECT_BASE} WHERE id = ?");
+        let content = sqlx::query_as::<_, RoomContent>(&sql)
+            .bind(content_id)
+            .fetch_optional(executor)
+            .await?;
         Ok(content)
     }
 
     async fn fetch_by_id_or_err<'e, E>(executor: E, content_id: i64) -> Result<RoomContent>
     where
-        E: Executor<'e, Database = Sqlite>,
+        E: sqlx::Executor<'e, Database = Any>,
     {
         Self::fetch_optional_by_id(executor, content_id)
             .await?
@@ -75,14 +74,13 @@ impl SqliteRoomContentRepository {
 }
 
 #[async_trait]
-impl IRoomContentRepository for SqliteRoomContentRepository {
+impl IRoomContentRepository for RoomContentRepository {
     async fn exists(&self, content_id: i64) -> Result<bool> {
-        let exists: i64 = sqlx::query_scalar!(
-            "SELECT EXISTS(SELECT 1 FROM room_contents WHERE id = ?)",
-            content_id
-        )
-        .fetch_one(&*self.pool)
-        .await?;
+        let exists: i64 =
+            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM room_contents WHERE id = ?)")
+                .bind(content_id)
+                .fetch_one(&*self.pool)
+                .await?;
 
         Ok(exists != 0)
     }
@@ -90,32 +88,32 @@ impl IRoomContentRepository for SqliteRoomContentRepository {
     async fn create(&self, room_content: &RoomContent) -> Result<RoomContent> {
         let mut tx = self.pool.begin().await?;
         let now = Utc::now().naive_utc();
-        let result = sqlx::query!(
+        let now_str = format_naive_datetime(now);
+        let id: i64 = sqlx::query_scalar(
             r#"
             INSERT INTO room_contents
                 (room_id, content_type, text, url, path, file_name, size, mime_type, created_at, updated_at)
             VALUES
                 (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            RETURNING id
             "#,
-            room_content.room_id,
-            room_content.content_type,
-            room_content.text,
-            room_content.url,
-            room_content.path,
-            room_content.file_name,
-            room_content.size,
-            room_content.mime_type,
-            now,
-            now
         )
-        .execute(&mut *tx)
+        .bind(room_content.room_id)
+        .bind(room_content.content_type)
+        .bind(&room_content.text)
+        .bind(&room_content.url)
+        .bind(&room_content.path)
+        .bind(&room_content.file_name)
+        .bind(room_content.size)
+        .bind(&room_content.mime_type)
+        .bind(now_str.clone())
+        .bind(now_str)
+        .fetch_one(&mut *tx)
         .await?;
 
-        let id = result.last_insert_rowid();
-        let created_room_content = Self::fetch_by_id_or_err(&mut *tx, id).await?;
-
+        let created = Self::fetch_by_id_or_err(&mut *tx, id).await?;
         tx.commit().await?;
-        Ok(created_room_content)
+        Ok(created)
     }
 
     async fn find_by_id(&self, content_id: i64) -> Result<Option<RoomContent>> {
@@ -128,7 +126,8 @@ impl IRoomContentRepository for SqliteRoomContentRepository {
             .ok_or_else(|| anyhow!("room content id is required for update"))?;
         let mut tx = self.pool.begin().await?;
         let now = Utc::now().naive_utc();
-        sqlx::query!(
+        let now_str = format_naive_datetime(now);
+        sqlx::query(
             r#"
             UPDATE room_contents SET
                 room_id = ?, content_type = ?, text = ?,
@@ -136,52 +135,32 @@ impl IRoomContentRepository for SqliteRoomContentRepository {
                 updated_at = ?
             WHERE id = ?
             "#,
-            room_content.room_id,
-            room_content.content_type,
-            room_content.text,
-            room_content.url,
-            room_content.path,
-            room_content.file_name,
-            room_content.size,
-            room_content.mime_type,
-            now,
-            content_id
         )
+        .bind(room_content.room_id)
+        .bind(room_content.content_type)
+        .bind(&room_content.text)
+        .bind(&room_content.url)
+        .bind(&room_content.path)
+        .bind(&room_content.file_name)
+        .bind(room_content.size)
+        .bind(&room_content.mime_type)
+        .bind(now_str)
+        .bind(content_id)
         .execute(&mut *tx)
         .await?;
 
-        let updated_room_content = Self::fetch_by_id_or_err(&mut *tx, content_id).await?;
-
+        let updated = Self::fetch_by_id_or_err(&mut *tx, content_id).await?;
         tx.commit().await?;
-        Ok(updated_room_content)
+        Ok(updated)
     }
 
     async fn list_by_room(&self, room_id: i64) -> Result<Vec<RoomContent>> {
-        let contents = sqlx::query_as!(
-            RoomContent,
-            r#"
-            SELECT
-                id,
-                room_id,
-                content_type as "content_type: ContentType",
-                text,
-                url,
-                path,
-                file_name,
-                size,
-                mime_type,
-                created_at,
-                updated_at
-            FROM room_contents
-            WHERE room_id = ?
-            ORDER BY created_at DESC
-            "#,
-            room_id
-        )
-        .fetch_all(&*self.pool)
-        .await?;
-
-        Ok(contents)
+        let sql = format!("{CONTENT_SELECT_BASE} WHERE room_id = ? ORDER BY created_at DESC");
+        let rows = sqlx::query_as::<_, RoomContent>(&sql)
+            .bind(room_id)
+            .fetch_all(&*self.pool)
+            .await?;
+        Ok(rows)
     }
 
     async fn delete_by_ids(&self, room_id: i64, content_ids: &[i64]) -> Result<u64> {
@@ -189,24 +168,22 @@ impl IRoomContentRepository for SqliteRoomContentRepository {
             return Ok(0);
         }
 
-        let mut query_builder =
-            QueryBuilder::<Sqlite>::new("DELETE FROM room_contents WHERE room_id = ");
-        query_builder.push_bind(room_id);
-        query_builder.push(" AND id IN (");
-        {
-            let mut separated = query_builder.separated(", ");
-            for id in content_ids {
-                separated.push_bind(id);
-            }
+        let mut builder = QueryBuilder::<Any>::new("DELETE FROM room_contents WHERE room_id = ");
+        builder.push_bind(room_id);
+        builder.push(" AND id IN (");
+        let mut separated = builder.separated(", ");
+        for id in content_ids {
+            separated.push_bind(id);
         }
-        query_builder.push(")");
+        builder.push(")");
 
-        let result = query_builder.build().execute(&*self.pool).await?;
+        let result = builder.build().execute(&*self.pool).await?;
         Ok(result.rows_affected())
     }
 
     async fn delete_by_room_id(&self, room_id: i64) -> Result<u64> {
-        let result = sqlx::query!("DELETE FROM room_contents WHERE room_id = ?", room_id)
+        let result = sqlx::query("DELETE FROM room_contents WHERE room_id = ?")
+            .bind(room_id)
             .execute(&*self.pool)
             .await?;
 
@@ -214,10 +191,10 @@ impl IRoomContentRepository for SqliteRoomContentRepository {
     }
 
     async fn total_size_by_room(&self, room_id: i64) -> Result<i64> {
-        let total: i64 = sqlx::query_scalar!(
+        let total: i64 = sqlx::query_scalar(
             "SELECT COALESCE(SUM(size), 0) FROM room_contents WHERE room_id = ?",
-            room_id
         )
+        .bind(room_id)
         .fetch_one(&*self.pool)
         .await?;
 
@@ -225,10 +202,10 @@ impl IRoomContentRepository for SqliteRoomContentRepository {
     }
 
     async fn delete(&self, room_name: &str) -> Result<bool> {
-        let result = sqlx::query!(
+        let result = sqlx::query(
             "DELETE FROM room_contents WHERE room_id = (SELECT id FROM rooms WHERE name = ?)",
-            room_name
         )
+        .bind(room_name)
         .execute(&*self.pool)
         .await?;
 

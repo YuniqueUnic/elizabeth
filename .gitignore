@@ -1,6 +1,10 @@
 /target
 .DS_Store
 .context
+skills
+storage
+TODO.md
+
 
 # 环境变量和敏感信息
 .env
@@ -32,3 +36,5 @@ docker/backend/storage/**
 web/frontend.log
 web/frontend.build.log
 web/frontend.pid
+.playwright-mcp
+.ace-tool/

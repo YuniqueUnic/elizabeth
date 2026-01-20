@@ -20,6 +20,7 @@ import { ImageViewer } from "./image-viewer";
 import { UrlViewer } from "./url-viewer";
 import { API_BASE_URL } from "@/lib/config";
 import { getRoomTokenString } from "@/lib/utils/api";
+import { insertMarkdownIntoComposer } from "@/lib/composer-editor";
 
 // Dynamic import for PDFViewer to avoid SSR issues with DOMMatrix
 const PDFViewer = dynamic(
@@ -46,6 +47,7 @@ export function FilePreviewModal(
 ) {
   const { toast } = useToast();
   const currentRoomId = useAppStore((state) => state.currentRoomId);
+  const requestInsertMarkdown = useAppStore((state) => state.requestInsertMarkdown);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   if (!file) return null;
@@ -94,6 +96,33 @@ export function FilePreviewModal(
       title: "链接已复制",
       description: "文件下载链接已复制到剪贴板",
     });
+  };
+
+  const buildMarkdownLink = () => {
+    const href = file.url ?? `/rooms/${currentRoomId}/contents/${file.id}`;
+    if (isImage) return `![](${href})`;
+    return `[${file.name}](${href})`;
+  };
+
+  const handleCopyMarkdown = () => {
+    const markdown = buildMarkdownLink();
+    navigator.clipboard.writeText(markdown);
+    toast({
+      title: "Markdown 已复制",
+      description: "可直接粘贴到编辑器中",
+    });
+  };
+
+  const handleInsertMarkdown = () => {
+    const markdown = `\n\n${buildMarkdownLink()}\n`;
+    if (!insertMarkdownIntoComposer(markdown)) {
+      requestInsertMarkdown(markdown);
+    }
+    toast({
+      title: "已插入到编辑器",
+      description: "已将 Markdown 链接插入到当前光标位置",
+    });
+    onOpenChange(false);
   };
 
   const handleDelete = () => {
@@ -190,6 +219,24 @@ export function FilePreviewModal(
                 >
                   <Copy className="h-4 w-4 mr-1" />
                   <span className="hidden sm:inline">复制链接</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCopyMarkdown}
+                  className="h-8"
+                >
+                  <Copy className="h-4 w-4 mr-1" />
+                  <span className="hidden sm:inline">复制 Markdown</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleInsertMarkdown}
+                  className="h-8"
+                >
+                  <Copy className="h-4 w-4 mr-1" />
+                  <span className="hidden sm:inline">插入到编辑器</span>
                 </Button>
                 <div className="flex-1" />
                 <Button

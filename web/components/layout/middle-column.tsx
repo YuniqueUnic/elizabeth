@@ -13,7 +13,7 @@ import { useAppStore } from "@/lib/store";
 import { useCallback, useEffect, useState } from "react";
 import type { LocalMessage, Message } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { Group, Panel, Separator } from "react-resizable-panels";
 import { useRoomPermissions } from "@/hooks/use-room-permissions";
 import {
   AlertDialog,
@@ -39,6 +39,12 @@ export function MiddleColumn() {
   const updateMessageContent = useAppStore(
     (state) => state.updateMessageContent,
   );
+  const composerEditingMessageId = useAppStore(
+    (state) => state.composerEditingMessageId,
+  );
+  const beginEditMessage = useAppStore((state) => state.beginEditMessage);
+  const cancelEditMessage = useAppStore((state) => state.cancelEditMessage);
+  const setComposerContent = useAppStore((state) => state.setComposerContent);
   const markMessageForDeletion = useAppStore(
     (state) => state.markMessageForDeletion,
   );
@@ -53,7 +59,6 @@ export function MiddleColumn() {
   );
 
   const queryClient = useQueryClient();
-  const [editingMessage, setEditingMessage] = useState<Message | null>(null);
   const [deleteCandidateId, setDeleteCandidateId] = useState<string | null>(
     null,
   );
@@ -147,7 +152,7 @@ export function MiddleColumn() {
     ) => updateMessage(currentRoomId, messageId, content),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["messages", currentRoomId] });
-      setEditingMessage(null);
+      cancelEditMessage();
       toast({
         title: "消息已更新",
         description: "您的消息已成功更新",
@@ -175,21 +180,31 @@ export function MiddleColumn() {
 
   const handleSend = useCallback(
     (content: string) => {
-      editingMessage
-        ? (updateMessageContent(editingMessage.id, content),
-          setEditingMessage(null))
-        : addMessage(content);
+      if (composerEditingMessageId) {
+        updateMessageContent(composerEditingMessageId, content);
+        cancelEditMessage();
+        return;
+      }
+
+      addMessage(content);
+      setComposerContent("");
     },
-    [editingMessage, updateMessageContent, addMessage],
+    [
+      composerEditingMessageId,
+      updateMessageContent,
+      addMessage,
+      cancelEditMessage,
+      setComposerContent,
+    ],
   );
 
   const handleEdit = useCallback(
-    (message: Message) => setEditingMessage(message),
-    [],
+    (message: Message) => beginEditMessage(message.id),
+    [beginEditMessage],
   );
 
   const handleCancelEdit = () => {
-    setEditingMessage(null);
+    cancelEditMessage();
   };
 
   const handleDelete = (messageId: string) => {
@@ -200,7 +215,7 @@ export function MiddleColumn() {
 
   return (
     <main className="flex flex-1 flex-col overflow-hidden">
-      <PanelGroup direction="vertical">
+      <Group orientation="vertical">
         {/* 消息列表面板 */}
         <Panel defaultSize={70} minSize={30}>
           <MessageList
@@ -209,27 +224,29 @@ export function MiddleColumn() {
             onEdit={handleEdit}
             onDelete={handleDelete}
             onRevert={revertMessageChanges}
-            editingMessageId={editingMessage?.id || null}
+            editingMessageId={composerEditingMessageId}
           />
         </Panel>
 
         {/* 可拖动分割线 */}
-        <PanelResizeHandle className="h-1 bg-border hover:bg-primary/50 transition-colors cursor-row-resize relative group">
+        <Separator className="h-1 bg-border hover:bg-primary/50 transition-colors cursor-row-resize relative group">
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-1 bg-muted-foreground/30 rounded-full group-hover:bg-primary/70 transition-colors" />
-        </PanelResizeHandle>
+        </Separator>
 
         {/* 编辑器面板 */}
         {can.edit && (
           <Panel defaultSize={30} minSize={20}>
             <MessageInput
               onSend={handleSend}
-              editingMessage={editingMessage}
+              editingMessage={composerEditingMessageId
+                ? messages.find((m) => m.id === composerEditingMessageId) ?? null
+                : null}
               onCancelEdit={handleCancelEdit}
               isLoading={postMutation.isPending || updateMutation.isPending}
             />
           </Panel>
         )}
-      </PanelGroup>
+      </Group>
       <AlertDialog
         open={deleteCandidateId !== null}
         onOpenChange={(open) => !open && setDeleteCandidateId(null)}

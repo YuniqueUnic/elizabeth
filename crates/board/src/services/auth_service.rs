@@ -213,32 +213,62 @@ impl AuthService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repository::SqliteTokenBlacklistRepository;
+    use crate::db::{DbPoolSettings, run_migrations};
+    use crate::repository::TokenBlacklistRepository;
     use crate::services::RoomTokenClaims;
     use crate::services::token::RoomTokenService;
     use chrono::Duration;
-    use sqlx::SqlitePool;
     use std::sync::Arc;
 
-    async fn create_test_pool() -> SqlitePool {
-        let pool = SqlitePool::connect(":memory:").await.unwrap();
+    const TEST_DB_URL: &str = "sqlite::memory:";
 
-        // 创建测试表
+    async fn create_test_pool() -> Arc<crate::db::DbPool> {
+        let settings = DbPoolSettings::new(TEST_DB_URL)
+            .with_max_connections(1)
+            .with_min_connections(1);
+        let pool = settings.create_pool().await.unwrap();
+        run_migrations(&pool, TEST_DB_URL).await.unwrap();
+        // 保底：确保核心表存在且含 permission 列
+        sqlx::query("DROP TABLE IF EXISTS rooms")
+            .execute(&pool)
+            .await
+            .ok();
         sqlx::query(
             r#"
-            CREATE TABLE token_blacklist (
+            CREATE TABLE IF NOT EXISTS rooms (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                jti TEXT NOT NULL UNIQUE,
-                expires_at DATETIME NOT NULL,
-                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-            );
+                name TEXT NOT NULL UNIQUE,
+                slug TEXT NOT NULL UNIQUE,
+                password TEXT,
+                status INTEGER NOT NULL DEFAULT 0,
+                max_size INTEGER NOT NULL DEFAULT 10485760,
+                current_size INTEGER NOT NULL DEFAULT 0,
+                max_times_entered INTEGER NOT NULL DEFAULT 100,
+                current_times_entered INTEGER NOT NULL DEFAULT 0,
+                expire_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                permission INTEGER NOT NULL DEFAULT 1
+            )
             "#,
         )
         .execute(&pool)
         .await
         .unwrap();
-
-        pool
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS token_blacklist (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                jti TEXT NOT NULL UNIQUE,
+                expires_at TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        Arc::new(pool)
     }
 
     #[tokio::test]
@@ -247,7 +277,7 @@ mod tests {
         let secret = Arc::new("test_secret".to_string());
 
         let token_service = Arc::new(RoomTokenService::new(secret.clone()));
-        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(Arc::new(pool)));
+        let blacklist_repo = Arc::new(TokenBlacklistRepository::new(pool.clone()));
 
         let auth_service = AuthService::new(token_service, blacklist_repo);
 
@@ -275,7 +305,7 @@ mod tests {
         let secret = Arc::new("test_secret".to_string());
 
         let token_service = Arc::new(RoomTokenService::new(secret.clone()));
-        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(Arc::new(pool)));
+        let blacklist_repo = Arc::new(TokenBlacklistRepository::new(pool.clone()));
 
         let auth_service = AuthService::new(token_service, blacklist_repo);
 
@@ -315,7 +345,7 @@ mod tests {
         let secret = Arc::new("test_secret_for_unit_testing".to_string());
 
         let token_service = Arc::new(RoomTokenService::new(secret.clone()));
-        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(Arc::new(pool)));
+        let blacklist_repo = Arc::new(TokenBlacklistRepository::new(pool.clone()));
 
         let auth_service = AuthService::new(token_service.clone(), blacklist_repo);
 
@@ -354,7 +384,7 @@ mod tests {
         let secret = Arc::new("test_secret_for_unit_testing".to_string());
 
         let token_service = Arc::new(RoomTokenService::new(secret.clone()));
-        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(Arc::new(pool)));
+        let blacklist_repo = Arc::new(TokenBlacklistRepository::new(pool.clone()));
 
         let auth_service = AuthService::new(token_service.clone(), blacklist_repo.clone());
 
@@ -392,7 +422,7 @@ mod tests {
         let secret = Arc::new("test_secret_for_unit_testing".to_string());
 
         let token_service = Arc::new(RoomTokenService::new(secret.clone()));
-        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(Arc::new(pool)));
+        let blacklist_repo = Arc::new(TokenBlacklistRepository::new(pool.clone()));
 
         let auth_service = AuthService::new(token_service.clone(), blacklist_repo);
 
@@ -428,7 +458,7 @@ mod tests {
         let secret = Arc::new("test_secret_for_unit_testing".to_string());
 
         let token_service = Arc::new(RoomTokenService::new(secret.clone()));
-        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(Arc::new(pool)));
+        let blacklist_repo = Arc::new(TokenBlacklistRepository::new(pool.clone()));
 
         let auth_service = AuthService::new(token_service.clone(), blacklist_repo);
 
@@ -496,7 +526,7 @@ mod tests {
         let secret = Arc::new("test_secret".to_string());
 
         let token_service = Arc::new(RoomTokenService::new(secret.clone()));
-        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(Arc::new(pool)));
+        let blacklist_repo = Arc::new(TokenBlacklistRepository::new(pool.clone()));
 
         let auth_service = AuthService::new(token_service.clone(), blacklist_repo.clone());
 
@@ -517,7 +547,7 @@ mod tests {
         let secret = Arc::new("test_secret".to_string());
 
         let token_service = Arc::new(RoomTokenService::new(secret.clone()));
-        let blacklist_repo = Arc::new(SqliteTokenBlacklistRepository::new(Arc::new(pool)));
+        let blacklist_repo = Arc::new(TokenBlacklistRepository::new(pool.clone()));
 
         let auth_service = AuthService::new(token_service, blacklist_repo);
 

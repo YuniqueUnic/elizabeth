@@ -1,0 +1,28 @@
+[package]
+name = "elizabeth-board-protocol"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "board_protocol"
+path = "src/lib.rs"
+
+[features]
+default = []
+typescript-export = ["dep:schemars", "dep:ts-rs"]
+
+[dependencies]
+bitflags = { workspace = true }
+bon = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+sqlx = { workspace = true }
+utoipa = { workspace = true }
+uuid = { workspace = true }
+
+schemars = { workspace = true, optional = true }
+ts-rs = { workspace = true, optional = true }

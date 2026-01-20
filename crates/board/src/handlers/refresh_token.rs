@@ -2,10 +2,9 @@ use std::sync::Arc;
 
 use axum::Json;
 use axum::extract::{Path, State};
-use axum_responses::http::HttpResponse;
-use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 
+use crate::dto::auth::{CleanupResponse, LogoutRequest};
+use crate::errors::{AppError, AppResult};
 use crate::models::{RefreshTokenRequest, RefreshTokenResponse};
 use crate::repository::room_repository::IRoomRepository;
 use crate::services::refresh_token_service::RefreshTokenService;
@@ -29,7 +28,7 @@ use crate::state::AppState;
 pub async fn refresh_token(
     State(app_state): State<Arc<AppState>>,
     Json(request): Json<RefreshTokenRequest>,
-) -> Result<Json<RefreshTokenResponse>, HttpResponse> {
+) -> AppResult<Json<RefreshTokenResponse>> {
     let refresh_service = app_state.refresh_token_service();
 
     let response = refresh_service
@@ -37,7 +36,7 @@ pub async fn refresh_token(
         .await
         .map_err(|e| {
             logrs::error!("Failed to refresh access token: {}", e);
-            HttpResponse::Unauthorized().message("Invalid or expired refresh token")
+            AppError::authentication("Invalid or expired refresh token")
         })?;
 
     Ok(Json(response))
@@ -61,14 +60,14 @@ pub async fn refresh_token(
 pub async fn revoke_token(
     State(app_state): State<Arc<AppState>>,
     Json(request): Json<LogoutRequest>,
-) -> Result<HttpResponse, HttpResponse> {
+) -> AppResult<String> {
     let refresh_service = app_state.refresh_token_service();
 
     // 首先验证令牌有效性
     let claims = app_state
         .token_service()
         .decode(&request.access_token)
-        .map_err(|_| HttpResponse::Unauthorized().message("Invalid access token"))?;
+        .map_err(|_| AppError::authentication("Invalid access token"))?;
 
     // 撤销令牌
     refresh_service
@@ -76,17 +75,10 @@ pub async fn revoke_token(
         .await
         .map_err(|e| {
             logrs::error!("Failed to revoke token: {}", e);
-            HttpResponse::InternalServerError().message("Failed to revoke token")
+            AppError::internal("Failed to revoke token")
         })?;
 
-    Ok(HttpResponse::Ok().message("Token revoked successfully"))
-}
-
-/// 登出请求结构
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct LogoutRequest {
-    /// 访问令牌
-    pub access_token: String,
+    Ok("Token revoked successfully".to_string())
 }
 
 /// 清理过期令牌
@@ -103,12 +95,12 @@ pub struct LogoutRequest {
 )]
 pub async fn cleanup_expired_tokens(
     State(app_state): State<Arc<AppState>>,
-) -> Result<Json<CleanupResponse>, HttpResponse> {
+) -> AppResult<Json<CleanupResponse>> {
     let refresh_service = app_state.refresh_token_service();
 
     let cleaned_count = refresh_service.cleanup_expired().await.map_err(|e| {
         logrs::error!("Failed to cleanup expired tokens: {}", e);
-        HttpResponse::InternalServerError().message("Failed to cleanup expired tokens")
+        AppError::internal("Failed to cleanup expired tokens")
     })?;
 
     Ok(Json(CleanupResponse {
@@ -117,26 +109,19 @@ pub async fn cleanup_expired_tokens(
     }))
 }
 
-/// 清理响应结构
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct CleanupResponse {
-    /// 清理的记录数量
-    pub cleaned_records: u64,
-    /// 操作结果消息
-    pub message: String,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db::{DbPoolSettings, run_migrations};
     use crate::models::Room;
     use crate::repository::room_refresh_token_repository::{
-        SqliteRoomRefreshTokenRepository, SqliteTokenBlacklistRepository,
+        RoomRefreshTokenRepository, TokenBlacklistRepository,
     };
     use crate::services::token::RoomTokenService;
     use chrono::Duration;
-    use sqlx::SqlitePool;
     use std::sync::Arc;
+
+    const TEST_DB_URL: &str = "sqlite::memory:";
 
     async fn create_test_app_state() -> Arc<AppState> {
         use crate::config::{AppConfig, AuthConfig, RoomConfig, ServerConfig, StorageConfig};
@@ -145,20 +130,76 @@ mod tests {
             room::DEFAULT_MAX_ROOM_CONTENT_SIZE, room::DEFAULT_MAX_TIMES_ENTER_ROOM,
             test::TEST_JWT_SECRET,
         };
-        use crate::db::init_db;
-
-        let db_pool = Arc::new(
-            init_db(&crate::db::DbPoolSettings::new("sqlite::memory:"))
-                .await
-                .unwrap(),
-        );
-
-        // 运行迁移
-        sqlx::migrate!("./migrations").run(&*db_pool).await.unwrap();
+        let settings = DbPoolSettings::new(TEST_DB_URL)
+            .with_max_connections(1)
+            .with_min_connections(1);
+        let db_pool = Arc::new(settings.create_pool().await.unwrap());
+        run_migrations(db_pool.as_ref(), TEST_DB_URL).await.unwrap();
+        sqlx::query("DROP TABLE IF EXISTS rooms")
+            .execute(db_pool.as_ref())
+            .await
+            .ok();
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS rooms (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                slug TEXT NOT NULL UNIQUE,
+                password TEXT,
+                status INTEGER NOT NULL DEFAULT 0,
+                max_size INTEGER NOT NULL DEFAULT 10485760,
+                current_size INTEGER NOT NULL DEFAULT 0,
+                max_times_entered INTEGER NOT NULL DEFAULT 100,
+                current_times_entered INTEGER NOT NULL DEFAULT 0,
+                expire_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                permission INTEGER NOT NULL DEFAULT 1
+            )
+            "#,
+        )
+        .execute(db_pool.as_ref())
+        .await
+        .unwrap();
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS token_blacklist (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                jti TEXT NOT NULL UNIQUE,
+                expires_at TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            "#,
+        )
+        .execute(db_pool.as_ref())
+        .await
+        .unwrap();
+        sqlx::query("DROP TABLE IF EXISTS room_refresh_tokens")
+            .execute(db_pool.as_ref())
+            .await
+            .ok();
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS room_refresh_tokens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                room_id INTEGER NOT NULL,
+                access_token_jti TEXT NOT NULL,
+                token_hash TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                last_used_at TEXT,
+                is_revoked INTEGER NOT NULL DEFAULT 0
+            )
+            "#,
+        )
+        .execute(db_pool.as_ref())
+        .await
+        .unwrap();
 
         // 创建测试配置
         let app_config = AppConfig {
             server: ServerConfig::default(),
+            database: crate::config::DatabaseConfig::default(),
             storage: StorageConfig {
                 root: std::env::temp_dir(),
                 upload_reservation_ttl_seconds: DEFAULT_UPLOAD_RESERVATION_TTL_SECONDS,

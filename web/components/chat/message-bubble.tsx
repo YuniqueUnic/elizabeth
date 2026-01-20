@@ -8,7 +8,7 @@ import { formatDate } from "@/lib/utils/format";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/lib/store";
-import { MarkdownRenderer } from "./markdown-renderer";
+import { MinimalTiptapViewer } from "./minimal-tiptap-viewer";
 import { Badge } from "@/components/ui/badge";
 
 interface MessageBubbleProps {
@@ -42,6 +42,7 @@ export function MessageBubble(
   const includeMetadataInCopy = useAppStore(
     (state) => state.includeMetadataInCopy,
   );
+  const useHeti = useAppStore((state) => state.useHeti);
 
   const isSelected = selectedMessages.has(message.id);
 
@@ -100,12 +101,15 @@ export function MessageBubble(
 
       {/* Message Content */}
       <div
-        className={`message-content prose prose-sm dark:prose-invert max-w-none ${
+        className={`message-content ${
           showCheckbox ? "ml-6" : ""
         } ${message.isPendingDelete ? "line-through" : ""}`}
         data-testid={`message-content-${message.id}`}
       >
-        <MarkdownRenderer content={message.content} />
+        <MinimalTiptapViewer
+          content={message.content}
+          className={useHeti ? "heti" : ""}
+        />
       </div>
 
       {/* Message Meta */}

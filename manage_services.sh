@@ -3,12 +3,13 @@
 # Service Management Script
 
 # --- Configuration ---
-BACKEND_DIR="/Users/unic/dev/projs/rs/elizabeth"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BACKEND_DIR="$SCRIPT_DIR"
 BACKEND_CMD="cargo run -p elizabeth-board -- run"
 BACKEND_LOG_FILE="$BACKEND_DIR/backend.log"
 BACKEND_PID_FILE="$BACKEND_DIR/backend.pid"
 
-FRONTEND_DIR="/Users/unic/dev/projs/rs/elizabeth/web"
+FRONTEND_DIR="$SCRIPT_DIR/web"
 FRONTEND_BUILD_CMD="pnpm build"
 FRONTEND_CMD="node .next/standalone/server.js"
 FRONTEND_LOG_FILE="$FRONTEND_DIR/frontend.log"
@@ -26,8 +27,11 @@ fi
 # --- Functions ---
 
 start_backend() {
-    echo "Ensuring port 4092 is free..."
-    lsof -t -i:4092 | xargs kill -9 2>/dev/null || true
+    local backend_port="${BACKEND_PORT:-4092}"
+    local backend_listen_addr="${BACKEND_LISTEN_ADDR:-${LISTEN_ADDR:-127.0.0.1}}"
+
+    echo "Ensuring port ${backend_port} is free..."
+    lsof -t -i:"${backend_port}" | xargs kill -9 2>/dev/null || true
 
     if [ -f "$BACKEND_PID_FILE" ] && ps -p $(cat "$BACKEND_PID_FILE") > /dev/null; then
         echo "Backend is already running (PID: $(cat $BACKEND_PID_FILE))."
@@ -35,7 +39,11 @@ start_backend() {
     fi
     echo "Starting backend..."
     cd "$BACKEND_DIR" || exit 1
-    nohup $BACKEND_CMD > "$BACKEND_LOG_FILE" 2>&1 &
+    echo "  PORT=$backend_port"
+    echo "  LISTEN_ADDR=$backend_listen_addr"
+    PORT="$backend_port" \
+    LISTEN_ADDR="$backend_listen_addr" \
+        nohup $BACKEND_CMD > "$BACKEND_LOG_FILE" 2>&1 &
     echo $! > "$BACKEND_PID_FILE"
     sleep 2 # Give it a moment to start
     if ps -p $(cat "$BACKEND_PID_FILE") > /dev/null; then
@@ -81,16 +89,22 @@ start_frontend() {
         return
     fi
 
+    # For local development, always use localhost regardless of .env file
+    local internal_api_url="http://localhost:4092/api/v1"
     local public_api_url="${MANAGER_NEXT_PUBLIC_API_URL:-${NEXT_PUBLIC_API_URL:-/api/v1}}"
-    local internal_api_url="${MANAGER_INTERNAL_API_URL:-http://localhost:4092/api/v1}"
     local app_url="${MANAGER_NEXT_PUBLIC_APP_URL:-${NEXT_PUBLIC_APP_URL:-http://localhost:4001}}"
+    local ws_url="${MANAGER_NEXT_PUBLIC_WS_URL:-${NEXT_PUBLIC_WS_URL:-http://localhost:4092/api/v1/ws}}"
 
     echo "Starting frontend..."
     cd "$FRONTEND_DIR" || exit 1
 
     if [ "${MANAGER_SKIP_FRONTEND_BUILD:-0}" != "1" ]; then
         echo "  Building frontend (production bundle)..."
-        if ! $FRONTEND_BUILD_CMD > "$FRONTEND_DIR/frontend.build.log" 2>&1; then
+        if ! NEXT_PUBLIC_API_URL="$public_api_url" \
+             INTERNAL_API_URL="$internal_api_url" \
+             NEXT_PUBLIC_APP_URL="$app_url" \
+             NEXT_PUBLIC_WS_URL="$ws_url" \
+             $FRONTEND_BUILD_CMD > "$FRONTEND_DIR/frontend.build.log" 2>&1; then
             echo "Frontend build failed. Check $FRONTEND_DIR/frontend.build.log"
             return 1
         fi
@@ -113,12 +127,14 @@ start_frontend() {
     echo "  NEXT_PUBLIC_API_URL=$public_api_url"
     echo "  INTERNAL_API_URL=$internal_api_url"
     echo "  NEXT_PUBLIC_APP_URL=$app_url"
+    echo "  NEXT_PUBLIC_WS_URL=$ws_url"
     NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
     PORT=4001 \
     NEXT_PUBLIC_API_URL="$public_api_url" \
     INTERNAL_API_URL="$internal_api_url" \
     NEXT_PUBLIC_APP_URL="$app_url" \
+    NEXT_PUBLIC_WS_URL="$ws_url" \
         nohup $FRONTEND_CMD > "$FRONTEND_LOG_FILE" 2>&1 &
     echo $! > "$FRONTEND_PID_FILE"
     sleep 2 # Give it a moment to start

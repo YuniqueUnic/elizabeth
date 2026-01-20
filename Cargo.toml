@@ -6,9 +6,91 @@ license = "BSD-3"
 
 [workspace]
 members = ["crates/*"]
+exclude = ["crates/web"]
 resolver = "3"
 
+[workspace.metadata.cargo-shear]
+ignored = ["opendal"]
+
+
+# ============================================================
+# Workspace Dependencies - 统一管理所有依赖版本
+# ============================================================
 
 [workspace.dependencies]
+# === Internal Workspace Crates ===
 logrs = { package = "elizabeth-logrs", path = "crates/logrs", features = ["logging"] }
 configrs = { package = "elizabeth-configrs", path = "crates/configrs" }
+board_protocol = { package = "elizabeth-board-protocol", path = "crates/board-protocol" }
+
+# === Core Dependencies ===
+anyhow = "1"
+thiserror = "2"
+async-trait = "0.1"
+
+# === Serialization ===
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+
+# === CLI & Configuration ===
+clap = { version = "4", features = ["derive", "env"] }
+clap_complete = "4"
+config = { version = "0.15", features = ["preserve_order"] }
+
+# === Logging & Tracing ===
+log = "0.4"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# === Async Runtime ===
+tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["io"] }
+futures = "0.3"
+
+# === Web Framework ===
+axum = { version = "0.8", features = ["multipart", "ws"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["trace", "cors", "compression-br", "set-header"] }
+tower_governor = "0.8"
+
+# === Database ===
+sqlx = { version = "0.8", features = ["runtime-tokio", "tls-rustls-aws-lc-rs", "sqlite", "postgres", "any", "migrate", "chrono"] }
+
+# === API Documentation ===
+utoipa = { version = "5", features = ["chrono"] }
+utoipa-scalar = { version = "0.3", features = ["axum"] }
+utoipa-axum = "0.2"
+
+# === Security & Authentication ===
+jsonwebtoken = { version = "10", features = ["use_pem", "aws_lc_rs"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+sha2 = "0.10"
+hex = "0.4"
+
+# === Date & Time ===
+chrono = { version = "0.4", features = ["serde"] }
+
+# === Utilities ===
+bitflags = { version = "2", features = ["serde"] }
+bon = "3"
+regex = "1"
+mime_guess = "2.0"
+sanitize-filename = "0.6"
+opendal = { version = "0.55", features = ["services-fs", "services-s3"] }
+
+# === Build Tools ===
+shadow-rs = { version = "1", features = ["no_std"] }
+
+# === Config Utilities ===
+merge = "0.2"
+smart-default = "0.7"
+fs4 = "0.13"
+
+# === TypeScript Export (Optional) ===
+schemars = { version = "1", features = ["chrono04"] }
+ts-rs = { version = "11", features = ["chrono-impl", "serde-compat"] }
+
+# === Dev Dependencies ===
+serial_test = "3"
+tempfile = "3"

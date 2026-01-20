@@ -219,7 +219,7 @@ export function TopBar() {
         <Button
           variant={hasUnsavedChanges() ? "default" : "ghost"}
           size="icon"
-          className={`hidden md:flex ${
+          className={`h-8 w-8 md:h-10 md:w-10 ${
             hasUnsavedChanges()
               ? "bg-primary text-primary-foreground hover:bg-primary/90"
               : ""
@@ -234,7 +234,7 @@ export function TopBar() {
         <Button
           variant="ghost"
           size="icon"
-          className="hidden md:flex"
+          className="h-8 w-8 md:h-10 md:w-10"
           title="删除"
           onClick={handleDeleteMessages}
           disabled={selectedMessages.size === 0}
@@ -246,7 +246,7 @@ export function TopBar() {
           <Button
             variant="ghost"
             size="icon"
-            className="hidden md:flex"
+            className="h-8 w-8 md:h-10 md:w-10"
             title="帮助"
             data-testid="help-btn"
           >

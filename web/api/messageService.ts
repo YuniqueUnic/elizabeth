@@ -5,14 +5,14 @@
  * Messages are stored as RoomContent with content_type = ContentType.Text (0)
  */
 
-import { API_BASE_URL, API_ENDPOINTS } from "../lib/config";
+import { API_ENDPOINTS } from "../lib/config";
 import { api } from "../lib/utils/api";
 import { getValidToken } from "./authService";
 import type {
-  backendContentToMessage,
   BackendRoomContent,
-  ContentType,
+  CreateMessageResponse,
   Message,
+  UpdateContentResponse,
 } from "../lib/types";
 import {
   backendContentToMessage as convertMessage,
@@ -21,34 +21,12 @@ import {
 } from "../lib/types";
 
 // ============================================================================
-// Message Request/Response Types
-// ============================================================================
-
-export interface PrepareUploadRequest {
-  files: Array<{
-    name: string;
-    size: number;
-    mime?: string;
-    file_hash?: string;
-  }>;
-}
-
-export interface PrepareUploadResponse {
-  reservation_id: number;
-  reserved_size: number;
-  expires_at: string;
-  current_size: number;
-  remaining_size: number;
-  max_size: number;
-}
-
-// ============================================================================
 // Message Functions
 // ============================================================================
 
 /**
  * Get all messages for a room
- * Filters RoomContent for text-only content (content_type = 0 or text files)
+ * Filters RoomContent for text-only content (content_type = 0)
  *
  * @param roomName - The name of the room
  * @param token - Optional token for authentication
@@ -70,39 +48,13 @@ export async function getMessages(
     { token: authToken },
   );
 
+  // Filter only ContentType.Text (content_type = 0)
   const filteredContents = contents.filter((content) => {
     const contentType = parseContentType(content.content_type);
-    return contentType === CT.Text ||
-      (contentType === CT.File &&
-        content.mime_type === "text/plain" &&
-        content.file_name?.includes("message.txt"));
+    return contentType === CT.Text;
   });
 
-  const messagesWithContent = await Promise.all(
-    filteredContents.map(async (content) => {
-      // If content text is missing and it's a text file, fetch it
-      if (!content.text && content.mime_type === "text/plain") {
-        try {
-          const response = await fetch(
-            `${API_BASE_URL}${
-              API_ENDPOINTS.content.byId(roomName, String(content.id))
-            }?token=${authToken}`,
-            { headers: { "Accept": "text/plain" } },
-          );
-          if (response.ok) {
-            const fileContent = await response.text();
-            return { ...content, text: fileContent };
-          }
-          return { ...content, text: "[Failed to load content]" };
-        } catch (error) {
-          return { ...content, text: "[Failed to load content]" };
-        }
-      }
-      return content;
-    }),
-  );
-
-  return messagesWithContent
+  return filteredContents
     .map(convertMessage)
     .sort((a, b) =>
       new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
@@ -112,9 +64,8 @@ export async function getMessages(
 /**
  * Send a message to a room
  *
- * This uses a two-step process:
- * 1. Prepare upload to reserve space
- * 2. Upload the message as a text file using FormData
+ * Uses the new message creation API (POST /api/v1/rooms/{name}/messages)
+ * Messages are stored as ContentType.Text in the database
  *
  * @param roomName - The name of the room
  * @param content - The message content
@@ -132,52 +83,24 @@ export async function postMessage(
     throw new Error("Authentication required to send messages");
   }
 
-  // Step 1: Prepare upload
-  const textBytes = new TextEncoder().encode(content).length;
-  const prepareRequest: PrepareUploadRequest = {
-    files: [{
-      name: "message.txt",
-      size: textBytes,
-      mime: "text/plain",
-    }],
-  };
+  const contentString = typeof content === "string"
+    ? content
+    : String(content);
 
-  const prepareResponse = await api.post<PrepareUploadResponse>(
-    API_ENDPOINTS.content.prepare(roomName),
-    prepareRequest,
+  const response = await api.post<CreateMessageResponse>(
+    API_ENDPOINTS.content.messages(roomName),
+    { text: contentString },
     { token: authToken },
   );
 
-  // Step 2: Upload content as FormData (required by backend)
-  // Ensure content is a string
-  const contentString = typeof content === "string" ? content : String(content);
-  const formData = new FormData();
-  const blob = new Blob([contentString], { type: "text/plain" });
-  formData.append("file", blob, "message.txt");
+  const message = response.message;
 
-  const response = await api.post<{ uploaded: BackendRoomContent[] }>(
-    `${
-      API_ENDPOINTS.content.base(roomName)
-    }?reservation_id=${prepareResponse.reservation_id}`,
-    formData,
-    { token: authToken },
-  );
-
-  const uploadedContents = response.uploaded;
-
-  if (uploadedContents.length === 0) {
-    throw new Error("Failed to upload message");
-  }
-
-  // Manually construct the message to ensure correct content is returned
-  const createdMessage: Message = {
-    id: String(uploadedContents[0].id),
+  return {
+    id: String(message.id),
     content: contentString,
-    timestamp: uploadedContents[0].created_at,
+    timestamp: message.created_at,
     isOwn: true,
   };
-
-  return createdMessage;
 }
 
 /**
@@ -259,7 +182,7 @@ export async function updateMessage(
   }
 
   // Call the update_content API
-  const response = await api.put<{ updated: BackendRoomContent }>(
+  const response = await api.put<UpdateContentResponse>(
     API_ENDPOINTS.content.byId(roomName, messageId),
     { text: content },
     { token: authToken },
@@ -268,10 +191,12 @@ export async function updateMessage(
   return convertMessage(response.updated);
 }
 
-export default {
+const messageService = {
   getMessages,
   postMessage,
   updateMessage,
   deleteMessage,
   deleteMessages,
 };
+
+export default messageService;

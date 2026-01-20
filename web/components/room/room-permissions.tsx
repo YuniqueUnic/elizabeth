@@ -3,13 +3,12 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { getRoomDetails, updateRoomPermissions } from "@/api/roomService";
+import { updateRoomPermissions } from "@/api/roomService";
 import { useAppStore } from "@/lib/store";
 import { useToast } from "@/hooks/use-toast";
 import { useRoomPermissions } from "@/hooks/use-room-permissions";
 import { encodePermissions, parsePermissions } from "@/lib/types";
 import type { RoomPermission } from "@/lib/types";
-import { getAccessToken } from "@/api/authService";
 import { useRouter } from "next/navigation";
 import { clearRoomToken } from "@/lib/utils/api";
 
@@ -83,7 +82,10 @@ function canTogglePermission(
 
 export function RoomPermissions({ permissions }: RoomPermissionsProps) {
   const router = useRouter();
-  const { currentRoomId, setCurrentRoomId } = useAppStore();
+  const { currentRoomId } = useAppStore();
+  const setRoomRedirectTarget = useAppStore((state) =>
+    state.setRoomRedirectTarget
+  );
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { can } = useRoomPermissions();
@@ -112,21 +114,18 @@ export function RoomPermissions({ permissions }: RoomPermissionsProps) {
         description: "房间权限已成功更新",
       });
 
-      // 清理旧的查询缓存
-      queryClient.invalidateQueries({ queryKey: ["room", oldIdentifier] });
-      queryClient.invalidateQueries({ queryKey: ["contents", oldIdentifier] });
-
       // 如果 slug 发生变化，需要跳转到新的 URL
       if (newIdentifier !== oldIdentifier) {
-        // 清理旧 token
+        // 保持当前页面可用（避免立即 refetch 触发错误），同时提示用户手动跳转
+        queryClient.setQueryData(["room", oldIdentifier], updatedRoom);
         clearRoomToken(oldIdentifier);
-
-        // 延迟跳转，让用户看到成功提示
-        setTimeout(() => {
-          // 跳转到新的房间 URL，会触发重新登录流程
-          window.location.href = `/${newIdentifier}`;
-        }, 1000);
+        setRoomRedirectTarget(newIdentifier);
+        return;
       } else {
+        // 清理旧的查询缓存
+        queryClient.invalidateQueries({ queryKey: ["room", oldIdentifier] });
+        queryClient.invalidateQueries({ queryKey: ["contents", oldIdentifier] });
+
         // slug 没有变化，但权限可能降级了
         // 需要清理当前 token，强制用户重新登录以获取新权限的 token
         const oldPermissionValue = encodePermissions(permissions);
@@ -211,6 +210,7 @@ export function RoomPermissions({ permissions }: RoomPermissionsProps) {
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-semibold">房间权限</h3>
+
       <div className="flex flex-wrap gap-2">
         {allPermissions.map((permission) => {
           const isEnabled = hasPermission(permission);

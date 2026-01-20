@@ -102,6 +102,8 @@ export const API_ENDPOINTS = {
       `/rooms/${encodeURIComponent(name)}/contents/prepare`,
     byId: (name: string, contentId: string) =>
       `/rooms/${encodeURIComponent(name)}/contents/${contentId}`,
+    messages: (name: string) =>
+      `/rooms/${encodeURIComponent(name)}/messages`,
   },
 
   // Chunked Upload

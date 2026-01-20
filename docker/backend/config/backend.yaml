@@ -1,39 +1,56 @@
+# Elizabeth Backend Configuration (Docker)
+#
+# NOTE:
+# - 该文件必须匹配 `crates/configrs::Config` 的 schema（顶层为 `app:`）。
+# - 不要在这里写 "${JWT_SECRET}" 这类“伪插值”：YAML 不会自动从环境变量替换。
+#   真实的密钥请通过环境变量 `JWT_SECRET` 注入（`crates/board/src/init/cfg_service.rs` 会覆盖）。
+
 app:
   server:
-    addr: 0.0.0.0
+    addr: "0.0.0.0"
     port: 4092
+
   logging:
-    level: debug
+    level: "info"
+
   database:
-    url: sqlite:/app/data/app.db?mode=rwc
-    max_connections: 20
+    # NOTE: For an absolute path, SQLx expects three slashes.
+    # - ✅ absolute: sqlite:///app/data/elizabeth.db
+    # - ❌ (treated as relative to CWD): sqlite:/app/data/elizabeth.db
+    url: "sqlite:///app/data/elizabeth.db"
+    # SQLite 并发写入能力有限，连接池不宜过大
+    max_connections: 10
     min_connections: 1
-    journal_mode: delete
+    # macOS Docker(virtiofs/gRPC FUSE) 下 WAL 可能触发“Device or resource busy”，默认用 delete 更稳
+    journal_mode: "delete"
+
   storage:
-    root: /app/storage/rooms
+    root: "/app/storage/rooms"
+
   jwt:
-    secret: elizabethelizabethelizabethelizabethelizabeth # pragma: allowlist secret
+    # 生产环境必须通过 env 覆盖（长度 >= 32）
+    secret: "please-change-this-secret-in-production-min-32-chars-long-for-security" # pragma: allowlist secret
     ttl_seconds: 7200
     leeway_seconds: 5
     refresh_ttl_seconds: 604800
     max_refresh_count: 10
     cleanup_interval_seconds: 86400
     enable_refresh_token_rotation: true
+
   room:
-    max_size: 52428800
+    max_size: 52428800 # 50MB
     max_times_entered: 100
+
   upload:
     reservation_ttl_seconds: 3600
+
+  gc:
+    # 扫描并清理“满且无过期、已空房”房间的间隔（秒）
+    interval_seconds: 600
+    # 单次最多处理的房间数量（防止一次扫太久）
+    batch_limit: 200
+
   middleware:
-    tracing:
-      enabled: true
-      level: info
-      include_headers: false
-      include_body: false
-    request_id:
-      enabled: true
-      header_name: X-Request-Id
-      generate_if_missing: true
     compression:
       enabled: true
       min_content_length: 1024
@@ -42,11 +59,11 @@ app:
       allowed_origins:
         - "*"
       allowed_methods:
-        - GET
-        - POST
-        - PUT
-        - DELETE
-        - OPTIONS
+        - "GET"
+        - "POST"
+        - "PUT"
+        - "DELETE"
+        - "OPTIONS"
       allowed_headers:
         - "*"
       allow_credentials: false
@@ -54,13 +71,5 @@ app:
       expose_headers: []
     security:
       enabled: true
-      content_type_options: true
-      frame_options: DENY
-      xss_protection: 1; mode=block
-      strict_transport_security: max-age=31536000; includeSubDomains
-      referrer_policy: strict-origin-when-cross-origin
     rate_limit:
-      enabled: true
-      per_second: 20
-      burst_size: 40
-      cleanup_interval_seconds: 60
+      enabled: false

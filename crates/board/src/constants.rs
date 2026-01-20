@@ -18,7 +18,7 @@ pub mod room {
 
 pub mod database {
     /// 默认数据库连接 URL
-    pub const DEFAULT_DB_URL: &str = "sqlite:app.db";
+    pub const DEFAULT_DB_URL: &str = "sqlite://app.db?mode=rwc";
 
     /// 默认最大连接数
     pub const DEFAULT_MAX_CONNECTIONS: u32 = 20;

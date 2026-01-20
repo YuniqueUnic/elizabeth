@@ -229,7 +229,7 @@ CREATE TABLE IF NOT EXISTS room_chunk_uploads (
     chunk_index INTEGER NOT NULL CHECK (chunk_index >= 0),
     chunk_size INTEGER NOT NULL CHECK (chunk_size > 0),
     chunk_hash TEXT,
-    upload_status TEXT NOT NULL DEFAULT 'pending' CHECK (upload_status IN ('pending', 'uploading', 'uploaded', 'failed')),
+    upload_status TEXT NOT NULL DEFAULT 'pending' CHECK (upload_status IN ('pending', 'uploading', 'uploaded', 'verified', 'failed')),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 

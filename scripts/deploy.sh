@@ -4,7 +4,7 @@
 # ============================================================================
 # This script automates the deployment process
 
-set -e
+set -euo pipefail
 
 # Colors for output
 RED='\033[0;31m'
@@ -30,6 +30,20 @@ log_step() {
     echo -e "${BLUE}[STEP]${NC} $1"
 }
 
+compose() {
+    if command -v docker-compose &> /dev/null; then
+        docker-compose "$@"
+        return
+    fi
+    docker compose "$@"
+}
+
+read_env_var() {
+    local key="$1"
+    local file="$2"
+    grep -E "^${key}=" "$file" 2>/dev/null | tail -n1 | cut -d'=' -f2- || true
+}
+
 # Check if .env file exists
 if [ ! -f .env ]; then
     log_warn ".env file not found. Creating from template..."
@@ -46,7 +60,7 @@ if [ ! -f .env ]; then
 fi
 
 # Check JWT_SECRET
-JWT_SECRET=$(grep "^JWT_SECRET=" .env | cut -d'=' -f2)
+JWT_SECRET=$(read_env_var "JWT_SECRET" ".env")
 if [ "$JWT_SECRET" = "please-change-this-secret-in-production-min-32-chars-long-for-security" ]; then # pragma: allowlist secret
     log_error "JWT_SECRET is still using the default value!"
     log_error "Please generate a secure secret and update .env file"
@@ -61,30 +75,40 @@ if ! command -v docker &> /dev/null; then
     exit 1
 fi
 
-if ! command -v docker-compose &> /dev/null; then
-    log_error "Docker Compose is not installed!"
+if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
+    log_error "Docker Compose is not installed! (need docker compose v2 or docker-compose v1)"
     exit 1
 fi
 
 log_info "Docker version: $(docker --version)"
-log_info "Docker Compose version: $(docker-compose --version)"
+log_info "Docker Compose version: $(compose version)"
 
 log_step "2/6 Creating backup of existing data (if any)..."
-if docker volume ls | grep -q "elizabeth_backend-data"; then
-    log_info "Existing data found. Creating backup..."
-    ./scripts/backup.sh || log_warn "Backup failed, continuing anyway..."
+DATA_DIR="${ELIZABETH_DATA_DIR:-$(read_env_var "ELIZABETH_DATA_DIR" ".env")}"
+STORAGE_DIR="${ELIZABETH_STORAGE_DIR:-$(read_env_var "ELIZABETH_STORAGE_DIR" ".env")}"
+DATA_DIR="${DATA_DIR:-./docker/backend/data}"
+STORAGE_DIR="${STORAGE_DIR:-./docker/backend/storage}"
+
+if [ -d "${DATA_DIR}" ] || [ -d "${STORAGE_DIR}" ]; then
+    if [ "$(ls -A "${DATA_DIR}" 2>/dev/null | wc -l | tr -d ' ')" != "0" ] || \
+       [ "$(ls -A "${STORAGE_DIR}" 2>/dev/null | wc -l | tr -d ' ')" != "0" ]; then
+        log_info "Existing data found. Creating backup..."
+        ./scripts/backup.sh || log_warn "Backup failed, continuing anyway..."
+    else
+        log_info "No existing data found, skipping backup"
+    fi
 else
     log_info "No existing data found, skipping backup"
 fi
 
 log_step "3/6 Building Docker images..."
-docker-compose build --no-cache
+compose build --no-cache
 
 log_step "4/6 Stopping existing containers..."
-docker-compose down
+compose down
 
 log_step "5/6 Starting services..."
-docker-compose up -d
+compose up -d
 
 log_step "6/6 Waiting for services to be healthy..."
 sleep 5
@@ -96,8 +120,9 @@ RETRY_COUNT=0
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
     BACKEND_HEALTH=$(docker inspect elizabeth-backend --format='{{.State.Health.Status}}' 2>/dev/null || echo "unknown")
     FRONTEND_HEALTH=$(docker inspect elizabeth-frontend --format='{{.State.Health.Status}}' 2>/dev/null || echo "unknown")
+    GATEWAY_HEALTH=$(docker inspect elizabeth-gateway --format='{{.State.Health.Status}}' 2>/dev/null || echo "unknown")
 
-    if [ "$BACKEND_HEALTH" = "healthy" ] && [ "$FRONTEND_HEALTH" = "healthy" ]; then
+    if [ "$BACKEND_HEALTH" = "healthy" ] && [ "$FRONTEND_HEALTH" = "healthy" ] && [ "$GATEWAY_HEALTH" = "healthy" ]; then
         log_info "All services are healthy!"
         break
     fi
@@ -105,6 +130,7 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
     log_info "Waiting for services to be healthy... (${RETRY_COUNT}/${MAX_RETRIES})"
     log_info "  Backend: ${BACKEND_HEALTH}"
     log_info "  Frontend: ${FRONTEND_HEALTH}"
+    log_info "  Gateway: ${GATEWAY_HEALTH}"
 
     sleep 2
     RETRY_COUNT=$((RETRY_COUNT + 1))
@@ -121,15 +147,21 @@ log_info "Deployment completed successfully!"
 echo ""
 log_info "Service URLs:"
 FRONTEND_PORT=$(grep "^FRONTEND_PORT=" .env | cut -d'=' -f2)
-BACKEND_PORT=$(grep "^BACKEND_PORT=" .env | cut -d'=' -f2)
 log_info "  Frontend: http://localhost:${FRONTEND_PORT:-4001}"
-log_info "  Backend API: http://localhost:${BACKEND_PORT:-4092}/api/v1"
-log_info "  API Docs: http://localhost:${BACKEND_PORT:-4092}/api/v1/scalar"
+log_info "  Backend API (via gateway): http://localhost:${FRONTEND_PORT:-4001}/api/v1"
+log_info "  API Docs (via gateway): http://localhost:${FRONTEND_PORT:-4001}/api/v1/scalar"
 echo ""
 log_info "Useful commands:"
-log_info "  View logs: docker-compose logs -f"
-log_info "  Check status: docker-compose ps"
-log_info "  Stop services: docker-compose down"
-log_info "  Restart services: docker-compose restart"
+if command -v docker-compose &> /dev/null; then
+    log_info "  View logs: docker-compose logs -f"
+    log_info "  Check status: docker-compose ps"
+    log_info "  Stop services: docker-compose down"
+    log_info "  Restart services: docker-compose restart"
+else
+    log_info "  View logs: docker compose logs -f"
+    log_info "  Check status: docker compose ps"
+    log_info "  Stop services: docker compose down"
+    log_info "  Restart services: docker compose restart"
+fi
 
 exit 0

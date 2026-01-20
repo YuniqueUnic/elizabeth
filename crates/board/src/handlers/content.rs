@@ -22,6 +22,11 @@ use uuid::Uuid;
 use crate::constants::{
     storage::DEFAULT_STORAGE_ROOT, upload::DEFAULT_UPLOAD_RESERVATION_TTL_SECONDS,
 };
+use crate::dto::content::{
+    CreateMessageRequest, CreateMessageResponse, DeleteContentRequest, DeleteContentResponse,
+    RoomContentView, UpdateContentRequest, UpdateContentResponse, UploadContentResponse,
+    UploadPreparationRequest, UploadPreparationResponse,
+};
 use crate::errors::{AppError, AppResult};
 use crate::models::{
     UploadFileDescriptor,
@@ -29,7 +34,7 @@ use crate::models::{
 };
 use crate::repository::{
     IRoomContentRepository, IRoomRepository, IRoomUploadReservationRepository,
-    SqliteRoomContentRepository, SqliteRoomRepository, SqliteRoomUploadReservationRepository,
+    RoomContentRepository, RoomRepository, RoomUploadReservationRepository,
 };
 use crate::services::RoomTokenClaims;
 use crate::state::AppState;
@@ -39,79 +44,10 @@ use super::{TokenQuery, verify_room_token};
 
 type HandlerResult<T> = Result<Json<T>, AppError>;
 
-#[derive(Debug, Serialize, ToSchema)]
-pub struct RoomContentView {
-    pub id: i64,
-    pub content_type: ContentType,
-    pub file_name: Option<String>,
-    pub url: Option<String>,
-    pub size: Option<i64>,
-    pub mime_type: Option<String>,
-    pub created_at: NaiveDateTime,
-    pub updated_at: NaiveDateTime,
-}
-
-impl From<RoomContent> for RoomContentView {
-    fn from(value: RoomContent) -> Self {
-        // ✅ FIX: Use file_name from database instead of extracting from path
-        let file_name = value.file_name.clone().or_else(|| {
-            value.path.as_ref().and_then(|path| {
-                Path::new(path)
-                    .file_name()
-                    .map(|s| s.to_string_lossy().to_string())
-            })
-        });
-
-        Self {
-            id: value.id.unwrap_or_default(),
-            content_type: value.content_type,
-            file_name,
-            url: value.url,
-            size: value.size,
-            mime_type: value.mime_type,
-            created_at: value.created_at,
-            updated_at: value.updated_at,
-        }
-    }
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-pub struct UploadContentResponse {
-    pub uploaded: Vec<RoomContentView>,
-    pub current_size: i64,
-}
-
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct UploadPreparationRequest {
-    pub files: Vec<UploadFileDescriptor>,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-pub struct UploadPreparationResponse {
-    pub reservation_id: i64,
-    pub reserved_size: i64,
-    pub expires_at: NaiveDateTime,
-    pub current_size: i64,
-    pub remaining_size: i64,
-    pub max_size: i64,
-}
-
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct UploadContentQuery {
     pub token: String,
     pub reservation_id: i64,
-}
-
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct DeleteContentRequest {
-    pub ids: Vec<i64>,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-pub struct DeleteContentResponse {
-    pub deleted: Vec<i64>,
-    pub freed_size: i64,
-    pub current_size: i64,
 }
 
 #[utoipa::path(
@@ -146,7 +82,7 @@ pub async fn list_contents(
         ContentPermission::View,
     )?;
 
-    let repository = SqliteRoomContentRepository::new(app_state.db_pool.clone());
+    let repository = RoomContentRepository::new(app_state.db_pool.clone());
     let contents = repository
         .list_by_room(room_id)
         .await
@@ -218,7 +154,7 @@ pub async fn prepare_upload(
     let manifest_json = serde_json::to_string(&payload.files)
         .map_err(|e| AppError::internal(format!("Serialize manifest failed: {e}")))?;
 
-    let reservation_repo = SqliteRoomUploadReservationRepository::new(app_state.db_pool.clone());
+    let reservation_repo = RoomUploadReservationRepository::new(app_state.db_pool.clone());
     let ttl = app_state.upload_reservation_ttl();
 
     let (reservation, updated_room) = reservation_repo
@@ -249,7 +185,7 @@ pub async fn prepare_upload(
     let cleanup_delay_seconds = ttl.num_seconds().max(1) as u64;
     tokio::spawn(async move {
         sleep(StdDuration::from_secs(cleanup_delay_seconds)).await;
-        let repo = SqliteRoomUploadReservationRepository::new(db_pool);
+        let repo = RoomUploadReservationRepository::new(db_pool);
         if let Err(err) = repo.release_if_pending(reservation_id).await {
             log::warn!(
                 "Failed to release expired reservation {}: {}",
@@ -309,7 +245,7 @@ pub async fn upload_contents(
     )?;
 
     let room_id = room_id_or_error(&verified.claims)?;
-    let reservation_repo = SqliteRoomUploadReservationRepository::new(app_state.db_pool.clone());
+    let reservation_repo = RoomUploadReservationRepository::new(app_state.db_pool.clone());
     let reservation = reservation_repo
         .fetch_by_id(query.reservation_id)
         .await
@@ -478,7 +414,7 @@ pub async fn upload_contents(
         ));
     }
 
-    let repository = SqliteRoomContentRepository::new(app_state.db_pool.clone());
+    let repository = RoomContentRepository::new(app_state.db_pool.clone());
     let mut uploaded = Vec::new();
     let mut actual_total: i64 = 0;
 
@@ -525,7 +461,19 @@ pub async fn upload_contents(
         actual_total = actual_total
             .checked_add(temp.size)
             .ok_or_else(|| AppError::internal("Total size overflow"))?;
-        uploaded.push(RoomContentView::from(saved));
+        uploaded.push(RoomContentView::from(saved.clone()));
+
+        // 广播内容创建事件
+        let broadcaster = app_state.broadcaster.clone();
+        let room_name_clone = name.clone();
+        tokio::spawn(async move {
+            if let Err(e) = broadcaster
+                .broadcast_content_created(&room_name_clone, &saved)
+                .await
+            {
+                log::warn!("Failed to broadcast content created event: {}", e);
+            }
+        });
     }
 
     let actual_manifest: Vec<UploadFileDescriptor> = staged
@@ -597,7 +545,7 @@ pub async fn delete_contents(
     )?;
 
     let room_id = room_id_or_error(&verified.claims)?;
-    let repository = SqliteRoomContentRepository::new(app_state.db_pool.clone());
+    let repository = RoomContentRepository::new(app_state.db_pool.clone());
     let existing_contents = repository
         .list_by_room(room_id)
         .await
@@ -635,15 +583,35 @@ pub async fn delete_contents(
 
     if freed_size > 0 {
         verified.room.current_size = (verified.room.current_size - freed_size).max(0);
-        let room_repo = SqliteRoomRepository::new(app_state.db_pool.clone());
+        let room_repo = RoomRepository::new(app_state.db_pool.clone());
         verified.room = room_repo
             .update(&verified.room)
             .await
             .map_err(|e| AppError::internal(format!("Update room failed: {e}")))?;
     }
 
+    let ids_for_response = ids.clone();
+
+    // 广播内容删除事件
+    let broadcaster = app_state.broadcaster.clone();
+    let room_name_clone = name.clone();
+    tokio::spawn(async move {
+        for content_id in &ids {
+            if let Err(e) = broadcaster
+                .broadcast_content_deleted(&room_name_clone, *content_id)
+                .await
+            {
+                log::warn!(
+                    "Failed to broadcast content deleted event for {}: {}",
+                    content_id,
+                    e
+                );
+            }
+        }
+    });
+
     Ok(Json(DeleteContentResponse {
-        deleted: ids,
+        deleted: ids_for_response,
         freed_size,
         current_size: verified.room.current_size,
     }))
@@ -681,7 +649,7 @@ pub async fn download_content(
     )?;
 
     let room_id = room_id_or_error(&verified.claims)?;
-    let repository = SqliteRoomContentRepository::new(app_state.db_pool.clone());
+    let repository = RoomContentRepository::new(app_state.db_pool.clone());
     let content = repository
         .find_by_id(content_id)
         .await
@@ -767,18 +735,6 @@ fn room_id_or_error(claims: &RoomTokenClaims) -> Result<i64, AppError> {
     Ok(claims.room_id)
 }
 
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct UpdateContentRequest {
-    pub text: Option<String>,
-    pub url: Option<String>,
-    pub mime_type: Option<String>,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-pub struct UpdateContentResponse {
-    pub updated: RoomContentView,
-}
-
 #[utoipa::path(
     put,
     path = "/api/v1/rooms/{name}/contents/{content_id}",
@@ -826,7 +782,7 @@ pub async fn update_content(
     )?;
 
     let room_id = room_id_or_error(&verified.claims)?;
-    let repository = SqliteRoomContentRepository::new(app_state.db_pool.clone());
+    let repository = RoomContentRepository::new(app_state.db_pool.clone());
 
     // Get existing content
     let existing_content = repository
@@ -886,6 +842,20 @@ pub async fn update_content(
     )
     .await?;
 
+    let saved_content_clone = saved_content.clone();
+
+    // 广播内容更新事件
+    let broadcaster = app_state.broadcaster.clone();
+    let room_name_clone = name.clone();
+    tokio::spawn(async move {
+        if let Err(e) = broadcaster
+            .broadcast_content_updated(&room_name_clone, &saved_content_clone)
+            .await
+        {
+            log::warn!("Failed to broadcast content updated event: {}", e);
+        }
+    });
+
     Ok(Json(UpdateContentResponse {
         updated: RoomContentView::from(saved_content),
     }))
@@ -895,10 +865,9 @@ pub async fn update_content(
 async fn room_repo_update_if_content_size_changed(
     room: &crate::models::room::Room,
     content: &RoomContent,
-    db_pool: &sqlx::SqlitePool,
+    db_pool: &Arc<crate::db::DbPool>,
 ) -> Result<crate::models::room::Room, AppError> {
-    use crate::repository::{IRoomRepository, SqliteRoomRepository};
-    use std::sync::Arc;
+    use crate::repository::{IRoomRepository, RoomRepository};
 
     // Check if size actually changed
     let size_changed = match content.size {
@@ -907,7 +876,7 @@ async fn room_repo_update_if_content_size_changed(
     };
 
     if size_changed {
-        let room_repo = SqliteRoomRepository::new(Arc::new(db_pool.clone()));
+        let room_repo = RoomRepository::new(db_pool.clone());
         room_repo
             .update(room)
             .await
@@ -915,4 +884,85 @@ async fn room_repo_update_if_content_size_changed(
     } else {
         Ok(room.clone())
     }
+}
+
+// ============================================================================
+// Message Creation API
+// ============================================================================
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/rooms/{name}/messages",
+    params(
+        ("name" = String, Path, description = "房间名称"),
+        ("token" = String, Query, description = "有效的房间 token")
+    ),
+    request_body = CreateMessageRequest,
+    responses(
+        (status = 200, description = "消息创建成功", body = CreateMessageResponse),
+        (status = 400, description = "请求参数错误"),
+        (status = 401, description = "token 无效"),
+        (status = 403, description = "无发送消息权限"),
+        (status = 404, description = "房间不存在")
+    ),
+    tag = "content"
+)]
+pub async fn create_message(
+    AxumPath(name): AxumPath<String>,
+    Query(query): Query<TokenQuery>,
+    State(app_state): State<Arc<AppState>>,
+    Json(payload): Json<CreateMessageRequest>,
+) -> HandlerResult<CreateMessageResponse> {
+    // Validate room name using the new validation framework
+    RoomNameValidator::validate_identifier(&name)?;
+
+    // Validate message text
+    let text = payload.text.trim();
+    if text.is_empty() {
+        return Err(AppError::validation("Message text cannot be empty"));
+    }
+
+    let verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
+    ensure_permission(
+        &verified.claims,
+        verified.room.permission.can_edit(),
+        ContentPermission::Edit,
+    )?;
+
+    let room_id = room_id_or_error(&verified.claims)?;
+    let now = chrono::Utc::now().naive_utc();
+
+    // Create message content using ContentType.Text
+    let mut content = RoomContent::builder()
+        .room_id(room_id)
+        .content_type(ContentType::Text)
+        .now(now)
+        .build();
+
+    content.set_text(text.to_string());
+
+    // Save to database
+    let repository = RoomContentRepository::new(app_state.db_pool.clone());
+    let saved_content = repository
+        .create(&content)
+        .await
+        .map_err(|e| AppError::internal(format!("Failed to create message: {e}")))?;
+
+    let saved_content_clone = saved_content.clone();
+
+    // 广播内容创建事件
+    let broadcaster = app_state.broadcaster.clone();
+    let room_name_clone = name.clone();
+    tokio::spawn(async move {
+        if let Err(e) = broadcaster
+            .broadcast_content_created(&room_name_clone, &saved_content_clone)
+            .await
+        {
+            log::warn!("Failed to broadcast message created event: {}", e);
+        }
+    });
+
+    Ok(Json(CreateMessageResponse {
+        message: RoomContentView::from(saved_content),
+    }))
 }

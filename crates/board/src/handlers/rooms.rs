@@ -1,7 +1,6 @@
 use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::response::IntoResponse;
-use axum_responses::http::HttpResponse;
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -9,14 +8,18 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use super::verify_room_token;
+use crate::dto::rooms::{
+    DeleteRoomResponse, IssueTokenRequest, IssueTokenResponse, RevokeTokenResponse, RoomTokenView,
+    UpdateRoomPermissionRequest, UpdateRoomSettingsRequest, ValidateTokenRequest,
+    ValidateTokenResponse,
+};
 use crate::errors::{AppError, AppResult};
 use crate::models::{Room, RoomToken, permission::RoomPermission};
 use crate::permissions::PermissionBuilder;
 use crate::repository::{
-    IRoomContentRepository, IRoomRepository, IRoomTokenRepository, SqliteRoomContentRepository,
-    SqliteRoomRepository, SqliteRoomTokenRepository,
+    IRoomContentRepository, IRoomRepository, IRoomTokenRepository, RoomContentRepository,
+    RoomRepository, RoomTokenRepository,
 };
-use crate::services::RoomTokenClaims;
 use crate::state::AppState;
 use crate::validation::{PasswordValidator, RoomNameValidator, TokenValidator};
 
@@ -33,88 +36,8 @@ pub struct CreateRoomParams {
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
-pub struct IssueTokenRequest {
-    /// 房间密码，如果房间设置了密码，则必须填写
-    pub password: Option<String>,
-    /// 已有的房间 token，可用于在无需密码的情况下续签
-    pub token: Option<String>,
-    /// 是否请求刷新令牌对
-    #[serde(default)]
-    pub with_refresh_token: bool,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-pub struct IssueTokenResponse {
-    pub token: String,
-    pub claims: RoomTokenClaims,
-    pub expires_at: NaiveDateTime,
-    /// 刷新令牌（仅在请求时返回）
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub refresh_token: Option<String>,
-    /// 刷新令牌过期时间（仅在请求时返回）
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub refresh_token_expires_at: Option<NaiveDateTime>,
-}
-
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct ValidateTokenRequest {
-    pub token: String,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-pub struct ValidateTokenResponse {
-    pub claims: RoomTokenClaims,
-}
-
-#[derive(Debug, Deserialize, ToSchema)]
 pub struct TokenQuery {
     pub token: String,
-}
-
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct UpdateRoomPermissionRequest {
-    #[serde(default)]
-    pub edit: bool,
-    #[serde(default)]
-    pub share: bool,
-    #[serde(default)]
-    pub delete: bool,
-}
-
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct UpdateRoomSettingsRequest {
-    /// 房间密码（可选，设置为 None 表示移除密码）
-    pub password: Option<String>,
-    /// 房间过期时间（可选，设置为 None 表示永不过期）
-    pub expire_at: Option<NaiveDateTime>,
-    /// 最大进入次数（可选）
-    pub max_times_entered: Option<i64>,
-    /// 最大容量限制（可选，单位：字节）
-    pub max_size: Option<i64>,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-pub struct RevokeTokenResponse {
-    pub revoked: bool,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-pub struct RoomTokenView {
-    pub jti: String,
-    pub expires_at: NaiveDateTime,
-    pub revoked_at: Option<NaiveDateTime>,
-    pub created_at: NaiveDateTime,
-}
-
-impl From<RoomToken> for RoomTokenView {
-    fn from(value: RoomToken) -> Self {
-        Self {
-            jti: value.jti,
-            expires_at: value.expires_at,
-            revoked_at: value.revoked_at,
-            created_at: value.created_at,
-        }
-    }
 }
 
 /// 创建房间
@@ -145,7 +68,7 @@ pub async fn create(
         PasswordValidator::validate_room_password(password)?;
     }
 
-    let repository = SqliteRoomRepository::new(app_state.db_pool.clone());
+    let repository = RoomRepository::new(app_state.db_pool.clone());
 
     // 检查房间是否已存在
     if repository.exists(&name).await? {
@@ -183,7 +106,7 @@ pub async fn find(
     // 验证房间标识符（可能是名称或 slug）
     RoomNameValidator::validate_identifier(&name)?;
 
-    let repository = SqliteRoomRepository::new(app_state.db_pool.clone());
+    let repository = RoomRepository::new(app_state.db_pool.clone());
 
     match repository.find_by_name(&name).await? {
         Some(room) => {
@@ -222,7 +145,7 @@ pub async fn find(
         ("token" = String, Query, description = "管理员访问令牌，需具备删除权限")
     ),
     responses(
-        (status = 200, description = "房间删除成功"),
+        (status = 200, description = "房间删除成功", body = DeleteRoomResponse),
         (status = 404, description = "房间不存在"),
         (status = 410, description = "房间已过期"),
         (status = 500, description = "服务器内部错误")
@@ -233,11 +156,11 @@ pub async fn delete(
     Path(name): Path<String>,
     Query(query): Query<TokenQuery>,
     State(app_state): State<Arc<AppState>>,
-) -> Result<HttpResponse, AppError> {
+) -> HandlerResult<DeleteRoomResponse> {
     // 验证房间标识符（可能是名称或 slug）
     RoomNameValidator::validate_identifier(&name)?;
 
-    let repository = SqliteRoomRepository::new(app_state.db_pool.clone());
+    let repository = RoomRepository::new(app_state.db_pool.clone());
 
     // 首先检查房间是否存在和过期
     let room = repository
@@ -263,7 +186,7 @@ pub async fn delete(
     // 房间存在且未过期，执行删除
     // 1. 获取房间的所有内容以删除关联的文件
     if let Some(room_id) = room.id {
-        let content_repo = SqliteRoomContentRepository::new(app_state.db_pool.clone());
+        let content_repo = RoomContentRepository::new(app_state.db_pool.clone());
         let contents = content_repo
             .list_by_room(room_id)
             .await
@@ -290,7 +213,9 @@ pub async fn delete(
                 "Room {} deleted successfully with all content cleaned up",
                 name
             );
-            Ok(HttpResponse::Ok().message("Room deleted successfully"))
+            Ok(Json(DeleteRoomResponse {
+                message: "Room deleted successfully".to_string(),
+            }))
         }
         Ok(false) => Err(AppError::room_not_found(&name)),
         Err(e) => Err(AppError::internal(format!("Failed to delete room: {}", e))),
@@ -330,7 +255,7 @@ pub async fn issue_token(
         previous_jti = Some(verified.record.jti.clone());
         verified.room
     } else {
-        let repository = SqliteRoomRepository::new(app_state.db_pool.clone());
+        let repository = RoomRepository::new(app_state.db_pool.clone());
         let Some(room) = repository
             .find_by_name(&name)
             .await
@@ -349,14 +274,22 @@ pub async fn issue_token(
         room
     };
 
-    if !room.can_enter() {
-        return Err(AppError::authentication("Room cannot be entered"));
-    }
-
     // ✅ FIX: Only increment view count for NEW entries
     // If previous_jti is None, this is a new entry (first time or after token expiry)
     // If previous_jti is Some, this is a token refresh/replacement, don't count it
     let should_increment_view_count = previous_jti.is_none();
+
+    if should_increment_view_count {
+        if !room.can_enter() {
+            return Err(AppError::authentication("Room cannot be entered"));
+        }
+    } else {
+        // Token refresh: do not block on max_times_entered.
+        // Still respect room expiry / close status to avoid resurrecting dead rooms.
+        if room.is_expired() || room.status() == crate::models::RoomStatus::Close {
+            return Err(AppError::authentication("Room cannot be entered"));
+        }
+    }
 
     if should_increment_view_count {
         room.current_times_entered += 1;
@@ -375,42 +308,9 @@ pub async fn issue_token(
         );
     }
 
-    let repository = SqliteRoomRepository::new(app_state.db_pool.clone());
-    if room.current_times_entered >= room.max_times_entered {
-        // Reset room by deleting its content and resetting its state
-        let content_repo = SqliteRoomContentRepository::new(app_state.db_pool.clone());
-
-        // 1. 获取房间的所有内容
-        if let Some(room_id) = room.id {
-            let contents = content_repo
-                .list_by_room(room_id)
-                .await
-                .map_err(|e| AppError::internal(format!("Failed to list room contents: {}", e)))?;
-
-            // 2. 删除文件系统中的文件
-            for content in &contents {
-                if let Some(path) = &content.path {
-                    tokio::fs::remove_file(path).await.ok();
-                }
-            }
-
-            // 3. 删除数据库中的内容记录
-            content_repo
-                .delete_by_room_id(room_id)
-                .await
-                .map_err(|e| AppError::internal(format!("Failed to clear room content: {}", e)))?;
-        }
-
-        room.current_size = 0;
-        room.current_times_entered = 0;
-        logrs::info!(
-            "Room {} reached max view count, content cleared and counters reset",
-            room.slug
-        );
-    }
-
-    // Only update room if view count was incremented or room was reset
-    if should_increment_view_count || room.current_times_entered == 0 {
+    let repository = RoomRepository::new(app_state.db_pool.clone());
+    // Only update room if view count was incremented.
+    if should_increment_view_count {
         repository
             .update(&room)
             .await
@@ -423,7 +323,7 @@ pub async fn issue_token(
         .map_err(|e| AppError::authentication(e.to_string()))?;
 
     let record = RoomToken::new(claims.room_id, claims.jti.clone(), claims.expires_at());
-    let token_repo = SqliteRoomTokenRepository::new(app_state.db_pool.clone());
+    let token_repo = RoomTokenRepository::new(app_state.db_pool.clone());
     token_repo
         .create(&record)
         .await
@@ -451,6 +351,19 @@ pub async fn issue_token(
     } else {
         (None, None)
     };
+
+    // 广播用户加入事件
+    let broadcaster = app_state.broadcaster.clone();
+    let room_name_clone = name.clone();
+    let user_id = claims.jti.clone();
+    tokio::spawn(async move {
+        if let Err(e) = broadcaster
+            .broadcast_user_joined(&room_name_clone, &user_id)
+            .await
+        {
+            log::warn!("Failed to broadcast user joined event: {}", e);
+        }
+    });
 
     Ok(Json(IssueTokenResponse {
         token,
@@ -520,6 +433,9 @@ pub async fn update_permissions(
 
     let verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
     let token_perm = verified.claims.as_permission();
+    if !verified.room.permission.can_delete() {
+        return Err(AppError::permission_denied("Permission denied by room"));
+    }
     if !token_perm.can_delete() {
         return Err(AppError::permission_denied("Permission denied by token"));
     }
@@ -540,8 +456,9 @@ pub async fn update_permissions(
     }
     let new_permission = builder.build();
 
-    let repo = SqliteRoomRepository::new(app_state.db_pool.clone());
+    let repo = RoomRepository::new(app_state.db_pool.clone());
     let mut room = verified.room;
+    let old_slug = room.slug.clone();
     let was_shareable = room.permission.can_share();
     room.permission = new_permission;
 
@@ -577,6 +494,34 @@ pub async fn update_permissions(
         .await
         .map_err(|e| AppError::internal(format!("Failed to update room: {e}")))?;
 
+    // 广播房间更新事件
+    let broadcaster = app_state.broadcaster.clone();
+    let room_info = crate::websocket::types::RoomInfo {
+        id: updated_room.id.unwrap_or(0),
+        name: updated_room.name.clone(),
+        slug: updated_room.slug.clone(),
+        max_size: updated_room.max_size,
+        current_size: updated_room.current_size,
+        max_times_entered: updated_room.max_times_entered,
+        current_times_entered: updated_room.current_times_entered,
+    };
+    let new_slug = updated_room.slug.clone();
+    tokio::spawn(async move {
+        if let Err(e) = broadcaster
+            .broadcast_room_update(&old_slug, &room_info)
+            .await
+        {
+            log::warn!("Failed to broadcast room update event (old slug): {}", e);
+        }
+        if new_slug != old_slug
+            && let Err(e) = broadcaster
+                .broadcast_room_update(&new_slug, &room_info)
+                .await
+        {
+            log::warn!("Failed to broadcast room update event (new slug): {}", e);
+        }
+    });
+
     Ok(Json(updated_room))
 }
 
@@ -609,7 +554,7 @@ pub async fn list_tokens(
         .id
         .ok_or_else(|| AppError::internal("Room id missing"))?;
 
-    let token_repo = SqliteRoomTokenRepository::new(app_state.db_pool.clone());
+    let token_repo = RoomTokenRepository::new(app_state.db_pool.clone());
     let tokens = token_repo
         .list_by_room(room_id)
         .await
@@ -645,7 +590,7 @@ pub async fn revoke_token(
 
     let _verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
 
-    let token_repo = SqliteRoomTokenRepository::new(app_state.db_pool.clone());
+    let token_repo = RoomTokenRepository::new(app_state.db_pool.clone());
     let revoked = token_repo
         .revoke(&target_jti)
         .await
@@ -686,6 +631,11 @@ pub async fn update_room_settings(
     let token_perm = verified.claims.as_permission();
 
     // 需要删除权限才能更新房间设置
+    if !verified.room.permission.can_delete() {
+        return Err(AppError::permission_denied(
+            "Insufficient permissions to update room settings",
+        ));
+    }
     if !token_perm.can_delete() {
         return Err(AppError::permission_denied(
             "Insufficient permissions to update room settings",
@@ -715,7 +665,7 @@ pub async fn update_room_settings(
         return Err(AppError::validation("max_size must be greater than 0"));
     }
 
-    let repo = SqliteRoomRepository::new(app_state.db_pool.clone());
+    let repo = RoomRepository::new(app_state.db_pool.clone());
     let mut room = verified.room;
 
     // 更新字段
@@ -744,6 +694,27 @@ pub async fn update_room_settings(
         .update(&room)
         .await
         .map_err(|e| AppError::internal(format!("Failed to update room settings: {e}")))?;
+
+    // 广播房间更新事件
+    let broadcaster = app_state.broadcaster.clone();
+    let room_info = crate::websocket::types::RoomInfo {
+        id: updated_room.id.unwrap_or(0),
+        name: updated_room.name.clone(),
+        slug: updated_room.slug.clone(),
+        max_size: updated_room.max_size,
+        current_size: updated_room.current_size,
+        max_times_entered: updated_room.max_times_entered,
+        current_times_entered: updated_room.current_times_entered,
+    };
+    let room_slug = updated_room.slug.clone();
+    tokio::spawn(async move {
+        if let Err(e) = broadcaster
+            .broadcast_room_update(&room_slug, &room_info)
+            .await
+        {
+            log::warn!("Failed to broadcast room update event: {}", e);
+        }
+    });
 
     Ok(Json(updated_room))
 }

@@ -1,69 +1,89 @@
 # ============================================================================
-# Optimized Multi-stage Dockerfile for Elizabeth Backend (Rust) with cargo-chef
+# Optimized Multi-stage Dockerfile for Elizabeth Backend (Rust)
 # ============================================================================
+# This Dockerfile uses cargo-chef for optimal caching and build speed
+# ============================================================================
+
 # ----------------------------------------------------------------------------
 # Stage 1: Chef Base - Setup cargo-chef for optimized dependency caching
 # ----------------------------------------------------------------------------
-FROM lukemathwalker/cargo-chef:latest-rust-1.90-slim-bookworm AS chef
+FROM lukemathwalker/cargo-chef:latest AS chef
+
 WORKDIR /app
 
-# ----------------------------------------------------------------------------
-# Stage 2: Planner - Analyze project structure and generate build recipe
-# ----------------------------------------------------------------------------
-FROM chef AS planner
-# Copy only essential configuration files for recipe generation
+# Copy manifest files for dependency analysis
 COPY Cargo.toml Cargo.lock ./
 COPY rust-toolchain.toml ./
 COPY crates/ ./crates/
-# Generate the build recipe (this analyzes dependencies without building)
+
+# Generate build recipe (analyzes dependencies without building)
 RUN cargo chef prepare --recipe-path recipe.json
 
 # ----------------------------------------------------------------------------
-# Stage 3: Builder - Build dependencies and application with optimal caching
+# Stage 2: Builder - Build dependencies and application
 # ----------------------------------------------------------------------------
 FROM chef AS builder
-# Install build dependencies
-RUN apt-get update && apt-get install -y \
-  pkg-config \
-  libssl-dev \
-  sqlite3 \
-  && rm -rf /var/lib/apt/lists/*
 
-# Copy the recipe from planner stage
-COPY --from=planner /app/recipe.json recipe.json
-# Build dependencies first (this layer is cached unless dependencies change)
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    sqlite3 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Configure Cargo network settings to fix IPv6/SSL issues
+# See: https://doc.rust-lang.org/cargo/reference/config.html
+ENV CARGO_HTTP_MULTIPLEXING=false
+ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
+ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=git
+
+# Copy recipe from planner
+COPY --from=chef /app/recipe.json recipe.json
+
+# Build dependencies (cached unless dependencies change)
 RUN cargo chef cook --release --recipe-path recipe.json
 
-# Copy source code and build the actual application
+# Copy source code
 COPY Cargo.toml Cargo.lock ./
 COPY rust-toolchain.toml ./
 COPY crates/ ./crates/
+
 # Build the application
 RUN cargo build --release -p elizabeth-board
 
 # ----------------------------------------------------------------------------
-# Stage 4: Runtime - Minimal runtime image with the binary
+# Stage 3: Runtime - Minimal production image
 # ----------------------------------------------------------------------------
-FROM debian:bookworm-slim AS runtime
-# Install runtime dependencies only
-RUN apt-get update && apt-get install -y \
-  ca-certificates \
-  sqlite3 \
-  curl \
-  && rm -rf /var/lib/apt/lists/*
+# NOTE: The cargo-chef base image is built against glibc >= 2.38.
+# Debian bookworm ships glibc 2.36, which will fail at runtime with:
+#   `GLIBC_2.38' not found
+# Use a runtime image with glibc >= 2.38.
+FROM debian:trixie-slim AS runtime
 
-# Set working directory
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    sqlite3 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Copy the compiled binary and migrations from builder
 COPY --from=builder /app/target/release/board /app/board
-COPY --from=builder /app/crates/board/migrations /app/migrations
+COPY --from=builder /app/crates/board/migrations /app/migrations/
 
-# Create necessary directories
+# Create data directories
 RUN mkdir -p /app/data /app/storage/rooms /app/config
 
-# Expose the application port
+# Expose application port
 EXPOSE 4092
 
-# Use entrypoint script to handle volume mounting
-ENTRYPOINT ["/app/board","run","--config-file","/app/config/backend.yaml"]
+# Set environment variables
+ENV RUST_LOG=info
+ENV DATABASE_URL=sqlite:/app/data/elizabeth.db
+
+# Run the application
+ENTRYPOINT ["/app/board"]
+CMD ["run", "--config-file", "/app/config/backend.yaml"]

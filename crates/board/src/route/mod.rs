@@ -1,6 +1,8 @@
+pub mod admin;
 pub mod auth;
 pub mod room;
 pub mod status;
+pub mod ws;
 
 use utoipa_scalar::{Scalar, Servable};
 

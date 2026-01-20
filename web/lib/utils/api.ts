@@ -57,12 +57,26 @@ const resolveServerOrigin = (): string => {
 const buildClientUrl = (path: string): string => {
   const pathWithBase = composePath(API_BASE_URL, path);
 
-  if (
-    typeof window !== "undefined" &&
-    API_BASE_ORIGIN?.startsWith("http://") &&
-    window.location.protocol === "https:"
-  ) {
-    return pathWithBase;
+  if (typeof window !== "undefined") {
+    if (!API_BASE_ORIGIN) {
+      return pathWithBase;
+    }
+
+    try {
+      const baseUrl = new URL(API_BASE_ORIGIN);
+
+      const isDowngradingProtocol =
+        window.location.protocol === "https:" && baseUrl.protocol === "http:";
+      const isSameHost = baseUrl.host === window.location.host;
+
+      if (isDowngradingProtocol || isSameHost) {
+        return pathWithBase;
+      }
+    } catch {
+      return pathWithBase;
+    }
+
+    return `${API_BASE_ORIGIN}${pathWithBase}`;
   }
 
   if (API_BASE_ORIGIN) {

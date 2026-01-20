@@ -2,14 +2,34 @@
 # ============================================================================
 # Elizabeth Backup Script
 # ============================================================================
-# This script backs up the database and storage volumes
+# This script backs up the database and storage bind mounts
 
-set -e
+set -euo pipefail
 
 # Configuration
 BACKUP_DIR="./backups"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 BACKUP_NAME="elizabeth_backup_${TIMESTAMP}"
+
+read_env_var() {
+    local key="$1"
+    local file="$2"
+    grep -E "^${key}=" "$file" 2>/dev/null | tail -n1 | cut -d'=' -f2- || true
+}
+
+ENV_FILE="./.env"
+ENV_DATA_DIR=""
+ENV_STORAGE_DIR=""
+ENV_CONFIG_FILE=""
+if [ -f "${ENV_FILE}" ]; then
+    ENV_DATA_DIR="$(read_env_var "ELIZABETH_DATA_DIR" "${ENV_FILE}")"
+    ENV_STORAGE_DIR="$(read_env_var "ELIZABETH_STORAGE_DIR" "${ENV_FILE}")"
+    ENV_CONFIG_FILE="$(read_env_var "ELIZABETH_BACKEND_CONFIG" "${ENV_FILE}")"
+fi
+
+DATA_DIR="${ELIZABETH_DATA_DIR:-${ENV_DATA_DIR:-./docker/backend/data}}"
+STORAGE_DIR="${ELIZABETH_STORAGE_DIR:-${ENV_STORAGE_DIR:-./docker/backend/storage}}"
+CONFIG_FILE="${ELIZABETH_BACKEND_CONFIG:-${ENV_CONFIG_FILE:-./docker/backend/config/backend.yaml}}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -36,16 +56,14 @@ mkdir -p "${BACKUP_DIR}"
 log_info "Starting backup: ${BACKUP_NAME}"
 
 # Check if containers are running
-if ! docker-compose ps | grep -q "elizabeth-backend"; then
+if ! docker compose ps | grep -q "elizabeth-backend"; then
     log_warn "Backend container is not running. Backup may be incomplete."
 fi
 
 # Backup database
 log_info "Backing up database..."
-docker run --rm \
-    -v elizabeth_backend-data:/data \
-    -v "$(pwd)/${BACKUP_DIR}:/backup" \
-    alpine tar czf "/backup/${BACKUP_NAME}_data.tar.gz" -C /data .
+mkdir -p "${DATA_DIR}"
+tar czf "${BACKUP_DIR}/${BACKUP_NAME}_data.tar.gz" -C "${DATA_DIR}" .
 
 if [ $? -eq 0 ]; then
     log_info "Database backup completed: ${BACKUP_DIR}/${BACKUP_NAME}_data.tar.gz"
@@ -56,16 +74,20 @@ fi
 
 # Backup storage
 log_info "Backing up storage..."
-docker run --rm \
-    -v elizabeth_backend-storage:/data \
-    -v "$(pwd)/${BACKUP_DIR}:/backup" \
-    alpine tar czf "/backup/${BACKUP_NAME}_storage.tar.gz" -C /data .
+mkdir -p "${STORAGE_DIR}"
+tar czf "${BACKUP_DIR}/${BACKUP_NAME}_storage.tar.gz" -C "${STORAGE_DIR}" .
 
 if [ $? -eq 0 ]; then
     log_info "Storage backup completed: ${BACKUP_DIR}/${BACKUP_NAME}_storage.tar.gz"
 else
     log_error "Storage backup failed!"
     exit 1
+fi
+
+# Backup runtime config (optional, but useful for disaster recovery)
+if [ -f "${CONFIG_FILE}" ]; then
+    tar czf "${BACKUP_DIR}/${BACKUP_NAME}_config.tar.gz" -C "$(dirname "${CONFIG_FILE}")" "$(basename "${CONFIG_FILE}")"
+    log_info "Config backup completed: ${BACKUP_DIR}/${BACKUP_NAME}_config.tar.gz"
 fi
 
 # Create backup info file
@@ -76,12 +98,13 @@ Timestamp: ${TIMESTAMP}
 Date: $(date)
 Database: ${BACKUP_NAME}_data.tar.gz
 Storage: ${BACKUP_NAME}_storage.tar.gz
+Config: ${BACKUP_NAME}_config.tar.gz
 
 Docker Compose Version:
-$(docker-compose version)
+$(docker compose version)
 
 Container Status:
-$(docker-compose ps)
+$(docker compose ps)
 EOF
 
 log_info "Backup info saved: ${BACKUP_DIR}/${BACKUP_NAME}_info.txt"
