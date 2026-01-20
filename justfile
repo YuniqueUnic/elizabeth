@@ -17,37 +17,57 @@ fmt:
     @echo "格式化代码..."
     cargo fmt --all
 
-# 使用 Clippy 进行严格的静态检查
-clippy: fmt
-    @echo "运行 Clippy 检查..."
-    cargo clippy --workspace --all-targets --all-features -- -D warnings
-
 # 快速编译检查（不生成可执行文件）
-check: fmt
+check-only:
     @echo "编译检查..."
     cargo check --workspace --all-targets --all-features
 
+# 使用 Clippy 进行严格的静态检查
+clippy-only:
+    @echo "运行 Clippy 检查..."
+    cargo clippy --workspace --all-targets --all-features -- -D warnings
+
 # 运行所有测试（含工作区）
-test: fmt
+test-only:
     @echo "运行测试..."
-    cargo test --workspace --all-features
+    cargo test --workspace --all-targets --all-features
 
 # 运行测试并输出日志
-test-nocapture: fmt
+test-nocapture-only:
     @echo "运行测试（--nocapture）..."
-    cargo test --workspace --all-features -- --nocapture
+    cargo test --workspace --all-targets --all-features -- --nocapture
 
 # Release 构建（用于发布/性能验证）
-build-release: fmt
+build-release-only:
     @echo "Release 构建..."
     cargo build --workspace --all-targets --all-features --release
 
+# 使用 Clippy 进行严格的静态检查
+clippy: fmt clippy-only
+    @:
+
+# 快速编译检查（不生成可执行文件）
+check: fmt check-only
+    @:
+
+# 运行所有测试（含工作区）
+test: fmt test-only
+    @:
+
+# 运行测试并输出日志
+test-nocapture: fmt test-nocapture-only
+    @:
+
+# Release 构建（用于发布/性能验证）
+build-release: fmt build-release-only
+    @:
+
 # 完整代码验证（fmt + check + test + clippy + build）
-verify: check test clippy build-release
+verify: fmt check-only test-only clippy-only build-release-only
     @echo "验证通过"
 
 # 运行 pre-commit 检查
-prek: fmt clippy
+prek: fmt clippy-only
     @echo "pre-commit 检查..."
     prek run -a
 
@@ -81,7 +101,7 @@ dev: verify
     @echo "开发验证完成"
 
 # 快速检查流程（编译 + clippy）
-dev-quick: check clippy
+dev-quick: fmt check-only clippy-only
     @echo "快速检查完成"
 
 # === 实用工具 ===
