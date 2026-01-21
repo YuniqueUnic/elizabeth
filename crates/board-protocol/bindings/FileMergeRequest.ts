@@ -3,4 +3,4 @@
 /**
  * 文件合并完成请求
  */
-export type FileMergeRequest = { reservation_id: string; final_hash: string };
+export type FileMergeRequest = { reservation_id: string, final_hash: string, };

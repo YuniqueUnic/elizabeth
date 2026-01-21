@@ -3,9 +3,4 @@
 /**
  * 合并后的文件信息
  */
-export type MergedFileInfo = {
-  file_name: string;
-  file_size: number;
-  file_hash: string;
-  content_id?: number;
-};
+export type MergedFileInfo = { file_name: string, file_size: number, file_hash: string, content_id?: number, };

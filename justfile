@@ -183,7 +183,7 @@ docker-up-pg:
 # 停止所有服务
 docker-down:
     @echo "停止所有服务..."
-    docker compose down
+    docker compose down --remove-orphans
 
 # 重建并启动所有服务
 docker-rebuild:
@@ -215,7 +215,7 @@ docker-logs-frontend:
 # 清理 Docker 资源
 docker-clean:
     @echo "清理 Docker 资源..."
-    docker compose down -v
+    docker compose down -v --remove-orphans
     docker system prune -f
 
 # === 命令别名 ===

@@ -1,6 +1,5 @@
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
-use chrono::Utc;
 use sqlx::Any;
 use std::sync::Arc;
 
@@ -47,7 +46,7 @@ impl RoomChunkUploadRepository {
     where
         E: sqlx::Executor<'e, Database = Any>,
     {
-        sqlx::query_as::<_, RoomChunkUpload>(&format!("{SELECT_BASE} WHERE id = ?"))
+        sqlx::query_as::<_, RoomChunkUpload>(&format!("{SELECT_BASE} WHERE id = $1"))
             .bind(id)
             .fetch_optional(executor)
             .await?
@@ -63,7 +62,7 @@ impl RoomChunkUploadRepository {
         E: sqlx::Executor<'e, Database = Any>,
     {
         sqlx::query_as::<_, RoomChunkUpload>(&format!(
-            "{SELECT_BASE} WHERE reservation_id = ? AND chunk_index = ?"
+            "{SELECT_BASE} WHERE reservation_id = $1 AND chunk_index = $2"
         ))
         .bind(reservation_id)
         .bind(chunk_index)
@@ -88,7 +87,7 @@ impl IRoomChunkUploadRepository for RoomChunkUploadRepository {
                 upload_status,
                 created_at,
                 updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING id
             "#,
         )
@@ -117,7 +116,7 @@ impl IRoomChunkUploadRepository for RoomChunkUploadRepository {
 
     async fn find_by_reservation_id(&self, reservation_id: i64) -> Result<Vec<RoomChunkUpload>> {
         let rows = sqlx::query_as::<_, RoomChunkUpload>(&format!(
-            "{SELECT_BASE} WHERE reservation_id = ? ORDER BY chunk_index"
+            "{SELECT_BASE} WHERE reservation_id = $1 ORDER BY chunk_index"
         ))
         .bind(reservation_id)
         .fetch_all(&*self.pool)
@@ -128,7 +127,7 @@ impl IRoomChunkUploadRepository for RoomChunkUploadRepository {
     async fn count_by_reservation_id(&self, reservation_id: i64) -> Result<i64> {
         let count: i64 = sqlx::query_scalar(
             r#"
-            SELECT COUNT(*) FROM room_chunk_uploads WHERE reservation_id = ?
+            SELECT COUNT(*) FROM room_chunk_uploads WHERE reservation_id = $1
             "#,
         )
         .bind(reservation_id)
@@ -144,7 +143,7 @@ impl IRoomChunkUploadRepository for RoomChunkUploadRepository {
             r#"
             DELETE FROM room_chunk_uploads
             WHERE reservation_id IN (
-                SELECT id FROM room_upload_reservations WHERE room_id = ?
+                SELECT id FROM room_upload_reservations WHERE room_id = $1
             )
             "#,
         )

@@ -19,7 +19,7 @@ docker compose ps
 默认对外暴露网关端口（见 `docker-compose.yml`）：
 
 - `http://localhost:4001/`
-- `http://localhost:4001/api/v1/docs`
+- `http://localhost:4001/api/v1/scalar`
 
 ## SQLite / PostgreSQL 选择
 

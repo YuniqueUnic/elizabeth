@@ -16,7 +16,7 @@ const REFRESH_TOKEN_SELECT: &str = r#"
            CAST(expires_at AS TEXT) as expires_at,
            CAST(created_at AS TEXT) as created_at,
            CAST(last_used_at AS TEXT) as last_used_at,
-           CAST(is_revoked AS INTEGER) as is_revoked
+           CASE WHEN is_revoked THEN 1 ELSE 0 END as is_revoked
     FROM room_refresh_tokens
 "#;
 
@@ -61,7 +61,7 @@ impl RoomRefreshTokenRepository {
     where
         E: sqlx::Executor<'e, Database = Any>,
     {
-        let sql = format!("{REFRESH_TOKEN_SELECT} WHERE id = ?");
+        let sql = format!("{REFRESH_TOKEN_SELECT} WHERE id = $1");
         sqlx::query_as::<_, RoomRefreshToken>(&sql)
             .bind(id)
             .fetch_optional(executor)
@@ -76,7 +76,7 @@ impl RoomRefreshTokenRepository {
     where
         E: sqlx::Executor<'e, Database = Any>,
     {
-        let sql = format!("{REFRESH_TOKEN_SELECT} WHERE token_hash = ?");
+        let sql = format!("{REFRESH_TOKEN_SELECT} WHERE token_hash = $1");
         let token = sqlx::query_as::<_, RoomRefreshToken>(&sql)
             .bind(token_hash)
             .fetch_optional(executor)
@@ -102,7 +102,7 @@ impl IRoomRefreshTokenRepository for RoomRefreshTokenRepository {
                 created_at,
                 last_used_at,
                 is_revoked
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING id
             "#,
         )
@@ -127,9 +127,9 @@ impl IRoomRefreshTokenRepository for RoomRefreshTokenRepository {
 
     async fn list_active(&self, room_id: i64) -> Result<Vec<RoomRefreshToken>> {
         let sql = format!(
-            "{REFRESH_TOKEN_SELECT} WHERE room_id = ? \
+            "{REFRESH_TOKEN_SELECT} WHERE room_id = $1 \
              AND is_revoked = FALSE \
-             AND CAST(expires_at AS TEXT) > ? \
+             AND CAST(expires_at AS TEXT) > $2 \
              ORDER BY created_at DESC"
         );
         let tokens = sqlx::query_as::<_, RoomRefreshToken>(&sql)
@@ -146,8 +146,8 @@ impl IRoomRefreshTokenRepository for RoomRefreshTokenRepository {
         sqlx::query(
             r#"
             UPDATE room_refresh_tokens
-            SET last_used_at = ?
-            WHERE id = ?
+            SET last_used_at = $1
+            WHERE id = $2
             "#,
         )
         .bind(now)
@@ -161,15 +161,16 @@ impl IRoomRefreshTokenRepository for RoomRefreshTokenRepository {
     }
 
     async fn revoke(&self, id: i64) -> Result<bool> {
+        let now = format_naive_datetime(Utc::now().naive_utc());
         let result = sqlx::query(
             r#"
             UPDATE room_refresh_tokens
             SET is_revoked = TRUE,
-                last_used_at = COALESCE(last_used_at, ?)
-            WHERE id = ? AND is_revoked = FALSE
+                last_used_at = COALESCE(last_used_at, $1)
+            WHERE id = $2 AND is_revoked = FALSE
             "#,
         )
-        .bind(format_naive_datetime(Utc::now().naive_utc()))
+        .bind(now)
         .bind(id)
         .execute(&*self.pool)
         .await?;
@@ -177,15 +178,16 @@ impl IRoomRefreshTokenRepository for RoomRefreshTokenRepository {
     }
 
     async fn revoke_by_access_jti(&self, access_jti: &str) -> Result<bool> {
+        let now = format_naive_datetime(Utc::now().naive_utc());
         let result = sqlx::query(
             r#"
             UPDATE room_refresh_tokens
             SET is_revoked = TRUE,
-                last_used_at = COALESCE(last_used_at, ?)
-            WHERE access_token_jti = ? AND is_revoked = FALSE
+                last_used_at = COALESCE(last_used_at, $1)
+            WHERE access_token_jti = $2 AND is_revoked = FALSE
             "#,
         )
-        .bind(format_naive_datetime(Utc::now().naive_utc()))
+        .bind(now)
         .bind(access_jti)
         .execute(&*self.pool)
         .await?;
@@ -193,7 +195,7 @@ impl IRoomRefreshTokenRepository for RoomRefreshTokenRepository {
     }
 
     async fn delete_by_room(&self, room_id: i64) -> Result<u64> {
-        let result = sqlx::query("DELETE FROM room_refresh_tokens WHERE room_id = ?")
+        let result = sqlx::query("DELETE FROM room_refresh_tokens WHERE room_id = $1")
             .bind(room_id)
             .execute(&*self.pool)
             .await?;
@@ -202,7 +204,7 @@ impl IRoomRefreshTokenRepository for RoomRefreshTokenRepository {
 
     async fn delete_expired(&self) -> Result<u64> {
         let result =
-            sqlx::query("DELETE FROM room_refresh_tokens WHERE CAST(expires_at AS TEXT) <= ?")
+            sqlx::query("DELETE FROM room_refresh_tokens WHERE CAST(expires_at AS TEXT) <= $1")
                 .bind(format_naive_datetime(Utc::now().naive_utc()))
                 .execute(&*self.pool)
                 .await?;
@@ -214,7 +216,7 @@ impl IRoomRefreshTokenRepository for RoomRefreshTokenRepository {
             r#"
             UPDATE room_refresh_tokens
             SET is_revoked = TRUE
-            WHERE CAST(expires_at AS TEXT) <= ? AND is_revoked = FALSE
+            WHERE CAST(expires_at AS TEXT) <= $1 AND is_revoked = FALSE
             "#,
         )
         .bind(format_naive_datetime(Utc::now().naive_utc()))
@@ -243,7 +245,7 @@ impl ITokenBlacklistRepository for TokenBlacklistRepository {
         sqlx::query(
             r#"
             INSERT INTO token_blacklist (jti, expires_at, created_at)
-            VALUES (?, ?, ?)
+            VALUES ($1, $2, $3)
             ON CONFLICT(jti) DO UPDATE SET
                 expires_at = excluded.expires_at,
                 created_at = excluded.created_at
@@ -255,7 +257,7 @@ impl ITokenBlacklistRepository for TokenBlacklistRepository {
         .execute(&mut *tx)
         .await?;
 
-        let sql = format!("{TOKEN_BLACKLIST_SELECT} WHERE jti = ?");
+        let sql = format!("{TOKEN_BLACKLIST_SELECT} WHERE jti = $1");
         let stored = sqlx::query_as::<_, TokenBlacklistEntry>(&sql)
             .bind(&entry.jti)
             .fetch_one(&mut *tx)
@@ -267,7 +269,7 @@ impl ITokenBlacklistRepository for TokenBlacklistRepository {
 
     async fn is_blacklisted(&self, jti: &str) -> Result<bool> {
         let exists: i64 = sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM token_blacklist WHERE jti = ? AND CAST(expires_at AS TEXT) > ?)",
+            "SELECT CASE WHEN EXISTS(SELECT 1 FROM token_blacklist WHERE jti = $1 AND CAST(expires_at AS TEXT) > $2) THEN 1 ELSE 0 END",
         )
         .bind(jti)
         .bind(format_naive_datetime(Utc::now().naive_utc()))
@@ -277,10 +279,11 @@ impl ITokenBlacklistRepository for TokenBlacklistRepository {
     }
 
     async fn remove_expired(&self) -> Result<u64> {
-        let result = sqlx::query("DELETE FROM token_blacklist WHERE CAST(expires_at AS TEXT) <= ?")
-            .bind(format_naive_datetime(Utc::now().naive_utc()))
-            .execute(&*self.pool)
-            .await?;
+        let result =
+            sqlx::query("DELETE FROM token_blacklist WHERE CAST(expires_at AS TEXT) <= $1")
+                .bind(format_naive_datetime(Utc::now().naive_utc()))
+                .execute(&*self.pool)
+                .await?;
         Ok(result.rows_affected())
     }
 }

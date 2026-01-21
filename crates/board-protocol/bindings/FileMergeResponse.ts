@@ -4,8 +4,4 @@ import type { MergedFileInfo } from "./MergedFileInfo";
 /**
  * 文件合并完成响应
  */
-export type FileMergeResponse = {
-  reservation_id: string;
-  merged_files: Array<MergedFileInfo>;
-  message: string;
-};
+export type FileMergeResponse = { reservation_id: string, merged_files: Array<MergedFileInfo>, message: string, };

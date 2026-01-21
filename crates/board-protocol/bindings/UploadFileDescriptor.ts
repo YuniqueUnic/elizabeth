@@ -3,10 +3,4 @@
 /**
  * 客户端上报的文件信息
  */
-export type UploadFileDescriptor = {
-  name: string;
-  size: number;
-  mime?: string;
-  chunk_size?: number;
-  file_hash?: string;
-};
+export type UploadFileDescriptor = { name: string, size: number, mime?: string, chunk_size?: number, file_hash?: string, };

@@ -37,7 +37,7 @@ async fn load_gc_markers(
         SELECT CAST(empty_since AS TEXT) as empty_since,
                CAST(cleanup_after AS TEXT) as cleanup_after
         FROM rooms
-        WHERE slug = ?
+        WHERE slug = $1
         "#,
     )
     .bind(slug)
@@ -158,7 +158,7 @@ async fn room_gc_purges_when_cleanup_after_elapsed_and_no_connections() -> anyho
 
     // Force cleanup_after into the past so the room becomes eligible for purge.
     let past = Utc::now().naive_utc() - Duration::hours(1);
-    sqlx::query("UPDATE rooms SET cleanup_after = ? WHERE id = ?")
+    sqlx::query("UPDATE rooms SET cleanup_after = $1 WHERE id = $2")
         .bind(format_naive_datetime(past))
         .bind(room_id)
         .execute(&*app_state.db_pool)

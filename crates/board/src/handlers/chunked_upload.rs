@@ -145,11 +145,11 @@ pub async fn prepare_chunked_upload(
         r#"
         UPDATE room_upload_reservations
         SET chunked_upload = true,
-            total_chunks = ?,
+            total_chunks = $1,
             uploaded_chunks = 0,
-            chunk_size = ?,
-            upload_status = ?
-        WHERE id = ?
+            chunk_size = $2,
+            upload_status = $3
+        WHERE id = $4
         "#,
     )
     .bind(total_chunks)

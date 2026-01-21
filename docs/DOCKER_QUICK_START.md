@@ -20,7 +20,8 @@ docker compose ps
 访问：
 
 - 前端：`http://localhost:4001`
-- OpenAPI：`http://localhost:4001/api/v1/docs`
+- OpenAPI UI：`http://localhost:4001/api/v1/scalar`
+- OpenAPI JSON：`http://localhost:4001/api/v1/openapi.json`
 - 健康检查：`http://localhost:4001/api/v1/health`
 
 数据默认落盘在仓库目录（可通过 `.env` 覆盖）：
