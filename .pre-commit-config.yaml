@@ -21,7 +21,7 @@ repos:
       # 防止提交大文件 (内置快速实现)
       - id: check-added-large-files
         args: ["--maxkb=500"]
-        exclude: "^docs/.*demo.*"
+        exclude: "^docs/.*demo.*|elizabeth.png"
       # 检查合并冲突标记
       - id: check-merge-conflict
       # 混合换行符检查 (内置快速实现)
