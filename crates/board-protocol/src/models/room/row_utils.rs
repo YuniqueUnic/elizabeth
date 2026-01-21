@@ -7,6 +7,20 @@ pub const DEFAULT_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 pub fn parse_any_timestamp(raw: &str) -> Result<NaiveDateTime, chrono::ParseError> {
     NaiveDateTime::parse_from_str(raw, DEFAULT_FORMAT_WITH_FRACTION)
         .or_else(|_| NaiveDateTime::parse_from_str(raw, DEFAULT_FORMAT))
+        // PostgreSQL default `TIMESTAMPTZ::text` format:
+        // - "2026-01-21 06:01:33.950326+00"
+        // - "2026-01-21 06:01:33+00"
+        .or_else(|_| {
+            DateTime::parse_from_str(raw, "%Y-%m-%d %H:%M:%S%.f%#z").map(|dt| dt.naive_utc())
+        })
+        .or_else(|_| DateTime::parse_from_str(raw, "%Y-%m-%d %H:%M:%S%#z").map(|dt| dt.naive_utc()))
+        // Alternate offset format:
+        // - "2026-01-21 06:01:33.950326+00:00"
+        // - "2026-01-21 06:01:33+00:00"
+        .or_else(|_| {
+            DateTime::parse_from_str(raw, "%Y-%m-%d %H:%M:%S%.f%:z").map(|dt| dt.naive_utc())
+        })
+        .or_else(|_| DateTime::parse_from_str(raw, "%Y-%m-%d %H:%M:%S%:z").map(|dt| dt.naive_utc()))
         .or_else(|_| DateTime::parse_from_rfc3339(raw).map(|dt| dt.naive_utc()))
 }
 

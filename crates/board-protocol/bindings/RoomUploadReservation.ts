@@ -4,21 +4,4 @@ import type { UploadStatus } from "./UploadStatus";
 /**
  * 上传预留记录
  */
-export type RoomUploadReservation = {
-  id: number | null;
-  room_id: number;
-  token_jti: string;
-  file_manifest: string;
-  reserved_size: number;
-  reserved_at: string;
-  expires_at: string;
-  consumed_at: string | null;
-  created_at: string;
-  updated_at: string;
-  chunked_upload: boolean | null;
-  total_chunks: number | null;
-  uploaded_chunks: number | null;
-  file_hash: string | null;
-  chunk_size: number | null;
-  upload_status: UploadStatus | null;
-};
+export type RoomUploadReservation = { id: number | null, room_id: number, token_jti: string, file_manifest: string, reserved_size: number, reserved_at: string, expires_at: string, consumed_at: string | null, created_at: string, updated_at: string, chunked_upload: boolean | null, total_chunks: number | null, uploaded_chunks: number | null, file_hash: string | null, chunk_size: number | null, upload_status: UploadStatus | null, };

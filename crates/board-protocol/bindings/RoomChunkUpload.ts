@@ -4,13 +4,4 @@ import type { ChunkStatus } from "./ChunkStatus";
 /**
  * 房间分块上传记录
  */
-export type RoomChunkUpload = {
-  id: number | null;
-  reservation_id: number;
-  chunk_index: number;
-  chunk_size: number;
-  chunk_hash: string | null;
-  upload_status: ChunkStatus;
-  created_at: string;
-  updated_at: string;
-};
+export type RoomChunkUpload = { id: number | null, reservation_id: number, chunk_index: number, chunk_size: number, chunk_hash: string | null, upload_status: ChunkStatus, created_at: string, updated_at: string, };

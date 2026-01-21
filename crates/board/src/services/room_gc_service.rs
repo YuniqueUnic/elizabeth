@@ -47,7 +47,7 @@ impl RoomGcService {
             r#"
             UPDATE rooms
             SET empty_since = NULL, cleanup_after = NULL
-            WHERE slug = ?
+            WHERE slug = $1
             "#,
         )
         .bind(room_slug)
@@ -66,7 +66,7 @@ impl RoomGcService {
                 current_times_entered,
                 CAST(expire_at AS TEXT) as expire_at
             FROM rooms
-            WHERE slug = ?
+            WHERE slug = $1
             "#,
         )
         .bind(room_slug)
@@ -98,7 +98,7 @@ impl RoomGcService {
             r#"
             SELECT MAX(CAST(expires_at AS TEXT))
             FROM room_tokens
-            WHERE room_id = ? AND revoked_at IS NULL
+            WHERE room_id = $1 AND revoked_at IS NULL
             "#,
         )
         .bind(room_id)
@@ -119,8 +119,8 @@ impl RoomGcService {
         sqlx::query(
             r#"
             UPDATE rooms
-            SET empty_since = ?, cleanup_after = ?
-            WHERE id = ?
+            SET empty_since = $1, cleanup_after = $2
+            WHERE id = $3
               AND expire_at IS NULL
               AND current_times_entered >= max_times_entered
             "#,
@@ -159,7 +159,7 @@ impl RoomGcService {
             WHERE expire_at IS NULL
               AND current_times_entered >= max_times_entered
             ORDER BY updated_at DESC
-            LIMIT ?
+            LIMIT $1
             "#,
         )
         .bind(limit as i64)
@@ -219,9 +219,9 @@ impl RoomGcService {
               AND current_times_entered >= max_times_entered
               AND empty_since IS NOT NULL
               AND cleanup_after IS NOT NULL
-              AND CAST(cleanup_after AS TEXT) <= ?
+              AND CAST(cleanup_after AS TEXT) <= $1
             ORDER BY cleanup_after ASC
-            LIMIT ?
+            LIMIT $2
             "#,
         )
         .bind(now_str)

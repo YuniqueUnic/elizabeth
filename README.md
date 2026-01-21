@@ -31,7 +31,8 @@ docker compose up -d --build
 访问：
 
 - 前端：`http://localhost:4001`
-- OpenAPI：`http://localhost:4001/api/v1/docs`
+- OpenAPI UI：`http://localhost:4001/api/v1/scalar`
+- OpenAPI JSON：`http://localhost:4001/api/v1/openapi.json`
 - 健康检查：`http://localhost:4001/api/v1/health`
 
 ## PostgreSQL（可选）

@@ -21,7 +21,11 @@ const SELECT_BASE: &str = r#"
         CAST(consumed_at AS TEXT) as consumed_at,
         CAST(created_at AS TEXT) as created_at,
         CAST(updated_at AS TEXT) as updated_at,
-        CAST(chunked_upload AS INTEGER) as chunked_upload,
+        CASE
+            WHEN chunked_upload IS NULL THEN NULL
+            WHEN chunked_upload THEN 1
+            ELSE 0
+        END as chunked_upload,
         total_chunks,
         uploaded_chunks,
         file_hash,
@@ -89,7 +93,7 @@ impl RoomUploadReservationRepository {
         E: sqlx::Executor<'e, Database = Any>,
     {
         let row =
-            sqlx::query_as::<_, RoomUploadReservation>(&format!("{SELECT_BASE} WHERE id = ?"))
+            sqlx::query_as::<_, RoomUploadReservation>(&format!("{SELECT_BASE} WHERE id = $1"))
                 .bind(reservation_id)
                 .fetch_optional(executor)
                 .await?;
@@ -126,7 +130,7 @@ impl RoomUploadReservationRepository {
                 CAST(updated_at AS TEXT) as updated_at,
                 permission
             FROM rooms
-            WHERE id = ?
+            WHERE id = $1
             "#,
         )
         .bind(room_id)
@@ -167,7 +171,7 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
                 file_hash,
                 chunk_size,
                 upload_status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
             RETURNING id
             "#,
         )
@@ -203,7 +207,7 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
 
     async fn find_by_token(&self, token_jti: &str) -> Result<Option<RoomUploadReservation>> {
         let row = sqlx::query_as::<_, RoomUploadReservation>(&format!(
-            "{SELECT_BASE} WHERE token_jti = ?"
+            "{SELECT_BASE} WHERE token_jti = $1"
         ))
         .bind(token_jti)
         .fetch_optional(&*self.pool)
@@ -241,8 +245,8 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
         sqlx::query(
             r#"
             UPDATE rooms
-            SET current_size = ?, updated_at = ?
-            WHERE id = ?
+            SET current_size = $1, updated_at = $2
+            WHERE id = $3
             "#,
         )
         .bind(latest_room.current_size)
@@ -270,7 +274,7 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
                 chunk_size,
                 upload_status
             )
-            VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, FALSE, NULL, NULL, NULL, NULL, ?)
+            VALUES ($1, $2, $3, $4, $5, $6, NULL, $7, $8, FALSE, NULL, NULL, NULL, NULL, $9)
             RETURNING id
             "#,
         )
@@ -305,7 +309,7 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
                 && reservation.consumed_at.is_none();
 
             if is_pending {
-                sqlx::query("DELETE FROM room_upload_reservations WHERE id = ?")
+                sqlx::query("DELETE FROM room_upload_reservations WHERE id = $1")
                     .bind(reservation_id)
                     .execute(&mut *tx)
                     .await?;
@@ -313,9 +317,12 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
                 sqlx::query(
                     r#"
                     UPDATE rooms
-                    SET current_size = MAX(current_size - ?, 0),
-                        updated_at = ?
-                    WHERE id = ?
+                    SET current_size = CASE
+                            WHEN current_size - $1 < 0 THEN 0
+                            ELSE current_size - $1
+                        END,
+                        updated_at = $2
+                    WHERE id = $3
                     "#,
                 )
                 .bind(reservation.reserved_size)
@@ -375,8 +382,8 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
         sqlx::query(
             r#"
             UPDATE rooms
-            SET current_size = ?, updated_at = ?
-            WHERE id = ?
+            SET current_size = $1, updated_at = $2
+            WHERE id = $3
             "#,
         )
         .bind(room.current_size)
@@ -388,17 +395,17 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
         sqlx::query(
             r#"
             UPDATE room_upload_reservations
-            SET reserved_size = ?,
-                file_manifest = ?,
-                upload_status = ?,
-                consumed_at = ?,
-                updated_at = ?,
+            SET reserved_size = $1,
+                file_manifest = $2,
+                upload_status = $3,
+                consumed_at = $4,
+                updated_at = $5,
                 chunked_upload = FALSE,
                 total_chunks = NULL,
                 uploaded_chunks = NULL,
                 file_hash = NULL,
                 chunk_size = NULL
-            WHERE id = ?
+            WHERE id = $6
             "#,
         )
         .bind(actual_size)
@@ -424,13 +431,13 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
         sqlx::query(
             r#"
             UPDATE room_upload_reservations
-            SET uploaded_chunks = ?,
+            SET uploaded_chunks = $1,
                 upload_status = CASE
-                    WHEN upload_status = ? THEN ?
+                    WHEN upload_status = $2 THEN $3
                     ELSE upload_status
                 END,
-                updated_at = ?
-            WHERE id = ?
+                updated_at = $4
+            WHERE id = $5
             "#,
         )
         .bind(uploaded_chunks)
@@ -456,8 +463,8 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
         sqlx::query(
             r#"
             UPDATE room_upload_reservations
-            SET upload_status = ?, updated_at = ?
-            WHERE id = ?
+            SET upload_status = $1, updated_at = $2
+            WHERE id = $3
             "#,
         )
         .bind(status.to_string())
@@ -477,8 +484,8 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
         sqlx::query(
             r#"
             UPDATE room_upload_reservations
-            SET consumed_at = ?, updated_at = ?
-            WHERE id = ?
+            SET consumed_at = $1, updated_at = $2
+            WHERE id = $3
             "#,
         )
         .bind(now.clone())
@@ -498,11 +505,11 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
         sqlx::query(
             r#"
             UPDATE room_upload_reservations
-            SET upload_status = ?,
-                consumed_at = ?,
-                updated_at = ?,
+            SET upload_status = $1,
+                consumed_at = $2,
+                updated_at = $3,
                 uploaded_chunks = total_chunks
-            WHERE id = ?
+            WHERE id = $4
             "#,
         )
         .bind(UploadStatus::Completed)
@@ -518,7 +525,7 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
     }
 
     async fn delete(&self, reservation_id: i64) -> Result<bool> {
-        let result = sqlx::query("DELETE FROM room_upload_reservations WHERE id = ?")
+        let result = sqlx::query("DELETE FROM room_upload_reservations WHERE id = $1")
             .bind(reservation_id)
             .execute(&*self.pool)
             .await?;
@@ -527,11 +534,12 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
     }
 
     async fn purge_expired(&self) -> Result<u64> {
-        let result =
-            sqlx::query("DELETE FROM room_upload_reservations WHERE CAST(expires_at AS TEXT) <= ?")
-                .bind(format_naive_datetime(Utc::now().naive_utc()))
-                .execute(&*self.pool)
-                .await?;
+        let result = sqlx::query(
+            "DELETE FROM room_upload_reservations WHERE CAST(expires_at AS TEXT) <= $1",
+        )
+        .bind(format_naive_datetime(Utc::now().naive_utc()))
+        .execute(&*self.pool)
+        .await?;
         Ok(result.rows_affected())
     }
 }

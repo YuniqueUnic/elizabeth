@@ -55,7 +55,7 @@ impl RoomRepository {
     where
         E: sqlx::Executor<'e, Database = Any>,
     {
-        let sql = format!("{ROOM_SELECT_BASE} WHERE id = ?");
+        let sql = format!("{ROOM_SELECT_BASE} WHERE id = $1");
         let room = sqlx::query_as::<_, Room>(&sql)
             .bind(id)
             .fetch_optional(executor)
@@ -67,7 +67,7 @@ impl RoomRepository {
     where
         E: sqlx::Executor<'e, Database = Any>,
     {
-        let sql = format!("{ROOM_SELECT_BASE} WHERE slug = ?");
+        let sql = format!("{ROOM_SELECT_BASE} WHERE slug = $1");
         let room = sqlx::query_as::<_, Room>(&sql)
             .bind(slug)
             .fetch_optional(executor)
@@ -82,7 +82,7 @@ impl RoomRepository {
     where
         E: sqlx::Executor<'e, Database = Any>,
     {
-        let sql = format!("{ROOM_SELECT_BASE} WHERE name = ?");
+        let sql = format!("{ROOM_SELECT_BASE} WHERE name = $1");
         let room = sqlx::query_as::<_, Room>(&sql)
             .bind(name)
             .fetch_optional(executor)
@@ -104,7 +104,7 @@ impl RoomRepository {
         E: sqlx::Executor<'e, Database = Any>,
     {
         let sql = format!(
-            "{ROOM_SELECT_BASE} WHERE expire_at IS NOT NULL AND CAST(expire_at AS TEXT) < ?"
+            "{ROOM_SELECT_BASE} WHERE expire_at IS NOT NULL AND CAST(expire_at AS TEXT) < $1"
         );
         let rooms = sqlx::query_as::<_, Room>(&sql)
             .bind(format_naive_datetime(before))
@@ -116,12 +116,12 @@ impl RoomRepository {
     async fn reset_if_expired(&self, room: Room) -> Result<Option<Room>> {
         if room.is_expired() {
             if let Some(id) = room.id {
-                sqlx::query("DELETE FROM room_contents WHERE room_id = ?")
+                sqlx::query("DELETE FROM room_contents WHERE room_id = $1")
                     .bind(id)
                     .execute(&*self.pool)
                     .await?;
 
-                sqlx::query("DELETE FROM rooms WHERE id = ?")
+                sqlx::query("DELETE FROM rooms WHERE id = $1")
                     .bind(id)
                     .execute(&*self.pool)
                     .await?;
@@ -139,10 +139,12 @@ impl RoomRepository {
 #[async_trait]
 impl IRoomRepository for RoomRepository {
     async fn exists(&self, name: &str) -> Result<bool> {
-        let exists: i64 = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM rooms WHERE slug = ?)")
-            .bind(name)
-            .fetch_one(&*self.pool)
-            .await?;
+        let exists: i64 = sqlx::query_scalar(
+            "SELECT CASE WHEN EXISTS(SELECT 1 FROM rooms WHERE slug = $1) THEN 1 ELSE 0 END",
+        )
+        .bind(name)
+        .fetch_one(&*self.pool)
+        .await?;
 
         Ok(exists != 0)
     }
@@ -159,7 +161,7 @@ impl IRoomRepository for RoomRepository {
                 name, slug, password, status, max_size, current_size,
                 max_times_entered, current_times_entered, expire_at,
                 created_at, updated_at, permission
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
             RETURNING id
             "#,
         )
@@ -225,10 +227,10 @@ impl IRoomRepository for RoomRepository {
         sqlx::query(
             r#"
             UPDATE rooms SET
-                password = ?, status = ?, max_size = ?, current_size = ?,
-                max_times_entered = ?, current_times_entered = ?, expire_at = ?,
-                updated_at = ?, permission = ?, slug = ?
-            WHERE id = ?
+                password = $1, status = $2, max_size = $3, current_size = $4,
+                max_times_entered = $5, current_times_entered = $6, expire_at = $7,
+                updated_at = $8, permission = $9, slug = $10
+            WHERE id = $11
             "#,
         )
         .bind(&room.password)
@@ -254,7 +256,7 @@ impl IRoomRepository for RoomRepository {
     }
 
     async fn delete(&self, name: &str) -> Result<bool> {
-        let result = sqlx::query("DELETE FROM rooms WHERE slug = ?")
+        let result = sqlx::query("DELETE FROM rooms WHERE slug = $1")
             .bind(name)
             .execute(&*self.pool)
             .await?;
@@ -269,7 +271,7 @@ impl IRoomRepository for RoomRepository {
 
     async fn delete_expired_before(&self, before: NaiveDateTime) -> Result<u64> {
         let result = sqlx::query(
-            "DELETE FROM rooms WHERE expire_at IS NOT NULL AND CAST(expire_at AS TEXT) < ?",
+            "DELETE FROM rooms WHERE expire_at IS NOT NULL AND CAST(expire_at AS TEXT) < $1",
         )
         .bind(format_naive_datetime(before))
         .execute(&*self.pool)

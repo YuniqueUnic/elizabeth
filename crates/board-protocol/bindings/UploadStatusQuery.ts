@@ -4,12 +4,11 @@
  * 上传状态查询请求
  */
 export type UploadStatusQuery = {
-  /**
-   * 上传令牌（与 reservation_id 二选一）
-   */
-  upload_token?: string;
-  /**
-   * 预留 ID（与 upload_token 二选一）
-   */
-  reservation_id?: string;
-};
+/**
+ * 上传令牌（与 reservation_id 二选一）
+ */
+upload_token?: string,
+/**
+ * 预留 ID（与 upload_token 二选一）
+ */
+reservation_id?: string, };

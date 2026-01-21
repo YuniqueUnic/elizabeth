@@ -4,20 +4,19 @@
  * 单个分块上传请求
  */
 export type ChunkUploadRequest = {
-  /**
-   * 上传令牌
-   */
-  upload_token: string;
-  /**
-   * 分块索引（从 0 开始）
-   */
-  chunk_index: number;
-  /**
-   * 分块大小
-   */
-  chunk_size: number;
-  /**
-   * 分块哈希（可选，用于完整性验证）
-   */
-  chunk_hash?: string;
-};
+/**
+ * 上传令牌
+ */
+upload_token: string,
+/**
+ * 分块索引（从 0 开始）
+ */
+chunk_index: number,
+/**
+ * 分块大小
+ */
+chunk_size: number,
+/**
+ * 分块哈希（可选，用于完整性验证）
+ */
+chunk_hash?: string, };

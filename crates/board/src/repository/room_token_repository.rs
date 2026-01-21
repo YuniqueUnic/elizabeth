@@ -38,7 +38,7 @@ impl RoomTokenRepository {
     where
         E: sqlx::Executor<'e, Database = Any>,
     {
-        let sql = format!("{TOKEN_SELECT} WHERE jti = ?");
+        let sql = format!("{TOKEN_SELECT} WHERE jti = $1");
         let token = sqlx::query_as::<_, RoomToken>(&sql)
             .bind(jti)
             .fetch_optional(executor)
@@ -50,7 +50,7 @@ impl RoomTokenRepository {
     where
         E: sqlx::Executor<'e, Database = Any>,
     {
-        let sql = format!("{TOKEN_SELECT} WHERE id = ?");
+        let sql = format!("{TOKEN_SELECT} WHERE id = $1");
         sqlx::query_as::<_, RoomToken>(&sql)
             .bind(id)
             .fetch_optional(executor)
@@ -70,7 +70,7 @@ impl IRoomTokenRepository for RoomTokenRepository {
         let id: i64 = sqlx::query_scalar(
             r#"
             INSERT INTO room_tokens (room_id, jti, expires_at, revoked_at, created_at)
-            VALUES (?, ?, ?, ?, ?)
+            VALUES ($1, $2, $3, $4, $5)
             RETURNING id
             "#,
         )
@@ -92,7 +92,7 @@ impl IRoomTokenRepository for RoomTokenRepository {
     }
 
     async fn list_by_room(&self, room_id: i64) -> Result<Vec<RoomToken>> {
-        let sql = format!("{TOKEN_SELECT} WHERE room_id = ? ORDER BY created_at DESC");
+        let sql = format!("{TOKEN_SELECT} WHERE room_id = $1 ORDER BY created_at DESC");
         let tokens = sqlx::query_as::<_, RoomToken>(&sql)
             .bind(room_id)
             .fetch_all(&*self.pool)
@@ -106,8 +106,8 @@ impl IRoomTokenRepository for RoomTokenRepository {
         let result = sqlx::query(
             r#"
             UPDATE room_tokens
-            SET revoked_at = ?
-            WHERE jti = ? AND revoked_at IS NULL
+            SET revoked_at = $1
+            WHERE jti = $2 AND revoked_at IS NULL
             "#,
         )
         .bind(now_str)
@@ -118,7 +118,7 @@ impl IRoomTokenRepository for RoomTokenRepository {
     }
 
     async fn delete_by_room(&self, room_id: i64) -> Result<u64> {
-        let result = sqlx::query("DELETE FROM room_tokens WHERE room_id = ?")
+        let result = sqlx::query("DELETE FROM room_tokens WHERE room_id = $1")
             .bind(room_id)
             .execute(&*self.pool)
             .await?;

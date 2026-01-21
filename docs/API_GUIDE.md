@@ -1,6 +1,6 @@
 # Elizabeth API 使用指南（简版）
 
-建议优先看 OpenAPI：`/api/v1/docs`。
+建议优先看 OpenAPI UI：`/api/v1/scalar`（JSON：`/api/v1/openapi.json`）。
 
 ## Base URL
 
