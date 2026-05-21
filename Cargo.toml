@@ -65,7 +65,7 @@ utoipa-axum = "0.2"
 # === Security & Authentication ===
 jsonwebtoken = { version = "10", features = ["use_pem", "aws_lc_rs"] }
 uuid = { version = "1", features = ["v4", "serde"] }
-sha2 = "0.10"
+sha2 = "0.11"
 hex = "0.4"
 
 # === Date & Time ===
@@ -77,19 +77,19 @@ bon = "3"
 regex = "1"
 mime_guess = "2.0"
 sanitize-filename = "0.6"
-opendal = { version = "0.55", features = ["services-fs", "services-s3"] }
+opendal = { version = "0.56", features = ["services-fs", "services-s3"] }
 
 # === Build Tools ===
-shadow-rs = { version = "1", features = ["no_std"] }
+shadow-rs = { version = "2", features = ["no_std"] }
 
 # === Config Utilities ===
 merge = "0.2"
 smart-default = "0.7"
-fs4 = "0.13"
+fs4 = "1"
 
 # === TypeScript Export (Optional) ===
 schemars = { version = "1", features = ["chrono04"] }
-ts-rs = { version = "11", features = ["chrono-impl", "serde-compat"] }
+ts-rs = { version = "12", features = ["chrono-impl", "serde-compat"] }
 
 # === Dev Dependencies ===
 serial_test = "3"
