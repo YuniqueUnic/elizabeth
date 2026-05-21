@@ -26,61 +26,62 @@ use crate::models::{
 
 #[cfg(feature = "typescript-export")]
 pub fn export_ts_types_to(output_dir: &Path) -> Result<(), ts_rs::ExportError> {
-    Room::export_all_to(output_dir)?;
-    RoomStatus::export_all_to(output_dir)?;
-    RoomContent::export_all_to(output_dir)?;
-    ContentType::export_all_to(output_dir)?;
-    ChunkStatus::export_all_to(output_dir)?;
-    RoomChunkUpload::export_all_to(output_dir)?;
-    CreateRefreshTokenRequest::export_all_to(output_dir)?;
-    RefreshTokenRequest::export_all_to(output_dir)?;
-    RefreshTokenResponse::export_all_to(output_dir)?;
-    RoomRefreshToken::export_all_to(output_dir)?;
-    TokenBlacklistEntry::export_all_to(output_dir)?;
-    RoomUploadReservation::export_all_to(output_dir)?;
-    UploadFileDescriptor::export_all_to(output_dir)?;
-    UploadStatus::export_all_to(output_dir)?;
+    let output_dir_cfg = ts_rs::Config::new().with_out_dir(&output_dir);
+    Room::export_all(&&output_dir_cfg)?;
+    RoomStatus::export_all(&output_dir_cfg)?;
+    RoomContent::export_all(&output_dir_cfg)?;
+    ContentType::export_all(&output_dir_cfg)?;
+    ChunkStatus::export_all(&output_dir_cfg)?;
+    RoomChunkUpload::export_all(&output_dir_cfg)?;
+    CreateRefreshTokenRequest::export_all(&output_dir_cfg)?;
+    RefreshTokenRequest::export_all(&output_dir_cfg)?;
+    RefreshTokenResponse::export_all(&output_dir_cfg)?;
+    RoomRefreshToken::export_all(&output_dir_cfg)?;
+    TokenBlacklistEntry::export_all(&output_dir_cfg)?;
+    RoomUploadReservation::export_all(&output_dir_cfg)?;
+    UploadFileDescriptor::export_all(&output_dir_cfg)?;
+    UploadStatus::export_all(&output_dir_cfg)?;
 
-    TokenType::export_all_to(output_dir)?;
-    RoomTokenClaims::export_all_to(output_dir)?;
+    TokenType::export_all(&output_dir_cfg)?;
+    RoomTokenClaims::export_all(&output_dir_cfg)?;
 
-    IssueTokenRequest::export_all_to(output_dir)?;
-    IssueTokenResponse::export_all_to(output_dir)?;
-    ValidateTokenRequest::export_all_to(output_dir)?;
-    ValidateTokenResponse::export_all_to(output_dir)?;
-    UpdateRoomPermissionRequest::export_all_to(output_dir)?;
-    UpdateRoomSettingsRequest::export_all_to(output_dir)?;
-    RevokeTokenResponse::export_all_to(output_dir)?;
-    DeleteRoomResponse::export_all_to(output_dir)?;
-    RoomTokenView::export_all_to(output_dir)?;
+    IssueTokenRequest::export_all(&output_dir_cfg)?;
+    IssueTokenResponse::export_all(&output_dir_cfg)?;
+    ValidateTokenRequest::export_all(&output_dir_cfg)?;
+    ValidateTokenResponse::export_all(&output_dir_cfg)?;
+    UpdateRoomPermissionRequest::export_all(&output_dir_cfg)?;
+    UpdateRoomSettingsRequest::export_all(&output_dir_cfg)?;
+    RevokeTokenResponse::export_all(&output_dir_cfg)?;
+    DeleteRoomResponse::export_all(&output_dir_cfg)?;
+    RoomTokenView::export_all(&output_dir_cfg)?;
 
-    RoomContentView::export_all_to(output_dir)?;
-    UploadContentResponse::export_all_to(output_dir)?;
-    UploadPreparationRequest::export_all_to(output_dir)?;
-    UploadPreparationResponse::export_all_to(output_dir)?;
-    DeleteContentRequest::export_all_to(output_dir)?;
-    DeleteContentResponse::export_all_to(output_dir)?;
-    UpdateContentRequest::export_all_to(output_dir)?;
-    UpdateContentResponse::export_all_to(output_dir)?;
-    CreateMessageRequest::export_all_to(output_dir)?;
-    CreateMessageResponse::export_all_to(output_dir)?;
+    RoomContentView::export_all(&output_dir_cfg)?;
+    UploadContentResponse::export_all(&output_dir_cfg)?;
+    UploadPreparationRequest::export_all(&output_dir_cfg)?;
+    UploadPreparationResponse::export_all(&output_dir_cfg)?;
+    DeleteContentRequest::export_all(&output_dir_cfg)?;
+    DeleteContentResponse::export_all(&output_dir_cfg)?;
+    UpdateContentRequest::export_all(&output_dir_cfg)?;
+    UpdateContentResponse::export_all(&output_dir_cfg)?;
+    CreateMessageRequest::export_all(&output_dir_cfg)?;
+    CreateMessageResponse::export_all(&output_dir_cfg)?;
 
-    ChunkedUploadPreparationRequest::export_all_to(output_dir)?;
-    ChunkedUploadPreparationResponse::export_all_to(output_dir)?;
-    ReservedFileInfo::export_all_to(output_dir)?;
-    ChunkUploadRequest::export_all_to(output_dir)?;
-    ChunkUploadResponse::export_all_to(output_dir)?;
-    UploadStatusQuery::export_all_to(output_dir)?;
-    ChunkStatusInfo::export_all_to(output_dir)?;
-    UploadStatusResponse::export_all_to(output_dir)?;
-    FileMergeRequest::export_all_to(output_dir)?;
-    FileMergeResponse::export_all_to(output_dir)?;
-    MergedFileInfo::export_all_to(output_dir)?;
+    ChunkedUploadPreparationRequest::export_all(&output_dir_cfg)?;
+    ChunkedUploadPreparationResponse::export_all(&output_dir_cfg)?;
+    ReservedFileInfo::export_all(&output_dir_cfg)?;
+    ChunkUploadRequest::export_all(&output_dir_cfg)?;
+    ChunkUploadResponse::export_all(&output_dir_cfg)?;
+    UploadStatusQuery::export_all(&output_dir_cfg)?;
+    ChunkStatusInfo::export_all(&output_dir_cfg)?;
+    UploadStatusResponse::export_all(&output_dir_cfg)?;
+    FileMergeRequest::export_all(&output_dir_cfg)?;
+    FileMergeResponse::export_all(&output_dir_cfg)?;
+    MergedFileInfo::export_all(&output_dir_cfg)?;
 
-    LogoutRequest::export_all_to(output_dir)?;
-    CleanupResponse::export_all_to(output_dir)?;
-    FullRoomGcStatusView::export_all_to(output_dir)?;
-    RunRoomGcResponse::export_all_to(output_dir)?;
+    LogoutRequest::export_all(&output_dir_cfg)?;
+    CleanupResponse::export_all(&output_dir_cfg)?;
+    FullRoomGcStatusView::export_all(&output_dir_cfg)?;
+    RunRoomGcResponse::export_all(&output_dir_cfg)?;
     Ok(())
 }
 

@@ -197,7 +197,7 @@ impl ConfigManager {
 
     /// Try to write with file locking
     fn try_write_with_lock(&self, file_path: &PathBuf, content: &str) -> Result<()> {
-        use fs4::fs_std::FileExt;
+        use fs4::FileExt;
         use std::io::Write;
 
         // Open the temporary file for writing
@@ -209,14 +209,9 @@ impl ConfigManager {
             .map_err(ConfigError::from)?;
 
         // Try to acquire exclusive lock (non-blocking)
-        match file.try_lock_exclusive() {
-            Ok(true) => {
+        match file.try_lock() {
+            Ok(_) => {
                 // Lock acquired successfully
-            }
-            Ok(false) => {
-                return Err(ConfigError::Other(
-                    "Failed to acquire exclusive file lock".into(),
-                ));
             }
             Err(e) => {
                 return Err(ConfigError::Other(format!(

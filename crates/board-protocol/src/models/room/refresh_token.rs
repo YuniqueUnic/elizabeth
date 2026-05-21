@@ -115,7 +115,12 @@ impl RoomRefreshToken {
     pub fn hash_token(token: &str) -> String {
         let mut hasher = Sha256::new();
         hasher.update(token.as_bytes());
-        format!("{:x}", hasher.finalize())
+        hasher
+            .finalize()
+            .to_vec()
+            .iter()
+            .map(|b| format!("{:02x}", b))
+            .collect::<String>()
     }
 
     /// 验证刷新令牌是否匹配存储的哈希值
