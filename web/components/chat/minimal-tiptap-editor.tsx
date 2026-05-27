@@ -162,7 +162,7 @@ function isLikelyImageFile(file: File): boolean {
 
 function fileToRoomPath(roomName: string, file: FileItem): string {
   if (file.url) return file.url;
-  return `/rooms/${encodeURIComponent(roomName)}/contents/${file.id}`;
+  return `/contents/${file.id}`;
 }
 
 function buildMarkdownForFile(

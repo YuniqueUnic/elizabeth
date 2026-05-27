@@ -76,3 +76,61 @@ pub async fn verify_room_token(
         record,
     })
 }
+
+pub async fn verify_room_token_by_id(
+    app_state: Arc<AppState>,
+    room_id: i64,
+    token_str: &str,
+) -> AppResult<VerifiedRoomToken> {
+    // 验证令牌格式
+    TokenValidator::validate_token_format(token_str)?;
+
+    // 解码令牌
+    let claims = app_state
+        .token_service()
+        .decode(token_str)
+        .map_err(|e| AppError::token(format!("Token is invalid or expired: {}", e)))?;
+
+    // 验证令牌是否为该房间 ID 签发
+    if claims.room_id != room_id {
+        return Err(AppError::authentication("Token room ID mismatch"));
+    }
+
+    // 查找房间
+    let room_repo = RoomRepository::new(app_state.db_pool.clone());
+    let room = room_repo
+        .find_by_id(room_id)
+        .await
+        .map_err(|e| AppError::internal(format!("Database error: {}", e)))?
+        .ok_or_else(|| AppError::room_not_found(format!("ID {room_id}")))?;
+
+    // 验证房间状态
+    if room.id != Some(claims.room_id) {
+        return Err(AppError::authentication("Token room ID mismatch"));
+    }
+    if room.is_expired() {
+        return Err(AppError::authentication("Room expired"));
+    }
+    if room.status() == RoomStatus::Close {
+        return Err(AppError::authentication("Room cannot be entered"));
+    }
+
+    // 查找令牌记录
+    let token_repo = RoomTokenRepository::new(app_state.db_pool.clone());
+    let record = token_repo
+        .find_by_jti(&claims.jti)
+        .await
+        .map_err(|e| AppError::internal(format!("Database error: {}", e)))?
+        .ok_or_else(|| AppError::authentication("Token revoked or not found"))?;
+
+    // 验证令牌状态
+    if !record.is_active() {
+        return Err(AppError::authentication("Token revoked or expired"));
+    }
+
+    Ok(VerifiedRoomToken {
+        room,
+        claims,
+        record,
+    })
+}

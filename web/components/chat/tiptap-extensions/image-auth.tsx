@@ -20,7 +20,7 @@ function ImageWithAuth({ node, updateAttributes }: any) {
   const authenticatedSrc = useMemo(() => {
     const originalSrc = node.attrs.src;
 
-    // 只处理相对路径的图片（以 / 开头）
+    // 只处理相对路径 of 图片（以 / 开头）
     if (typeof originalSrc === "string" && originalSrc.startsWith("/")) {
       const token = getRoomTokenString(currentRoomId);
 
@@ -30,29 +30,20 @@ function ImageWithAuth({ node, updateAttributes }: any) {
       }
 
       try {
-        // 确保路径以 /api/v1 开头
-        let path = originalSrc;
-        if (path.startsWith("/rooms/") && !path.startsWith("/api/v1/")) {
-          // 容错重写逻辑：如果当前房间是 aaa_uuid，而路径是 /rooms/aaa/contents/id，自动重写为最新私有 slug
-          const match = path.match(/^\/rooms\/([^/]+)\/contents\/(\d+)/);
-          if (match) {
-            const urlRoomSlug = match[1];
-            const contentId = match[2];
-            // 如果 urlRoomSlug 不是 currentRoomId，但 currentRoomId 是以 urlRoomSlug 加下划线开头的（例如 currentRoomId 为 aaa_uuid）
-            if (currentRoomId && currentRoomId !== urlRoomSlug && currentRoomId.startsWith(urlRoomSlug + "_")) {
-              path = `/rooms/${encodeURIComponent(currentRoomId)}/contents/${contentId}`;
-              console.log(`[ImageAuth] Rewriting room name in image path from ${urlRoomSlug} to ${currentRoomId}`);
-            }
-          }
-          path = `/api/v1${path}`;
+        // 统一捕获 contentId，支持各种老路由与新稳定路由的全局自愈
+        const match = originalSrc.match(/contents\/(\d+)/);
+        if (!match) {
+          return originalSrc;
         }
+        const contentId = match[1];
+        const path = `/api/v1/contents/${contentId}`;
 
-        // 构建完整的 URL
+        // 构建完整的 URL 并附上 token 授权
         const url = new URL(path, window.location.origin);
         url.searchParams.set("token", token);
         const finalUrl = `${url.pathname}${url.search}`;
 
-        console.log("[ImageAuth] Final URL:", finalUrl);
+        console.log("[ImageAuth] Rewritten stable asset URL:", finalUrl);
         return finalUrl;
       } catch (e) {
         console.error("[ImageAuth] URL parse error:", e);

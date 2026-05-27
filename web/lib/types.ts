@@ -264,12 +264,12 @@ export function backendContentToFileItem(
   // For URL content, use the stored URL directly
   let fileUrl = content.url;
   if (
-    !fileUrl && roomName &&
+    !fileUrl &&
     (contentType === ContentType.File || contentType === ContentType.Image)
   ) {
-    // Construct download URL: /rooms/{roomName}/contents/{contentId}
+    // Construct download URL: /contents/{contentId}
     // The API client will add the base URL and token
-    fileUrl = `/rooms/${roomName}/contents/${content.id}`;
+    fileUrl = `/contents/${content.id}`;
   }
 
   return {
