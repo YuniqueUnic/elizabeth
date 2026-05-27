@@ -8,7 +8,8 @@ import { RoomCapacity } from "@/components/room/room-capacity";
 import { RoomSharing } from "@/components/room/room-sharing";
 import { useQuery } from "@tanstack/react-query";
 import { getRoomDetails, deleteRoom } from "@/api/roomService";
-import { getAccessToken } from "@/api/authService";
+import { verifyRoomPassword } from "@/api/authService";
+
 import { clearRoomToken } from "@/lib/utils/api";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -75,7 +76,9 @@ export function LeftSidebar() {
     setActionLoading(true);
     setDialogError(null);
     try {
-      await getAccessToken(roomDetails.slug || roomDetails.name, password);
+      // 使用专用的密码验证函数，强制走密码校验路径，不使用已缓存的 token
+      // 避免持有有效 token 的用户跳过密码验证直接进入下一步
+      await verifyRoomPassword(roomDetails.slug || roomDetails.name, password);
       setStep(2);
     } catch (err: any) {
       console.error("Verification failed:", err);
@@ -84,6 +87,7 @@ export function LeftSidebar() {
       setActionLoading(false);
     }
   };
+
 
   const handleConfirmDelete = async () => {
     if (!roomDetails) return;

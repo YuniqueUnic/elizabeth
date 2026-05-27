@@ -4,19 +4,19 @@ import type { ReservedFileInfo } from "./ReservedFileInfo";
 /**
  * 分块上传预留响应
  */
-export type ChunkedUploadPreparationResponse = { 
+export type ChunkedUploadPreparationResponse = {
 /**
  * 预留 ID
  */
-reservation_id: string, 
+reservation_id: string,
 /**
  * 上传令牌
  */
-upload_token: string, 
+upload_token: string,
 /**
  * 预留过期时间
  */
-expires_at: string, 
+expires_at: string,
 /**
  * 文件清单
  */

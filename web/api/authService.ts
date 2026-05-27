@@ -83,6 +83,36 @@ export async function getAccessToken(
 }
 
 /**
+ * Verify a room password WITHOUT using any cached token.
+ *
+ * Unlike `getAccessToken`, this function intentionally never passes an existing
+ * token to the backend. This forces the backend to validate the supplied
+ * password through the normal credential-check path, preventing token holders
+ * from bypassing the password gate (e.g., in the "close room" confirmation flow).
+ *
+ * @param roomName - The room slug or name
+ * @param password - The password to verify
+ * @throws If the password is wrong or the room is unreachable
+ */
+export async function verifyRoomPassword(
+  roomName: string,
+  password: string,
+): Promise<void> {
+  const requestBody: IssueTokenRequest = {
+    password,
+    token: undefined, // 明确不传 token，强制走密码验证路径
+    with_refresh_token: false,
+  };
+
+  // 不存储返回的 token，仅作密码验证
+  await api.post<IssueTokenResponse>(
+    API_ENDPOINTS.rooms.tokens(roomName),
+    requestBody,
+    { skipTokenInjection: true },
+  );
+}
+
+/**
  * Validate a token for a room
  *
  * @param roomName - The name of the room
@@ -231,6 +261,7 @@ export function hasValidToken(roomName: string): boolean {
 
 const authService = {
   getAccessToken,
+  verifyRoomPassword,
   validateToken,
   refreshToken,
   logout,
