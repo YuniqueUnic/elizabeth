@@ -268,8 +268,8 @@ export function FileContentPreview(
     }
   };
 
-  // Toolbar component
-  const Toolbar = () => (
+  // Toolbar component render function
+  const renderToolbar = () => (
     <div className="flex items-center justify-between gap-2 px-4 py-2 border-b bg-muted/30">
       <div className="flex items-center gap-2">
         <span className="text-sm font-medium text-muted-foreground">
@@ -388,7 +388,7 @@ export function FileContentPreview(
   if (fileType === "markdown") {
     return (
       <div className="flex flex-col h-full">
-        <Toolbar />
+        {renderToolbar()}
         {markdownPreviewMode
           ? (
             // Preview mode: Render Markdown
@@ -439,7 +439,7 @@ export function FileContentPreview(
   if (fileType === "code") {
     return (
       <div className="flex flex-col h-full">
-        <Toolbar />
+        {renderToolbar()}
         <div className="p-4 overflow-auto flex-1">
           <CodeBlock
             code={content}
@@ -456,7 +456,7 @@ export function FileContentPreview(
   if (fileType === "text") {
     return (
       <div className="flex flex-col h-full">
-        <Toolbar />
+        {renderToolbar()}
         <div className="p-6 overflow-auto flex-1">
           <pre
             className={`whitespace-pre-wrap font-mono text-sm p-4 rounded-lg ${

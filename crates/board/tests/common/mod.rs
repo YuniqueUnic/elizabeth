@@ -94,6 +94,7 @@ pub async fn create_test_app() -> Result<(axum::Router, Arc<board::db::DbPool>)>
         room: RoomConfig {
             max_content_size: DEFAULT_MAX_ROOM_CONTENT_SIZE,
             max_times_entered: DEFAULT_MAX_TIMES_ENTER_ROOM,
+            share_disabled_lock_duration: 3600,
         },
         auth: AuthConfig::new("test-secret-key-for-unit-testing-123456789".to_string())?,
     };

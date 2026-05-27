@@ -13,6 +13,8 @@ import type { FileItem } from "@/lib/types";
 import { formatFileSize } from "@/lib/utils/format";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/lib/store";
+import { useRoomPermissions } from "@/hooks/use-room-permissions";
+
 import { downloadFile } from "@/api/fileService";
 import { FileContentPreview } from "./file-content-preview";
 import dynamic from "next/dynamic";
@@ -49,6 +51,8 @@ export function FilePreviewModal(
   const currentRoomId = useAppStore((state) => state.currentRoomId);
   const requestInsertMarkdown = useAppStore((state) => state.requestInsertMarkdown);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const { can } = useRoomPermissions();
+
 
   if (!file) return null;
 
@@ -198,6 +202,7 @@ export function FilePreviewModal(
                   size="sm"
                   onClick={handleDelete}
                   className="h-8"
+                  disabled={!can.delete}
                 >
                   <Trash2 className="h-4 w-4 mr-1" />
                   <span className="hidden sm:inline">删除</span>

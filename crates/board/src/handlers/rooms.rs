@@ -121,7 +121,40 @@ pub async fn find(
         }
         None => {
             // 如果房间不存在，判断是否存在同名但不同 slug 的房间
-            if repository.find_by_display_name(&name).await?.is_some() {
+            if let Some(room) = repository.find_by_display_name(&name).await? {
+                let lock_duration = app_state.config.room.share_disabled_lock_duration;
+                let now = chrono::Utc::now().naive_utc();
+
+                // 检查这个老房间的锁定是否已经到期。如果老房间的 slug != name，说明它目前处于私有改名状态
+                if room.slug != room.name {
+                    let lock_expired = (now - room.updated_at).num_seconds() >= lock_duration;
+                    if lock_expired {
+                        // 锁定已到期，立即将老房间的 name 释放为它的 slug，释放唯一键！
+                        let mut mutable_room = room;
+                        mutable_room.name = mutable_room.slug.clone();
+                        mutable_room.updated_at = now;
+                        repository.update(&mutable_room).await.map_err(|e| {
+                            AppError::internal(format!(
+                                "Failed to release expired room name: {}",
+                                e
+                            ))
+                        })?;
+                        logrs::info!(
+                            "Instantly released expired private room name '{}' by renaming it to slug '{}'",
+                            name,
+                            mutable_room.slug
+                        );
+
+                        // 释放成功后，为当前请求直接创建一个全新的同名房间
+                        let mut new_room = Room::new(name.clone(), None);
+                        apply_room_defaults(&mut new_room, &app_state);
+                        let created_room = repository.create(&new_room).await.map_err(|e| {
+                            AppError::internal(format!("Failed to create room: {}", e))
+                        })?;
+                        return Ok(Json(created_room));
+                    }
+                }
+
                 return Err(AppError::authentication("Room cannot be accessed"));
             }
 
