@@ -154,7 +154,7 @@ export const htmlSelectors = {
             },
 
             // 使用 placeholder 属性选择器定位消息输入框，避免与密码输入框等其他 textbox 冲突
-            input: '[data-testid="message-input-editor"] .mdxeditor-content[contenteditable]',
+            input: '.tiptap-editor-content [contenteditable="true"]',
 
             actions: {
                 expandBtn: 'button:has-text("展开编辑器")',

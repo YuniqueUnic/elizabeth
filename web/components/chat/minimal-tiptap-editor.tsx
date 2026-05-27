@@ -396,6 +396,11 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
     const editorFontSize = useAppStore((state) => state.editorFontSize);
     const [isSourceMode, setIsSourceMode] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    // 用 ref 缓存最新的 sendOnEnter/onRequestSend，避免 useEditor 闭包捕获陈旧值
+    const sendOnEnterRef = useRef(sendOnEnter);
+    const onRequestSendRef = useRef(onRequestSend);
+    useEffect(() => { sendOnEnterRef.current = sendOnEnter; }, [sendOnEnter]);
+    useEffect(() => { onRequestSendRef.current = onRequestSend; }, [onRequestSend]);
 
     const lastInsertRequestIdRef = useRef<number | null>(null);
     const isUpdatingFromProp = useRef(false);
@@ -436,13 +441,26 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
           style: `font-size: ${editorFontSize}px`, // 在编辑器内部也应用字体大小
         },
         handleKeyDown: (view, event) => {
-          // Ctrl+Enter (or Cmd+Enter on Mac) 发送消息
-          if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && onRequestSend) {
-            event.preventDefault();
-            onRequestSend();
-            return true;
+          if (event.key === "Enter") {
+            const send = onRequestSendRef.current;
+            const soe = sendOnEnterRef.current;
+            if (event.ctrlKey || event.metaKey) {
+              // Ctrl/Cmd+Enter：始终发送
+              if (send) {
+                event.preventDefault();
+                send();
+                return true;
+              }
+            } else if (!event.shiftKey && soe) {
+              // Enter（非 Shift）且 sendOnEnter=true：发送
+              if (send) {
+                event.preventDefault();
+                send();
+                return true;
+              }
+            }
+            // Shift+Enter 或 sendOnEnter=false 时的 Enter：换行（默认行为）
           }
-          // Enter 换行（默认行为，不需要处理）
           return false;
         },
       },
@@ -624,12 +642,22 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
               placeholder={placeholder}
               disabled={disabled}
               onKeyDown={(e) => {
-                // Ctrl+Enter (or Cmd+Enter on Mac) 发送消息
-                if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && onRequestSend) {
-                  e.preventDefault();
-                  onRequestSend();
+                if (e.key === "Enter") {
+                  if (e.ctrlKey || e.metaKey) {
+                    // Ctrl/Cmd+Enter：始终发送
+                    if (onRequestSend) {
+                      e.preventDefault();
+                      onRequestSend();
+                    }
+                  } else if (!e.shiftKey && sendOnEnter) {
+                    // Enter（非 Shift）且 sendOnEnter=true：发送
+                    if (onRequestSend) {
+                      e.preventDefault();
+                      onRequestSend();
+                    }
+                  }
+                  // Shift+Enter 或 sendOnEnter=false 时：换行（默认）
                 }
-                // Enter 换行（默认行为）
               }}
               style={{ fontSize: `${editorFontSize}px` }}
             />
