@@ -249,8 +249,8 @@ test.describe("消息系统功能测试", () => {
             ).toBeVisible({ timeout: 5_000 });
 
             await roomPage.messages.input.fill(editedText);
-            // 使用 Enter 触发发送（走自定义 sendMessage 事件），更贴近真实交互
-            await roomPage.messages.input.getLocator().press("Enter");
+            // 点击发送按钮（与 sendMessage 方法保持一致）
+            await roomPage.messages.sendBtn.click();
 
             const lastMessageContentBefore = roomPage.page
                 .locator(htmlSelectors.middleColumn.messageList.message.content)

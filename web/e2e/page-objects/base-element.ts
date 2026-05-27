@@ -277,17 +277,34 @@ export class BaseElement {
  * 输入框元素类
  */
 export class InputElement extends BaseElement {
+    /**
+     * 判断元素是否为 contenteditable
+     */
+    private async isContentEditable(): Promise<boolean> {
+        return this.locator.first().evaluate(
+            (el: Element) => el instanceof HTMLElement && el.isContentEditable
+        ).catch(() => false);
+    }
+
     async fill(text: string): Promise<this> {
-        await this.locator.fill(text);
+        // Playwright 的 locator.fill() 对 contenteditable 元素也有效（会替换内容并触发输入事件）
+        await this.locator.first().fill(text, { timeout: this.options.timeout });
         return this;
     }
 
     async clear(): Promise<this> {
-        await this.locator.fill("");
+        await this.locator.first().fill("", { timeout: this.options.timeout });
         return this;
     }
 
     async getValue(): Promise<string> {
+        const ce = await this.isContentEditable();
+        if (ce) {
+            const value = await this.locator.first().evaluate(
+                (el: HTMLElement) => el.textContent ?? ""
+            ).catch(() => "");
+            return String(value);
+        }
         try {
             return await this.locator.inputValue({ timeout: this.options.timeout });
         } catch {
@@ -303,10 +320,12 @@ export class InputElement extends BaseElement {
     }
 
     async selectAll(): Promise<this> {
-        await this.locator.press("Control+A");
+        await this.locator.first().click({ timeout: this.options.timeout });
+        await this.page.keyboard.press("Control+A");
         return this;
     }
 }
+
 
 /**
  * 按钮元素类

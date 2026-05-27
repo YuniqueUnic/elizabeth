@@ -402,16 +402,12 @@ export class RoomPage extends BasePage {
      */
     async sendMessage(content: string): Promise<void> {
         await this.messages.input.fill(content);
-        const sendOnEnter = await this.page.evaluate(() => {
-            const store = (window as any).__ELIZABETH_STORE__;
-            const value = store?.getState?.().sendOnEnter;
-            return typeof value === "boolean" ? value : true;
-        }).catch(() => true);
+        // 等待 Tiptap 处理输入内容（React state 更新）
+        await this.page.waitForTimeout(200);
 
-        // Prefer keyboard send to avoid click being intercepted by toast overlays.
-        await this.messages.input.getLocator().press(
-            sendOnEnter ? "Enter" : "Control+Enter",
-        );
+        // 点击发送按钮比键盘 Enter 更可靠（Tiptap contenteditable 对 Enter 的处理
+        // 依赖 sendOnEnter 配置，store 暴露在 E2E 中有时序问题）
+        await this.messages.sendBtn.click();
 
         await this.page.waitForTimeout(500);
         unsavedFlag = true;
@@ -479,7 +475,7 @@ export class RoomPage extends BasePage {
                 // 兜底：尝试点击主区域再等待
                 await this.page.locator("main").first().click().catch(() => {});
                 await this.page
-                    .locator("textarea")
+                    .locator(htmlSelectors.middleColumn.editor.input)
                     .first()
                     .waitFor({ state: "visible", timeout });
             });
