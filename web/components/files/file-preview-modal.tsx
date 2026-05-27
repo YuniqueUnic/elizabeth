@@ -93,7 +93,7 @@ export function FilePreviewModal(
     // ✅ FIX: Copy the actual download URL with full domain
     const downloadUrl = file.url
       ? `${window.location.origin}${file.url}`
-      : `${window.location.origin}/api/v1/rooms/${currentRoomId}/contents/${file.id}`;
+      : `${window.location.origin}/api/v1/contents/${file.id}`;
 
     navigator.clipboard.writeText(downloadUrl);
     toast({
@@ -103,7 +103,7 @@ export function FilePreviewModal(
   };
 
   const buildMarkdownLink = () => {
-    const href = file.url ?? `/rooms/${currentRoomId}/contents/${file.id}`;
+    const href = file.url ?? `/contents/${file.id}`;
     if (isImage) return `![](${href})`;
     return `[${file.name}](${href})`;
   };

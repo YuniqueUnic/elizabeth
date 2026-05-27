@@ -19,7 +19,7 @@ pub fn api_router(app_state: Arc<AppState>) -> OpenApiRouter {
         .routes(routes!(crate::handlers::content::prepare_upload))
         .routes(routes!(crate::handlers::content::upload_contents))
         .routes(routes!(crate::handlers::content::delete_contents))
-        .routes(routes!(crate::handlers::content::download_content))
+        .routes(routes!(crate::handlers::content::download_content_global))
         .routes(routes!(crate::handlers::content::update_content))
         .routes(routes!(crate::handlers::content::create_message))
         .routes(routes!(

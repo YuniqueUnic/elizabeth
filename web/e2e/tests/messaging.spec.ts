@@ -662,7 +662,7 @@ test.describe("消息系统功能测试", () => {
             await expect(image).toBeVisible({ timeout: 10_000 });
 
             const src = await image.getAttribute("src");
-            expect(src).toContain("/api/v1/rooms/");
+            expect(src).toContain("/api/v1/contents/");
             expect(src).toContain("token=");
 
             const isLoaded = await image.evaluate((el: HTMLImageElement) =>

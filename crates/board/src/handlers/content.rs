@@ -38,9 +38,9 @@ use crate::repository::{
 };
 use crate::services::RoomTokenClaims;
 use crate::state::AppState;
-use crate::validation::RoomNameValidator;
+use crate::validation::{RoomNameValidator, TokenValidator};
 
-use super::{TokenQuery, verify_room_token};
+use super::{TokenQuery, verify_room_token, verify_room_token_by_id};
 
 type HandlerResult<T> = Result<Json<T>, AppError>;
 
@@ -633,33 +633,7 @@ pub async fn delete_contents(
     ),
     tag = "content"
 )]
-pub async fn download_content(
-    AxumPath((name, content_id)): AxumPath<(String, i64)>,
-    Query(query): Query<TokenQuery>,
-    State(app_state): State<Arc<AppState>>,
-) -> Result<Response, AppError> {
-    // Validate room name using the new validation framework
-    RoomNameValidator::validate_identifier(&name)?;
-
-    let verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
-    ensure_permission(
-        &verified.claims,
-        verified.room.permission.can_view(),
-        ContentPermission::View,
-    )?;
-
-    let room_id = room_id_or_error(&verified.claims)?;
-    let repository = RoomContentRepository::new(app_state.db_pool.clone());
-    let content = repository
-        .find_by_id(content_id)
-        .await
-        .map_err(|e| AppError::internal(format!("Query failed: {e}")))?
-        .ok_or_else(|| AppError::not_found("Content not found"))?;
-
-    if content.room_id != room_id {
-        return Err(AppError::permission_denied("Content not in room"));
-    }
-
+async fn serve_content_stream(content: RoomContent) -> Result<Response, AppError> {
     let path = content
         .path
         .ok_or_else(|| AppError::not_found("Content not stored on disk"))?;
@@ -692,6 +666,49 @@ pub async fn download_content(
     }
 
     Ok(response)
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/contents/{content_id}",
+    params(
+        ("content_id" = i64, Path, description = "内容 id"),
+        ("token" = String, Query, description = "有效的房间 token")
+    ),
+    responses(
+        (status = 200, description = "文件内容"),
+        (status = 401, description = "token 无效"),
+        (status = 403, description = "无访问权限"),
+        (status = 404, description = "文件不存在")
+    ),
+    tag = "content"
+)]
+pub async fn download_content_global(
+    AxumPath(content_id): AxumPath<i64>,
+    Query(query): Query<TokenQuery>,
+    State(app_state): State<Arc<AppState>>,
+) -> Result<Response, AppError> {
+    // 验证令牌格式
+    TokenValidator::validate_token_format(&query.token)?;
+
+    // 查找资产
+    let repository = RoomContentRepository::new(app_state.db_pool.clone());
+    let content = repository
+        .find_by_id(content_id)
+        .await
+        .map_err(|e| AppError::internal(format!("Query failed: {e}")))?
+        .ok_or_else(|| AppError::not_found("Content not found"))?;
+
+    // 关键！不再依赖 path 中的 room_name，而是使用资产所属的真实 room_id 去校验 token
+    let verified =
+        verify_room_token_by_id(app_state.clone(), content.room_id, &query.token).await?;
+    ensure_permission(
+        &verified.claims,
+        verified.room.permission.can_view(),
+        ContentPermission::View,
+    )?;
+
+    serve_content_stream(content).await
 }
 
 #[derive(Clone, Copy)]
