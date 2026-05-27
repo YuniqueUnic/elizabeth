@@ -10,7 +10,7 @@
 FROM node:25-alpine AS deps
 
 # Install pnpm using npm
-RUN npm install -g pnpm@latest
+RUN npm install -g pnpm@10.28.2
 
 WORKDIR /app
 
@@ -26,7 +26,7 @@ RUN pnpm install --frozen-lockfile
 FROM node:25-alpine AS builder
 
 # Install pnpm
-RUN npm install -g pnpm@latest
+RUN npm install -g pnpm@10.28.2
 
 WORKDIR /app
 
