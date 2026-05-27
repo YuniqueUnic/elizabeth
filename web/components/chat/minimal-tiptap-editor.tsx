@@ -6,7 +6,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import { Markdown } from "@tiptap/markdown";
 import { common, createLowlight } from "lowlight";
-import { useCallback, useEffect, useRef, useImperativeHandle, forwardRef, useState } from "react";
+import { useCallback, useEffect, useRef, useImperativeHandle, forwardRef, useState, createContext, useContext } from "react";
 import { useTheme } from "next-themes";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -177,6 +177,41 @@ function buildMarkdownForFile(
   return `\n\n[${file.name}](${href})\n`;
 }
 
+// Toolbar context and external button component to avoid ESLint error
+const ToolbarDisabledContext = createContext(false);
+
+const ToolbarButton = ({
+  onClick,
+  active,
+  children,
+  title,
+  disabled: buttonDisabled
+}: {
+  onClick: () => void;
+  active?: boolean;
+  children: React.ReactNode;
+  title: string;
+  disabled?: boolean;
+}) => {
+  const parentDisabled = useContext(ToolbarDisabledContext);
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      onClick={onClick}
+      disabled={parentDisabled || buttonDisabled}
+      className={cn(
+        "h-8 w-8 p-0",
+        active && "bg-muted"
+      )}
+      title={title}
+    >
+      {children}
+    </Button>
+  );
+};
+
 // Toolbar 组件
 function EditorToolbar({ editor, onUpload, disabled, isSourceMode, onToggleSourceMode, onAction }: {
   editor: Editor | null;
@@ -190,35 +225,6 @@ function EditorToolbar({ editor, onUpload, disabled, isSourceMode, onToggleSourc
 
   if (!editor) return null;
 
-  const ToolbarButton = ({
-    onClick,
-    active,
-    children,
-    title,
-    disabled: buttonDisabled
-  }: {
-    onClick: () => void;
-    active?: boolean;
-    children: React.ReactNode;
-    title: string;
-    disabled?: boolean;
-  }) => (
-    <Button
-      type="button"
-      variant="ghost"
-      size="sm"
-      onClick={onClick}
-      disabled={disabled || buttonDisabled}
-      className={cn(
-        "h-8 w-8 p-0",
-        active && "bg-muted"
-      )}
-      title={title}
-    >
-      {children}
-    </Button>
-  );
-
   const handleAction = (format: string, run: () => void) => {
     if (isSourceMode) {
       onAction(format);
@@ -228,7 +234,8 @@ function EditorToolbar({ editor, onUpload, disabled, isSourceMode, onToggleSourc
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-0.5 border-b border-border bg-muted/30 p-1">
+    <ToolbarDisabledContext.Provider value={disabled || false}>
+      <div className="flex flex-wrap items-center gap-0.5 border-b border-border bg-muted/30 p-1">
       <ToolbarButton
         onClick={() => handleAction("bold", () => editor.chain().focus().toggleBold().run())}
         active={!isSourceMode && editor.isActive("bold")}
@@ -369,6 +376,7 @@ function EditorToolbar({ editor, onUpload, disabled, isSourceMode, onToggleSourc
         }}
       />
     </div>
+    </ToolbarDisabledContext.Provider>
   );
 }
 

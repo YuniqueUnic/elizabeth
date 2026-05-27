@@ -10,6 +10,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/lib/store";
 import { MinimalTiptapViewer } from "./minimal-tiptap-viewer";
 import { Badge } from "@/components/ui/badge";
+import { useRoomPermissions } from "@/hooks/use-room-permissions";
+
 
 interface MessageBubbleProps {
   message: Message;
@@ -43,6 +45,8 @@ export function MessageBubble(
     (state) => state.includeMetadataInCopy,
   );
   const useHeti = useAppStore((state) => state.useHeti);
+  const { can } = useRoomPermissions();
+
 
   const isSelected = selectedMessages.has(message.id);
 
@@ -171,6 +175,7 @@ export function MessageBubble(
                 className="h-6 w-6"
                 title="撤销删除"
                 onClick={() => onRevert(message.id)}
+                disabled={!can.delete}
               >
                 <RotateCcw className="h-3 w-3" />
               </Button>
@@ -184,6 +189,7 @@ export function MessageBubble(
                     className="h-6 w-6"
                     title="撤销编辑"
                     onClick={() => onRevert(message.id)}
+                    disabled={!can.edit}
                   >
                     <RotateCcw className="h-3 w-3" />
                   </Button>
@@ -199,6 +205,7 @@ export function MessageBubble(
                   className="h-7 w-7"
                   onClick={() => onEdit(message)}
                   title="编辑"
+                  disabled={!can.edit}
                 >
                   <Edit2 className="h-3 w-3" />
                 </Button>
@@ -217,6 +224,7 @@ export function MessageBubble(
                   className="h-7 w-7 text-destructive hover:text-destructive"
                   onClick={handleDelete}
                   title="删除"
+                  disabled={!can.delete}
                 >
                   <Trash2 className="h-3 w-3" />
                 </Button>

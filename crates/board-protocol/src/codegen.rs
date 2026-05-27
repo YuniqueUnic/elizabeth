@@ -26,8 +26,8 @@ use crate::models::{
 
 #[cfg(feature = "typescript-export")]
 pub fn export_ts_types_to(output_dir: &Path) -> Result<(), ts_rs::ExportError> {
-    let output_dir_cfg = ts_rs::Config::new().with_out_dir(&output_dir);
-    Room::export_all(&&output_dir_cfg)?;
+    let output_dir_cfg = ts_rs::Config::new().with_out_dir(output_dir);
+    Room::export_all(&output_dir_cfg)?;
     RoomStatus::export_all(&output_dir_cfg)?;
     RoomContent::export_all(&output_dir_cfg)?;
     ContentType::export_all(&output_dir_cfg)?;

@@ -155,6 +155,7 @@ impl Default for StorageConfig {
 pub struct RoomConfig {
     pub max_content_size: i64,
     pub max_times_entered: i64,
+    pub share_disabled_lock_duration: i64,
 }
 
 impl Default for RoomConfig {
@@ -162,6 +163,7 @@ impl Default for RoomConfig {
         Self {
             max_content_size: DEFAULT_MAX_ROOM_CONTENT_SIZE,
             max_times_entered: DEFAULT_MAX_TIMES_ENTER_ROOM,
+            share_disabled_lock_duration: 3600,
         }
     }
 }

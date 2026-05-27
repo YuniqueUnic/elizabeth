@@ -7,6 +7,8 @@ import type { FileItem } from "@/lib/types";
 import { useAppStore } from "@/lib/store";
 import { formatFileSize } from "@/lib/utils/format";
 import { defaultStyles, FileIcon } from "react-file-icon";
+import { useRoomPermissions } from "@/hooks/use-room-permissions";
+
 
 // Helper function to get file extension
 function getFileExtension(filename: string): string {
@@ -47,7 +49,9 @@ export function FileCard(
   { file, onDelete, onClick, showCheckbox }: FileCardProps,
 ) {
   const { selectedFiles, toggleFileSelection } = useAppStore();
+  const { can } = useRoomPermissions();
   const isSelected = selectedFiles.has(file.id);
+
 
   return (
     <div
@@ -100,6 +104,7 @@ export function FileCard(
           onDelete(file.id);
         }}
         title="删除文件"
+        disabled={!can.delete}
       >
         <Trash2 className="h-4 w-4 text-destructive" />
       </Button>

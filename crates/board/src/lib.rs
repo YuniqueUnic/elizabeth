@@ -106,6 +106,7 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
         room: RoomConfig {
             max_content_size: cfg.app.room.max_size,
             max_times_entered: cfg.app.room.max_times_entered,
+            share_disabled_lock_duration: cfg.app.room.share_disabled_lock_duration,
         },
         auth: AuthConfig::new(cfg.app.jwt.secret.clone())
             .map_err(|e| anyhow::anyhow!("Invalid JWT config: {}", e))?
@@ -243,6 +244,23 @@ fn spawn_room_gc_task(app_state: Arc<AppState>, interval_seconds: u64, batch_lim
                 Ok(_) => {}
                 Err(e) => {
                     log::warn!("Room GC task error: {}", e);
+                }
+            }
+
+            // 定期释放到期的私密房间的原名称（解绑旧 slug）
+            let released = app_state
+                .services
+                .room_gc
+                .release_expired_private_slugs(app_state.config.room.share_disabled_lock_duration)
+                .await;
+
+            match released {
+                Ok(count) if count > 0 => {
+                    log::info!("Released name locks for {} expired private rooms", count);
+                }
+                Ok(_) => {}
+                Err(e) => {
+                    log::warn!("Expired private slug release error: {}", e);
                 }
             }
         }

@@ -99,6 +99,9 @@ pub struct RoomConfig {
     #[default(100)]
     #[merge(strategy = overwrite)]
     pub max_times_entered: i64,
+    #[default(3600)]
+    #[merge(strategy = overwrite)]
+    pub share_disabled_lock_duration: i64,
 }
 
 #[derive(Merge, Debug, Clone, SmartDefault, serde::Deserialize, serde::Serialize)]
@@ -279,6 +282,8 @@ mod tests {
         assert_eq!(cfg.storage.root, "storage/rooms");
         assert_eq!(cfg.room.max_size, 50 * 1024 * 1024);
         assert_eq!(cfg.room.max_times_entered, 100);
+        assert_eq!(cfg.room.share_disabled_lock_duration, 3600);
+
         assert_eq!(cfg.upload.reservation_ttl_seconds, 3600);
         assert_eq!(cfg.gc.interval_seconds, 600);
         assert_eq!(cfg.gc.batch_limit, 200);
@@ -323,7 +328,9 @@ mod tests {
             room: RoomConfig {
                 max_size: 42,
                 max_times_entered: 7,
+                share_disabled_lock_duration: 120,
             },
+
             upload: UploadConfig {
                 reservation_ttl_seconds: 30,
             },
@@ -349,6 +356,8 @@ mod tests {
         assert_eq!(left.storage.root, "/tmp/storage");
         assert_eq!(left.room.max_size, 42);
         assert_eq!(left.room.max_times_entered, 7);
+        assert_eq!(left.room.share_disabled_lock_duration, 120);
+
         assert_eq!(left.upload.reservation_ttl_seconds, 30);
         assert_eq!(left.gc.interval_seconds, 30);
         assert_eq!(left.gc.batch_limit, 7);

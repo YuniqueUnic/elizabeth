@@ -92,6 +92,8 @@ services:
       DATABASE_URL: ${DATABASE_URL:-sqlite:///app/data/elizabeth.db}
       DB_MAX_CONNECTIONS: ${DB_MAX_CONNECTIONS:-10}
       DB_MIN_CONNECTIONS: ${DB_MIN_CONNECTIONS:-1}
+      # Room configuration
+      ELIZABETH__APP__ROOM__SHARE_DISABLED_LOCK_DURATION: ${ROOM_SHARE_DISABLED_LOCK_DURATION:-3600}
     expose:
       - "4092"
     networks:

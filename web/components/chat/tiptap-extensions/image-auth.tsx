@@ -33,6 +33,17 @@ function ImageWithAuth({ node, updateAttributes }: any) {
         // 确保路径以 /api/v1 开头
         let path = originalSrc;
         if (path.startsWith("/rooms/") && !path.startsWith("/api/v1/")) {
+          // 容错重写逻辑：如果当前房间是 aaa_uuid，而路径是 /rooms/aaa/contents/id，自动重写为最新私有 slug
+          const match = path.match(/^\/rooms\/([^/]+)\/contents\/(\d+)/);
+          if (match) {
+            const urlRoomSlug = match[1];
+            const contentId = match[2];
+            // 如果 urlRoomSlug 不是 currentRoomId，但 currentRoomId 是以 urlRoomSlug 加下划线开头的（例如 currentRoomId 为 aaa_uuid）
+            if (currentRoomId && currentRoomId !== urlRoomSlug && currentRoomId.startsWith(urlRoomSlug + "_")) {
+              path = `/rooms/${encodeURIComponent(currentRoomId)}/contents/${contentId}`;
+              console.log(`[ImageAuth] Rewriting room name in image path from ${urlRoomSlug} to ${currentRoomId}`);
+            }
+          }
           path = `/api/v1${path}`;
         }
 

@@ -301,4 +301,27 @@ impl RoomGcService {
 
         Ok(cleaned)
     }
+
+    /// 自动释放已过期的私密房间的原名称（将 name 重置为 slug 释放唯一键）
+    pub async fn release_expired_private_slugs(&self, lock_duration_secs: i64) -> Result<u64> {
+        let threshold = Utc::now().naive_utc() - Duration::seconds(lock_duration_secs);
+        let threshold_str = format_naive_datetime(threshold);
+        let now_str = format_naive_datetime(Utc::now().naive_utc());
+
+        let result = sqlx::query(
+            r#"
+            UPDATE rooms
+            SET name = slug, updated_at = $1
+            WHERE slug != name
+              AND updated_at <= $2
+            "#,
+        )
+        .bind(now_str)
+        .bind(threshold_str)
+        .execute(&*self.db_pool)
+        .await
+        .context("failed to release expired private slugs")?;
+
+        Ok(result.rows_affected())
+    }
 }
