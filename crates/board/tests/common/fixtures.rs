@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 use board::models::permission::RoomPermission;
 use board::models::{Room, RoomToken};
 use board::services::token::RoomTokenClaims;

@@ -1,3 +1,4 @@
+#![allow(unused_variables, unused_imports, dead_code)]
 //! WebSocket 集成测试
 //!
 //! 测试完整的 WebSocket 连接流程、消息发送接收、房间订阅广播、认证流程和错误处理

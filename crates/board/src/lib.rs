@@ -1,3 +1,4 @@
+#![allow(unused_imports, unused_variables, dead_code)]
 pub mod cmd;
 pub mod config;
 pub mod constants;

@@ -1,3 +1,4 @@
+#![allow(unused_variables, unused_imports, dead_code)]
 //! RoomRepository 单元测试
 //!
 //! 测试 RoomRepository trait 的所有方法实现

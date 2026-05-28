@@ -1,3 +1,4 @@
+#![allow(unused_imports, unused_variables, dead_code)]
 mod logger;
 
 pub use logger::init_logger;

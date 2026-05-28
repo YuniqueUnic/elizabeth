@@ -1,3 +1,4 @@
+#![allow(unused_variables, unused_imports, dead_code)]
 //! 中间件功能测试
 //!
 //! 测试各种中间件的功能，包括 CORS、限流、安全、压缩、追踪、认证中间件

@@ -1,3 +1,4 @@
+#![allow(unused_variables, unused_imports, dead_code)]
 //! API 集成测试
 //!
 //! 测试 HTTP API 端点的完整功能

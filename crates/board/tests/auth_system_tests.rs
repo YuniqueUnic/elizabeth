@@ -1,3 +1,4 @@
+#![allow(unused_variables, unused_imports, dead_code)]
 //! 认证系统完整测试
 //!
 //! 测试完整的认证系统功能，包括刷新令牌、登出、清理等

@@ -1,3 +1,4 @@
+#![allow(unused_variables, unused_imports, dead_code)]
 //! 房间认证功能测试
 //!
 //! 测试基于房间的令牌认证、权限管理和令牌生命周期

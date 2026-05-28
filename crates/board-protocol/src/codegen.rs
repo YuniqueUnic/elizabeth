@@ -146,6 +146,7 @@ pub fn api_schema_json_pretty() -> Result<String, serde_json::Error> {
     use schemars::schema_for;
 
     #[derive(schemars::JsonSchema)]
+    #[allow(dead_code)]
     struct ApiSchema {
         room: Room,
         room_status: RoomStatus,
