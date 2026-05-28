@@ -79,6 +79,15 @@ async function bootstrapRoom(page: Page) {
 }
 
 async function dismissToasts(page: Page) {
+    // 强制从 DOM 中移除所有 Toast 容器，确保绝对不会遮挡点击操作
+    await page.evaluate(() => {
+        const notifications = document.querySelector('[role="region"][aria-label="Notifications (F8)"]');
+        if (notifications) {
+            notifications.remove();
+        }
+        document.querySelectorAll('li[role="status"]').forEach(el => el.remove());
+    }).catch(() => {});
+
     const toastItems = page.locator(
         '[role="region"][aria-label="Notifications (F8)"] li',
     );
@@ -382,6 +391,7 @@ test.describe("End-to-End Room Scenarios", () => {
 
         // 4. 发送消息
         await roomPage.sendMessage("E2E Test Message 1");
+        await roomPage.page.waitForTimeout(500);
         await roomPage.sendMessage("E2E Test Message 2");
 
         // 5. 保存消息
