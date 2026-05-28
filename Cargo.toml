@@ -51,7 +51,7 @@ futures = "0.3"
 # === Web Framework ===
 axum = { version = "0.8", features = ["multipart", "ws"] }
 tower = "0.5"
-tower-http = { version = "0.6", features = ["trace", "cors", "compression-br", "set-header", "fs"] }
+tower-http = { version = "0.6", features = ["trace", "cors", "compression-br", "set-header"] }
 tower_governor = "0.8"
 
 # === Database ===

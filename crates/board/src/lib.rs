@@ -221,13 +221,6 @@ fn build_api_router(app_state: Arc<AppState>, cfg: &configrs::Config) -> (String
     let middleware_config = crate::middleware::from_app_config(cfg);
     let router = crate::middleware::apply(&middleware_config, router);
 
-    // 挂载单页应用静态 SPA 托管服务
-    // - 物理存在的文件由 ServeDir 直出
-    // - 单页应用动态路由（如 /rooms/123）由 ServeFile 降级到 index.html
-    let spa_service = tower_http::services::ServeDir::new("web/out")
-        .not_found_service(tower_http::services::ServeFile::new("web/out/index.html"));
-    let router = router.fallback_service(spa_service);
-
     (scalar_path, router)
 }
 
