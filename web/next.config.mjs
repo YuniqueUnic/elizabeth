@@ -7,8 +7,8 @@ const nextConfig = {
     unoptimized: true,
   },
   allowedDevOrigins: ["local-origin.dev", "*.local-origin.dev"],
-  // Enable standalone output for Docker deployment
-  output: "standalone",
+  // 生产环境输出为纯静态 HTML 导出，本地开发环境保留 standalone 模式以支持 HMR
+  output: process.env.NODE_ENV === 'production' ? 'export' : 'standalone',
 
   async headers() {
     return [
@@ -26,6 +26,9 @@ const nextConfig = {
 
   // API rewrites for backend proxy - Next.js 16 compatible version
   async rewrites() {
+    if (process.env.NODE_ENV === 'production') {
+      return [];
+    }
     const target = process.env.INTERNAL_API_URL;
 
     console.log('Next.js: INTERNAL_API_URL from env:', target);
