@@ -35,25 +35,17 @@ Docker、裸金属服务器、云平台部署方案。
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                  Nginx Gateway (443/80)                 │
-│  • TLS 终止                                             │
-│  • 静态资源缓存                                          │
-│  • 反向代理                                              │
+│              Elizabeth (单容器, Port 4092)               │
+│  Rust/Axum 后端 + rust-embed 内嵌 Next.js SPA           │
+│  • /api/v1/*  → REST API + WebSocket                    │
+│  • /*         → SPA 静态资源 + HTML fallback             │
 └──────────────┬──────────────────────────────────────────┘
                │
-       ┌───────┴───────┐
-       ▼               ▼
-┌──────────────┐  ┌──────────────┐
-│   Frontend   │  │   Backend    │
-│  (Next.js)   │  │   (Rust)     │
-│   Port 4001  │  │   Port 4092  │
-└──────────────┘  └──────┬───────┘
-                         │
-                         ▼
-                  ┌──────────────┐
-                  │  Database    │
-                  │  (SQLite)    │
-                  └──────────────┘
+               ▼
+        ┌──────────────┐
+        │  Database    │
+        │  (SQLite)    │
+        └──────────────┘
 ```
 
 ---
@@ -72,9 +64,8 @@ Docker、裸金属服务器、云平台部署方案。
 - 网络: 100 Mbps+
 
 组件部署：
-- Nginx: 反向代理 + TLS
-- Backend: 1 实例
-- Frontend: 1 实例
+- Elizabeth: 1 实例（单容器，内嵌 SPA）
+- 外部反向代理（可选）: Caddy/Nginx 负责 TLS 终止
 - Database: SQLite
 ```
 
@@ -91,28 +82,17 @@ Docker、裸金属服务器、云平台部署方案。
             ┌───────────────┼───────────────┐
             ▼               ▼               ▼
     ┌──────────────┐┌──────────────┐┌──────────────┐
-    │   Gateway 1  ││   Gateway 2  ││   Gateway 3  │
+    │ Elizabeth 1  ││ Elizabeth 2  ││ Elizabeth 3  │
+    │ (SPA + API)  ││ (SPA + API)  ││ (SPA + API)  │
     └──────┬───────┘└──────┬───────┘└──────┬───────┘
            │               │               │
     ┌──────┴───────────────┴───────────────┴──────┐
     │                                              │
     ▼                                              ▼
 ┌──────────────┐                           ┌──────────────┐
-│  Backend 1-N │                           │ Frontend 1-N │
-│  (Stateless) │                           │  (Stateless) │
-└──────┬───────┘                           └──────────────┘
-       │
-       ▼
-┌──────────────┐      ┌──────────────┐
-│  PostgreSQL  │◄─────│   Replica    │
-│   (Primary)  │      │  (Read-only) │
-└──────────────┘      └──────────────┘
-       │
-       ▼
-┌──────────────┐
-│ Shared Storage│
-│  (NFS/S3)    │
-└──────────────┘
+│  PostgreSQL  │◄─────│   Replica    │      │Shared Storage│
+│   (Primary)  │      │  (Read-only) │      │  (NFS/S3)    │
+└──────────────┘      └──────────────┘      └──────────────┘
 ```
 
 ---
@@ -138,11 +118,9 @@ docker compose up -d --build
 docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --build
 ```
 
-如果你需要对外暴露 80/443（TLS 终止），建议：
-
-- 在宿主机或云上放置独立的反向代理（Caddy/Nginx/Traefik）负责 80/443，再转发到
-  `http://127.0.0.1:4001`。
-- 或者维护一个 compose override，让 gateway 挂载你的 TLS 配置与证书。
+如果你需要对外暴露 80/443（TLS
+终止），建议在宿主机或云上放置独立的反向代理（Caddy/Nginx/Traefik）负责
+80/443，再转发到 `http://127.0.0.1:4092`。
 
 ---
 
@@ -277,7 +255,7 @@ server {
 
     # WebSocket
     location = /api/v1/ws {
-        proxy_pass http://localhost:4001;
+        proxy_pass http://localhost:4092;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -289,34 +267,13 @@ server {
         proxy_send_timeout 86400;
     }
 
-    # Backend API
-    location ^~ /api/v1/ {
-        proxy_pass http://localhost:4001;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    # Frontend（Next.js）
+    # Elizabeth（单端口：API + SPA）
     location / {
-        proxy_pass http://localhost:4001;
+        proxy_pass http://localhost:4092;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-
-        # Next.js 特定配置
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-Server $host;
-    }
-
-    # 静态资源缓存（Next.js）
-    location ~* ^/_next/static/ {
-        proxy_pass http://localhost:4001;
-        proxy_cache_valid 200 60m;
-        proxy_cache_bypass $http_cache_control;
-        add_header Cache-Control "public, max-age=31536000, immutable";
     }
 }
 ```
@@ -353,17 +310,14 @@ yourdomain.com {
     @websocket {
         path /api/v1/ws
     }
-    reverse_proxy @websocket localhost:4001 {
+    reverse_proxy @websocket localhost:4092 {
         transport http {
             versions h2c 1.1
         }
     }
 
-    # API
-    reverse_proxy /api/v1/* localhost:4001
-
-    # Frontend
-    reverse_proxy localhost:4001
+    # Elizabeth（单端口：API + SPA）
+    reverse_proxy localhost:4092
 
     # 日志
     log {
@@ -619,7 +573,7 @@ read -p "Continue? (yes/no): " confirm
 # 1. 停止服务
 echo "Stopping services..."
 docker compose down
-# 或 systemctl stop elizabeth-backend elizabeth-frontend
+# 或 systemctl stop elizabeth
 
 # 2. 恢复数据库
 echo "Restoring database..."
@@ -642,7 +596,7 @@ chown -R elizabeth:elizabeth "$DATA_DIR" "$STORAGE_DIR"
 # 6. 启动服务
 echo "Starting services..."
 docker compose up -d
-# 或 systemctl start elizabeth-backend elizabeth-frontend
+# 或 systemctl start elizabeth
 
 echo "✅ Restore completed!"
 ```
@@ -928,7 +882,7 @@ Ubuntu AppArmor 配置示例：
 **架构图：**
 
 ```
-Internet → ALB → ECS Tasks (Backend + Frontend)
+Internet → ALB → ECS Tasks (Elizabeth)
                     ↓
                   RDS (PostgreSQL)
                     ↓
@@ -947,8 +901,6 @@ aws ecr get-login-password --region us-east-1 | docker login --username AWS --pa
 docker build -t elizabeth-backend -f Dockerfile.backend .
 docker tag elizabeth-backend:latest <account-id>.dkr.ecr.us-east-1.amazonaws.com/elizabeth-backend:latest
 docker push <account-id>.dkr.ecr.us-east-1.amazonaws.com/elizabeth-backend:latest
-
-# 同样处理 frontend
 ```
 
 2. **创建 RDS 实例**
@@ -1034,7 +986,7 @@ aws elbv2 create-target-group \
 name: elizabeth
 region: nyc
 services:
-  - name: backend
+  - name: elizabeth
     dockerfile_path: Dockerfile.backend
     github:
       repo: YuniqueUnic/elizabeth # 或你的 fork
@@ -1052,19 +1004,6 @@ services:
     http_port: 4092
     instance_count: 2
     instance_size_slug: basic-xs
-
-  - name: frontend
-    dockerfile_path: Dockerfile.frontend
-    github:
-      repo: YuniqueUnic/elizabeth # 或你的 fork
-      branch: main
-    envs:
-      - key: NEXT_PUBLIC_API_URL
-        value: /api/v1
-      - key: INTERNAL_API_URL
-        value: http://backend:4092/api/v1
-    http_port: 4001
-    instance_count: 1
     routes:
       - path: /
 
@@ -1092,11 +1031,11 @@ doctl apps create --spec app.yaml
 ```bash
 # 检查服务状态
 docker compose ps
-systemctl status elizabeth-backend
+systemctl status elizabeth
 
 # 检查日志
 docker compose logs backend --tail=100
-journalctl -u elizabeth-backend -n 100
+journalctl -u elizabeth -n 100
 
 # 检查端口
 netstat -tlnp | grep 4092

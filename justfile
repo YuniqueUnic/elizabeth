@@ -96,6 +96,16 @@ db-migrate:
 
 # === 开发工作流 ===
 
+# 构建前端（Next.js 静态导出 → web/out/）
+build-web:
+    @echo "构建前端..."
+    cd web && bun run build
+
+# 完整构建（前端 + Rust 二进制，SPA 通过 rust-embed 内嵌）
+build: build-web
+    @echo "构建 Rust 二进制..."
+    cargo build --release -p elizabeth-board
+
 # 完整开发验证流程（门禁全套）
 dev: verify
     @echo "开发验证完成"
@@ -154,19 +164,14 @@ clean-all: clean
 
 # === Docker 操作 ===
 
-# 构建后端镜像
+# 构建后端镜像（内嵌 SPA 前端）
 docker-build-backend:
     @echo "构建后端镜像..."
     docker build --target runtime -f Dockerfile.backend -t elizabeth-backend:latest .
 
-# 构建前端镜像
-docker-build-frontend:
-    @echo "构建前端镜像..."
-    docker build --target runner -f Dockerfile.frontend -t elizabeth-frontend:latest .
-
-# 构建所有镜像
-docker-build: docker-build-backend docker-build-frontend
-    @echo "所有镜像构建完成"
+# 构建镜像（别名）
+docker-build: docker-build-backend
+    @echo "镜像构建完成"
 
 # 启动所有服务
 docker-up:
@@ -207,11 +212,6 @@ docker-logs-backend:
     @echo "查看后端日志..."
     docker compose logs -f backend
 
-# 查看前端日志
-docker-logs-frontend:
-    @echo "查看前端日志..."
-    docker compose logs -f frontend
-
 # 清理 Docker 资源
 docker-clean:
     @echo "清理 Docker 资源..."
@@ -228,6 +228,8 @@ alias m := db-migrate
 alias d := dev
 alias dq := dev-quick
 alias i := info
+alias bw := build-web
+alias b := build
 
 # Docker 别名
 
