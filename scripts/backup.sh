@@ -56,7 +56,7 @@ mkdir -p "${BACKUP_DIR}"
 log_info "Starting backup: ${BACKUP_NAME}"
 
 # Check if containers are running
-if ! docker compose ps | grep -q "elizabeth-backend"; then
+if ! docker compose ps | grep -q "elizabeth"; then
     log_warn "Backend container is not running. Backup may be incomplete."
 fi
 
