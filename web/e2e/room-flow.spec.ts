@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-const BASE_URL = "http://localhost:4001";
+const BASE_URL = "http://localhost:4092";
 
 test.describe("Elizabeth Room Flow", () => {
   const roomName = `test-room-${Date.now()}`;

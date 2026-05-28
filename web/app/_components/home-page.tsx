@@ -30,8 +30,20 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
 
   const handleCreateRoom = async () => {
-    if (!roomName.trim()) {
+    const trimmed = roomName.trim();
+    if (!trimmed) {
       setError("请输入房间名称");
+      return;
+    }
+
+    if (trimmed.length < 3 || trimmed.length > 50) {
+      setError("房间名称长度必须在 3 到 50 个字符之间");
+      return;
+    }
+
+    const nameRegex = /^[a-zA-Z0-9](?:[a-zA-Z0-9_-]{1,48}[a-zA-Z0-9])?$/;
+    if (!nameRegex.test(trimmed)) {
+      setError("房间名称只能包含字母、数字、下划线和连字符，且不能以连字符或下划线开头或结尾");
       return;
     }
 
@@ -52,13 +64,13 @@ export default function HomePage() {
       setError(null);
 
       // Create room with optional password
-      await createRoom(roomName, password || undefined);
+      await createRoom(trimmed, password || undefined);
 
       // Get access token
-      await getAccessToken(roomName, password || undefined);
+      await getAccessToken(trimmed, password || undefined);
 
       // Navigate to room
-      router.push(`/${roomName}`);
+      router.push(`/${trimmed}`);
     } catch (err: any) {
       if (err.message?.includes("409") || err.message?.includes("exists")) {
         setError("房间名称已存在，请使用其他名称");
@@ -71,13 +83,25 @@ export default function HomePage() {
   };
 
   const handleJoinRoom = () => {
-    if (!roomName.trim()) {
+    const trimmed = roomName.trim();
+    if (!trimmed) {
       setError("请输入房间名称");
       return;
     }
 
+    if (trimmed.length < 3 || trimmed.length > 150) {
+      setError("房间名称长度必须在 3 到 150 个字符之间");
+      return;
+    }
+
+    const identifierRegex = /^[a-zA-Z0-9][a-zA-Z0-9_-]*[a-zA-Z0-9]$/;
+    if (!identifierRegex.test(trimmed)) {
+      setError("房间名称只能包含字母、数字、下划线和连字符，且不能以连字符或下划线开头或结尾");
+      return;
+    }
+
     // Navigate to room page, it will handle password if needed
-    router.push(`/${roomName}`);
+    router.push(`/${trimmed}`);
   };
 
   if (mode === "home") {

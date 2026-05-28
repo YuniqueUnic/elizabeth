@@ -9,7 +9,7 @@ import htmlSelectors from "../selectors/html-selectors";
 import * as fs from "fs";
 import * as path from "path";
 
-const BASE_URL = "http://localhost:4001";
+const BASE_URL = "http://localhost:4092";
 const TEST_ROOM = "file-test-room";
 const TEST_ROOM_URL = `${BASE_URL}/${TEST_ROOM}`;
 const API_BASE = "http://localhost:4092/api/v1";

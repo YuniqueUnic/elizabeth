@@ -29,6 +29,7 @@ use crate::{
         IRoomUploadReservationRepository, RoomUploadReservationRepository,
     },
     state::AppState,
+    validation::RoomNameValidator,
 };
 type HandlerResult<T> = AppResult<Json<T>>;
 
@@ -55,9 +56,7 @@ pub async fn prepare_chunked_upload(
     Json(payload): Json<ChunkedUploadPreparationRequest>,
 ) -> HandlerResult<ChunkedUploadPreparationResponse> {
     // 验证房间名称
-    if room_name.is_empty() {
-        return Err(AppError::validation("房间名称不能为空"));
-    }
+    RoomNameValidator::validate_identifier(&room_name)?;
 
     // 验证请求参数
     if payload.files.is_empty() {
@@ -195,9 +194,7 @@ pub async fn upload_chunk(
     mut multipart: Multipart,
 ) -> HandlerResult<ChunkUploadResponse> {
     // 验证房间名称
-    if room_name.is_empty() {
-        return Err(AppError::validation("房间名称不能为空"));
-    }
+    RoomNameValidator::validate_identifier(&room_name)?;
 
     // 解析 multipart 数据
     let mut upload_token: Option<String> = None;
@@ -419,9 +416,7 @@ pub async fn get_upload_status(
     Query(query): Query<UploadStatusQuery>,
 ) -> HandlerResult<UploadStatusResponse> {
     // 验证房间名称
-    if room_name.is_empty() {
-        return Err(AppError::validation("房间名称不能为空"));
-    }
+    RoomNameValidator::validate_identifier(&room_name)?;
 
     // 验证查询参数
     if query.upload_token.is_none() && query.reservation_id.is_none() {
@@ -571,9 +566,7 @@ pub async fn complete_file_merge(
     Json(payload): Json<FileMergeRequest>,
 ) -> HandlerResult<FileMergeResponse> {
     // 验证房间名称
-    if room_name.is_empty() {
-        return Err(AppError::validation("房间名称不能为空"));
-    }
+    RoomNameValidator::validate_identifier(&room_name)?;
 
     // 查找房间
     let room_repository = RoomRepository::new(app_state.db_pool.clone());

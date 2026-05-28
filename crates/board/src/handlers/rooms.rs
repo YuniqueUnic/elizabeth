@@ -427,9 +427,7 @@ pub async fn validate_token(
     State(app_state): State<Arc<AppState>>,
     Json(payload): Json<ValidateTokenRequest>,
 ) -> HandlerResult<ValidateTokenResponse> {
-    if name.is_empty() {
-        return Err(AppError::validation("Invalid room name"));
-    }
+    RoomNameValidator::validate_identifier(&name)?;
 
     let verified = verify_room_token(app_state, &name, &payload.token).await?;
 
@@ -617,9 +615,7 @@ pub async fn revoke_token(
     Query(query): Query<TokenQuery>,
     State(app_state): State<Arc<AppState>>,
 ) -> HandlerResult<RevokeTokenResponse> {
-    if name.is_empty() {
-        return Err(AppError::validation("Invalid room name"));
-    }
+    RoomNameValidator::validate_identifier(&name)?;
 
     let _verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
 

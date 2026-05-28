@@ -68,6 +68,7 @@ futures = { workspace = true }
 
 # Storage abstraction layer
 opendal = { workspace = true }
+rust-embed = { workspace = true }
 
 [dev-dependencies]
 tower = { workspace = true }

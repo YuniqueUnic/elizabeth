@@ -25,7 +25,11 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use axum::body::Body;
+use axum::http::{HeaderValue, Request, StatusCode};
+use axum::response::{IntoResponse, Response};
 use chrono::Duration;
+use rust_embed::RustEmbed;
 
 use clap::Parser;
 use shadow_rs::shadow;
@@ -221,7 +225,84 @@ fn build_api_router(app_state: Arc<AppState>, cfg: &configrs::Config) -> (String
     let middleware_config = crate::middleware::from_app_config(cfg);
     let router = crate::middleware::apply(&middleware_config, router);
 
+    // SPA fallback：把嵌入的前端静态资源挂到最低优先级
+    // - 精确匹配静态文件（_next/*, favicon.ico 等）→ 直接返回
+    // - /api/* 路径 → JSON 404（防止穿透到 SPA）
+    // - 所有其他路径 → 返回 index.html（由客户端 React Router 接管）
+    let router = router.fallback(spa_fallback);
+
     (scalar_path, router)
+}
+
+/// Next.js `output: 'export'` 产物目录，由 rust-embed 在编译期打包进二进制
+#[derive(RustEmbed)]
+#[folder = "../../web/out"]
+#[exclude = "*.map"] // 排除 source map，减小体积
+struct EmbeddedSpa;
+
+/// SPA Fallback Handler（极简三步逻辑）
+async fn spa_fallback(request: Request<Body>) -> Response {
+    let path = request.uri().path().trim_start_matches('/').to_string();
+
+    // Step 1：防御拦截 API 路由 — /api/* 绝不降级为 HTML
+    if path.starts_with("api/") {
+        return (
+            StatusCode::NOT_FOUND,
+            [(axum::http::header::CONTENT_TYPE, "application/json")],
+            Body::from(r#"{"error":"Not Found","code":404}"#),
+        )
+            .into_response();
+    }
+
+    // Step 2：精确匹配嵌入的静态资产（_next/*, *.css, *.js, favicon.ico 等）
+    if let Some(asset) = EmbeddedSpa::get(&path) {
+        let mime = mime_guess::from_path(&path)
+            .first_or_octet_stream()
+            .to_string();
+        return Response::builder()
+            .status(StatusCode::OK)
+            .header(axum::http::header::CONTENT_TYPE, &mime)
+            .body(Body::from(asset.data))
+            .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response());
+    }
+
+    // Step 3：SPA 智能降级
+    // - 空路径（根路由 /）→ 首页 index.html
+    // - 含子路径的路由（/room-abc, /my-room 等）→ 房间模板 _.html
+    //   （Next.js 静态导出用占位符 "_" 预生成的房间页模板）
+    //   客户端 usePathname() 从真实浏览器 URL 读取实际房间名，无水合冲突
+    let fallback_file = if path.is_empty() {
+        "index.html"
+    } else {
+        "_.html"
+    };
+
+    serve_html_asset(fallback_file)
+}
+
+fn serve_html_asset(name: &str) -> Response {
+    match EmbeddedSpa::get(name) {
+        Some(html) => Response::builder()
+            .status(StatusCode::OK)
+            .header(
+                axum::http::header::CONTENT_TYPE,
+                HeaderValue::from_static("text/html; charset=utf-8"),
+            )
+            .header(
+                axum::http::header::CACHE_CONTROL,
+                HeaderValue::from_static("no-store, max-age=0"),
+            )
+            .body(Body::from(html.data))
+            .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response()),
+        None => (
+            StatusCode::SERVICE_UNAVAILABLE,
+            format!(
+                "Frontend asset '{}' not embedded. Run `bun run build` in web/ first.",
+                name
+            ),
+        )
+            .into_response(),
+    }
 }
 
 fn spawn_room_gc_task(app_state: Arc<AppState>, interval_seconds: u64, batch_limit: u32) {

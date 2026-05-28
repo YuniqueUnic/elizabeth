@@ -1,7 +1,7 @@
 import { test } from "@playwright/test";
 import * as fs from "fs";
 
-const BASE_URL = "http://localhost:4001";
+const BASE_URL = "http://localhost:4092";
 const ROOM = "perm-check-" + Date.now();
 
 test("检查上传权限和 UI", async ({ page }) => {

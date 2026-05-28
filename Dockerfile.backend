@@ -1,11 +1,30 @@
 # ============================================================================
-# Optimized Multi-stage Dockerfile for Elizabeth Backend (Rust)
+# Optimized Multi-stage Dockerfile for Elizabeth (Rust + Embedded SPA)
 # ============================================================================
-# This Dockerfile uses cargo-chef for optimal caching and build speed
+# Single binary: Rust backend + Next.js SPA embedded via rust-embed
 # ============================================================================
 
 # ----------------------------------------------------------------------------
-# Stage 1: Chef Base - Setup cargo-chef for optimized dependency caching
+# Stage 1: Frontend Builder - Build Next.js SPA static export
+# ----------------------------------------------------------------------------
+FROM oven/bun:1-alpine AS frontend-builder
+
+WORKDIR /app/web
+
+# Copy web package files
+COPY web/package.json web/bun.lockb* ./
+
+# Install dependencies
+RUN bun install --frozen-lockfile
+
+# Copy web source
+COPY web/ ./
+
+# Build static export (output: 'export' in next.config.mjs when NODE_ENV=production)
+RUN NODE_ENV=production bun run build
+
+# ----------------------------------------------------------------------------
+# Stage 2: Chef Base - Setup cargo-chef for optimized dependency caching
 # ----------------------------------------------------------------------------
 FROM lukemathwalker/cargo-chef:latest AS chef
 
@@ -20,7 +39,7 @@ COPY crates/ ./crates/
 RUN cargo chef prepare --recipe-path recipe.json
 
 # ----------------------------------------------------------------------------
-# Stage 2: Builder - Build dependencies and application
+# Stage 3: Builder - Build dependencies and application
 # ----------------------------------------------------------------------------
 FROM chef AS builder
 
@@ -49,11 +68,14 @@ COPY Cargo.toml Cargo.lock ./
 COPY rust-toolchain.toml ./
 COPY crates/ ./crates/
 
-# Build the application
+# Copy built frontend (needed by rust-embed at compile time)
+COPY --from=frontend-builder /app/web/out ./web/out
+
+# Build the application (rust-embed will embed web/out/ into the binary)
 RUN cargo build --release -p elizabeth-board
 
 # ----------------------------------------------------------------------------
-# Stage 3: Runtime - Minimal production image
+# Stage 4: Runtime - Minimal production image
 # ----------------------------------------------------------------------------
 # NOTE: The cargo-chef base image is built against glibc >= 2.38.
 # Debian bookworm ships glibc 2.36, which will fail at runtime with:
@@ -78,7 +100,7 @@ COPY --from=builder /app/crates/board/migrations_pg /app/migrations_pg/
 # Create data directories
 RUN mkdir -p /app/data /app/storage/rooms /app/config
 
-# Expose application port
+# Expose single application port (serves both API and embedded SPA)
 EXPOSE 4092
 
 # Set environment variables

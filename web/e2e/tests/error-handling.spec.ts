@@ -2,7 +2,7 @@
 import { expect, test } from "@playwright/test";
 import { RoomPage } from "../page-objects/room-page";
 
-const BASE_URL = "http://localhost:4001";
+const BASE_URL = "http://localhost:4092";
 const API_BASE_URL = process.env.API_BASE_URL || "http://localhost:4092/api/v1";
 
 async function ensureRoomExists(roomName: string) {
@@ -43,6 +43,48 @@ test.describe("异常处理与边界条件测试", () => {
         const alert = page.locator("div[role='alert'][data-slot='alert']");
         await expect(alert).toBeVisible();
         await expect(alert).toContainText("房间名称不合法");
+    });
+
+    test("首页创建房间：输入非法字符房间名称应被拦截并提示错误", async ({ page }) => {
+        await page.goto("/");
+
+        // 点击“创建房间”Card 进入创建模式
+        await page.locator("text=创建房间").first().click();
+
+        // 输入包含斜杠的非法房间名
+        await page.fill("#room-name", "/asdf/asfd/asef");
+
+        // 点击“创建房间”提交按钮
+        await page.locator('button:has-text("创建房间")').click();
+
+        // 验证错误 Alert 出现，提示格式不正确
+        const alert = page.locator("div[role='alert'][data-slot='alert']");
+        await expect(alert).toBeVisible();
+        await expect(alert).toContainText("房间名称只能包含字母、数字、下划线和连字符，且不能以连字符或下划线开头或结尾");
+
+        // 验证未发生跳转，URL 仍是首页
+        await expect(page).toHaveURL(`${BASE_URL}/`);
+    });
+
+    test("首页加入房间：输入非法字符房间名称应被拦截并提示错误", async ({ page }) => {
+        await page.goto("/");
+
+        // 点击“加入房间”Card 进入加入模式
+        await page.locator("text=加入房间").first().click();
+
+        // 输入包含斜杠的非法房间名
+        await page.fill("#join-room-name", "asdf/asfd/asef");
+
+        // 点击“加入房间”提交按钮
+        await page.locator('button:has-text("加入房间")').click();
+
+        // 验证错误 Alert 出现，提示格式不正确
+        const alert = page.locator("div[role='alert'][data-slot='alert']");
+        await expect(alert).toBeVisible();
+        await expect(alert).toContainText("房间名称只能包含字母、数字、下划线和连字符，且不能以连字符或下划线开头或结尾");
+
+        // 验证未发生跳转，URL 仍是首页
+        await expect(page).toHaveURL(`${BASE_URL}/`);
     });
 
     test.skip("发送消息网络失败应显示错误提示", async ({ page }) => {
