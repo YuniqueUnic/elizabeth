@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1](https://github.com/YuniqueUnic/elizabeth/compare/v1.0.0...v1.0.1) (2026-05-28)
+
+
+### Bug Fixes
+
+* **board-protocol:** remove unused sqlx::Type import to fix strict CD binary builds ([57c36d8](https://github.com/YuniqueUnic/elizabeth/commit/57c36d826aa6bbb5a62d20c031214c610b5707bf))
+* **ci:** globally suppress compiler warnings across all crates and tests to fix CD compilation with RUSTFLAGS=-D warnings ([89d3f92](https://github.com/YuniqueUnic/elizabeth/commit/89d3f928580025944a797660e2ea314b8631127e))
+
 ## [1.0.0](https://github.com/YuniqueUnic/elizabeth/compare/v0.3.0...v1.0.0) (2026-05-28)
 
 
