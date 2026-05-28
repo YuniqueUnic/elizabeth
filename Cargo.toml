@@ -78,6 +78,7 @@ regex = "1"
 mime_guess = "2.0"
 sanitize-filename = "0.6"
 opendal = { version = "0.56", features = ["services-fs", "services-s3"] }
+rust-embed = { version = "8", features = ["mime-guess", "include-exclude"] }
 
 # === Build Tools ===
 shadow-rs = { version = "2", features = ["no_std"] }

@@ -7,6 +7,11 @@ delete process.env.https_proxy;
 
 /**
  * See https://playwright.dev/docs/test-configuration.
+ *
+ * 单端口架构：Rust 后端同时 serve API 和嵌入的 SPA 静态文件
+ * - 所有流量经过 localhost:4092
+ * - /api/v1/* → Axum 后端路由
+ * - /* → rust-embed 嵌入的 Next.js 静态文件（SPA fallback）
  */
 export default defineConfig({
   testDir: "./e2e/tests",
@@ -25,8 +30,8 @@ export default defineConfig({
   ],
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
-    /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: "http://localhost:4001",
+    /* 单端口：前端和后端都在 4092 */
+    baseURL: "http://localhost:4092",
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: "on-first-retry",
     screenshot: "only-on-failure",
@@ -55,16 +60,14 @@ export default defineConfig({
     timeout: 30 * 1000,
   },
 
-  /* 尝试连接到现有服务器，如果不存在则启动 */
+  /* 尝试连接到现有服务器，如果不存在则启动 Rust 后端（单端口模式）*/
   webServer: {
     command:
-      `lsof -i :4001 -sTCP:LISTEN -n -P >/dev/null 2>&1 || ` +
-      `INTERNAL_API_URL=http://localhost:4092/api/v1 ` +
-      `NEXT_PUBLIC_API_URL=/api/v1 ` +
-      `NEXT_PUBLIC_APP_URL=http://localhost:4001 ` +
-      `pnpm dev --port 4001`,
-    url: "http://localhost:4001",
+      `lsof -i :4092 -sTCP:LISTEN -n -P >/dev/null 2>&1 || ` +
+      `cargo run -p elizabeth-board -- run`,
+    url: "http://localhost:4092/api/v1/health",
     reuseExistingServer: true,
     timeout: 180 * 1000,
+    cwd: "..",
   },
 });

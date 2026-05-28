@@ -3,7 +3,7 @@
  */
 
 import { useMemo } from "react";
-import { useParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { getRoomTokenString } from "@/lib/utils/api";
 import {
     decodeJWT,
@@ -19,8 +19,9 @@ import type { RoomPermission } from "@/lib/types";
  * Hook to get and check room permissions
  */
 export function useRoomPermissions() {
-    const params = useParams();
-    const roomName = params.roomName as string | undefined;
+    const pathname = usePathname();
+    // 从真实 URL 解析房间名，避免静态导出时 useParams() 返回编译期占位符
+    const roomName = pathname.split("/").filter(Boolean)[0] ?? undefined;
 
     const token = useMemo(() => {
         if (!roomName) return null;

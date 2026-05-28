@@ -3,7 +3,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { RoomPage } from "../page-objects/room-page";
 
-const BASE_URL = "http://localhost:4001";
+const BASE_URL = "http://localhost:4092";
 const API_BASE = "http://localhost:4092/api/v1";
 const TEST_ROOM = `file-auto-test-${Date.now()}`;
 const TEST_ROOM_URL = `${BASE_URL}/${TEST_ROOM}`;

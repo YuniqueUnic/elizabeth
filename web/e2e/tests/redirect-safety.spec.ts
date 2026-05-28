@@ -4,7 +4,7 @@ import { RoomPage } from "../page-objects/room-page";
 import * as fs from "fs";
 import * as path from "path";
 
-const BASE_URL = "http://localhost:4001";
+const BASE_URL = "http://localhost:4092";
 const API_BASE_URL = process.env.API_BASE_URL || "http://localhost:4092/api/v1";
 const TOKEN_STORAGE_KEY = "elizabeth_tokens";
 

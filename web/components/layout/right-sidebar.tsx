@@ -36,7 +36,7 @@ import {
   handleMutationError,
   handleMutationSuccess,
 } from "@/lib/utils/mutations";
-import { useParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 
 export function RightSidebar() {
   const currentRoomId = useAppStore((state) => state.currentRoomId);
@@ -51,8 +51,9 @@ export function RightSidebar() {
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const { can } = useRoomPermissions();
-  const params = useParams();
-  const roomName = (params.roomName as string) || currentRoomId;
+  const pathname = usePathname();
+  // 从真实 URL 解析房间名（兼容静态导出模式）
+  const roomName = pathname.split("/").filter(Boolean)[0] || currentRoomId;
 
   const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
