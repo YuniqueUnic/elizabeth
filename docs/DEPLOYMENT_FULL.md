@@ -650,7 +650,7 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
-  - job_name: "elizabeth-backend"
+  - job_name: "elizabeth"
     static_configs:
       - targets: ["localhost:4092"]
     metrics_path: "/metrics"
@@ -846,7 +846,7 @@ ignoreregex =
 
 Ubuntu AppArmor 配置示例：
 
-`/etc/apparmor.d/elizabeth-backend`:
+`/etc/apparmor.d/elizabeth`:
 
 ```
 #include <tunables/global>
@@ -898,9 +898,9 @@ Internet → ALB → ECS Tasks (Elizabeth)
 aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <account-id>.dkr.ecr.us-east-1.amazonaws.com
 
 # 构建并推送
-docker build -t elizabeth-backend -f Dockerfile.backend .
-docker tag elizabeth-backend:latest <account-id>.dkr.ecr.us-east-1.amazonaws.com/elizabeth-backend:latest
-docker push <account-id>.dkr.ecr.us-east-1.amazonaws.com/elizabeth-backend:latest
+docker build -t elizabeth -f Dockerfile.backend .
+docker tag elizabeth:latest <account-id>.dkr.ecr.us-east-1.amazonaws.com/elizabeth:latest
+docker push <account-id>.dkr.ecr.us-east-1.amazonaws.com/elizabeth:latest
 ```
 
 2. **创建 RDS 实例**
@@ -931,7 +931,7 @@ aws rds create-db-instance \
   "containerDefinitions": [
     {
       "name": "backend",
-      "image": "<account-id>.dkr.ecr.us-east-1.amazonaws.com/elizabeth-backend:latest",
+      "image": "<account-id>.dkr.ecr.us-east-1.amazonaws.com/elizabeth:latest",
       "portMappings": [{ "containerPort": 4092 }],
       "environment": [
         {
@@ -968,7 +968,7 @@ aws elbv2 create-load-balancer \
 
 # 创建目标组
 aws elbv2 create-target-group \
-  --name elizabeth-backend \
+  --name elizabeth \
   --protocol HTTP \
   --port 4092 \
   --vpc-id <vpc-id> \

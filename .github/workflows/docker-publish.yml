@@ -25,7 +25,7 @@ on:
 permissions: {}
 
 env:
-  BACKEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/elizabeth-backend
+  IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/elizabeth
 
 jobs:
   # ============================================================
@@ -53,10 +53,10 @@ jobs:
           echo "✅ Tag '$VERSION' exists."
 
   # ============================================================
-  # Job 1: 构建并推送 Backend 镜像
+  # Job 1: 构建并推送镜像
   # ============================================================
-  build-backend:
-    name: Build & Push Backend
+  build:
+    name: Build & Push
     runs-on: ubuntu-latest
     needs: validate
     permissions:
@@ -71,7 +71,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.BACKEND_IMAGE }}
+          images: ${{ env.IMAGE }}
           tags: |
             # 精确版本：v0.3.1 → 0.3.1
             type=semver,pattern={{version}},value=${{ github.event.inputs.version }}
@@ -92,7 +92,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push backend image
+      - name: Build and push image
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -108,18 +108,19 @@ jobs:
   update-description:
     name: Update Docker Hub Description
     runs-on: ubuntu-latest
-    needs: [build-backend]
+    needs: [build]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.inputs.version }}
 
-      - name: Update backend description
+      - name: Update description
         uses: peter-evans/dockerhub-description@v4
+        continue-on-error: true
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-          repository: ${{ secrets.DOCKERHUB_USERNAME }}/elizabeth-backend
+          repository: ${{ secrets.DOCKERHUB_USERNAME }}/elizabeth
           readme-filepath: ./README.en.md
-          short-description: "Elizabeth Board - Single Port Embedded Application (Rust/Axum + Next.js SPA)"
+          short-description: "Elizabeth - File Sharing Platform (Rust/Axum + embedded Next.js SPA, single binary)"
