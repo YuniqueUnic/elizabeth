@@ -1,3 +1,4 @@
+#![allow(unused_variables, unused_imports, dead_code)]
 //! WebSocket 模块单元测试
 //!
 //! 测试 ConnectionManager、Broadcaster 和 MessageHandler

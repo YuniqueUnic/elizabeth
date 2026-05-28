@@ -1,3 +1,4 @@
+#![allow(unused_variables, unused_imports, dead_code)]
 //! 存储系统功能测试
 //!
 //! 测试内容管理、上传预留、分块合并、存储路径等存储相关功能

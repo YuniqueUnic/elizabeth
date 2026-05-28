@@ -1,3 +1,4 @@
+#![allow(unused_variables, unused_imports, dead_code)]
 //! 分块上传功能测试
 //!
 //! 测试文件分块上传的完整工作流程
