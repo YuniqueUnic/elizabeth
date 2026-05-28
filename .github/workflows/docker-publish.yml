@@ -1,0 +1,178 @@
+name: Docker Publish
+
+# 触发条件：当 release-please 推送 git tag（v*.*.*）时自动构建并推送 Docker 镜像
+on:
+  push:
+    tags:
+      - "v*"
+  # 允许手动触发，用于测试
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Docker image tag (e.g. v0.3.0)"
+        required: false
+        default: "dev"
+
+permissions: {}
+
+env:
+  # Docker Hub 用户名/镜像仓库名（需要在 GitHub Secrets 中配置 DOCKERHUB_USERNAME）
+  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+  # 镜像名称（会生成 <username>/elizabeth-backend 和 <username>/elizabeth-frontend）
+  BACKEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/elizabeth-backend
+  FRONTEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/elizabeth-frontend
+
+jobs:
+  # ============================================================
+  # Job 1: 构建并推送 Backend 镜像
+  # ============================================================
+  build-backend:
+    name: Build & Push Backend
+    runs-on: ubuntu-latest
+    # 只在正确的 owner 下运行，防止 fork 误触发
+    if: >-
+      github.repository_owner == 'yuniqueunic' &&
+      (
+        github.event_name == 'workflow_dispatch' ||
+        startsWith(github.ref_name, 'v')
+      )
+    permissions:
+      contents: read
+      packages: write # 若需同时推送 GHCR 可用
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 计算镜像 tag
+      - name: Compute image tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.BACKEND_IMAGE }}
+          tags: |
+            # 手动触发时使用 input tag 或 'dev'
+            type=raw,value=${{ github.event.inputs.tag || 'dev' }},enable=${{ github.event_name == 'workflow_dispatch' }}
+            # Release 时：使用 git tag 名称生成多版本 tag
+            type=semver,pattern={{version}},enable=${{ github.event_name != 'workflow_dispatch' }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name != 'workflow_dispatch' }}
+            type=semver,pattern={{major}},enable=${{ github.event_name != 'workflow_dispatch' }}
+            type=raw,value=latest,enable=${{ github.event_name != 'workflow_dispatch' }}
+
+      # 设置 QEMU 支持多平台（amd64 + arm64）
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.backend
+          # 同时构建 amd64（服务器主流）和 arm64（Apple Silicon / AWS Graviton）
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # 使用 GitHub Actions 缓存加速构建
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
+  # ============================================================
+  # Job 2: 构建并推送 Frontend 镜像
+  # ============================================================
+  build-frontend:
+    name: Build & Push Frontend
+    runs-on: ubuntu-latest
+    if: >-
+      github.repository_owner == 'yuniqueunic' &&
+      (
+        github.event_name == 'workflow_dispatch' ||
+        startsWith(github.ref_name, 'v')
+      )
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Compute image tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.FRONTEND_IMAGE }}
+          tags: |
+            type=raw,value=${{ github.event.inputs.tag || 'dev' }},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=semver,pattern={{version}},enable=${{ github.event_name != 'workflow_dispatch' }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name != 'workflow_dispatch' }}
+            type=semver,pattern={{major}},enable=${{ github.event_name != 'workflow_dispatch' }}
+            type=raw,value=latest,enable=${{ github.event_name != 'workflow_dispatch' }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.frontend
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Build args：允许外部注入 API 地址
+          build-args: |
+            NEXT_PUBLIC_API_URL=/api/v1
+            NEXT_PUBLIC_APP_URL=http://localhost:4001
+            INTERNAL_API_URL=http://elizabeth-backend:4092/api/v1
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+  # ============================================================
+  # Job 3: 更新 Docker Hub Repository Description（可选）
+  # ============================================================
+  update-description:
+    name: Update Docker Hub Description
+    runs-on: ubuntu-latest
+    needs: [build-backend, build-frontend]
+    if: github.event_name == 'release'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Update backend description
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ secrets.DOCKERHUB_USERNAME }}/elizabeth-backend
+          readme-filepath: ./README.en.md
+          short-description: "Elizabeth Board - Backend (Rust/Axum)"
+
+      - name: Update frontend description
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ secrets.DOCKERHUB_USERNAME }}/elizabeth-frontend
+          readme-filepath: ./README.en.md
+          short-description: "Elizabeth Board - Frontend (Next.js)"
