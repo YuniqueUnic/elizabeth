@@ -10,7 +10,7 @@ BACKEND_LOG_FILE="$BACKEND_DIR/backend.log"
 BACKEND_PID_FILE="$BACKEND_DIR/backend.pid"
 
 FRONTEND_DIR="$SCRIPT_DIR/web"
-FRONTEND_BUILD_CMD="pnpm build"
+FRONTEND_BUILD_CMD="bun run build"
 FRONTEND_CMD="node .next/standalone/server.js"
 FRONTEND_LOG_FILE="$FRONTEND_DIR/frontend.log"
 FRONTEND_PID_FILE="$FRONTEND_DIR/frontend.pid"
