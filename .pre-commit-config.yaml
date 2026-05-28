@@ -4,6 +4,9 @@
 # 指定 prek 最低版本
 minimum_prek_version: 0.2.0
 
+# 全局排除自动生成的文件，不参与任何 pre-commit 检查与格式化
+exclude: '^(CHANGELOG\.md|\.release-please-manifest\.json|version\.txt)$'
+
 repos:
   # 基础文件检查 - 使用 prek 内置的快速实现
   - repo: "https://github.com/pre-commit/pre-commit-hooks"
