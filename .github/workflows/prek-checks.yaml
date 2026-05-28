@@ -1,8 +1,15 @@
 name: Prek checks
+
 on:
   pull_request:
     branches:
       - main
+
+# 同一个 PR 同时只允许一个 prek run，新的会取消旧的
+# 这样解决 GitHub 为同一 commit 创建多个 check suite（push + pull_request）导致 prek 跑两次的问题
+concurrency:
+  group: prek-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   prek:
