@@ -1,6 +1,6 @@
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, Row, Type, any::AnyRow, postgres::PgRow, sqlite::SqliteRow};
+use sqlx::{FromRow, Row, any::AnyRow, postgres::PgRow, sqlite::SqliteRow};
 use utoipa::ToSchema;
 
 use crate::models::room::row_utils::{read_datetime_from_any, read_optional_datetime_from_any};
