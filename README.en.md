@@ -183,6 +183,8 @@ This project is licensed under the terms of the
 >   it as a service over the network (Software as a Service), **you must
 >   open-source and make your modified source code publicly available under the
 >   AGPL-3.0 terms**.
-> - If you deploy and use the original, unmodified source code of Elizabeth in
->   your commercial or private setups, this copyleft provision does not apply to
->   you.
+> - If you do not modify Elizabeth's source code (e.g., using it as-is for
+>   commercial deployments, internal collaboration, or private hosting), or if
+>   your modifications are kept strictly within your private/enterprise internal
+>   network and not exposed as a public service over the network, you are not
+>   obligated to open-source your code.
