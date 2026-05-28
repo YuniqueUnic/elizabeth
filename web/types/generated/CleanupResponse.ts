@@ -3,11 +3,11 @@
 /**
  * 清理响应结构
  */
-export type CleanupResponse = { 
+export type CleanupResponse = {
 /**
  * 清理的记录数量
  */
-cleaned_records: bigint, 
+cleaned_records: bigint,
 /**
  * 操作结果消息
  */
