@@ -235,8 +235,10 @@ fn build_api_router(app_state: Arc<AppState>, cfg: &configrs::Config) -> (String
 }
 
 /// Next.js `output: 'export'` 产物目录，由 rust-embed 在编译期打包进二进制
+/// 路径在 crate 内部，确保 `cargo publish` 能正确打包。
+/// CI / Docker / 本地构建时需先将 `web/out` 复制到此目录。
 #[derive(RustEmbed)]
-#[folder = "../../web/out"]
+#[folder = "web-out"]
 #[exclude = "*.map"] // 排除 source map，减小体积
 struct EmbeddedSpa;
 

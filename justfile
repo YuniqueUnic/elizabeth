@@ -96,10 +96,13 @@ db-migrate:
 
 # === 开发工作流 ===
 
-# 构建前端（Next.js 静态导出 → web/out/）
+# 构建前端（Next.js 静态导出 → web/out/）并复制到 crate 内供 rust-embed 使用
 build-web:
     @echo "构建前端..."
     cd web && bun run build
+    @echo "复制到 crates/board/web-out/ ..."
+    rm -rf crates/board/web-out
+    cp -r web/out crates/board/web-out
 
 # 完整构建（前端 + Rust 二进制，SPA 通过 rust-embed 内嵌）
 build: build-web

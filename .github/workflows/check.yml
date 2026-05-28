@@ -11,6 +11,9 @@ concurrency:
   group: check-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   build-frontend:
     name: Build Frontend
@@ -32,11 +35,14 @@ jobs:
         env:
           NODE_ENV: production
 
+      - name: Copy assets for rust-embed
+        run: cp -r web/out crates/board/web-out
+
       - name: Upload frontend assets
         uses: actions/upload-artifact@v4
         with:
           name: frontend-assets
-          path: web/out
+          path: crates/board/web-out
           retention-days: 1
 
   clippy:
@@ -51,7 +57,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: frontend-assets
-          path: web/out
+          path: crates/board/web-out
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -76,7 +82,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: frontend-assets
-          path: web/out
+          path: crates/board/web-out
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -99,13 +105,16 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: frontend-assets
-          path: web/out
+          path: crates/board/web-out
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Force-track embedded assets for cargo publish
+        run: git add -f crates/board/web-out/
+
       - name: Dry-run publish
-        run: cargo publish --workspace --dry-run
+        run: cargo publish --workspace --dry-run --allow-dirty
 
   e2e:
     name: E2E Tests
@@ -119,13 +128,20 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: frontend-assets
-          path: web/out
+          path: crates/board/web-out
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache Rust
         uses: Swatinem/rust-cache@v2
+
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+        working-directory: web
 
       - name: Build backend
         run: cargo build -p elizabeth-board
@@ -144,7 +160,7 @@ jobs:
           echo "Backend failed to start"
           exit 1
 
-      - name: Install Playwright browsers
+      - name: Setup Node.js
         uses: actions/setup-node@v4
 
       - name: Install Playwright
@@ -152,11 +168,11 @@ jobs:
         working-directory: web
 
       - name: Run E2E tests
-        run: npx playwright test
+        run: npx playwright test --reporter=html,github
         working-directory: web
 
       - name: Upload test report
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report

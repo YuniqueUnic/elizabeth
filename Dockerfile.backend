@@ -69,7 +69,7 @@ COPY rust-toolchain.toml ./
 COPY crates/ ./crates/
 
 # Copy built frontend (needed by rust-embed at compile time)
-COPY --from=frontend-builder /app/web/out ./web/out
+COPY --from=frontend-builder /app/web/out ./crates/board/web-out
 
 # Build the application (rust-embed will embed web/out/ into the binary)
 RUN cargo build --release -p elizabeth-board
