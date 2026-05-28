@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0](https://github.com/YuniqueUnic/elizabeth/compare/v1.0.1...v2.0.0) (2026-05-28)
+
+
+### ⚠ BREAKING CHANGES
+
+* **backend:** Remove separate frontend container and nginx gateway, consolidating into single backend container with embedded SPA served via rust-embed. All endpoints now accessible through port 4092 instead of separate frontend port 4001.
+
+### Features
+
+* **arch:** consolidate frontend SPA and backend Axum into a single monolithic Rust service, eliminating gateway and frontend containers ([801011a](https://github.com/YuniqueUnic/elizabeth/commit/801011a8400d29258b7287ed51fad1d058db4f1a))
+
+
+### Bug Fixes
+
+* **e2e:** add wait time and toast dismissal for room tests ([8645971](https://github.com/YuniqueUnic/elizabeth/commit/86459715f6800a4b628cdd0bf9d80a063264779b))
+* embed SPA frontend into Rust backend binary ([9622ab1](https://github.com/YuniqueUnic/elizabeth/commit/9622ab12768c1b69d1cd96d230627e330408460a))
+
+
+### Code Refactoring
+
+* **backend:** merge frontend SPA into single container ([9bb8aba](https://github.com/YuniqueUnic/elizabeth/commit/9bb8abad3ccdeb0df24ad8a5a70ee55747d9feae))
+
 ## [1.0.1](https://github.com/YuniqueUnic/elizabeth/compare/v1.0.0...v1.0.1) (2026-05-28)
 
 
