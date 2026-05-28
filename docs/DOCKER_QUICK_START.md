@@ -1,7 +1,7 @@
 # Elizabeth Docker 快速开始
 
-目标：用 `docker compose` 在一台机器上跑起来（Gateway + Frontend +
-Backend），默认使用 SQLite；可选 PostgreSQL。
+目标：用 `docker compose` 在一台机器上跑起来（单容器，Rust 后端内嵌 SPA
+前端），默认使用 SQLite；可选 PostgreSQL。
 
 ## TL;DR（默认 SQLite）
 
@@ -19,10 +19,10 @@ docker compose ps
 
 访问：
 
-- 前端：`http://localhost:4001`
-- OpenAPI UI：`http://localhost:4001/api/v1/scalar`
-- OpenAPI JSON：`http://localhost:4001/api/v1/openapi.json`
-- 健康检查：`http://localhost:4001/api/v1/health`
+- Web 前端：`http://localhost:4092`
+- OpenAPI UI：`http://localhost:4092/api/v1/scalar`
+- OpenAPI JSON：`http://localhost:4092/api/v1/openapi.json`
+- 健康检查：`http://localhost:4092/api/v1/health`
 
 数据默认落盘在仓库目录（可通过 `.env` 覆盖）：
 

@@ -19,9 +19,9 @@ ignored = ["opendal"]
 
 [workspace.dependencies]
 # === Internal Workspace Crates ===
-logrs = { package = "elizabeth-logrs", path = "crates/logrs", features = ["logging"] }
-configrs = { package = "elizabeth-configrs", path = "crates/configrs" }
-board_protocol = { package = "elizabeth-board-protocol", path = "crates/board-protocol" }
+logrs = { package = "elizabeth-logrs", version = "1.0.1", path = "crates/logrs", features = ["logging"] }
+configrs = { package = "elizabeth-configrs", version = "1.0.1", path = "crates/configrs" }
+board_protocol = { package = "elizabeth-board-protocol", version = "1.0.1", path = "crates/board-protocol" }
 
 # === Core Dependencies ===
 anyhow = "1"

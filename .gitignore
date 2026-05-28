@@ -40,5 +40,7 @@ docker/backend/storage/**
 web/frontend.log
 web/frontend.build.log
 web/frontend.pid
+web/out/
+web/.next/
 .playwright-mcp
 .ace-tool/

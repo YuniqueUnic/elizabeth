@@ -110,7 +110,7 @@ compose down
 log_step "5/6 Starting services..."
 compose up -d
 
-log_step "6/6 Waiting for services to be healthy..."
+log_step "6/6 Waiting for backend to be healthy..."
 sleep 5
 
 # Check service health
@@ -118,38 +118,33 @@ MAX_RETRIES=30
 RETRY_COUNT=0
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    BACKEND_HEALTH=$(docker inspect elizabeth-backend --format='{{.State.Health.Status}}' 2>/dev/null || echo "unknown")
-    FRONTEND_HEALTH=$(docker inspect elizabeth-frontend --format='{{.State.Health.Status}}' 2>/dev/null || echo "unknown")
-    GATEWAY_HEALTH=$(docker inspect elizabeth-gateway --format='{{.State.Health.Status}}' 2>/dev/null || echo "unknown")
+    BACKEND_HEALTH=$(docker inspect elizabeth --format='{{.State.Health.Status}}' 2>/dev/null || echo "unknown")
 
-    if [ "$BACKEND_HEALTH" = "healthy" ] && [ "$FRONTEND_HEALTH" = "healthy" ] && [ "$GATEWAY_HEALTH" = "healthy" ]; then
-        log_info "All services are healthy!"
+    if [ "$BACKEND_HEALTH" = "healthy" ]; then
+        log_info "Backend is healthy!"
         break
     fi
 
-    log_info "Waiting for services to be healthy... (${RETRY_COUNT}/${MAX_RETRIES})"
+    log_info "Waiting for backend to be healthy... (${RETRY_COUNT}/${MAX_RETRIES})"
     log_info "  Backend: ${BACKEND_HEALTH}"
-    log_info "  Frontend: ${FRONTEND_HEALTH}"
-    log_info "  Gateway: ${GATEWAY_HEALTH}"
 
     sleep 2
     RETRY_COUNT=$((RETRY_COUNT + 1))
 done
 
 if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-    log_error "Services did not become healthy in time!"
-    log_error "Check logs with: docker-compose logs"
+    log_error "Backend did not become healthy in time!"
+    log_error "Check logs with: docker compose logs"
     exit 1
 fi
 
 # Display service information
 log_info "Deployment completed successfully!"
 echo ""
-log_info "Service URLs:"
-FRONTEND_PORT=$(grep "^FRONTEND_PORT=" .env | cut -d'=' -f2)
-log_info "  Frontend: http://localhost:${FRONTEND_PORT:-4001}"
-log_info "  Backend API (via gateway): http://localhost:${FRONTEND_PORT:-4001}/api/v1"
-log_info "  API Docs (via gateway): http://localhost:${FRONTEND_PORT:-4001}/api/v1/scalar"
+log_info "Service URLs (single container on port ${PORT:-4092}):"
+log_info "  Web UI: http://localhost:${PORT:-4092}"
+log_info "  API Docs: http://localhost:${PORT:-4092}/api/v1/scalar"
+log_info "  Health: http://localhost:${PORT:-4092}/api/v1/health"
 echo ""
 log_info "Useful commands:"
 if command -v docker-compose &> /dev/null; then

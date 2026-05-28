@@ -68,10 +68,10 @@ docker compose up -d --build
 
 部署成功后，您可以通过以下入口访问和调试服务：
 
-- **Web 前端界面**：`http://localhost:4001`
-- **Scalar 交互式接口文档**：`http://localhost:4001/api/v1/scalar`
-- **OpenAPI 描述文件 (JSON)**：`http://localhost:4001/api/v1/openapi.json`
-- **健康检查接口**：`http://localhost:4001/api/v1/health`
+- **Web 前端界面**：`http://localhost:4092`
+- **Scalar 交互式接口文档**：`http://localhost:4092/api/v1/scalar`
+- **OpenAPI 描述文件 (JSON)**：`http://localhost:4092/api/v1/openapi.json`
+- **健康检查接口**：`http://localhost:4092/api/v1/health`
 
 ---
 

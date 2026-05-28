@@ -12,6 +12,21 @@
           "path": "Cargo.toml",
           "jsonpath": "$.workspace.package.version"
         },
+        {
+          "type": "toml",
+          "path": "Cargo.toml",
+          "jsonpath": "$.workspace.dependencies.logrs.version"
+        },
+        {
+          "type": "toml",
+          "path": "Cargo.toml",
+          "jsonpath": "$.workspace.dependencies.configrs.version"
+        },
+        {
+          "type": "toml",
+          "path": "Cargo.toml",
+          "jsonpath": "$.workspace.dependencies.board_protocol.version"
+        },
         "version.txt",
         {
           "type": "toml",
