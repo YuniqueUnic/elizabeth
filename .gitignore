@@ -42,5 +42,6 @@ web/frontend.build.log
 web/frontend.pid
 web/out/
 web/.next/
+crates/board/web-out/
 .playwright-mcp
 .ace-tool/
