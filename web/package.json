@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "pnpm typecheck && next build",
+    "build": "bun typecheck && next build",
     "dev": "next dev",
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit",
