@@ -15,72 +15,174 @@
   <img src="./elizabeth.png" style="width:480px" alt="elizabeth-ui" align="center" />
 </div>
 
-## Quick Start (Docker, SQLite by default)
+<div align="center">
+
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+[![Language: Rust](https://img.shields.io/badge/Language-Rust-orange.svg?style=flat&logo=rust)](https://www.rust-lang.org/)
+[![Framework: Next.js](https://img.shields.io/badge/Frontend-Next.js-black.svg?style=flat&logo=nextdotjs)](https://nextjs.org/)
+[![Database: SQLite / PostgreSQL](https://img.shields.io/badge/Database-SQLite%20%2F%20PostgreSQL-blue.svg?style=flat&logo=postgresql)](https://www.postgresql.org/)
+[![CI: prek](https://img.shields.io/badge/CI-prek-brightgreen.svg)](https://github.com/j178/prek)
+
+</div>
+
+---
+
+## Features
+
+- **Room-Centric Design**: A unique design philosophy where all file sharing,
+  interactions, and real-time collaboration revolve around virtual rooms.
+- **High Performance Backend**: Built on Rust + Axum + SQLx, offering minimal
+  memory overhead and powerful concurrency handling.
+- **Modern Frontend**: Built with Next.js, featuring smooth interaction details,
+  animations, and fully responsive layouts.
+- **Adaptive Database Engine**: Supports both SQLite and PostgreSQL natively.
+  Transitions between a local SQLite setup and a production PostgreSQL database
+  with a simple change of a single environment variable.
+- **Interactive OpenAPI / Scalar Docs**: Out-of-the-box, beautifully styled
+  Scalar API document interface to simplify frontend-backend integration.
+- **Robust Security**: Built-in JWT authentication and fine-grained room keys
+  ensure data privacy and security.
+
+---
+
+## Quick Start (Docker Deployment, SQLite by default)
+
+Build and deploy with the default, lightweight SQLite database engine:
 
 ```bash
+# Clone the repository
 git clone https://github.com/YuniqueUnic/elizabeth.git
 cd elizabeth
 
+# Prepare environment variables file
 cp .env.docker .env
-# Production: change JWT_SECRET (>= 32 chars)
+
+# Set a secure JWT_SECRET in production (recommended >= 32 characters)
 ${EDITOR:-nano} .env
 
+# Start services using Docker Compose
 docker compose up -d --build
 ```
 
-Open:
+### Access Ports
 
-- UI: `http://localhost:4001`
-- OpenAPI UI: `http://localhost:4001/api/v1/scalar`
-- OpenAPI JSON: `http://localhost:4001/api/v1/openapi.json`
-- Health: `http://localhost:4001/api/v1/health`
+Once deployed, you can access various entry points:
 
-## PostgreSQL (optional)
+- **Web UI Interface**: `http://localhost:4001`
+- **Scalar Interactive API Docs**: `http://localhost:4001/api/v1/scalar`
+- **OpenAPI Specs (JSON)**: `http://localhost:4001/api/v1/openapi.json`
+- **Health Check**: `http://localhost:4001/api/v1/health`
 
-The backend uses `sqlx::AnyPool` and selects the driver based on `DATABASE_URL`.
-Migrations are selected automatically:
+---
 
-- Source tree: SQLite → `crates/board/migrations`, PostgreSQL →
-  `crates/board/migrations_pg`
-- Docker runtime: `/app/migrations` and `/app/migrations_pg`
+## Advanced Database Configuration (Adaptive Driver Switch)
 
-Enable PostgreSQL via the provided compose override:
+Leveraging `sqlx::AnyPool`, Elizabeth automatically decides which engine to use
+and applies database migrations dynamically based on the schema of
+`DATABASE_URL`:
+
+- **SQLite** (Default, reads `./crates/board/migrations` / `/app/migrations` in
+  container)
+- **PostgreSQL** (Reads `./crates/board/migrations_pg` / `/app/migrations_pg` in
+  container)
+
+### Deploy with Pre-configured PostgreSQL Container
+
+To spin up Elizabeth along with a PostgreSQL container in the same environment:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --build
 ```
 
-Or connect to an external PostgreSQL by setting `DATABASE_URL=postgresql://...`
-in `.env`.
+### Connect to an External PostgreSQL
 
-## Configuration
+If you prefer to connect to an external PostgreSQL server, update `.env` to
+point to it (ensure network accessibility):
 
-- Docker: use `.env` for overrides (`JWT_SECRET`, `DATABASE_URL`,
-  `DB_MAX_CONNECTIONS`, `DB_MIN_CONNECTIONS`, etc.)
-- Config file: `docker/backend/config/backend.yaml` (note: YAML does not
-  interpolate env vars; secrets should be injected via env)
+```env
+DATABASE_URL=postgresql://username:password@hostname:port/dbname # pragma: allowlist secret
+```
 
-## Development & Quality Gates (Rust)
+---
+
+## Key Configurations
+
+In a Docker containerized environment, use the `.env` file at the root to
+configure crucial settings:
+
+| Environment Variable | Default Value                     | Description                                                               |
+| :------------------- | :-------------------------------- | :------------------------------------------------------------------------ |
+| `JWT_SECRET`         | (Required)                        | Key used to sign authentication tokens. Always change this in production. |
+| `DATABASE_URL`       | `sqlite://data/board.db?mode=rwc` | DB connection string. The schema determines the driver selection.         |
+| `DB_MAX_CONNECTIONS` | `10`                              | Maximum number of active db connections in the pool.                      |
+| `DB_MIN_CONNECTIONS` | `2`                               | Minimum number of idle connections to retain in the pool.                 |
+
+> [!NOTE]
+> The static configuration template resides in
+> `docker/backend/config/backend.yaml` and is loaded during runtime (YAML files
+> do not support dynamic environment variable interpolation; secure variables
+> must be configured via environment overrides).
+
+---
+
+## Quality Gates & Local Development
+
+When working locally on Rust modules, ensure all of the following quality checks
+pass:
 
 ```bash
+# Format code style
 cargo fmt --all
+
+# Static syntax and compile check across workspace
 cargo check --workspace --all-targets --all-features
+
+# Run all unit and integration tests
 cargo test --workspace --all-features
+
+# Code linter check (no warnings or errors allowed)
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 ```
 
-Or run `just verify` (see `justfile`).
+> [!TIP]
+> If you have [just](https://github.com/casey/just) installed, simply run
+> `just verify` to perform all check commands at once.
 
-## Docs
+---
 
-Start here: `docs/README.md`.
+## Documentation Guide
+
+For deep-dive details and operational guidebooks, explore the systematic docs in
+the `docs` directory:
+
+- **[docs/README.md](docs/README.md)**: Main master index for documentation.
+- **[docs/DOCKER_QUICK_START.md](docs/DOCKER_QUICK_START.md)**: Absolute minimal
+  Docker setup guidelines.
+- **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**: Production deployment, reverse
+  proxies, and Nginx setups.
+- **[docs/API_GUIDE.md](docs/API_GUIDE.md)**: Comprehensive guide for core REST
+  APIs and structure models.
+- **[docs/WEBSOCKET_GUIDE.md](docs/WEBSOCKET_GUIDE.md)**: State synchronization
+  and long-lived WebSocket signaling.
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**: In-depth micro-architecture,
+  multi-layer decoupling, and internal behaviors.
+
+---
 
 ## License
 
-See `LICENSE`.
+This project is licensed under the terms of the
+**[GNU Affero General Public License v3.0 (AGPL-3.0)](https://www.gnu.org/licenses/agpl-3.0.html)**.
 
-Without prior written permission from the author, you may not modify the source
-code, create derivative works, redistribute, deploy/host the software for others
-or in production, or use it for any commercial purpose.
-
-Open an issue if you need permission.
+> [!IMPORTANT]
+> **AGPL-3.0 Terms & SaaS Commercial Guidelines:**
+>
+> - Anyone is free to use, modify, and redistribute this project's code for
+>   commercial and private purposes.
+> - **SaaS Copyleft Provision**: If you modify Elizabeth's source code and run
+>   it as a service over the network (Software as a Service), **you must
+>   open-source and make your modified source code publicly available under the
+>   AGPL-3.0 terms**.
+> - If you deploy and use the original, unmodified source code of Elizabeth in
+>   your commercial or private setups, this copyleft provision does not apply to
+>   you.
