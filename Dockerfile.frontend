@@ -7,26 +7,20 @@
 # ----------------------------------------------------------------------------
 # Stage 1: Dependencies - Install dependencies
 # ----------------------------------------------------------------------------
-FROM node:25-alpine AS deps
-
-# Install pnpm using npm
-RUN npm install -g pnpm@10.28.2
+FROM oven/bun:1-alpine AS deps
 
 WORKDIR /app
 
 # Copy package files
-COPY web/package.json web/pnpm-lock.yaml ./
+COPY web/package.json web/bun.lock ./
 
 # Install dependencies
-RUN pnpm install --frozen-lockfile
+RUN bun install --frozen-lockfile
 
 # ----------------------------------------------------------------------------
 # Stage 2: Builder - Build the Next.js application
 # ----------------------------------------------------------------------------
-FROM node:25-alpine AS builder
-
-# Install pnpm
-RUN npm install -g pnpm@10.28.2
+FROM oven/bun:1-alpine AS builder
 
 WORKDIR /app
 
@@ -47,7 +41,7 @@ ENV INTERNAL_API_URL=${INTERNAL_API_URL}
 ENV NODE_ENV=production
 
 # Build the application
-RUN pnpm build
+RUN bun run build
 
 # ----------------------------------------------------------------------------
 # Stage 3: Runner - Minimal production runtime
