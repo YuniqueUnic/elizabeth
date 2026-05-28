@@ -1,8 +1,9 @@
 name: CD # Continuous Deployment
 
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - "v*"
   workflow_dispatch:
 
 env:
@@ -27,17 +28,15 @@ jobs:
     steps:
       - name: Debug release event
         run: |
-          echo "Release event triggered!"
-          echo "Release name: ${{ github.event.release.name }}"
-          echo "Release tag: ${{ github.event.release.tag_name }}"
-          echo "Release published: ${{ github.event.release.published_at }}"
+          echo "Release tag triggered!"
+          echo "Tag name: ${{ github.ref_name }}"
           echo "Repository owner: ${{ github.repository_owner }}"
 
   upload-assets:
     name: ${{ matrix.target }}
     permissions:
       contents: write # to upload release assets
-    if: github.repository_owner == 'yuniqueunic' && (startsWith(github.event.release.tag_name, 'v') || startsWith(github.event.release.name, 'elizabeth-board-v'))
+    if: github.repository_owner == 'yuniqueunic' && startsWith(github.ref_name, 'v')
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
