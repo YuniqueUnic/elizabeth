@@ -123,4 +123,4 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
           repository: ${{ secrets.DOCKERHUB_USERNAME }}/elizabeth
           readme-filepath: ./README.en.md
-          short-description: "Elizabeth - File Sharing Platform (Rust/Axum + embedded Next.js SPA, single binary)"
+          short-description: "Elizabeth is a modern, room-centric file sharing and collaboration platform built with Rust+Next.js"
