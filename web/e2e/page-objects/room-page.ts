@@ -393,6 +393,8 @@ export class RoomPage extends BasePage {
         const saveBtn = this.roomPermissions.saveBtn;
         if (await saveBtn.isEnabled()) {
             await saveBtn.click();
+            // 等待权限保存 API 响应并被 React state 重新应用
+            await this.page.waitForTimeout(800);
         }
     }
 

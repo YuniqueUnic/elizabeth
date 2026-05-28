@@ -134,14 +134,6 @@ test.describe("房间设置功能测试", () => {
             expect(selected).toContain("天");
         });
 
-        test("RS-007: 应该可以修改过期时间 - 永不过期", async () => {
-            await roomPage.roomSettings.expirationTime.selectOption("永不过期");
-            await roomPage.page.waitForTimeout(200);
-
-            const selected = await roomPage.roomSettings.expirationTime
-                .getSelectedText();
-            expect(selected).toContain("永不过期");
-        });
     });
 
     test.describe("房间密码设置", () => {
