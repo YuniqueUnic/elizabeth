@@ -266,8 +266,8 @@ export function TopBar() {
           </Button>
         </SettingsDialog>
 
-        <ThemeSwitcher />
         <LanguageSwitcher />
+        <ThemeSwitcher />
       </div>
       <AlertDialog
         open={isDeleteConfirmationOpen}
