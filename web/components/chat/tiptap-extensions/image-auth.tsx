@@ -5,12 +5,14 @@ import { ReactNodeViewRenderer, NodeViewWrapper } from "@tiptap/react";
 import { useAppStore } from "@/lib/store";
 import { getRoomTokenString } from "@/lib/utils/api";
 import { useState, useMemo, useEffect } from "react";
+import { useTranslations } from "next-intl";
 import Zoom from "react-medium-image-zoom";
 import "react-medium-image-zoom/dist/styles.css";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 function ImageWithAuth({ node, updateAttributes }: any) {
+  const t = useTranslations("room.image");
   const currentRoomId = useAppStore((state) => state.currentRoomId);
   const [hasError, setHasError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -89,7 +91,7 @@ function ImageWithAuth({ node, updateAttributes }: any) {
 
       {hasError ? (
         <div className="flex items-center justify-center w-full h-48 bg-muted rounded-md text-muted-foreground text-sm border border-border">
-          图片加载失败
+          {t("loadFailed")}
         </div>
       ) : (
         <div className={cn(isLoading ? "hidden" : "block")}>
@@ -98,7 +100,7 @@ function ImageWithAuth({ node, updateAttributes }: any) {
             <img
               key={`${imageKey}-${authenticatedSrc}`}
               src={authenticatedSrc}
-              alt={node.attrs.alt || "图片"}
+              alt={node.attrs.alt || t("defaultAlt")}
               title={node.attrs.title}
               className="max-w-sm max-h-64 object-contain rounded-md border border-border cursor-zoom-in"
               onLoad={handleLoad}

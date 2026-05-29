@@ -1,0 +1,41 @@
+{
+  "title": "设置",
+  "description": "配置应用程序的行为和偏好设置",
+  "sendOnEnter": {
+    "label": "按 Enter 键发送消息",
+    "enabled": "按 Enter 发送，Shift+Enter 换行",
+    "disabled": "按 Ctrl/Cmd+Enter 发送，Enter 换行"
+  },
+  "includeMetadataInCopy": {
+    "label": "复制时包含消息元数据",
+    "description": "复制消息时包含时间戳和消息编号"
+  },
+  "includeMetadataInDownload": {
+    "label": "下载/导出时包含消息元数据",
+    "description": "下载/导出消息时包含时间戳和消息编号"
+  },
+  "useHeti": {
+    "label": "使用 heti 排版",
+    "description": "使用 heti 排版，使中文排版内容更美观"
+  },
+  "showDeleteConfirmation": {
+    "label": "删除时提示",
+    "description": "删除时弹出提示保存的 dialog"
+  },
+  "autoScroll": {
+    "label": "始终追踪最新消息",
+    "description": "新消息到达时自动滚动到底部，类似 IM 聊天软件"
+  },
+  "editorFontSize": {
+    "label": "编辑器字体大小",
+    "description": "调整 Markdown 编辑器的字体大小（4-64px）"
+  },
+  "toolbarButtonSize": {
+    "label": "工具栏按钮大小",
+    "description": "调整编辑器工具栏按钮的大小（20-36px）"
+  },
+  "messageFontSize": {
+    "label": "消息字体大小",
+    "description": "调整聊天消息的字体大小（4-64px）"
+  }
+}

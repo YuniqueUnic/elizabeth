@@ -7,6 +7,7 @@ import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import { Markdown } from "@tiptap/markdown";
 import { common, createLowlight } from "lowlight";
 import { useCallback, useEffect, useRef, useImperativeHandle, forwardRef, useState, createContext, useContext } from "react";
+import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -221,6 +222,7 @@ function EditorToolbar({ editor, onUpload, disabled, isSourceMode, onToggleSourc
   onToggleSourceMode: () => void;
   onAction: (format: string) => void;
 }) {
+  const t = useTranslations("room.messageInput");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!editor) return null;
@@ -239,7 +241,7 @@ function EditorToolbar({ editor, onUpload, disabled, isSourceMode, onToggleSourc
       <ToolbarButton
         onClick={() => handleAction("bold", () => editor.chain().focus().toggleBold().run())}
         active={!isSourceMode && editor.isActive("bold")}
-        title="粗体 (Ctrl+B)"
+        title={t("toolbarBold")}
       >
         <Bold className="h-4 w-4" />
       </ToolbarButton>
@@ -247,7 +249,7 @@ function EditorToolbar({ editor, onUpload, disabled, isSourceMode, onToggleSourc
       <ToolbarButton
         onClick={() => handleAction("italic", () => editor.chain().focus().toggleItalic().run())}
         active={!isSourceMode && editor.isActive("italic")}
-        title="斜体 (Ctrl+I)"
+        title={t("toolbarItalic")}
       >
         <Italic className="h-4 w-4" />
       </ToolbarButton>
@@ -255,7 +257,7 @@ function EditorToolbar({ editor, onUpload, disabled, isSourceMode, onToggleSourc
       <ToolbarButton
         onClick={() => handleAction("strike", () => editor.chain().focus().toggleStrike().run())}
         active={!isSourceMode && editor.isActive("strike")}
-        title="删除线"
+        title={t("toolbarStrike")}
       >
         <Strikethrough className="h-4 w-4" />
       </ToolbarButton>
@@ -263,7 +265,7 @@ function EditorToolbar({ editor, onUpload, disabled, isSourceMode, onToggleSourc
       <ToolbarButton
         onClick={() => handleAction("code", () => editor.chain().focus().toggleCode().run())}
         active={!isSourceMode && editor.isActive("code")}
-        title="行内代码"
+        title={t("toolbarCode")}
       >
         <Code className="h-4 w-4" />
       </ToolbarButton>
@@ -273,7 +275,7 @@ function EditorToolbar({ editor, onUpload, disabled, isSourceMode, onToggleSourc
       <ToolbarButton
         onClick={() => handleAction("heading-1", () => editor.chain().focus().toggleHeading({ level: 1 }).run())}
         active={!isSourceMode && editor.isActive("heading", { level: 1 })}
-        title="标题 1"
+        title={t("toolbarH1")}
       >
         <Heading1 className="h-4 w-4" />
       </ToolbarButton>
@@ -281,7 +283,7 @@ function EditorToolbar({ editor, onUpload, disabled, isSourceMode, onToggleSourc
       <ToolbarButton
         onClick={() => handleAction("heading-2", () => editor.chain().focus().toggleHeading({ level: 2 }).run())}
         active={!isSourceMode && editor.isActive("heading", { level: 2 })}
-        title="标题 2"
+        title={t("toolbarH2")}
       >
         <Heading2 className="h-4 w-4" />
       </ToolbarButton>
@@ -289,7 +291,7 @@ function EditorToolbar({ editor, onUpload, disabled, isSourceMode, onToggleSourc
       <ToolbarButton
         onClick={() => handleAction("heading-3", () => editor.chain().focus().toggleHeading({ level: 3 }).run())}
         active={!isSourceMode && editor.isActive("heading", { level: 3 })}
-        title="标题 3"
+        title={t("toolbarH3")}
       >
         <Heading3 className="h-4 w-4" />
       </ToolbarButton>
@@ -299,7 +301,7 @@ function EditorToolbar({ editor, onUpload, disabled, isSourceMode, onToggleSourc
       <ToolbarButton
         onClick={() => handleAction("bulletList", () => editor.chain().focus().toggleBulletList().run())}
         active={!isSourceMode && editor.isActive("bulletList")}
-        title="无序列表"
+        title={t("toolbarBulletList")}
       >
         <List className="h-4 w-4" />
       </ToolbarButton>
@@ -307,7 +309,7 @@ function EditorToolbar({ editor, onUpload, disabled, isSourceMode, onToggleSourc
       <ToolbarButton
         onClick={() => handleAction("orderedList", () => editor.chain().focus().toggleOrderedList().run())}
         active={!isSourceMode && editor.isActive("orderedList")}
-        title="有序列表"
+        title={t("toolbarOrderedList")}
       >
         <ListOrdered className="h-4 w-4" />
       </ToolbarButton>
@@ -315,7 +317,7 @@ function EditorToolbar({ editor, onUpload, disabled, isSourceMode, onToggleSourc
       <ToolbarButton
         onClick={() => handleAction("blockquote", () => editor.chain().focus().toggleBlockquote().run())}
         active={!isSourceMode && editor.isActive("blockquote")}
-        title="引用"
+        title={t("toolbarBlockquote")}
       >
         <Quote className="h-4 w-4" />
       </ToolbarButton>
@@ -324,14 +326,14 @@ function EditorToolbar({ editor, onUpload, disabled, isSourceMode, onToggleSourc
 
       <ToolbarButton
         onClick={() => handleAction("undo", () => editor.chain().focus().undo().run())}
-        title="撤销 (Ctrl+Z)"
+        title={t("toolbarUndo")}
       >
         <Undo className="h-4 w-4" />
       </ToolbarButton>
 
       <ToolbarButton
         onClick={() => handleAction("redo", () => editor.chain().focus().redo().run())}
-        title="重做 (Ctrl+Shift+Z)"
+        title={t("toolbarRedo")}
       >
         <Redo className="h-4 w-4" />
       </ToolbarButton>
@@ -340,7 +342,7 @@ function EditorToolbar({ editor, onUpload, disabled, isSourceMode, onToggleSourc
 
       <ToolbarButton
         onClick={() => fileInputRef.current?.click()}
-        title="上传文件"
+        title={t("toolbarUpload")}
       >
         <Paperclip className="h-4 w-4" />
       </ToolbarButton>
@@ -357,7 +359,7 @@ function EditorToolbar({ editor, onUpload, disabled, isSourceMode, onToggleSourc
           "h-8 w-8 p-0",
           isSourceMode && "bg-muted"
         )}
-        title={isSourceMode ? "切换回预览模式" : "切换到源码模式"}
+        title={isSourceMode ? t("toolbarPreviewMode") : t("toolbarSourceMode")}
       >
         <FileCode className="h-4 w-4" />
       </Button>
@@ -386,6 +388,7 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
     ref
   ) {
     const { toast } = useToast();
+    const t = useTranslations("room.messageInput");
     const queryClient = useQueryClient();
     const { resolvedTheme } = useTheme();
     const roomName = useAppStore((state) => state.currentRoomId);
@@ -422,7 +425,7 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
           },
         }),
         Placeholder.configure({
-          placeholder: placeholder || "输入消息...",
+          placeholder: placeholder || t("placeholderDefault"),
         }),
         ImageAuth.configure({
           HTMLAttributes: {
@@ -598,13 +601,13 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
             }
 
             toast({
-              title: "上传成功",
+              title: t("uploadSuccess"),
               description: uploaded.name,
             });
           } catch (error: any) {
             toast({
-              title: "上传失败",
-              description: error.message || "文件上传失败，请重试",
+              title: t("uploadFailed"),
+              description: error.message || t("uploadFailedDescription"),
               variant: "destructive",
             });
           } finally {

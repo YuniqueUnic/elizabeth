@@ -1,0 +1,100 @@
+{
+  "title": "Help Documentation",
+  "description": "Elizabeth User Guide and Feature Reference",
+  "sections": {
+    "toolbar": {
+      "title": "Top Toolbar",
+      "copyButton": {
+        "title": "Copy Button",
+        "description": "Copy selected messages to the clipboard. You can configure whether to include metadata (timestamp and message number) in Settings."
+      },
+      "downloadButton": {
+        "title": "Download Button",
+        "description": "Export selected messages as a Markdown file to your local machine. You can configure whether to include metadata in Settings."
+      },
+      "saveButton": {
+        "title": "Save Button",
+        "description": "Save all unsaved changes to the server. The button highlights when there are unsaved messages (new, edited, or deleted)."
+      },
+      "deleteButton": {
+        "title": "Delete Button",
+        "description": "Mark selected messages for deletion. Messages are only actually deleted after clicking the save button. You can configure whether to show a delete confirmation dialog in Settings."
+      },
+      "helpButton": {
+        "title": "Help Button",
+        "description": "Open the help documentation (this page)."
+      },
+      "settingsButton": {
+        "title": "Settings Button",
+        "description": "Open the system settings dialog to configure application behavior and preferences."
+      }
+    },
+    "roomSettings": {
+      "title": "Room Settings",
+      "expiry": {
+        "title": "Expiry Time",
+        "description": "Set the room's expiry time. Room content will be cleared and reset upon expiry. Options include: 1 minute, 10 minutes, 1 hour, 12 hours, 1 day, 1 week, or never expire."
+      },
+      "password": {
+        "title": "Room Password",
+        "description": "Set password protection for the room. When enabled, a password is required to access the room."
+      },
+      "maxViews": {
+        "title": "Max Views",
+        "description": "Set the maximum number of visits for the room. Room content will be cleared and reset once the limit is reached."
+      },
+      "permissions": {
+        "title": "Room Permissions",
+        "description": "Set the current user's permissions for the room:",
+        "items": {
+          "preview": {
+            "label": "Preview",
+            "description": "View room content"
+          },
+          "edit": {
+            "label": "Edit",
+            "description": "Upload and modify content (requires Preview permission)"
+          },
+          "share": {
+            "label": "Share",
+            "description": "Publicly share the room (requires Preview permission)"
+          },
+          "delete": {
+            "label": "Delete",
+            "description": "Delete room content (requires Preview and Edit permissions)"
+          }
+        }
+      }
+    },
+    "roomSharing": {
+      "title": "Room Sharing",
+      "shareLink": {
+        "title": "Share Link",
+        "description": "When the room has share permission, it can be accessed directly via the room name (e.g., http://domain.com/room_name). Without share permission, a unique link with a UUID is generated (e.g., http://domain.com/room_name_uuid)."
+      },
+      "qrcode": {
+        "title": "QR Code",
+        "description": "Click the \"Get Link\" button to view the room's share link and QR code. You can download the QR code image or copy the link to share with others."
+      }
+    },
+    "messageOperations": {
+      "title": "Message Operations",
+      "editMessage": {
+        "title": "Edit Message",
+        "description": "Click the edit button on a message bubble to edit it. While editing, the message shows an \"Editing\" badge and the editor displays an edit prompt. After editing, click the send button and the message will be marked as \"Edited\". You need to click the save button to save it to the server."
+      },
+      "copyMessage": {
+        "title": "Copy Message",
+        "description": "Click the copy button on a message bubble to copy a single message. Whether the copied content includes metadata (timestamp and message number) depends on the \"Include metadata when copying\" setting."
+      },
+      "deleteMessage": {
+        "title": "Delete Message",
+        "description": "Click the delete button on a message bubble to mark it for deletion. Deleted messages will show a strikethrough effect. Messages are only actually deleted after clicking the save button in the top toolbar. Click the undo button to cancel the deletion."
+      },
+      "saveChanges": {
+        "title": "Save Changes",
+        "description": "All message operations (create, edit, delete) require clicking the save button in the top toolbar to persist to the server. The save button highlights when there are unsaved changes."
+      }
+    }
+  }
+}

@@ -11,6 +11,7 @@ import {
   EyeOff,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useTranslations } from "next-intl";
 
 interface UrlViewerProps {
   url: string;
@@ -19,6 +20,7 @@ interface UrlViewerProps {
 }
 
 export function UrlViewer({ url, name, description }: UrlViewerProps) {
+  const t = useTranslations("room");
   const [showPreview, setShowPreview] = useState(false);
   const [iframeError, setIframeError] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -62,8 +64,7 @@ export function UrlViewer({ url, name, description }: UrlViewerProps) {
               <div className="flex items-center gap-1">
                 <AlertCircle className="h-4 w-4" />
                 <p className="text-sm text-muted-foreground pr-3">
-                  某些网站可能不允许在 iframe
-                  中显示。如果预览失败，请使用“新标签页打开”
+                  {t("urlViewer.iframeWarning")}
                 </p>
               </div>
             )}
@@ -71,29 +72,29 @@ export function UrlViewer({ url, name, description }: UrlViewerProps) {
               variant={showPreview ? "default" : "ghost"}
               size="sm"
               onClick={handleTogglePreview}
-              title={showPreview ? "隐藏预览" : "显示预览"}
+              title={showPreview ? t("urlViewer.hidePreview") : t("urlViewer.preview")}
             >
               {showPreview
                 ? <EyeOff className="h-4 w-4" />
                 : <Eye className="h-4 w-4" />}
               <span className="ml-2 hidden sm:inline">
-                {showPreview ? "隐藏预览" : "预览"}
+                {showPreview ? t("urlViewer.hidePreview") : t("urlViewer.preview")}
               </span>
             </Button>
             <Button
               variant="ghost"
               size="sm"
               onClick={handleOpenInNewTab}
-              title="在新标签页打开"
+              title={t("urlViewer.newTab")}
             >
               <ExternalLink className="h-4 w-4" />
-              <span className="ml-2 hidden sm:inline">新标签页</span>
+              <span className="ml-2 hidden sm:inline">{t("urlViewer.newTab")}</span>
             </Button>
             <Button
               variant="ghost"
               size="sm"
               onClick={handleToggleExpand}
-              title={isExpanded ? "收起详情" : "展开详情"}
+              title={isExpanded ? t("urlViewer.collapseDetails") : t("urlViewer.expandDetails")}
             >
               {isExpanded
                 ? <ChevronUp className="h-4 w-4" />
@@ -131,9 +132,9 @@ export function UrlViewer({ url, name, description }: UrlViewerProps) {
           <div className="flex flex-col items-center justify-center h-full p-8 text-muted-foreground">
             <ExternalLink className="h-12 w-12 mb-4 opacity-50" />
             <p className="text-center">
-              点击“预览”按钮查看链接内容
+              {t("urlViewer.previewHint")}
               <br />
-              或点击“新标签页打开”在浏览器中打开
+              {t("urlViewer.newTabHint")}
             </p>
           </div>
         )}
@@ -155,10 +156,10 @@ export function UrlViewer({ url, name, description }: UrlViewerProps) {
             <Alert variant="destructive" className="max-w-md">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                无法在预览中加载此链接。该网站可能不允许嵌入显示。
+                {t("urlViewer.iframeLoadError")}
                 <br />
                 <br />
-                请点击“新标签页打开”按钮在浏览器中查看。
+                {t("urlViewer.openInNewTabHint")}
               </AlertDescription>
             </Alert>
             <Button
@@ -167,7 +168,7 @@ export function UrlViewer({ url, name, description }: UrlViewerProps) {
               onClick={handleOpenInNewTab}
             >
               <ExternalLink className="h-4 w-4 mr-2" />
-              新标签页打开
+              {t("urlViewer.openInNewTab")}
             </Button>
           </div>
         )}

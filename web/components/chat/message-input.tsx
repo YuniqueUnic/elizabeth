@@ -11,6 +11,7 @@ import { useCallback, useState } from "react";
 import { useAppStore } from "@/lib/store";
 import type { Message } from "@/lib/types";
 import { MinimalTiptapEditor } from "./minimal-tiptap-editor";
+import { useTranslations } from "next-intl";
 
 interface MessageInputProps {
   onSend: (content: string) => void;
@@ -29,7 +30,7 @@ function getSendableContent(markdown: string): string {
       const codePoint = Number.parseInt(decimal, 10);
       return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : "";
     })
-    .replace(/&nbsp;/gi, "\u00A0");
+    .replace(/&nbsp;/gi, " ");
 
   const withoutComments = decodedEntities.replace(/<!--[\s\S]*?-->/g, "");
   const normalized = withoutComments
@@ -38,13 +39,14 @@ function getSendableContent(markdown: string): string {
       if (match === "\n" || match === "\r" || match === "\t") return match;
       return "";
     })
-    .replace(/\u00A0/g, " ");
+    .replace(/ /g, " ");
   return normalized.trim();
 }
 
 export function MessageInput(
   { onSend, editingMessage, onCancelEdit, isLoading }: MessageInputProps,
 ) {
+  const t = useTranslations("room");
   const [isExpanded, setIsExpanded] = useState(false);
   const sendOnEnter = useAppStore((state) => state.sendOnEnter);
   const content = useAppStore((state) => state.composerContent);
@@ -64,7 +66,7 @@ export function MessageInput(
         {/* Editing Banner */}
         {editingMessage && (
           <div className="flex-shrink-0 mb-2 flex items-center justify-between rounded-md bg-muted px-3 py-2 text-sm">
-            <span>正在编辑消息</span>
+            <span>{t("messageInput.editingBanner")}</span>
             <Button
               variant="ghost"
               size="icon"
@@ -84,8 +86,8 @@ export function MessageInput(
               onRequestSend={handleSend}
               disabled={isLoading}
               placeholder={sendOnEnter
-                ? "输入消息... (Enter 发送, Shift+Enter 换行)"
-                : "输入消息... (Ctrl/Cmd+Enter 发送)"}
+                ? t("messageInput.placeholderSendOnEnter")
+                : t("messageInput.placeholderSendOnCtrl")}
               sendOnEnter={sendOnEnter}
               className="h-full border-0 rounded-none bg-transparent"
             />
@@ -96,10 +98,10 @@ export function MessageInput(
               variant="outline"
               size="sm"
               onClick={() => setIsExpanded(true)}
-              title="展开编辑器"
+              title={t("messageInput.expandEditor")}
             >
               <Maximize2 className="mr-2 h-4 w-4" />
-              展开编辑器
+              {t("messageInput.expandEditor")}
             </Button>
             <Button
               size="sm"
@@ -107,7 +109,7 @@ export function MessageInput(
               disabled={!getSendableContent(content) || isLoading}
             >
               <Send className="mr-2 h-4 w-4" />
-              发送
+              {t("messageInput.send")}
             </Button>
           </div>
         </div>
@@ -115,14 +117,14 @@ export function MessageInput(
 
       <Dialog open={isExpanded} onOpenChange={setIsExpanded}>
         <DialogContent className="max-w-none w-screen h-screen sm:h-[90vh] sm:max-w-4xl lg:max-w-6xl sm:w-full p-0 sm:p-6 gap-0 !flex !flex-col sm:rounded-lg rounded-none">
-          <DialogTitle className="sr-only">Markdown 编辑器</DialogTitle>
+          <DialogTitle className="sr-only">{t("messageInput.markdownEditor")}</DialogTitle>
           <div className="flex-1 min-h-0">
             <MinimalTiptapEditor
               value={content}
               onChange={setContent}
               onRequestSend={handleSend}
               disabled={isLoading}
-              placeholder="输入消息..."
+              placeholder={t("messageInput.placeholderDefault")}
               sendOnEnter={sendOnEnter}
               className="h-full border-0"
             />
@@ -130,14 +132,14 @@ export function MessageInput(
 
           <div className="flex-shrink-0 flex justify-end gap-2 px-4 pb-4 sm:px-0 sm:pb-0 pt-3 border-t">
             <Button variant="outline" onClick={() => setIsExpanded(false)}>
-              取消
+              {t("messageInput.cancel")}
             </Button>
             <Button
               onClick={handleSend}
               disabled={!getSendableContent(content) || isLoading}
             >
               <Send className="mr-2 h-4 w-4" />
-              发送
+              {t("messageInput.send")}
             </Button>
           </div>
         </DialogContent>

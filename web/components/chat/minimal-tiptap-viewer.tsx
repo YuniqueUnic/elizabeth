@@ -15,17 +15,17 @@ const lowlight = createLowlight(common);
 interface MinimalTiptapViewerProps {
   content: string;
   className?: string;
+  onFileClick?: (fileId: string) => void;
 }
 
-export function MinimalTiptapViewer({ content, className }: MinimalTiptapViewerProps) {
+export function MinimalTiptapViewer({ content, className, onFileClick }: MinimalTiptapViewerProps) {
   const messageFontSize = useAppStore((state) => state.messageFontSize);
 
   const editor = useEditor({
     editable: false,
     extensions: [
-      // StarterKit 在 v3 已经包含了 Link 和 Underline，所以不需要单独导入
       StarterKit.configure({
-        codeBlock: false, // 禁用默认的 codeBlock，使用 CodeBlockLowlight
+        codeBlock: false,
       }),
       CodeBlockLowlight.configure({
         lowlight,
@@ -34,13 +34,11 @@ export function MinimalTiptapViewer({ content, className }: MinimalTiptapViewerP
       Markdown,
       ImageAuth.configure({
         HTMLAttributes: {
-          // 限制图片默认大小，添加点击放大功能
           class: "max-w-sm max-h-64 object-contain rounded-md border border-border cursor-zoom-in",
         },
       }),
     ],
     content,
-    // 关键修复：指定内容类型为 markdown
     contentType: "markdown",
     editorProps: {
       attributes: {
@@ -50,6 +48,24 @@ export function MinimalTiptapViewer({ content, className }: MinimalTiptapViewerP
           className
         ),
         style: `font-size: ${messageFontSize}px`,
+      },
+      handleDOMEvents: {
+        click: (_view, event) => {
+          const target = event.target as HTMLElement;
+          const link = target.closest("a");
+          if (link) {
+            const href = link.getAttribute("href");
+            if (href) {
+              const match = href.match(/^\/contents\/(\d+)$/);
+              if (match && onFileClick) {
+                event.preventDefault();
+                onFileClick(match[1]);
+                return true;
+              }
+            }
+          }
+          return false;
+        },
       },
     },
     immediatelyRender: false,

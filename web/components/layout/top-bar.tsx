@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { ThemeSwitcher } from "@/components/theme-switcher";
+import { LanguageSwitcher } from "@/components/language-switcher";
 import { SettingsDialog } from "@/components/settings-dialog";
 import { HelpDialog } from "@/components/help-dialog";
 import {
@@ -20,6 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import { formatDate } from "@/lib/utils/format";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,11 +38,13 @@ import {
 } from "@/lib/utils/mutations";
 
 export function TopBar() {
+  const t = useTranslations("common");
   const queryClient = useQueryClient();
   const currentRoomId = useAppStore((state) => state.currentRoomId);
   const selectedMessages = useAppStore((state) => state.selectedMessages);
   const messages = useAppStore((state) => state.messages);
   const hasUnsavedChanges = useAppStore((state) => state.hasUnsavedChanges);
+  const isSaving = useAppStore((state) => state.isSaving);
   const saveMessages = useAppStore((state) => state.saveMessages);
   const markMessageForDeletion = useAppStore(
     (state) => state.markMessageForDeletion,
@@ -71,12 +75,12 @@ export function TopBar() {
     try {
       await saveMessages();
       handleMutationSuccess(toast, {
-        title: "保存成功",
-        description: "所有更改已成功保存",
+        title: t("saveSuccess"),
+        description: t("allChangesSaved"),
       });
     } catch (error) {
       handleMutationError(error, toast, {
-        description: "无法保存更改，请重试",
+        description: t("saveFailed"),
       });
     }
   };
@@ -84,8 +88,8 @@ export function TopBar() {
   const handleDeleteMessages = () => {
     if (selectedMessages.size === 0) {
       toast({
-        title: "未选择消息",
-        description: "请先选择要删除的消息",
+        title: t("noMessagesSelected"),
+        description: t("selectMessagesToDelete"),
         variant: "destructive",
       });
       return;
@@ -103,8 +107,8 @@ export function TopBar() {
   const handleCopyMessages = async () => {
     if (selectedMessages.size === 0) {
       toast({
-        title: "未选择消息",
-        description: "请先选择要复制的消息",
+        title: t("noMessagesSelected"),
+        description: t("selectMessagesToCopy"),
         variant: "destructive",
       });
       return;
@@ -116,9 +120,7 @@ export function TopBar() {
         if (includeMetadataInCopy) {
           const messageNumber = messages.findIndex((msg) => msg.id === m.id) +
             1;
-          return `### 消息 #${messageNumber}\n**用户:** ${
-            m.user || "匿名"
-          }\n**时间:** ${formatDate(m.timestamp)}\n\n${m.content}`;
+          return `### ${t("messageHeader", { number: messageNumber })}\n**${t("messageUser", { user: m.user || t("messageAnonymous") })}**\n**${t("messageTime", { time: formatDate(m.timestamp) })}**\n\n${m.content}`;
         }
         return m.content;
       })
@@ -126,16 +128,16 @@ export function TopBar() {
 
     await navigator.clipboard.writeText(selectedMessagesList);
     toast({
-      title: "已复制",
-      description: `已复制 ${selectedMessages.size} 条消息到剪贴板`,
+      title: t("copied"),
+      description: t("copiedMessagesToClipboard", { count: selectedMessages.size }),
     });
   };
 
   const handleDownloadMessages = () => {
     if (selectedMessages.size === 0) {
       toast({
-        title: "未选择消息",
-        description: "请先选择要导出的消息",
+        title: t("noMessagesSelected"),
+        description: t("selectMessagesToExport"),
         variant: "destructive",
       });
       return;
@@ -147,9 +149,7 @@ export function TopBar() {
         if (includeMetadataInDownload) {
           const messageNumber = messages.findIndex((msg) => msg.id === m.id) +
             1;
-          return `### 消息 #${messageNumber}\n**用户:** ${
-            m.user || "匿名"
-          }\n**时间:** ${formatDate(m.timestamp)}\n\n${m.content}`;
+          return `### ${t("messageHeader", { number: messageNumber })}\n**${t("messageUser", { user: m.user || t("messageAnonymous") })}**\n**${t("messageTime", { time: formatDate(m.timestamp) })}**\n\n${m.content}`;
         }
         return m.content;
       })
@@ -166,8 +166,8 @@ export function TopBar() {
     URL.revokeObjectURL(url);
 
     toast({
-      title: "导出成功",
-      description: `已导出 ${selectedMessages.size} 条消息为 Markdown 文件`,
+      title: t("exportSuccess"),
+      description: t("exportedMessagesAsMarkdown", { count: selectedMessages.size }),
     });
   };
 
@@ -185,9 +185,7 @@ export function TopBar() {
         {/* Room Status */}
         {roomDetails && (
           <div className="hidden sm:block ml-4 text-sm text-muted-foreground truncate max-w-[150px] md:max-w-none">
-            房间占用：{(roomDetails.currentSize / (1024 * 1024)).toFixed(1)} /
-            {" "}
-            {(roomDetails.maxSize / (1024 * 1024)).toFixed(1)} MB
+            {t("roomUsage", { used: (roomDetails.currentSize / (1024 * 1024)).toFixed(1), total: (roomDetails.maxSize / (1024 * 1024)).toFixed(1) })}
           </div>
         )}
       </div>
@@ -198,7 +196,7 @@ export function TopBar() {
           variant="ghost"
           size="icon"
           className="h-8 w-8 md:h-10 md:w-10"
-          title="复制选中消息"
+          title={t("copySelectedMessages")}
           onClick={handleCopyMessages}
           disabled={selectedMessages.size === 0}
           data-testid="copy-messages-btn"
@@ -209,7 +207,7 @@ export function TopBar() {
           variant="ghost"
           size="icon"
           className="h-8 w-8 md:h-10 md:w-10"
-          title="下载导出选中消息"
+          title={t("downloadExportSelectedMessages")}
           onClick={handleDownloadMessages}
           disabled={selectedMessages.size === 0}
           data-testid="download-messages-btn"
@@ -220,13 +218,13 @@ export function TopBar() {
           variant={hasUnsavedChanges() ? "default" : "ghost"}
           size="icon"
           className={`h-8 w-8 md:h-10 md:w-10 ${
-            hasUnsavedChanges()
+            hasUnsavedChanges() && !isSaving
               ? "bg-primary text-primary-foreground hover:bg-primary/90"
               : ""
           }`}
-          title="保存"
+          title={isSaving ? t("saving") : t("save")}
           onClick={handleSaveChanges}
-          disabled={!hasUnsavedChanges()}
+          disabled={!hasUnsavedChanges() || isSaving}
           data-testid="save-messages-btn"
         >
           <Save className="h-4 w-4" />
@@ -235,7 +233,7 @@ export function TopBar() {
           variant="ghost"
           size="icon"
           className="h-8 w-8 md:h-10 md:w-10"
-          title="删除"
+          title={t("delete")}
           onClick={handleDeleteMessages}
           disabled={selectedMessages.size === 0}
           data-testid="delete-messages-btn"
@@ -247,7 +245,7 @@ export function TopBar() {
             variant="ghost"
             size="icon"
             className="h-8 w-8 md:h-10 md:w-10"
-            title="帮助"
+            title={t("help")}
             data-testid="help-btn"
           >
             <HelpCircle className="h-4 w-4" />
@@ -261,7 +259,7 @@ export function TopBar() {
             variant="ghost"
             size="icon"
             className="h-8 w-8 md:h-10 md:w-10"
-            title="设置"
+            title={t("settings")}
             data-testid="settings-btn"
           >
             <Settings className="h-4 w-4" />
@@ -269,6 +267,7 @@ export function TopBar() {
         </SettingsDialog>
 
         <ThemeSwitcher />
+        <LanguageSwitcher />
       </div>
       <AlertDialog
         open={isDeleteConfirmationOpen}
@@ -277,10 +276,10 @@ export function TopBar() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              你确定要删除选中的 {selectedMessages.size} 条消息吗？
+              {t("confirmDeleteTitle", { count: selectedMessages.size })}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              这个操作将会被记录，直到你点击保存按钮。
+              {t("confirmDeleteDescription")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -295,10 +294,10 @@ export function TopBar() {
                   setIsDeleteConfirmationOpen(false);
                 }}
               >
-                确认/并不再提示
+                {t("confirmAndDontAsk")}
               </Button>
               <div className="flex gap-2">
-                <AlertDialogCancel>取消</AlertDialogCancel>
+                <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={() => {
                     selectedMessages.forEach((messageId) => {
@@ -306,7 +305,7 @@ export function TopBar() {
                     });
                   }}
                 >
-                  确认
+                  {t("confirm")}
                 </AlertDialogAction>
               </div>
             </div>

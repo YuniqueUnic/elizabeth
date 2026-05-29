@@ -17,6 +17,7 @@ import { useRoomPermissions } from "@/hooks/use-room-permissions";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +30,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export function LeftSidebar() {
+  const t = useTranslations("room");
   const { leftSidebarCollapsed, toggleLeftSidebar, currentRoomId } =
     useAppStore();
   const isMobile = useIsMobile();
@@ -70,7 +72,7 @@ export function LeftSidebar() {
   const handleVerifyPassword = async () => {
     if (!roomDetails) return;
     if (!password.trim()) {
-      setDialogError("请输入密码");
+      setDialogError(t("closeRoom.enterPassword"));
       return;
     }
     setActionLoading(true);
@@ -82,7 +84,7 @@ export function LeftSidebar() {
       setStep(2);
     } catch (err: any) {
       console.error("Verification failed:", err);
-      setDialogError("密码验证失败，密码错误或无法连接服务器");
+      setDialogError(t("closeRoom.verifyFailed"));
     } finally {
       setActionLoading(false);
     }
@@ -98,16 +100,16 @@ export function LeftSidebar() {
       clearRoomToken(roomSlugOrName);
 
       toast({
-        title: "房间已成功关闭并清理",
-        description: `房间 ${roomDetails.name} 的数据已彻底清除，原房名已立即释放。`,
+        title: t("closeRoom.successTitle"),
+        description: t("closeRoom.successDescription", { roomName: roomDetails.name }),
       });
       setIsCloseDialogOpen(false);
       router.push("/");
     } catch (err: any) {
       console.error("Failed to delete room:", err);
       toast({
-        title: "关闭房间失败",
-        description: err.message || "无法删除房间，请稍后重试",
+        title: t("closeRoom.failTitle"),
+        description: err.message || t("closeRoom.failDescription"),
         variant: "destructive",
       });
     } finally {
@@ -121,7 +123,7 @@ export function LeftSidebar() {
       <div className="flex h-full w-full flex-col bg-background">
         {/* Header */}
         <div className="flex h-12 items-center justify-between border-b px-4">
-          <h2 className="font-semibold">房间设置</h2>
+          <h2 className="font-semibold">{t("settings.title")}</h2>
         </div>
 
         <ScrollArea className="flex-1">
@@ -129,7 +131,7 @@ export function LeftSidebar() {
             {isLoading
               ? (
                 <div className="text-center text-sm text-muted-foreground">
-                  加载中...
+                  {t("sidebar.loading")}
                 </div>
               )
               : roomDetails
@@ -152,10 +154,10 @@ export function LeftSidebar() {
                       className="w-full justify-center gap-2"
                       disabled={!can.delete}
                       onClick={handleOpenCloseRoom}
-                      title={!can.delete ? "您没有删除该房间的管理员权限" : "永久关闭并清空该房间"}
+                      title={!can.delete ? t("closeRoom.noPermissionTooltip") : t("closeRoom.tooltip")}
                     >
                       <XCircle className="h-4 w-4" />
-                      关闭房间
+                      {t("closeRoom.button")}
                     </Button>
                   </div>
                 </>
@@ -175,7 +177,7 @@ export function LeftSidebar() {
           variant="ghost"
           size="icon"
           onClick={toggleLeftSidebar}
-          title="展开侧边栏"
+          title={t("sidebar.expandSidebar")}
         >
           <ChevronRight className="h-4 w-4" />
         </Button>
@@ -188,12 +190,12 @@ export function LeftSidebar() {
       <aside className="flex w-80 flex-col border-r bg-muted/30 h-full overflow-hidden">
         {/* Header */}
         <div className="flex h-12 items-center justify-between border-b px-4">
-          <h2 className="font-semibold">房间控制</h2>
+          <h2 className="font-semibold">{t("sidebar.roomControl")}</h2>
           <Button
             variant="ghost"
             size="icon"
             onClick={toggleLeftSidebar}
-            title="收起侧边栏"
+            title={t("sidebar.collapseSidebar")}
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -204,7 +206,7 @@ export function LeftSidebar() {
             {isLoading
               ? (
                 <div className="text-center text-sm text-muted-foreground">
-                  加载中...
+                  {t("sidebar.loading")}
                 </div>
               )
               : roomDetails
@@ -233,10 +235,10 @@ export function LeftSidebar() {
               className="w-full justify-center gap-2"
               disabled={!can.delete}
               onClick={handleOpenCloseRoom}
-              title={!can.delete ? "您没有删除该房间的管理员权限" : "永久关闭并清空该房间"}
+              title={!can.delete ? t("closeRoom.noPermissionTooltip") : t("closeRoom.tooltip")}
             >
               <XCircle className="h-4 w-4" />
-              关闭房间
+              {t("closeRoom.button")}
             </Button>
           </div>
         )}
@@ -248,17 +250,17 @@ export function LeftSidebar() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
               <XCircle className="h-5 w-5" />
-              关闭房间 - {roomDetails?.name}
+              {t("closeRoom.title", { roomName: roomDetails?.name ?? "" })}
             </DialogTitle>
             <DialogDescription>
-              {step === 1 ? "该房间设有密码保护，需验证密码后方可继续。" : "此操作将永久物理删除房间及其所有数据。"}
+              {step === 1 ? t("closeRoom.passwordRequired") : t("closeRoom.destructiveWarning")}
             </DialogDescription>
           </DialogHeader>
 
           {step === 1 && (
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label htmlFor="close-room-password">请输入房间密码：</Label>
+                <Label htmlFor="close-room-password">{t("closeRoom.passwordLabel")}</Label>
                 <Input
                   id="close-room-password"
                   type="password"
@@ -267,7 +269,7 @@ export function LeftSidebar() {
                     setPassword(e.target.value);
                     setDialogError(null);
                   }}
-                  placeholder="房间密码"
+                  placeholder={t("closeRoom.passwordPlaceholder")}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       void handleVerifyPassword();
@@ -284,27 +286,27 @@ export function LeftSidebar() {
           {step === 2 && (
             <div className="py-4 space-y-3">
               <p className="text-sm font-semibold text-destructive">
-                警告：当前房间内存有所有的消息、图片、文档及配置。一旦关闭，所有内容将被立即永久物理清空。
+                {t("closeRoom.warningPermanent")}
               </p>
               <p className="text-sm text-muted-foreground">
-                该房间名将立即被完全释放，任何人都可以重新创建并使用此房间名。您确定要执行此操作吗？
+                {t("closeRoom.warningRelease")}
               </p>
             </div>
           )}
 
           <DialogFooter>
             <Button variant="outline" onClick={handleCloseDialog} disabled={actionLoading}>
-              取消
+              {t("closeRoom.cancel")}
             </Button>
             {step === 1 ? (
               <Button onClick={handleVerifyPassword} disabled={actionLoading}>
                 {actionLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    验证中...
+                    {t("closeRoom.verifying")}
                   </>
                 ) : (
-                  "下一步"
+                  t("closeRoom.nextStep")
                 )}
               </Button>
             ) : (
@@ -312,10 +314,10 @@ export function LeftSidebar() {
                 {actionLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    正在关闭房间...
+                    {t("closeRoom.closingRoom")}
                   </>
                 ) : (
-                  "确定物理关闭"
+                  t("closeRoom.confirmPhysicalClose")
                 )}
               </Button>
             )}

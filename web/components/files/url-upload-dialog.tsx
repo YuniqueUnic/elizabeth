@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Link as LinkIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 // 支持的协议列表
 const URL_PROTOCOLS = [
@@ -31,7 +32,7 @@ const URL_PROTOCOLS = [
   { value: "sftp://", label: "sftp://" },
   { value: "mailto:", label: "mailto:" },
   { value: "tel:", label: "tel:" },
-  { value: "manual", label: "手动输入" },
+  { value: "manual", label: "Manual Input" },
 ] as const;
 
 type ProtocolValue = (typeof URL_PROTOCOLS)[number]["value"];
@@ -55,6 +56,7 @@ export function UrlUploadDialog({
   onSubmit,
   isUploading,
 }: UrlUploadDialogProps) {
+  const t = useTranslations("room");
   const [protocol, setProtocol] = useState<ProtocolValue>("https://");
   const [urlInput, setUrlInput] = useState("");
   const [name, setName] = useState("");
@@ -76,7 +78,7 @@ export function UrlUploadDialog({
       setUrlError("");
       return true;
     } catch {
-      setUrlError("请输入有效的 URL");
+      setUrlError(t("urlUpload.invalidUrl"));
       return false;
     }
   };
@@ -91,7 +93,7 @@ export function UrlUploadDialog({
     e.preventDefault();
 
     if (!urlInput.trim()) {
-      setUrlError("URL 不能为空");
+      setUrlError(t("urlUpload.urlRequired"));
       return;
     }
 
@@ -108,13 +110,13 @@ export function UrlUploadDialog({
         const autoName = urlObj.hostname + urlObj.pathname;
         onSubmit({
           url: fullUrl,
-          name: autoName || "未命名链接",
+          name: autoName || t("urlUpload.unnamedLink"),
           description: description.trim() || undefined,
         });
       } catch {
         onSubmit({
           url: fullUrl,
-          name: "未命名链接",
+          name: t("urlUpload.unnamedLink"),
           description: description.trim() || undefined,
         });
       }
@@ -149,10 +151,10 @@ export function UrlUploadDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <LinkIcon className="h-5 w-5" />
-            添加链接
+            {t("urlUpload.title")}
           </DialogTitle>
           <DialogDescription>
-            添加一个外部链接到房间。链接将被保存并可以在文件列表中查看。
+            {t("urlUpload.description")}
           </DialogDescription>
         </DialogHeader>
 
@@ -218,22 +220,22 @@ export function UrlUploadDialog({
               )}
               {protocol !== "manual" && urlInput.trim() && (
                 <p className="text-xs text-muted-foreground">
-                  完整链接：{buildFullUrl()}
+                  {t("urlUpload.fullLink", { url: buildFullUrl() })}
                 </p>
               )}
             </div>
 
             <div className="grid gap-2">
               <Label htmlFor="name">
-                显示名称
+                {t("urlUpload.nameLabel")}
                 <span className="text-muted-foreground text-xs ml-2">
-                  (可选，留空将自动生成)
+                  {t("urlUpload.nameOptional")}
                 </span>
               </Label>
               <Input
                 id="name"
                 type="text"
-                placeholder="我的链接"
+                placeholder={t("urlUpload.namePlaceholder")}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 disabled={isUploading}
@@ -242,14 +244,14 @@ export function UrlUploadDialog({
 
             <div className="grid gap-2">
               <Label htmlFor="description">
-                描述
+                {t("urlUpload.descriptionLabel")}
                 <span className="text-muted-foreground text-xs ml-2">
-                  (可选)
+                  {t("urlUpload.descriptionOptional")}
                 </span>
               </Label>
               <Textarea
                 id="description"
-                placeholder="链接的简短描述..."
+                placeholder={t("urlUpload.descriptionPlaceholder")}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 disabled={isUploading}
@@ -265,10 +267,10 @@ export function UrlUploadDialog({
               onClick={handleCancel}
               disabled={isUploading}
             >
-              取消
+              {t("urlUpload.cancel")}
             </Button>
             <Button type="submit" disabled={isUploading || !urlInput.trim()}>
-              {isUploading ? "添加中..." : "添加链接"}
+              {isUploading ? t("urlUpload.adding") : t("urlUpload.addLink")}
             </Button>
           </DialogFooter>
         </form>

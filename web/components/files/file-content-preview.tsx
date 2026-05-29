@@ -25,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { CodeBlock } from "@/components/ui/code-block";
+import { useTranslations } from "next-intl";
 
 interface FileContentPreviewProps {
   fileUrl: string;
@@ -156,47 +157,10 @@ function getLanguage(fileName: string): string {
   return languageMap[ext] || "text";
 }
 
-// Common programming languages for syntax highlighting
-const SUPPORTED_LANGUAGES = [
-  { value: "auto", label: "自动检测" },
-  { value: "c", label: "C" },
-  { value: "go", label: "Go" },
-  { value: "rust", label: "Rust" },
-  { value: "bash", label: "Bash/Shell" },
-  { value: "dart", label: "Dart" },
-  { value: "javascript", label: "JavaScript" },
-  { value: "typescript", label: "TypeScript" },
-  { value: "jsx", label: "React JSX" },
-  { value: "tsx", label: "React TSX" },
-  { value: "python", label: "Python" },
-  { value: "java", label: "Java" },
-  { value: "cpp", label: "C++" },
-  { value: "csharp", label: "C#" },
-  { value: "ruby", label: "Ruby" },
-  { value: "php", label: "PHP" },
-  { value: "swift", label: "Swift" },
-  { value: "kotlin", label: "Kotlin" },
-  { value: "scala", label: "Scala" },
-  { value: "powershell", label: "PowerShell" },
-  { value: "sql", label: "SQL" },
-  { value: "json", label: "JSON" },
-  { value: "yaml", label: "YAML" },
-  { value: "toml", label: "TOML" },
-  { value: "xml", label: "XML" },
-  { value: "html", label: "HTML" },
-  { value: "css", label: "CSS" },
-  { value: "scss", label: "SCSS" },
-  { value: "less", label: "Less" },
-  { value: "markdown", label: "Markdown" },
-  { value: "dockerfile", label: "Dockerfile" },
-  { value: "nginx", label: "Nginx" },
-  { value: "graphql", label: "GraphQL" },
-  { value: "text", label: "纯文本" },
-];
-
 export function FileContentPreview(
   { fileUrl, fileName }: FileContentPreviewProps,
 ) {
+  const t = useTranslations("room");
   const { toast } = useToast();
   const [content, setContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -213,6 +177,44 @@ export function FileContentPreview(
   const language = selectedLanguage === "auto"
     ? detectedLanguage
     : selectedLanguage;
+
+  // Common programming languages for syntax highlighting
+  const SUPPORTED_LANGUAGES = [
+    { value: "auto", label: t("filePreview.autoDetect") },
+    { value: "c", label: "C" },
+    { value: "go", label: "Go" },
+    { value: "rust", label: "Rust" },
+    { value: "bash", label: "Bash/Shell" },
+    { value: "dart", label: "Dart" },
+    { value: "javascript", label: "JavaScript" },
+    { value: "typescript", label: "TypeScript" },
+    { value: "jsx", label: "React JSX" },
+    { value: "tsx", label: "React TSX" },
+    { value: "python", label: "Python" },
+    { value: "java", label: "Java" },
+    { value: "cpp", label: "C++" },
+    { value: "csharp", label: "C#" },
+    { value: "ruby", label: "Ruby" },
+    { value: "php", label: "PHP" },
+    { value: "swift", label: "Swift" },
+    { value: "kotlin", label: "Kotlin" },
+    { value: "scala", label: "Scala" },
+    { value: "powershell", label: "PowerShell" },
+    { value: "sql", label: "SQL" },
+    { value: "json", label: "JSON" },
+    { value: "yaml", label: "YAML" },
+    { value: "toml", label: "TOML" },
+    { value: "xml", label: "XML" },
+    { value: "html", label: "HTML" },
+    { value: "css", label: "CSS" },
+    { value: "scss", label: "SCSS" },
+    { value: "less", label: "Less" },
+    { value: "markdown", label: "Markdown" },
+    { value: "dockerfile", label: "Dockerfile" },
+    { value: "nginx", label: "Nginx" },
+    { value: "graphql", label: "GraphQL" },
+    { value: "text", label: t("filePreview.plainText") },
+  ];
 
   useEffect(() => {
     const fetchContent = async () => {
@@ -255,14 +257,14 @@ export function FileContentPreview(
       await navigator.clipboard.writeText(content);
       setCopied(true);
       toast({
-        title: "已复制",
-        description: "内容已复制到剪贴板",
+        title: t("filePreview.copied"),
+        description: t("filePreview.copiedDescription"),
       });
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       toast({
-        title: "复制失败",
-        description: "无法复制内容",
+        title: t("filePreview.copyFailed"),
+        description: t("filePreview.copyFailedDescription"),
         variant: "destructive",
       });
     }
@@ -318,7 +320,7 @@ export function FileContentPreview(
             variant="ghost"
             size="sm"
             onClick={() => setMarkdownPreviewMode(!markdownPreviewMode)}
-            title={markdownPreviewMode ? "查看代码" : "预览渲染"}
+            title={markdownPreviewMode ? t("filePreview.viewCode") : t("filePreview.previewRender")}
           >
             {markdownPreviewMode
               ? <Code2 className="h-4 w-4" />
@@ -331,7 +333,7 @@ export function FileContentPreview(
             variant="ghost"
             size="sm"
             onClick={() => setDarkTheme(!darkTheme)}
-            title="切换主题"
+            title={t("filePreview.switchTheme")}
           >
             {darkTheme ? <Moon /> : <Sun />}
           </Button>
@@ -340,7 +342,7 @@ export function FileContentPreview(
           variant="ghost"
           size="sm"
           onClick={handleCopy}
-          title="复制内容"
+          title={t("filePreview.copyContent")}
         >
           {copied
             ? <Check className="h-4 w-4" />
@@ -370,8 +372,8 @@ export function FileContentPreview(
   if (fileType === "unknown") {
     return (
       <div className="flex flex-col items-center justify-center p-8 text-muted-foreground">
-        <p>无法预览此文件类型</p>
-        <p className="text-sm mt-2">请下载文件以查看内容</p>
+        <p>{t("filePreview.unsupportedType")}</p>
+        <p className="text-sm mt-2">{t("filePreview.downloadToView")}</p>
       </div>
     );
   }
@@ -379,7 +381,7 @@ export function FileContentPreview(
   if (!content) {
     return (
       <div className="flex flex-col items-center justify-center p-8 text-muted-foreground">
-        <p>文件内容为空</p>
+        <p>{t("filePreview.emptyContent")}</p>
       </div>
     );
   }

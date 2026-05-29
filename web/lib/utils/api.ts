@@ -480,12 +480,14 @@ async function request<T = any>(
         // Try to parse error response
         try {
           const errorData = await response.json();
-          throw new APIError(
-            errorData.message || response.statusText,
-            errorData.code || response.status,
-            response,
-          );
+          // Backend error format: { error: { code, message, status } }
+          const errorMessage =
+            errorData.error?.message || errorData.message || response.statusText;
+          const errorCode =
+            errorData.error?.code || errorData.code || response.status;
+          throw new APIError(errorMessage, errorCode, response);
         } catch (parseError) {
+          if (parseError instanceof APIError) throw parseError;
           throw new APIError(
             response.statusText || "Request failed",
             response.status,

@@ -1,0 +1,367 @@
+{
+  "sidebar": {
+    "roomControl": "Room Controls",
+    "roomSettings": "Room Settings",
+    "expandSidebar": "Expand sidebar",
+    "collapseSidebar": "Collapse sidebar",
+    "loading": "Loading..."
+  },
+  "closeRoom": {
+    "button": "Close Room",
+    "title": "Close Room - {roomName}",
+    "noPermissionTooltip": "You don't have admin permission to delete this room",
+    "tooltip": "Permanently close and clear this room",
+    "passwordRequired": "This room is password-protected. Please verify the password to continue.",
+    "destructiveWarning": "This action will permanently and physically delete the room and all its data.",
+    "passwordLabel": "Please enter the room password:",
+    "passwordPlaceholder": "Room password",
+    "warningPermanent": "Warning: This room contains all messages, images, documents, and configurations. Once closed, all content will be permanently and physically erased immediately.",
+    "warningRelease": "The room name will be immediately released. Anyone can recreate and use this room name. Are you sure you want to proceed?",
+    "verifying": "Verifying...",
+    "nextStep": "Next",
+    "closingRoom": "Closing room...",
+    "confirmPhysicalClose": "Confirm Close",
+    "successTitle": "Room closed and cleaned successfully",
+    "successDescription": "Room {roomName} data has been completely cleared and the room name has been released.",
+    "failTitle": "Failed to close room",
+    "failDescription": "Unable to delete the room. Please try again later.",
+    "enterPassword": "Please enter the password",
+    "verifyFailed": "Password verification failed. Incorrect password or unable to connect to server.",
+    "cancel": "Cancel"
+  },
+  "config": {
+    "title": "Room Configuration",
+    "adminOnly": "Only room administrators (with delete permission) can modify room configuration",
+    "adminSaveOnly": "Only room administrators can save configuration",
+    "expiry": {
+      "label": "Expiry Time",
+      "placeholder": "Select expiry time",
+      "options": {
+        "oneMinute": "1 minute",
+        "tenMinutes": "10 minutes",
+        "oneHour": "1 hour",
+        "twelveHours": "12 hours",
+        "oneDay": "1 day",
+        "oneWeek": "1 week"
+      }
+    },
+    "password": {
+      "label": "Room Password",
+      "placeholder": "Set room password"
+    },
+    "maxViews": {
+      "label": "Max Views"
+    },
+    "permissions": {
+      "title": "Room Permissions",
+      "hint": "Note: Edit and Share require Preview permission; Delete requires Preview and Edit permissions",
+      "labels": {
+        "read": "Preview",
+        "edit": "Edit",
+        "share": "Share",
+        "delete": "Delete"
+      },
+      "descriptions": {
+        "read": "View room content",
+        "edit": "Upload and modify content",
+        "share": "Publicly share the room",
+        "delete": "Delete room content"
+      }
+    },
+    "save": {
+      "saving": "Saving...",
+      "saveConfig": "Save Configuration",
+      "successTitle": "Configuration saved",
+      "successDescription": "Room configuration has been updated successfully",
+      "failTitle": "Save failed",
+      "failDescription": "Unable to save room configuration. Please try again."
+    },
+    "cancel": "Cancel",
+    "linkCopied": "New link copied",
+    "copyFailTitle": "Copy failed",
+    "copyFailDescription": "Unable to copy link. Please copy it manually."
+  },
+  "settings": {
+    "title": "Room Settings",
+    "adminOnly": "Only room administrators (with delete permission) can modify room settings",
+    "expiry": {
+      "label": "Expiry Time",
+      "placeholder": "Select expiry time",
+      "options": {
+        "oneMinute": "1 minute",
+        "tenMinutes": "10 minutes",
+        "oneHour": "1 hour",
+        "twelveHours": "12 hours",
+        "oneDay": "1 day",
+        "oneWeek": "1 week"
+      }
+    },
+    "password": {
+      "label": "Room Password",
+      "placeholder": "Set room password"
+    },
+    "maxViews": {
+      "label": "Max Views"
+    },
+    "save": {
+      "saving": "Saving...",
+      "saveSettings": "Save Settings",
+      "successTitle": "Settings saved",
+      "successDescription": "Room settings have been updated successfully",
+      "failTitle": "Save failed",
+      "failDescription": "Unable to save room settings. Please try again.",
+      "authFail": "Authentication failed. Please refresh the page and log in again."
+    },
+    "warningTitle": "Warning",
+    "jwtRefreshFail": "Password has been updated, but JWT refresh failed. Please refresh the page and log in again."
+  },
+  "passwordDialog": {
+    "title": "Room is Encrypted",
+    "description": "Room {roomName} requires a password to access",
+    "passwordLabel": "Password",
+    "passwordPlaceholder": "Please enter the room password",
+    "enterPassword": "Please enter the password",
+    "verifyFailed": "Password verification failed",
+    "cancel": "Cancel",
+    "verifying": "Verifying...",
+    "enterRoom": "Enter Room"
+  },
+  "sharing": {
+    "title": "Share Room",
+    "generatingQr": "Generating QR code...",
+    "copied": "Copied",
+    "getLink": "Get Link",
+    "download": "Download"
+  },
+  "capacity": {
+    "title": "Storage Usage",
+    "usage": "{currentSize} MB / {maxSize} MB ({percentage}%)"
+  },
+  "permissions": {
+    "title": "Room Permissions",
+    "hint": "Note: Edit and Share require Preview permission; Delete requires Preview and Edit permissions",
+    "adminOnly": "Only room administrators can modify permissions",
+    "labels": {
+      "read": "Preview",
+      "edit": "Edit",
+      "share": "Share",
+      "delete": "Delete"
+    },
+    "descriptions": {
+      "read": "View room content",
+      "edit": "Upload and modify content",
+      "share": "Publicly share the room",
+      "delete": "Delete room content"
+    },
+    "save": {
+      "saving": "Saving...",
+      "savePermissions": "Save Permissions",
+      "successTitle": "Permissions updated",
+      "successDescription": "Room permissions have been updated successfully",
+      "failTitle": "Update failed",
+      "failDescription": "Unable to update room permissions. Please try again."
+    },
+    "cancel": "Cancel",
+    "needRelogin": "Re-login Required",
+    "downgradeNotice": "Permissions have been downgraded. Please re-enter your password to log in."
+  },
+  "chat": {
+    "messageSent": "Message sent",
+    "messageUpdated": "Message updated",
+    "messageUpdatedDescription": "Your message has been updated successfully",
+    "messageDeleted": "Message deleted",
+    "loadFailed": "Unable to load messages. Please refresh and try again.",
+    "sendFailed": "Unable to send message. Please try again.",
+    "updateFailed": "Unable to update message. Please try again.",
+    "deleteFailed": "Unable to delete message. Please try again.",
+    "deleteConfirmTitle": "Are you sure you want to delete this message?",
+    "deleteConfirmDescription": "This action will be recorded until you click the save button.",
+    "confirmAndDisable": "Confirm / Don't ask again",
+    "confirm": "Confirm",
+    "cancel": "Cancel"
+  },
+  "messageBubble": {
+    "anonymous": "Anonymous",
+    "copied": "Copied",
+    "copiedDescription": "Message content has been copied to clipboard",
+    "editing": "Editing",
+    "unsaved": "Unsaved",
+    "edited": "Edited",
+    "revertDelete": "Undo delete",
+    "revertEdit": "Undo edit",
+    "edit": "Edit",
+    "copy": "Copy",
+    "delete": "Delete",
+    "messageNumber": "Message #{number}",
+    "userLabel": "User:",
+    "timeLabel": "Time:"
+  },
+  "messageInput": {
+    "editingBanner": "Editing message",
+    "placeholderSendOnEnter": "Type a message... (Enter to send, Shift+Enter for new line)",
+    "placeholderSendOnCtrl": "Type a message... (Ctrl/Cmd+Enter to send)",
+    "placeholderDefault": "Type a message...",
+    "expandEditor": "Expand Editor",
+    "send": "Send",
+    "cancel": "Cancel",
+    "markdownEditor": "Markdown Editor",
+    "toolbarBold": "Bold (Ctrl+B)",
+    "toolbarItalic": "Italic (Ctrl+I)",
+    "toolbarStrike": "Strikethrough",
+    "toolbarCode": "Inline Code",
+    "toolbarH1": "Heading 1",
+    "toolbarH2": "Heading 2",
+    "toolbarH3": "Heading 3",
+    "toolbarBulletList": "Bullet List",
+    "toolbarOrderedList": "Ordered List",
+    "toolbarBlockquote": "Quote",
+    "toolbarUndo": "Undo (Ctrl+Z)",
+    "toolbarRedo": "Redo (Ctrl+Shift+Z)",
+    "toolbarUpload": "Upload File",
+    "toolbarSourceMode": "Switch to Source Mode",
+    "toolbarPreviewMode": "Switch to Preview Mode",
+    "uploadSuccess": "Upload Success",
+    "uploadFailed": "Upload Failed",
+    "uploadFailedDescription": "File upload failed, please try again"
+  },
+  "messageList": {
+    "loading": "Loading messages...",
+    "selectedCount": "{count} messages selected",
+    "totalCount": "{count} messages total",
+    "selectAll": "Select All",
+    "deselectAll": "Deselect All",
+    "invertSelection": "Invert",
+    "empty": "No messages yet. Start a conversation!",
+    "scrollToLatest": "Jump to latest"
+  },
+  "fileManager": {
+    "title": "File Manager",
+    "addLink": "Add Link",
+    "uploadFile": "Upload File",
+    "selectedCount": "{count} files selected",
+    "totalCount": "{count} files total",
+    "selectAll": "Select All",
+    "deselectAll": "Deselect All",
+    "invertSelection": "Invert",
+    "loading": "Loading...",
+    "downloadSelected": "Download Selected"
+  },
+  "fileCard": {
+    "deleteFile": "Delete File"
+  },
+  "fileUploadZone": {
+    "uploading": "Uploading...",
+    "dropToUpload": "Drop to upload",
+    "dragOrClick": "Drag files here or click to upload"
+  },
+  "fileListView": {
+    "empty": "No files"
+  },
+  "filePreview": {
+    "autoDetect": "Auto Detect",
+    "plainText": "Plain Text",
+    "copied": "Copied",
+    "copiedDescription": "Content has been copied to clipboard",
+    "copyFailed": "Copy failed",
+    "copyFailedDescription": "Unable to copy content",
+    "viewCode": "View Code",
+    "previewRender": "Preview",
+    "switchTheme": "Switch Theme",
+    "copyContent": "Copy Content",
+    "unsupportedType": "Cannot preview this file type",
+    "downloadToView": "Please download the file to view its content",
+    "emptyContent": "File content is empty"
+  },
+  "urlUpload": {
+    "manualInput": "Manual Input",
+    "invalidUrl": "Please enter a valid URL",
+    "urlRequired": "URL cannot be empty",
+    "unnamedLink": "Unnamed Link",
+    "title": "Add Link",
+    "description": "Add an external link to the room. The link will be saved and viewable in the file list.",
+    "fullLink": "Full link: {url}",
+    "nameLabel": "Display Name",
+    "nameOptional": "(optional, will be auto-generated if left empty)",
+    "namePlaceholder": "My Link",
+    "descriptionLabel": "Description",
+    "descriptionOptional": "(optional)",
+    "descriptionPlaceholder": "A brief description of the link...",
+    "cancel": "Cancel",
+    "adding": "Adding...",
+    "addLink": "Add Link"
+  },
+  "filePreviewModal": {
+    "delete": "Delete",
+    "download": "Download",
+    "copyLink": "Copy Link",
+    "copyMarkdown": "Copy Markdown",
+    "insertToEditor": "Insert to Editor",
+    "exitFullscreen": "Exit Fullscreen",
+    "fullscreen": "Fullscreen",
+    "downloadStart": "Download started",
+    "downloading": "Downloading {fileName}",
+    "downloadComplete": "Download complete",
+    "downloadCompleteDescription": "{fileName} downloaded successfully",
+    "downloadFailed": "Download failed",
+    "downloadFailedDescription": "Unable to download file. Please try again.",
+    "linkCopied": "Link copied",
+    "linkCopiedDescription": "File download link copied to clipboard",
+    "markdownCopied": "Markdown copied",
+    "markdownCopiedDescription": "Ready to paste into editor",
+    "insertedToEditor": "Inserted into editor",
+    "insertedToEditorDescription": "Markdown link inserted at cursor position",
+    "fileDeleted": "File deleted",
+    "fileDeletedDescription": "{fileName} removed from room",
+    "openedInNewTab": "Opened in new tab",
+    "imageLoadError": "Unable to generate image URL (missing token or URL)",
+    "videoNotSupported": "Your browser does not support video playback",
+    "unsupportedType": "Cannot preview this file type",
+    "downloadToView": "Please download the file to view its content",
+    "loadingPdfViewer": "Loading PDF viewer..."
+  },
+  "urlViewer": {
+    "iframeWarning": "Some websites may not allow display in iframe. If preview fails, use 'Open in new tab'",
+    "hidePreview": "Hide Preview",
+    "preview": "Preview",
+    "newTab": "New Tab",
+    "collapseDetails": "Collapse Details",
+    "expandDetails": "Expand Details",
+    "previewHint": "Click 'Preview' button to view link content",
+    "newTabHint": "Or click 'Open in new tab' to open in browser",
+    "iframeLoadError": "Unable to load this link in preview. The website may not allow embedding.",
+    "openInNewTabHint": "Please click 'Open in new tab' button to view in browser.",
+    "openInNewTab": "Open in New Tab"
+  },
+  "toast": {
+    "uploadSuccess": "Upload successful",
+    "uploadSuccessDescription": "File has been uploaded to the room",
+    "uploadFailed": "File upload failed. Please try again.",
+    "deleteSuccess": "Deleted successfully",
+    "deleteSuccessDescription": "File has been removed from the room",
+    "deleteFailed": "Unable to delete file. Please try again.",
+    "linkAdded": "Link added",
+    "linkAddedDescription": "URL has been added to the room",
+    "linkAddFailed": "Failed to add link. Please try again.",
+    "downloadStart": "Download started",
+    "downloadStartDescription": "Preparing to download {count} files"
+  },
+  "image": {
+    "loadFailed": "Image failed to load",
+    "defaultAlt": "Image",
+    "rotateLeft": "Rotate counterclockwise",
+    "rotateRight": "Rotate clockwise",
+    "flipH": "Flip horizontal",
+    "flipV": "Flip vertical",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "reset": "Reset"
+  },
+  "pdf": {
+    "loadFailed": "Failed to load PDF file",
+    "prevPage": "Previous page",
+    "nextPage": "Next page",
+    "loading": "Loading...",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out"
+  }
+}

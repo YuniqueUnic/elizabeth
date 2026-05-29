@@ -2,11 +2,13 @@
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FolderOpen, MessageSquare, Settings } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { LeftSidebar } from "./left-sidebar";
 import { MiddleColumn } from "./middle-column";
 import { RightSidebar } from "./right-sidebar";
 
 export function MobileLayout() {
+  const t = useTranslations("common");
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <Tabs defaultValue="chat" className="flex h-full flex-col">
@@ -39,21 +41,21 @@ export function MobileLayout() {
             className="flex-col gap-1 h-full data-[state=active]:bg-accent"
           >
             <Settings className="h-5 w-5" />
-            <span className="text-xs">设置</span>
+            <span className="text-xs">{t("mobileTabSettings")}</span>
           </TabsTrigger>
           <TabsTrigger
             value="chat"
             className="flex-col gap-1 h-full data-[state=active]:bg-accent"
           >
             <MessageSquare className="h-5 w-5" />
-            <span className="text-xs">聊天</span>
+            <span className="text-xs">{t("mobileTabChat")}</span>
           </TabsTrigger>
           <TabsTrigger
             value="files"
             className="flex-col gap-1 h-full data-[state=active]:bg-accent"
           >
             <FolderOpen className="h-5 w-5" />
-            <span className="text-xs">文件</span>
+            <span className="text-xs">{t("mobileTabFiles")}</span>
           </TabsTrigger>
         </TabsList>
       </Tabs>

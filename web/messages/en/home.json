@@ -1,0 +1,22 @@
+{
+  "platformDescription": "Secure, temporary, and controllable file sharing and collaboration platform",
+  "createRoom": "Create Room",
+  "createRoomDescription": "Create a new collaboration space",
+  "joinRoom": "Join Room",
+  "joinRoomDescription": "Join an existing room by room name",
+  "noRegistrationNeeded": "No registration needed — your room is your identity",
+  "createRoomHeader": "Create Room",
+  "createRoomHeaderDescription": "Set a room name and optional password protection",
+  "roomNameRequired": "Room Name *",
+  "roomNamePlaceholder": "e.g. project-alpha",
+  "passwordProtectionOptional": "Password Protection (optional)",
+  "leaveEmptyNoPassword": "Leave empty to set no password",
+  "confirmPassword": "Confirm Password",
+  "reenterPassword": "Re-enter password",
+  "enterPasswordFirst": "Please enter password first",
+  "back": "Back",
+  "creating": "Creating...",
+  "joinRoomHeader": "Join Room",
+  "joinRoomHeaderDescription": "Enter a room name to join an existing room",
+  "roomName": "Room Name"
+}

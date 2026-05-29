@@ -22,6 +22,7 @@ import { resolveWebSocketUrl } from "@/lib/utils/ws";
 import { ContentType, parseContentType } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslations } from "next-intl";
 
 function RoomRealtimeSync({
   roomName,
@@ -71,6 +72,8 @@ function RoomRealtimeSync({
 }
 
 export default function RoomPage() {
+  const t = useTranslations("common");
+  const tErrors = useTranslations("errors");
   const pathname = usePathname();
   const router = useRouter();
   const isMobile = useIsMobile();
@@ -164,15 +167,24 @@ export default function RoomPage() {
           typeof err?.message === "string" ? err.message : "";
 
         if (status === 400) {
+          // Map backend validation errors to user-friendly Chinese messages
+          const validationMessages: Record<string, string> = {
+            "Room name must be between 3 and 50 characters":
+              tErrors("backendRoomNameLength3to50"),
+            "Room name can only contain letters, numbers, underscores, and hyphens, and cannot start or end with underscore or hyphen":
+              tErrors("backendRoomNameFormat"),
+            "Room password must be between 4 and 100 characters":
+              tErrors("backendRoomPasswordLength4to100"),
+          };
           setError(
-            "房间名称不合法：仅支持 3-50 位字母/数字/下划线/连字符，且不能以下划线或连字符开头/结尾。",
+            validationMessages[message] || message || tErrors("requestParameterError"),
           );
           return;
         }
 
         if (status === 401 || status === 403) {
           setError(
-            "房间无法通过该链接进入：可能已过期、达到最大进入次数，或已切换为私密地址（请使用新的分享链接）。",
+            tErrors("roomInaccessibleViaLink"),
           );
           return;
         }
@@ -212,13 +224,13 @@ export default function RoomPage() {
             }
           }
 
-          setError("房间不存在，且自动创建失败。请稍后重试。");
+          setError(tErrors("roomNotFoundAutoCreateFailed"));
           return;
         }
 
         setError(
           message ||
-            "无法访问房间，请稍后重试（请检查后端服务是否可用以及前端 API 代理配置）。",
+            tErrors("cannotAccessRoom"),
         );
       } finally {
         if (!isCancelled) {
@@ -247,9 +259,9 @@ export default function RoomPage() {
         err.message?.toLowerCase().includes("password") ||
         err.message?.toLowerCase().includes("authentication")
       ) {
-        throw new Error("密码错误");
+        throw new Error(tErrors("wrongPassword"));
       } else {
-        throw new Error("无法验证密码，请稍后重试");
+        throw new Error(tErrors("passwordVerificationRetry"));
       }
     }
   };
@@ -263,7 +275,7 @@ export default function RoomPage() {
       <div className="flex h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <LoadingSpinner className="h-12 w-12" />
-          <p className="text-muted-foreground">正在加载房间...</p>
+          <p className="text-muted-foreground">{t("loadingRoom")}</p>
         </div>
       </div>
     );
@@ -274,7 +286,7 @@ export default function RoomPage() {
       <div className="flex h-screen items-center justify-center bg-background p-4">
         <Alert variant="destructive" className="max-w-md">
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>错误</AlertTitle>
+          <AlertTitle>{t("errorTitle")}</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       </div>
@@ -303,7 +315,7 @@ export default function RoomPage() {
       <div className="flex h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <LoadingSpinner className="h-12 w-12" />
-          <p className="text-muted-foreground">正在准备房间访问...</p>
+          <p className="text-muted-foreground">{t("preparingRoomAccess")}</p>
         </div>
       </div>
     );
@@ -323,8 +335,8 @@ export default function RoomPage() {
               clearRoomToken(roomName);
               setRoomRedirectTarget(nextSlug);
               toast({
-                title: "房间地址已变更",
-                description: "该房间已切换到新的地址，请跳转继续。",
+                title: t("roomAddressChanged"),
+                description: t("roomRedirectedToast"),
               });
             }
           }}
@@ -333,15 +345,14 @@ export default function RoomPage() {
       {roomRedirectTarget && (
         <div className="p-3">
           <Alert>
-            <AlertTitle>房间地址已变更</AlertTitle>
+            <AlertTitle>{t("roomAddressChanged")}</AlertTitle>
             <AlertDescription className="space-y-2">
               <p className="text-sm text-muted-foreground">
-                该房间已切换到新的地址：<span className="font-mono">/{roomRedirectTarget}</span>。
-                为继续使用，请跳转到新地址并重新登录。
+                {t("roomRedirectDescription", { path: `/${roomRedirectTarget}` })}
               </p>
               {hasUnsavedChanges() && (
                 <p className="text-sm font-medium text-destructive">
-                  检测到你有未保存的消息更改或正在进行的上传，建议先完成或备份再跳转。
+                  {t("unsavedChangesWarning")}
                 </p>
               )}
               <div className="flex flex-wrap gap-2">
@@ -351,7 +362,7 @@ export default function RoomPage() {
                     router.push(`/${roomRedirectTarget}`);
                   }}
                 >
-                  跳转到新地址
+                  {t("goToNewAddress")}
                 </Button>
                 <Button
                   size="sm"
@@ -361,18 +372,18 @@ export default function RoomPage() {
                       await navigator.clipboard.writeText(
                         `${window.location.origin}/${roomRedirectTarget}`,
                       );
-                      toast({ title: "已复制新链接" });
+                      toast({ title: t("copiedNewLink") });
                     } catch (err) {
                       console.error("Failed to copy link:", err);
                       toast({
-                        title: "复制失败",
-                        description: "无法复制链接，请手动复制。",
+                        title: t("copyFailed"),
+                        description: t("copyLinkFailed"),
                         variant: "destructive",
                       });
                     }
                   }}
                 >
-                  复制新链接
+                  {t("copyNewLink")}
                 </Button>
               </div>
             </AlertDescription>

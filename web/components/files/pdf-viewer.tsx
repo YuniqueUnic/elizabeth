@@ -7,6 +7,7 @@ import "react-pdf/dist/Page/TextLayer.css";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from "lucide-react";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { useTranslations } from "next-intl";
 
 // Configure PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc =
@@ -18,6 +19,7 @@ interface PDFViewerProps {
 }
 
 export function PDFViewer({ url, className = "" }: PDFViewerProps) {
+  const t = useTranslations("room.pdf");
   const [numPages, setNumPages] = useState<number>(0);
   const [pageNumber, setPageNumber] = useState<number>(1);
   const [scale, setScale] = useState<number>(1.0);
@@ -31,7 +33,7 @@ export function PDFViewer({ url, className = "" }: PDFViewerProps) {
 
   function onDocumentLoadError(error: Error) {
     console.error("PDF load error:", error);
-    setError("无法加载 PDF 文件");
+    setError(t("loadFailed"));
     setLoading(false);
   }
 
@@ -59,19 +61,19 @@ export function PDFViewer({ url, className = "" }: PDFViewerProps) {
             size="sm"
             onClick={goToPrevPage}
             disabled={pageNumber <= 1 || loading}
-            title="上一页"
+            title={t("prevPage")}
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <span className="text-sm text-muted-foreground min-w-20 text-center">
-            {loading ? "加载中..." : `${pageNumber} / ${numPages}`}
+            {loading ? t("loading") : `${pageNumber} / ${numPages}`}
           </span>
           <Button
             variant="ghost"
             size="sm"
             onClick={goToNextPage}
             disabled={pageNumber >= numPages || loading}
-            title="下一页"
+            title={t("nextPage")}
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
@@ -83,7 +85,7 @@ export function PDFViewer({ url, className = "" }: PDFViewerProps) {
             size="sm"
             onClick={handleZoomOut}
             disabled={scale <= 0.5 || loading}
-            title="缩小"
+            title={t("zoomOut")}
           >
             <ZoomOut className="h-4 w-4" />
           </Button>
@@ -95,7 +97,7 @@ export function PDFViewer({ url, className = "" }: PDFViewerProps) {
             size="sm"
             onClick={handleZoomIn}
             disabled={scale >= 3 || loading}
-            title="放大"
+            title={t("zoomIn")}
           >
             <ZoomIn className="h-4 w-4" />
           </Button>

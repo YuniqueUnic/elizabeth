@@ -19,19 +19,19 @@ import { useAppStore } from "@/lib/store";
 import { useToast } from "@/hooks/use-toast";
 import { useRoomPermissions } from "@/hooks/use-room-permissions";
 import { getAccessToken } from "@/api/authService";
+import { useTranslations } from "next-intl";
 
 interface RoomSettingsFormProps {
   roomDetails: RoomDetails;
 }
 
-const EXPIRY_OPTIONS = [
-  { label: "1 分钟", value: "1min", ms: 60 * 1000 },
-  { label: "10 分钟", value: "10min", ms: 10 * 60 * 1000 },
-  { label: "1 小时", value: "1hr", ms: 60 * 60 * 1000 },
-  { label: "12 小时", value: "12hr", ms: 12 * 60 * 60 * 1000 },
-  { label: "1 天", value: "1day", ms: 24 * 60 * 60 * 1000 },
-  { label: "1 周", value: "1week", ms: 7 * 24 * 60 * 60 * 1000 },
-  // { label: "永不过期", value: "never", ms: 0 }, // 暂不提供，未来可能支持
+const EXPIRY_OPTIONS_KEYS = [
+  { key: "settings.expiry.options.oneMinute", value: "1min", ms: 60 * 1000 },
+  { key: "settings.expiry.options.tenMinutes", value: "10min", ms: 10 * 60 * 1000 },
+  { key: "settings.expiry.options.oneHour", value: "1hr", ms: 60 * 60 * 1000 },
+  { key: "settings.expiry.options.twelveHours", value: "12hr", ms: 12 * 60 * 60 * 1000 },
+  { key: "settings.expiry.options.oneDay", value: "1day", ms: 24 * 60 * 60 * 1000 },
+  { key: "settings.expiry.options.oneWeek", value: "1week", ms: 7 * 24 * 60 * 60 * 1000 },
 ];
 
 // 根据过期时间计算最接近的选项
@@ -50,10 +50,10 @@ function getExpiryOptionFromDate(expiresAt: string | null | undefined): string {
   if (diff <= 0) return "1min";
 
   // 找到最接近的选项
-  let closestOption = EXPIRY_OPTIONS[0];
+  let closestOption = EXPIRY_OPTIONS_KEYS[0];
   let minDiff = Math.abs(diff - closestOption.ms);
 
-  for (const option of EXPIRY_OPTIONS) {
+  for (const option of EXPIRY_OPTIONS_KEYS) {
     if (option.ms === 0) continue; // 跳过永不过期选项（如果未来启用）
     const currentDiff = Math.abs(diff - option.ms);
     if (currentDiff < minDiff) {
@@ -66,6 +66,7 @@ function getExpiryOptionFromDate(expiresAt: string | null | undefined): string {
 }
 
 export function RoomSettingsForm({ roomDetails }: RoomSettingsFormProps) {
+  const t = useTranslations("room");
   const currentRoomId = useAppStore((state) => state.currentRoomId);
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -116,8 +117,8 @@ export function RoomSettingsForm({ roomDetails }: RoomSettingsFormProps) {
         } catch (error) {
           console.error("[RoomSettingsForm] Failed to refresh JWT:", error);
           toast({
-            title: "警告",
-            description: "密码已更新，但 JWT 刷新失败。请刷新页面重新登录。",
+            title: t("settings.warningTitle"),
+            description: t("settings.jwtRefreshFail"),
             variant: "destructive",
           });
           return;
@@ -125,27 +126,26 @@ export function RoomSettingsForm({ roomDetails }: RoomSettingsFormProps) {
       }
 
       toast({
-        title: "设置已保存",
-        description: "房间设置已成功更新",
+        title: t("settings.save.successTitle"),
+        description: t("settings.save.successDescription"),
       });
     },
     onError: (error: any) => {
-      // ✅ FIX: Provide clearer error messages
-      const errorMessage = error?.message || "无法保存房间设置，请重试";
-      const isAuthError = error?.status === 401 || error?.status === 403;
+      const errorCode = error?.code ?? error?.status;
+      const isAuthError = errorCode === 401 || errorCode === 403;
 
       toast({
-        title: "保存失败",
+        title: t("settings.save.failTitle"),
         description: isAuthError
-          ? "认证失败，请刷新页面重新登录"
-          : errorMessage,
+          ? t("settings.save.authFail")
+          : error?.message || t("settings.save.failDescription"),
         variant: "destructive",
       });
     },
   });
 
   const handleSave = () => {
-    const option = EXPIRY_OPTIONS.find((opt) => opt.value === expiryOption);
+    const option = EXPIRY_OPTIONS_KEYS.find((opt) => opt.value === expiryOption);
 
     // 计算过期时间，格式化为 NaiveDateTime (YYYY-MM-DDTHH:MM:SS.ffffff)
     // 注意：后端使用 UTC 时间进行比较，所以这里必须发送 UTC 时间
@@ -177,28 +177,28 @@ export function RoomSettingsForm({ roomDetails }: RoomSettingsFormProps) {
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="mb-3 text-sm font-semibold">房间设置</h3>
+        <h3 className="mb-3 text-sm font-semibold">{t("settings.title")}</h3>
 
         {!canModifySettings && (
           <p className="text-xs text-muted-foreground mb-3 p-2 bg-muted rounded-md">
-            只有房间管理员（拥有删除权限）可以修改房间设置
+            {t("settings.adminOnly")}
           </p>
         )}
 
         <div className="space-y-2 mt-2">
-          <Label htmlFor="expires-at">过期时间</Label>
+          <Label htmlFor="expires-at">{t("settings.expiry.label")}</Label>
           <Select
             value={expiryOption}
             onValueChange={setExpiryOption}
             disabled={!canModifySettings}
           >
             <SelectTrigger className="w-full">
-              <SelectValue placeholder="选择过期时间" />
+              <SelectValue placeholder={t("settings.expiry.placeholder")} />
             </SelectTrigger>
             <SelectContent>
-              {EXPIRY_OPTIONS.map((option) => (
+              {EXPIRY_OPTIONS_KEYS.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
-                  {option.label}
+                  {t(option.key)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -207,14 +207,14 @@ export function RoomSettingsForm({ roomDetails }: RoomSettingsFormProps) {
 
         {/* Password */}
         <div className="space-y-2 mt-2">
-          <Label htmlFor="password">房间密码</Label>
+          <Label htmlFor="password">{t("settings.password.label")}</Label>
           <div className="relative">
             <Input
               id="password"
               type={showPassword ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="设置房间密码"
+              placeholder={t("settings.password.placeholder")}
               disabled={!canModifySettings}
             />
             <Button
@@ -234,7 +234,7 @@ export function RoomSettingsForm({ roomDetails }: RoomSettingsFormProps) {
 
         {/* Max Views */}
         <div className="space-y-2 mt-2">
-          <Label htmlFor="max-views">最大查看次数</Label>
+          <Label htmlFor="max-views">{t("settings.maxViews.label")}</Label>
           <Input
             id="max-views"
             type="number"
@@ -250,7 +250,7 @@ export function RoomSettingsForm({ roomDetails }: RoomSettingsFormProps) {
           className="mt-4 w-full"
           disabled={updateMutation.isPending || !canModifySettings}
         >
-          {updateMutation.isPending ? "保存中..." : "保存设置"}
+          {updateMutation.isPending ? t("settings.save.saving") : t("settings.save.saveSettings")}
         </Button>
       </div>
     </div>

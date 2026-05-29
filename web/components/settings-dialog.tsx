@@ -15,8 +15,10 @@ import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
 import { useAppStore } from "@/lib/store";
+import { useTranslations } from "next-intl";
 
 export function SettingsDialog({ children }: { children: React.ReactNode }) {
+  const t = useTranslations("settings");
   const {
     sendOnEnter,
     setSendOnEnter,
@@ -34,6 +36,8 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
     setUseHeti,
     showDeleteConfirmation,
     setShowDeleteConfirmation,
+    autoScroll,
+    setAutoScroll,
   } = useAppStore();
 
   return (
@@ -41,19 +45,19 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>设置</DialogTitle>
-          <DialogDescription>配置应用程序的行为和偏好设置</DialogDescription>
+          <DialogTitle>{t("title")}</DialogTitle>
+          <DialogDescription>{t("description")}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
           {/* Send on Enter Setting */}
           <div className="flex items-center justify-between space-x-4">
             <div className="flex-1 space-y-1">
-              <Label htmlFor="send-on-enter">按 Enter 键发送消息</Label>
+              <Label htmlFor="send-on-enter">{t("sendOnEnter.label")}</Label>
               <p className="text-sm text-muted-foreground">
                 {sendOnEnter
-                  ? "按 Enter 发送，Shift+Enter 换行"
-                  : "按 Ctrl/Cmd+Enter 发送，Enter 换行"}
+                  ? t("sendOnEnter.enabled")
+                  : t("sendOnEnter.disabled")}
               </p>
             </div>
             <Switch
@@ -66,10 +70,10 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
           <div className="flex items-center justify-between space-x-4">
             <div className="flex-1 space-y-1">
               <Label htmlFor="include-metadata-copy">
-                复制时包含消息元数据
+                {t("includeMetadataInCopy.label")}
               </Label>
               <p className="text-sm text-muted-foreground">
-                复制消息时包含时间戳和消息编号
+                {t("includeMetadataInCopy.description")}
               </p>
             </div>
             <Switch
@@ -82,10 +86,10 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
           <div className="flex items-center justify-between space-x-4">
             <div className="flex-1 space-y-1">
               <Label htmlFor="include-metadata-download">
-                下载/导出时包含消息元数据
+                {t("includeMetadataInDownload.label")}
               </Label>
               <p className="text-sm text-muted-foreground">
-                下载/导出消息时包含时间戳和消息编号
+                {t("includeMetadataInDownload.description")}
               </p>
             </div>
             <Switch
@@ -97,9 +101,9 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
 
           <div className="flex items-center justify-between space-x-4">
             <div className="flex-1 space-y-1">
-              <Label htmlFor="use-heti">使用 heti 排版</Label>
+              <Label htmlFor="use-heti">{t("useHeti.label")}</Label>
               <p className="text-sm text-muted-foreground">
-                使用 heti 排版，使中文排版内容更美观
+                {t("useHeti.description")}
               </p>
             </div>
             <Switch
@@ -112,9 +116,9 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
           {/* Show Delete Confirmation Setting */}
           <div className="flex items-center justify-between space-x-4">
             <div className="flex-1 space-y-1">
-              <Label htmlFor="delete-confirmation">删除时提示</Label>
+              <Label htmlFor="delete-confirmation">{t("showDeleteConfirmation.label")}</Label>
               <p className="text-sm text-muted-foreground">
-                删除时弹出提示保存的 dialog
+                {t("showDeleteConfirmation.description")}
               </p>
             </div>
             <Switch
@@ -124,9 +128,24 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
             />
           </div>
 
+          {/* Auto-scroll Setting */}
+          <div className="flex items-center justify-between space-x-4">
+            <div className="flex-1 space-y-1">
+              <Label htmlFor="auto-scroll">{t("autoScroll.label")}</Label>
+              <p className="text-sm text-muted-foreground">
+                {t("autoScroll.description")}
+              </p>
+            </div>
+            <Switch
+              id="auto-scroll"
+              checked={autoScroll}
+              onCheckedChange={setAutoScroll}
+            />
+          </div>
+
           {/* Editor Font Size Setting */}
           <div className="space-y-3">
-            <Label htmlFor="editor-font-size">编辑器字体大小</Label>
+            <Label htmlFor="editor-font-size">{t("editorFontSize.label")}</Label>
             <div className="flex items-center gap-4">
               <Slider
                 id="editor-font-size"
@@ -152,13 +171,13 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
               />
             </div>
             <p className="text-sm text-muted-foreground">
-              调整 Markdown 编辑器的字体大小（4-64px）
+              {t("editorFontSize.description")}
             </p>
           </div>
 
           {/* Toolbar Button Size Setting */}
           <div className="space-y-3">
-            <Label htmlFor="toolbar-button-size">工具栏按钮大小</Label>
+            <Label htmlFor="toolbar-button-size">{t("toolbarButtonSize.label")}</Label>
             <div className="flex items-center gap-4">
               <Slider
                 id="toolbar-button-size"
@@ -185,13 +204,13 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
               />
             </div>
             <p className="text-sm text-muted-foreground">
-              调整编辑器工具栏按钮的大小（20-36px）
+              {t("toolbarButtonSize.description")}
             </p>
           </div>
 
           {/* Message Font Size Setting */}
           <div className="space-y-3">
-            <Label htmlFor="message-font-size">消息字体大小</Label>
+            <Label htmlFor="message-font-size">{t("messageFontSize.label")}</Label>
             <div className="flex items-center gap-4">
               <Slider
                 id="message-font-size"
@@ -217,7 +236,7 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
               />
             </div>
             <p className="text-sm text-muted-foreground">
-              调整聊天消息的字体大小（4-64px）
+              {t("messageFontSize.description")}
             </p>
           </div>
         </div>

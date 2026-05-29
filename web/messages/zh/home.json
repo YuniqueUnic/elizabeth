@@ -1,0 +1,22 @@
+{
+  "platformDescription": "安全、临时、可控的文件分享与协作平台",
+  "createRoom": "创建房间",
+  "createRoomDescription": "创建一个新的协作空间",
+  "joinRoom": "加入房间",
+  "joinRoomDescription": "通过房间名称加入现有房间",
+  "noRegistrationNeeded": "无需注册，房间即身份",
+  "createRoomHeader": "创建房间",
+  "createRoomHeaderDescription": "设置房间名称和可选的密码保护",
+  "roomNameRequired": "房间名称 *",
+  "roomNamePlaceholder": "例如：project-alpha",
+  "passwordProtectionOptional": "密码保护（可选）",
+  "leaveEmptyNoPassword": "留空表示不设置密码",
+  "confirmPassword": "确认密码",
+  "reenterPassword": "再次输入密码",
+  "enterPasswordFirst": "请先输入密码",
+  "back": "返回",
+  "creating": "创建中...",
+  "joinRoomHeader": "加入房间",
+  "joinRoomHeaderDescription": "输入房间名称以加入现有房间",
+  "roomName": "房间名称"
+}
