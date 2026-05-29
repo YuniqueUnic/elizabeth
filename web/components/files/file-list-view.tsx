@@ -2,6 +2,7 @@
 
 import { FileCard } from "./file-card";
 import type { FileItem } from "@/lib/types";
+import { useTranslations } from "next-intl";
 
 interface FileListViewProps {
   files: FileItem[];
@@ -13,10 +14,12 @@ interface FileListViewProps {
 export function FileListView(
   { files, onDelete, onFileClick, showCheckboxes }: FileListViewProps,
 ) {
+  const t = useTranslations("room");
+
   if (files.length === 0) {
     return (
       <div className="flex h-32 items-center justify-center rounded-lg border border-dashed">
-        <p className="text-sm text-muted-foreground">暂无文件</p>
+        <p className="text-sm text-muted-foreground">{t("fileListView.empty")}</p>
       </div>
     );
   }

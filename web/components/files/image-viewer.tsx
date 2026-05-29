@@ -8,11 +8,11 @@ import {
   FlipHorizontal,
   FlipVertical,
   RotateCcw,
-  RotateCcw as ResetIcon,
   RotateCw,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 interface ImageViewerProps {
   src: string;
@@ -21,6 +21,7 @@ interface ImageViewerProps {
 }
 
 export function ImageViewer({ src, alt, className = "" }: ImageViewerProps) {
+  const t = useTranslations("room.image");
   const [rotation, setRotation] = useState(0);
   const [flipH, setFlipH] = useState(false);
   const [flipV, setFlipV] = useState(false);
@@ -54,7 +55,7 @@ export function ImageViewer({ src, alt, className = "" }: ImageViewerProps) {
           variant="ghost"
           size="sm"
           onClick={handleRotateLeft}
-          title="逆时针旋转"
+          title={t("rotateLeft")}
         >
           <RotateCcw className="h-4 w-4" />
         </Button>
@@ -62,7 +63,7 @@ export function ImageViewer({ src, alt, className = "" }: ImageViewerProps) {
           variant="ghost"
           size="sm"
           onClick={handleRotateRight}
-          title="顺时针旋转"
+          title={t("rotateRight")}
         >
           <RotateCw className="h-4 w-4" />
         </Button>
@@ -70,7 +71,7 @@ export function ImageViewer({ src, alt, className = "" }: ImageViewerProps) {
           variant="ghost"
           size="sm"
           onClick={handleFlipH}
-          title="水平翻转"
+          title={t("flipH")}
         >
           <FlipHorizontal className="h-4 w-4" />
         </Button>
@@ -78,7 +79,7 @@ export function ImageViewer({ src, alt, className = "" }: ImageViewerProps) {
           variant="ghost"
           size="sm"
           onClick={handleFlipV}
-          title="垂直翻转"
+          title={t("flipV")}
         >
           <FlipVertical className="h-4 w-4" />
         </Button>
@@ -87,7 +88,7 @@ export function ImageViewer({ src, alt, className = "" }: ImageViewerProps) {
           variant="ghost"
           size="sm"
           onClick={handleZoomOut}
-          title="缩小"
+          title={t("zoomOut")}
           disabled={scale <= 0.5}
         >
           <ZoomOut className="h-4 w-4" />
@@ -99,7 +100,7 @@ export function ImageViewer({ src, alt, className = "" }: ImageViewerProps) {
           variant="ghost"
           size="sm"
           onClick={handleZoomIn}
-          title="放大"
+          title={t("zoomIn")}
           disabled={scale >= 3}
         >
           <ZoomIn className="h-4 w-4" />
@@ -109,9 +110,9 @@ export function ImageViewer({ src, alt, className = "" }: ImageViewerProps) {
           variant="ghost"
           size="sm"
           onClick={handleReset}
-          title="重置"
+          title={t("reset")}
         >
-          <ResetIcon className="h-4 w-4" />
+          <RotateCcw className="h-4 w-4" />
         </Button>
       </div>
 

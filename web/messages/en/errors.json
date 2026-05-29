@@ -1,0 +1,21 @@
+{
+  "enterRoomName": "Please enter a room name",
+  "roomNameLength3to50": "Room name must be between 3 and 50 characters",
+  "roomNameLength3to150": "Room name must be between 3 and 150 characters",
+  "roomNameFormat": "Room name can only contain letters, numbers, underscores, and hyphens, and cannot start or end with underscore or hyphen",
+  "passwordsDoNotMatch": "The two passwords do not match",
+  "enterPasswordFirst": "Please enter password first",
+  "roomNameAlreadyExists": "Room name already exists, please use a different name",
+  "createRoomFailed": "Failed to create room, please retry",
+  "backendRoomNameLength3to50": "Room name must be between 3 and 50 characters.",
+  "backendRoomNameFormat": "Room name can only contain letters, numbers, underscores, and hyphens, and cannot start or end with underscore or hyphen.",
+  "backendRoomPasswordLength4to100": "Room password must be between 4 and 100 characters.",
+  "requestParameterError": "Request parameter error, please check your input.",
+  "roomInaccessibleViaLink": "Room cannot be accessed via this link: it may have expired, reached the maximum number of entries, or switched to a private address (please use a new share link).",
+  "roomNotFoundAutoCreateFailed": "Room does not exist and automatic creation failed. Please try again later.",
+  "cannotAccessRoom": "Unable to access the room, please try again later (check if the backend service is available and the frontend API proxy configuration).",
+  "wrongPassword": "Incorrect password",
+  "passwordVerificationRetry": "Unable to verify password, please try again later",
+  "enterPassword": "Please enter password",
+  "passwordVerificationFailed": "Password verification failed"
+}

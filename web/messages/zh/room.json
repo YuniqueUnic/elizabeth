@@ -1,0 +1,367 @@
+{
+  "sidebar": {
+    "roomControl": "房间控制",
+    "roomSettings": "房间设置",
+    "expandSidebar": "展开侧边栏",
+    "collapseSidebar": "收起侧边栏",
+    "loading": "加载中..."
+  },
+  "closeRoom": {
+    "button": "关闭房间",
+    "title": "关闭房间 - {roomName}",
+    "noPermissionTooltip": "您没有删除该房间的管理员权限",
+    "tooltip": "永久关闭并清空该房间",
+    "passwordRequired": "该房间设有密码保护，需验证密码后方可继续。",
+    "destructiveWarning": "此操作将永久物理删除房间及其所有数据。",
+    "passwordLabel": "请输入房间密码：",
+    "passwordPlaceholder": "房间密码",
+    "warningPermanent": "警告：当前房间内存有所有的消息、图片、文档及配置。一旦关闭，所有内容将被立即永久物理清空。",
+    "warningRelease": "该房间名将立即被完全释放，任何人都可以重新创建并使用此房间名。您确定要执行此操作吗？",
+    "verifying": "验证中...",
+    "nextStep": "下一步",
+    "closingRoom": "正在关闭房间...",
+    "confirmPhysicalClose": "确定物理关闭",
+    "successTitle": "房间已成功关闭并清理",
+    "successDescription": "房间 {roomName} 的数据已彻底清除，原房名已立即释放。",
+    "failTitle": "关闭房间失败",
+    "failDescription": "无法删除房间，请稍后重试",
+    "enterPassword": "请输入密码",
+    "verifyFailed": "密码验证失败，密码错误或无法连接服务器",
+    "cancel": "取消"
+  },
+  "config": {
+    "title": "房间配置",
+    "adminOnly": "只有房间管理员（拥有删除权限）可以修改房间配置",
+    "adminSaveOnly": "只有房间管理员可以保存配置",
+    "expiry": {
+      "label": "过期时间",
+      "placeholder": "选择过期时间",
+      "options": {
+        "oneMinute": "1 分钟",
+        "tenMinutes": "10 分钟",
+        "oneHour": "1 小时",
+        "twelveHours": "12 小时",
+        "oneDay": "1 天",
+        "oneWeek": "1 周"
+      }
+    },
+    "password": {
+      "label": "房间密码",
+      "placeholder": "设置房间密码"
+    },
+    "maxViews": {
+      "label": "最大查看次数"
+    },
+    "permissions": {
+      "title": "房间权限",
+      "hint": "提示：编辑、分享需要预览权限；删除需要预览和编辑权限",
+      "labels": {
+        "read": "预览",
+        "edit": "编辑",
+        "share": "分享",
+        "delete": "删除"
+      },
+      "descriptions": {
+        "read": "查看房间内容",
+        "edit": "上传和修改内容",
+        "share": "公开分享房间",
+        "delete": "删除房间内容"
+      }
+    },
+    "save": {
+      "saving": "保存中...",
+      "saveConfig": "保存配置",
+      "successTitle": "配置已保存",
+      "successDescription": "房间配置已成功更新",
+      "failTitle": "保存失败",
+      "failDescription": "无法保存房间配置，请重试"
+    },
+    "cancel": "取消",
+    "linkCopied": "已复制新链接",
+    "copyFailTitle": "复制失败",
+    "copyFailDescription": "无法复制链接，请手动复制。"
+  },
+  "settings": {
+    "title": "房间设置",
+    "adminOnly": "只有房间管理员（拥有删除权限）可以修改房间设置",
+    "expiry": {
+      "label": "过期时间",
+      "placeholder": "选择过期时间",
+      "options": {
+        "oneMinute": "1 分钟",
+        "tenMinutes": "10 分钟",
+        "oneHour": "1 小时",
+        "twelveHours": "12 小时",
+        "oneDay": "1 天",
+        "oneWeek": "1 周"
+      }
+    },
+    "password": {
+      "label": "房间密码",
+      "placeholder": "设置房间密码"
+    },
+    "maxViews": {
+      "label": "最大查看次数"
+    },
+    "save": {
+      "saving": "保存中...",
+      "saveSettings": "保存设置",
+      "successTitle": "设置已保存",
+      "successDescription": "房间设置已成功更新",
+      "failTitle": "保存失败",
+      "failDescription": "无法保存房间设置，请重试",
+      "authFail": "认证失败，请刷新页面重新登录"
+    },
+    "warningTitle": "警告",
+    "jwtRefreshFail": "密码已更新，但 JWT 刷新失败。请刷新页面重新登录。"
+  },
+  "passwordDialog": {
+    "title": "房间已加密",
+    "description": "房间 {roomName} 需要密码才能访问",
+    "passwordLabel": "密码",
+    "passwordPlaceholder": "请输入房间密码",
+    "enterPassword": "请输入密码",
+    "verifyFailed": "密码验证失败",
+    "cancel": "取消",
+    "verifying": "验证中...",
+    "enterRoom": "进入房间"
+  },
+  "sharing": {
+    "title": "分享房间",
+    "generatingQr": "正在生成二维码...",
+    "copied": "已复制",
+    "getLink": "获取链接",
+    "download": "下载"
+  },
+  "capacity": {
+    "title": "容量使用",
+    "usage": "{currentSize} MB / {maxSize} MB ({percentage}%)"
+  },
+  "permissions": {
+    "title": "房间权限",
+    "hint": "提示：编辑、分享需要预览权限；删除需要预览和编辑权限",
+    "adminOnly": "只有房间管理员可以修改权限",
+    "labels": {
+      "read": "预览",
+      "edit": "编辑",
+      "share": "分享",
+      "delete": "删除"
+    },
+    "descriptions": {
+      "read": "查看房间内容",
+      "edit": "上传和修改内容",
+      "share": "公开分享房间",
+      "delete": "删除房间内容"
+    },
+    "save": {
+      "saving": "保存中...",
+      "savePermissions": "保存权限",
+      "successTitle": "权限已更新",
+      "successDescription": "房间权限已成功更新",
+      "failTitle": "更新失败",
+      "failDescription": "无法更新房间权限，请重试"
+    },
+    "cancel": "取消",
+    "needRelogin": "需要重新登录",
+    "downgradeNotice": "权限已降级，请重新输入密码登录"
+  },
+  "chat": {
+    "messageSent": "消息已发送",
+    "messageUpdated": "消息已更新",
+    "messageUpdatedDescription": "您的消息已成功更新",
+    "messageDeleted": "消息已删除",
+    "loadFailed": "无法加载消息，请刷新重试",
+    "sendFailed": "无法发送消息，请重试",
+    "updateFailed": "无法更新消息，请重试",
+    "deleteFailed": "无法删除消息，请重试",
+    "deleteConfirmTitle": "你确定要删除这条消息吗？",
+    "deleteConfirmDescription": "这个操作将会被记录，直到你点击保存按钮。",
+    "confirmAndDisable": "确认/并不再提示",
+    "confirm": "确认",
+    "cancel": "取消"
+  },
+  "messageBubble": {
+    "anonymous": "匿名",
+    "copied": "已复制",
+    "copiedDescription": "消息内容已复制到剪贴板",
+    "editing": "正在编辑",
+    "unsaved": "未保存",
+    "edited": "已编辑",
+    "revertDelete": "撤销删除",
+    "revertEdit": "撤销编辑",
+    "edit": "编辑",
+    "copy": "复制",
+    "delete": "删除",
+    "messageNumber": "消息 #{number}",
+    "userLabel": "用户:",
+    "timeLabel": "时间:"
+  },
+  "messageInput": {
+    "editingBanner": "正在编辑消息",
+    "placeholderSendOnEnter": "输入消息... (Enter 发送, Shift+Enter 换行)",
+    "placeholderSendOnCtrl": "输入消息... (Ctrl/Cmd+Enter 发送)",
+    "placeholderDefault": "输入消息...",
+    "expandEditor": "展开编辑器",
+    "send": "发送",
+    "cancel": "取消",
+    "markdownEditor": "Markdown 编辑器",
+    "toolbarBold": "粗体 (Ctrl+B)",
+    "toolbarItalic": "斜体 (Ctrl+I)",
+    "toolbarStrike": "删除线",
+    "toolbarCode": "行内代码",
+    "toolbarH1": "标题 1",
+    "toolbarH2": "标题 2",
+    "toolbarH3": "标题 3",
+    "toolbarBulletList": "无序列表",
+    "toolbarOrderedList": "有序列表",
+    "toolbarBlockquote": "引用",
+    "toolbarUndo": "撤销 (Ctrl+Z)",
+    "toolbarRedo": "重做 (Ctrl+Shift+Z)",
+    "toolbarUpload": "上传文件",
+    "toolbarSourceMode": "切换到源码模式",
+    "toolbarPreviewMode": "切换回预览模式",
+    "uploadSuccess": "上传成功",
+    "uploadFailed": "上传失败",
+    "uploadFailedDescription": "文件上传失败，请重试"
+  },
+  "messageList": {
+    "loading": "加载消息中...",
+    "selectedCount": "已选择 {count} 条消息",
+    "totalCount": "共 {count} 条消息",
+    "selectAll": "全选",
+    "deselectAll": "取消全选",
+    "invertSelection": "反选",
+    "empty": "暂无消息，开始对话吧",
+    "scrollToLatest": "回到底部"
+  },
+  "fileManager": {
+    "title": "文件管理",
+    "addLink": "添加链接",
+    "uploadFile": "上传文件",
+    "selectedCount": "已选择 {count} 个文件",
+    "totalCount": "共 {count} 个文件",
+    "selectAll": "全选",
+    "deselectAll": "取消全选",
+    "invertSelection": "反选",
+    "loading": "加载中...",
+    "downloadSelected": "下载选中文件"
+  },
+  "fileCard": {
+    "deleteFile": "删除文件"
+  },
+  "fileUploadZone": {
+    "uploading": "上传中...",
+    "dropToUpload": "释放以上传文件",
+    "dragOrClick": "拖拽文件到此处或点击上传"
+  },
+  "fileListView": {
+    "empty": "暂无文件"
+  },
+  "filePreview": {
+    "autoDetect": "自动检测",
+    "plainText": "纯文本",
+    "copied": "已复制",
+    "copiedDescription": "内容已复制到剪贴板",
+    "copyFailed": "复制失败",
+    "copyFailedDescription": "无法复制内容",
+    "viewCode": "查看代码",
+    "previewRender": "预览渲染",
+    "switchTheme": "切换主题",
+    "copyContent": "复制内容",
+    "unsupportedType": "无法预览此文件类型",
+    "downloadToView": "请下载文件以查看内容",
+    "emptyContent": "文件内容为空"
+  },
+  "urlUpload": {
+    "manualInput": "手动输入",
+    "invalidUrl": "请输入有效的 URL",
+    "urlRequired": "URL 不能为空",
+    "unnamedLink": "未命名链接",
+    "title": "添加链接",
+    "description": "添加一个外部链接到房间。链接将被保存并可以在文件列表中查看。",
+    "fullLink": "完整链接：{url}",
+    "nameLabel": "显示名称",
+    "nameOptional": "(可选，留空将自动生成)",
+    "namePlaceholder": "我的链接",
+    "descriptionLabel": "描述",
+    "descriptionOptional": "(可选)",
+    "descriptionPlaceholder": "链接的简短描述...",
+    "cancel": "取消",
+    "adding": "添加中...",
+    "addLink": "添加链接"
+  },
+  "filePreviewModal": {
+    "delete": "删除",
+    "download": "下载",
+    "copyLink": "复制链接",
+    "copyMarkdown": "复制 Markdown",
+    "insertToEditor": "插入到编辑器",
+    "exitFullscreen": "退出全屏",
+    "fullscreen": "全屏",
+    "downloadStart": "开始下载",
+    "downloading": "正在下载 {fileName}",
+    "downloadComplete": "下载完成",
+    "downloadCompleteDescription": "{fileName} 已成功下载",
+    "downloadFailed": "下载失败",
+    "downloadFailedDescription": "无法下载文件，请重试",
+    "linkCopied": "链接已复制",
+    "linkCopiedDescription": "文件下载链接已复制到剪贴板",
+    "markdownCopied": "Markdown 已复制",
+    "markdownCopiedDescription": "可直接粘贴到编辑器中",
+    "insertedToEditor": "已插入到编辑器",
+    "insertedToEditorDescription": "已将 Markdown 链接插入到当前光标位置",
+    "fileDeleted": "文件已删除",
+    "fileDeletedDescription": "{fileName} 已从房间中删除",
+    "openedInNewTab": "已在新标签页打开",
+    "imageLoadError": "无法生成图片 URL（缺少 token 或 URL）",
+    "videoNotSupported": "您的浏览器不支持视频播放",
+    "unsupportedType": "无法预览此文件类型",
+    "downloadToView": "请下载文件以查看内容",
+    "loadingPdfViewer": "加载 PDF 查看器..."
+  },
+  "urlViewer": {
+    "iframeWarning": "某些网站可能不允许在 iframe 中显示。如果预览失败，请使用「新标签页打开」",
+    "hidePreview": "隐藏预览",
+    "preview": "预览",
+    "newTab": "新标签页",
+    "collapseDetails": "收起详情",
+    "expandDetails": "展开详情",
+    "previewHint": "点击「预览」按钮查看链接内容",
+    "newTabHint": "或点击「新标签页打开」在浏览器中打开",
+    "iframeLoadError": "无法在预览中加载此链接。该网站可能不允许嵌入显示。",
+    "openInNewTabHint": "请点击「新标签页打开」按钮在浏览器中查看。",
+    "openInNewTab": "新标签页打开"
+  },
+  "toast": {
+    "uploadSuccess": "上传成功",
+    "uploadSuccessDescription": "文件已成功上传到房间",
+    "uploadFailed": "文件上传失败，请重试",
+    "deleteSuccess": "删除成功",
+    "deleteSuccessDescription": "文件已从房间中删除",
+    "deleteFailed": "无法删除文件，请重试",
+    "linkAdded": "链接已添加",
+    "linkAddedDescription": "URL 已成功添加到房间",
+    "linkAddFailed": "添加链接失败，请重试",
+    "downloadStart": "开始下载",
+    "downloadStartDescription": "正在准备下载 {count} 个文件"
+  },
+  "image": {
+    "loadFailed": "图片加载失败",
+    "defaultAlt": "图片",
+    "rotateLeft": "逆时针旋转",
+    "rotateRight": "顺时针旋转",
+    "flipH": "水平翻转",
+    "flipV": "垂直翻转",
+    "zoomIn": "放大",
+    "zoomOut": "缩小",
+    "reset": "重置"
+  },
+  "pdf": {
+    "loadFailed": "无法加载 PDF 文件",
+    "prevPage": "上一页",
+    "nextPage": "下一页",
+    "loading": "加载中...",
+    "zoomIn": "放大",
+    "zoomOut": "缩小"
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "title": "Settings",
+  "description": "Configure application behavior and preferences",
+  "sendOnEnter": {
+    "label": "Send on Enter key",
+    "enabled": "Press Enter to send, Shift+Enter for new line",
+    "disabled": "Press Ctrl/Cmd+Enter to send, Enter for new line"
+  },
+  "includeMetadataInCopy": {
+    "label": "Include message metadata when copying",
+    "description": "Include timestamp and message number when copying messages"
+  },
+  "includeMetadataInDownload": {
+    "label": "Include message metadata when downloading/exporting",
+    "description": "Include timestamp and message number when downloading/exporting messages"
+  },
+  "useHeti": {
+    "label": "Use heti typography",
+    "description": "Use heti typography for more beautiful Chinese text layout"
+  },
+  "showDeleteConfirmation": {
+    "label": "Show delete confirmation",
+    "description": "Show a confirmation dialog when deleting"
+  },
+  "autoScroll": {
+    "label": "Always track latest message",
+    "description": "Auto-scroll to bottom when new messages arrive, like an IM chat"
+  },
+  "editorFontSize": {
+    "label": "Editor Font Size",
+    "description": "Adjust the font size of the Markdown editor (4-64px)"
+  },
+  "toolbarButtonSize": {
+    "label": "Toolbar Button Size",
+    "description": "Adjust the size of editor toolbar buttons (20-36px)"
+  },
+  "messageFontSize": {
+    "label": "Message Font Size",
+    "description": "Adjust the font size of chat messages (4-64px)"
+  }
+}

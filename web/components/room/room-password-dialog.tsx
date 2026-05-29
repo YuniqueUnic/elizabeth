@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useTranslations } from "next-intl";
 
 interface RoomPasswordDialogProps {
   roomName: string;
@@ -28,6 +29,7 @@ export function RoomPasswordDialog({
   onSubmit,
   onCancel,
 }: RoomPasswordDialogProps) {
+  const t = useTranslations("room");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -37,7 +39,7 @@ export function RoomPasswordDialog({
     e.preventDefault();
 
     if (!password.trim()) {
-      setError("请输入密码");
+      setError(t("passwordDialog.enterPassword"));
       return;
     }
 
@@ -46,7 +48,7 @@ export function RoomPasswordDialog({
       setError(null);
       await onSubmit(password);
     } catch (err: any) {
-      setError(err.message || "密码验证失败");
+      setError(err.message || t("passwordDialog.verifyFailed"));
     } finally {
       setLoading(false);
     }
@@ -64,12 +66,9 @@ export function RoomPasswordDialog({
               <Lock className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <DialogTitle>房间已加密</DialogTitle>
+              <DialogTitle>{t("passwordDialog.title")}</DialogTitle>
               <DialogDescription className="mt-1">
-                房间{" "}
-                <span className="font-medium text-foreground">{roomName}</span>
-                {" "}
-                需要密码才能访问
+                {t("passwordDialog.description", { roomName })}
               </DialogDescription>
             </div>
           </div>
@@ -78,7 +77,7 @@ export function RoomPasswordDialog({
         <form onSubmit={handleSubmit}>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="password">密码</Label>
+              <Label htmlFor="password">{t("passwordDialog.passwordLabel")}</Label>
               <div className="relative">
                 <Input
                   id="password"
@@ -88,7 +87,7 @@ export function RoomPasswordDialog({
                     setPassword(e.target.value);
                     setError(null);
                   }}
-                  placeholder="请输入房间密码"
+                  placeholder={t("passwordDialog.passwordPlaceholder")}
                   disabled={loading}
                   autoFocus
                   className="pr-10"
@@ -125,13 +124,13 @@ export function RoomPasswordDialog({
               onClick={onCancel}
               disabled={loading}
             >
-              取消
+              {t("passwordDialog.cancel")}
             </Button>
             <Button
               type="submit"
               disabled={loading || !canSubmit}
             >
-              {loading ? "验证中..." : "进入房间"}
+              {loading ? t("passwordDialog.verifying") : t("passwordDialog.enterRoom")}
             </Button>
           </DialogFooter>
         </form>

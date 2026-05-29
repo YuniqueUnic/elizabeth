@@ -11,6 +11,7 @@ import { encodePermissions, parsePermissions } from "@/lib/types";
 import type { RoomPermission } from "@/lib/types";
 import { useRouter } from "next/navigation";
 import { clearRoomToken } from "@/lib/utils/api";
+import { useTranslations } from "next-intl";
 
 interface RoomPermissionsProps {
   permissions: RoomPermission[];
@@ -23,20 +24,6 @@ const PERMISSIONS = {
   SHARE: 1 << 2, // 0100 - 分享权限
   DELETE: 1 << 3, // 1000 - 删除权限
 } as const;
-
-const permissionLabels: Record<RoomPermission, string> = {
-  read: "预览",
-  edit: "编辑",
-  share: "分享",
-  delete: "删除",
-};
-
-const permissionDescriptions: Record<RoomPermission, string> = {
-  read: "查看房间内容",
-  edit: "上传和修改内容",
-  share: "公开分享房间",
-  delete: "删除房间内容",
-};
 
 // 将 RoomPermission 数组转换为位标志
 function permissionsToFlags(permissions: RoomPermission[]): number {
@@ -81,6 +68,7 @@ function canTogglePermission(
 }
 
 export function RoomPermissions({ permissions }: RoomPermissionsProps) {
+  const t = useTranslations("room");
   const router = useRouter();
   const { currentRoomId } = useAppStore();
   const setRoomRedirectTarget = useAppStore((state) =>
@@ -101,6 +89,20 @@ export function RoomPermissions({ permissions }: RoomPermissionsProps) {
 
   const hasChanges = permissionFlags !== permissionsToFlags(permissions);
 
+  const permissionLabels: Record<RoomPermission, string> = {
+    read: t("permissions.labels.read"),
+    edit: t("permissions.labels.edit"),
+    share: t("permissions.labels.share"),
+    delete: t("permissions.labels.delete"),
+  };
+
+  const permissionDescriptions: Record<RoomPermission, string> = {
+    read: t("permissions.descriptions.read"),
+    edit: t("permissions.descriptions.edit"),
+    share: t("permissions.descriptions.share"),
+    delete: t("permissions.descriptions.delete"),
+  };
+
   const updateMutation = useMutation({
     mutationFn: (newPermissions: RoomPermission[]) =>
       updateRoomPermissions(currentRoomId, newPermissions),
@@ -110,8 +112,8 @@ export function RoomPermissions({ permissions }: RoomPermissionsProps) {
 
       // 权限更新成功，显示提示
       toast({
-        title: "权限已更新",
-        description: "房间权限已成功更新",
+        title: t("permissions.save.successTitle"),
+        description: t("permissions.save.successDescription"),
       });
 
       // 如果 slug 发生变化，需要跳转到新的 URL
@@ -140,8 +142,8 @@ export function RoomPermissions({ permissions }: RoomPermissionsProps) {
           // 延迟跳转，让用户看到成功提示
           setTimeout(() => {
             toast({
-              title: "需要重新登录",
-              description: "权限已降级，请重新输入密码登录",
+              title: t("permissions.needRelogin"),
+              description: t("permissions.downgradeNotice"),
             });
 
             // 刷新页面，触发重新登录流程
@@ -152,8 +154,8 @@ export function RoomPermissions({ permissions }: RoomPermissionsProps) {
     },
     onError: () => {
       toast({
-        title: "更新失败",
-        description: "无法更新房间权限，请重试",
+        title: t("permissions.save.failTitle"),
+        description: t("permissions.save.failDescription"),
         variant: "destructive",
       });
     },
@@ -209,7 +211,7 @@ export function RoomPermissions({ permissions }: RoomPermissionsProps) {
 
   return (
     <div className="space-y-3">
-      <h3 className="text-sm font-semibold">房间权限</h3>
+      <h3 className="text-sm font-semibold">{t("permissions.title")}</h3>
 
       <div className="flex flex-wrap gap-2">
         {allPermissions.map((permission) => {
@@ -251,7 +253,7 @@ export function RoomPermissions({ permissions }: RoomPermissionsProps) {
         })}
       </div>
       <p className="text-xs text-muted-foreground italic">
-        提示：编辑、分享需要预览权限；删除需要预览和编辑权限
+        {t("permissions.hint")}
       </p>
 
       {/* 只有管理员才能修改权限 */}
@@ -263,7 +265,7 @@ export function RoomPermissions({ permissions }: RoomPermissionsProps) {
             className="flex-1"
             size="sm"
           >
-            {updateMutation.isPending ? "保存中..." : "保存权限"}
+            {updateMutation.isPending ? t("permissions.save.saving") : t("permissions.save.savePermissions")}
           </Button>
           {hasChanges && (
             <Button
@@ -272,7 +274,7 @@ export function RoomPermissions({ permissions }: RoomPermissionsProps) {
                 setPermissionFlags(permissionsToFlags(permissions))}
               size="sm"
             >
-              取消
+              {t("permissions.cancel")}
             </Button>
           )}
         </div>
@@ -280,7 +282,7 @@ export function RoomPermissions({ permissions }: RoomPermissionsProps) {
 
       {!can.delete && (
         <p className="text-xs text-muted-foreground">
-          只有房间管理员可以修改权限
+          {t("permissions.adminOnly")}
         </p>
       )}
     </div>

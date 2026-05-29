@@ -11,6 +11,7 @@ import { useAppStore } from "@/lib/store";
 import { MinimalTiptapViewer } from "./minimal-tiptap-viewer";
 import { Badge } from "@/components/ui/badge";
 import { useRoomPermissions } from "@/hooks/use-room-permissions";
+import { useTranslations } from "next-intl";
 
 
 interface MessageBubbleProps {
@@ -34,6 +35,8 @@ export function MessageBubble(
     isEditing = false,
   }: MessageBubbleProps,
 ) {
+  const t = useTranslations("room");
+  const tCommon = useTranslations("common");
   const [isHovered, setIsHovered] = useState(false);
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
@@ -54,9 +57,7 @@ export function MessageBubble(
     let textToCopy: string;
 
     if (includeMetadataInCopy) {
-      textToCopy = `### 消息 #${messageNumber}\n**用户:** ${
-        message.user || "匿名"
-      }\n**时间:** ${formatDate(message.timestamp)}\n\n${message.content}`;
+      textToCopy = `### ${tCommon("messageHeader", { number: messageNumber })}\n**${tCommon("messageUser", { user: message.user || tCommon("messageAnonymous") })}**\n**${tCommon("messageTime", { time: formatDate(message.timestamp) })}**\n\n${message.content}`;
     } else {
       textToCopy = message.content;
     }
@@ -65,8 +66,8 @@ export function MessageBubble(
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
     toast({
-      title: "已复制",
-      description: "消息内容已复制到剪贴板",
+      title: t("messageBubble.copied"),
+      description: t("messageBubble.copiedDescription"),
     });
   };
 
@@ -113,6 +114,7 @@ export function MessageBubble(
         <MinimalTiptapViewer
           content={message.content}
           className={useHeti ? "heti" : ""}
+          onFileClick={(fileId) => useAppStore.getState().setPreviewFileId(fileId)}
         />
       </div>
 
@@ -124,7 +126,7 @@ export function MessageBubble(
         data-testid={`message-meta-${message.id}`}
       >
         <span>
-          #{messageNumber} · {message.user || "匿名"}
+          #{messageNumber} · {message.user || t("messageBubble.anonymous")}
         </span>
         <span title={new Date(message.timestamp).toLocaleString("zh-CN")}>
           {formatDate(message.timestamp)}
@@ -140,7 +142,7 @@ export function MessageBubble(
               className="text-xs bg-blue-500"
               data-testid={`message-editing-badge-${message.id}`}
             >
-              正在编辑
+              {t("messageBubble.editing")}
             </Badge>
           )}
           {message.isNew && !isEditing && (
@@ -149,7 +151,7 @@ export function MessageBubble(
               className="text-xs"
               data-testid={`message-unsaved-badge-${message.id}`}
             >
-              未保存
+              {t("messageBubble.unsaved")}
             </Badge>
           )}
           {message.isDirty && !isEditing && (
@@ -158,7 +160,7 @@ export function MessageBubble(
               className="text-xs"
               data-testid={`message-edited-badge-${message.id}`}
             >
-              已编辑
+              {t("messageBubble.edited")}
             </Badge>
           )}
         </div>
@@ -173,7 +175,7 @@ export function MessageBubble(
                 variant="ghost"
                 size="icon"
                 className="h-6 w-6"
-                title="撤销删除"
+                title={t("messageBubble.revertDelete")}
                 onClick={() => onRevert(message.id)}
                 disabled={!can.delete}
               >
@@ -187,7 +189,7 @@ export function MessageBubble(
                     variant="ghost"
                     size="icon"
                     className="h-6 w-6"
-                    title="撤销编辑"
+                    title={t("messageBubble.revertEdit")}
                     onClick={() => onRevert(message.id)}
                     disabled={!can.edit}
                   >
@@ -204,7 +206,7 @@ export function MessageBubble(
                   size="icon"
                   className="h-7 w-7"
                   onClick={() => onEdit(message)}
-                  title="编辑"
+                  title={t("messageBubble.edit")}
                   disabled={!can.edit}
                 >
                   <Edit2 className="h-3 w-3" />
@@ -214,7 +216,7 @@ export function MessageBubble(
                   size="icon"
                   className="h-7 w-7"
                   onClick={handleCopy}
-                  title={copied ? "已复制" : "复制"}
+                  title={copied ? t("messageBubble.copied") : t("messageBubble.copy")}
                 >
                   <Copy className="h-3 w-3" />
                 </Button>
@@ -223,7 +225,7 @@ export function MessageBubble(
                   size="icon"
                   className="h-7 w-7 text-destructive hover:text-destructive"
                   onClick={handleDelete}
-                  title="删除"
+                  title={t("messageBubble.delete")}
                   disabled={!can.delete}
                 >
                   <Trash2 className="h-3 w-3" />

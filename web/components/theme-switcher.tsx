@@ -3,9 +3,11 @@
 import { Button } from "@/components/ui/button";
 import { Monitor, Moon, Sun } from "lucide-react";
 import { useTheme } from "@/lib/hooks/use-theme";
+import { useTranslations } from "next-intl";
 
 export function ThemeSwitcher() {
   const { theme, cycleTheme } = useTheme();
+  const t = useTranslations("common");
 
   const getIcon = () => {
     switch (theme) {
@@ -21,11 +23,11 @@ export function ThemeSwitcher() {
   const getTitle = () => {
     switch (theme) {
       case "dark":
-        return "暗色主题";
+        return t("themeDark");
       case "light":
-        return "亮色主题";
+        return t("themeLight");
       case "system":
-        return "跟随系统";
+        return t("themeSystem");
     }
   };
 

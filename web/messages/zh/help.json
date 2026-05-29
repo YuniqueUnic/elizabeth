@@ -1,0 +1,100 @@
+{
+  "title": "帮助文档",
+  "description": "Elizabeth 使用指南和功能说明",
+  "sections": {
+    "toolbar": {
+      "title": "顶部工具栏",
+      "copyButton": {
+        "title": "复制按钮",
+        "description": "复制选中的消息到剪贴板。可以在设置中配置是否包含元信息（时间戳和消息编号）。"
+      },
+      "downloadButton": {
+        "title": "下载按钮",
+        "description": "将选中的消息导出为 Markdown 文件下载到本地。可以在设置中配置是否包含元信息。"
+      },
+      "saveButton": {
+        "title": "保存按钮",
+        "description": "保存所有未保存的更改到服务器。当有未保存的消息（新建、编辑或删除）时，按钮会高亮显示。"
+      },
+      "deleteButton": {
+        "title": "删除按钮",
+        "description": "标记选中的消息为待删除状态。需要点击保存按钮后才会真正删除。可以在设置中配置是否显示删除确认对话框。"
+      },
+      "helpButton": {
+        "title": "帮助按钮",
+        "description": "打开帮助文档（当前页面）。"
+      },
+      "settingsButton": {
+        "title": "设置按钮",
+        "description": "打开系统设置对话框，配置应用程序的行为和偏好设置。"
+      }
+    },
+    "roomSettings": {
+      "title": "房间设置",
+      "expiry": {
+        "title": "过期时间",
+        "description": "设置房间的过期时间。过期后房间内容会被清空并重置。可以选择：1 分钟、10 分钟、1 小时、12 小时、1 天、1 周或永不过期。"
+      },
+      "password": {
+        "title": "房间密码",
+        "description": "为房间设置密码保护。启用后，访问房间时需要输入密码。"
+      },
+      "maxViews": {
+        "title": "最大查看次数",
+        "description": "设置房间的最大访问次数。达到次数后，房间内容会被清空并重置。"
+      },
+      "permissions": {
+        "title": "房间权限",
+        "description": "设置当前用户对房间的权限：",
+        "items": {
+          "preview": {
+            "label": "预览",
+            "description": "查看房间内容"
+          },
+          "edit": {
+            "label": "编辑",
+            "description": "上传和修改内容（需要预览权限）"
+          },
+          "share": {
+            "label": "分享",
+            "description": "公开分享房间（需要预览权限）"
+          },
+          "delete": {
+            "label": "删除",
+            "description": "删除房间内容（需要预览和编辑权限）"
+          }
+        }
+      }
+    },
+    "roomSharing": {
+      "title": "房间分享",
+      "shareLink": {
+        "title": "分享链接",
+        "description": "当房间有分享权限时，可以通过房间名称直接访问（例如：http://domain.com/room_name）。如果没有分享权限，会生成一个包含 UUID 的唯一链接（例如：http://domain.com/room_name_uuid）。"
+      },
+      "qrcode": {
+        "title": "二维码",
+        "description": "点击“获取链接”按钮可以查看房间的分享链接和二维码。可以下载二维码图片或复制链接分享给其他人。"
+      }
+    },
+    "messageOperations": {
+      "title": "消息操作",
+      "editMessage": {
+        "title": "编辑消息",
+        "description": "点击消息气泡上的编辑按钮可以编辑消息。编辑时，消息会显示“正在编辑”标识，编辑器顶部会显示编辑提示。编辑完成后点击发送按钮，消息会标记为“已编辑”状态，需要点击保存按钮保存到服务器。"
+      },
+      "copyMessage": {
+        "title": "复制消息",
+        "description": "点击消息气泡上的复制按钮可以复制单条消息。复制内容会根据设置中的“复制时包含元信息”配置决定是否包含时间戳和消息编号。"
+      },
+      "deleteMessage": {
+        "title": "删除消息",
+        "description": "点击消息气泡上的删除按钮可以标记消息为待删除状态。删除的消息会显示删除线效果。需要点击顶部工具栏的保存按钮后才会真正删除。点击撤销按钮可以取消删除。"
+      },
+      "saveChanges": {
+        "title": "保存更改",
+        "description": "所有的消息操作（新建、编辑、删除）都需要点击顶部工具栏的保存按钮才会保存到服务器。有未保存的更改时，保存按钮会高亮显示。"
+      }
+    }
+  }
+}

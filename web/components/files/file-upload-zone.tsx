@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 interface FileUploadZoneProps {
   onUpload: (files: File[]) => void;
@@ -11,6 +12,7 @@ interface FileUploadZoneProps {
 }
 
 export function FileUploadZone({ onUpload, isUploading }: FileUploadZoneProps) {
+  const t = useTranslations("room");
   const onDrop = useCallback(
     (acceptedFiles: File[]) => {
       if (!isUploading) {
@@ -40,10 +42,10 @@ export function FileUploadZone({ onUpload, isUploading }: FileUploadZoneProps) {
       <Upload className="mb-2 h-8 w-8 text-muted-foreground" />
       <p className="text-center text-sm text-muted-foreground">
         {isUploading
-          ? "上传中..."
+          ? t("fileUploadZone.uploading")
           : isDragActive
-          ? "释放以上传文件"
-          : "拖拽文件到此处或点击上传"}
+          ? t("fileUploadZone.dropToUpload")
+          : t("fileUploadZone.dragOrClick")}
       </p>
     </div>
   );

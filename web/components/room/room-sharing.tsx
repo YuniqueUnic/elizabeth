@@ -8,12 +8,14 @@ import { useEffect, useState } from "react";
 import { useTheme } from "@/lib/hooks/use-theme";
 import Zoom from "react-medium-image-zoom";
 import "react-medium-image-zoom/dist/styles.css";
+import { useTranslations } from "next-intl";
 
 interface RoomSharingProps {
   roomId: string;
 }
 
 export function RoomSharing({ roomId }: RoomSharingProps) {
+  const t = useTranslations("room");
   const [copied, setCopied] = useState(false);
   const { theme } = useTheme();
   const [currentTheme, setCurrentTheme] = useState<"light" | "dark">("light");
@@ -55,7 +57,7 @@ export function RoomSharing({ roomId }: RoomSharingProps) {
 
   return (
     <div className="space-y-3">
-      <h3 className="text-sm font-semibold">分享房间</h3>
+      <h3 className="text-sm font-semibold">{t("sharing.title")}</h3>
 
       {/* QR Code */}
       {qrCodeUrl
@@ -77,7 +79,7 @@ export function RoomSharing({ roomId }: RoomSharingProps) {
         )
         : (
           <div className="flex justify-center rounded-lg border border-border bg-muted p-4">
-            <p className="text-sm text-muted-foreground">正在生成二维码...</p>
+            <p className="text-sm text-muted-foreground">{t("sharing.generatingQr")}</p>
           </div>
         )}
 
@@ -89,7 +91,7 @@ export function RoomSharing({ roomId }: RoomSharingProps) {
           onClick={handleCopyLink}
         >
           <LinkIcon className="mr-2 h-4 w-4" />
-          {copied ? "已复制" : "获取链接"}
+          {copied ? t("sharing.copied") : t("sharing.getLink")}
         </Button>
         <Button
           variant="outline"
@@ -97,7 +99,7 @@ export function RoomSharing({ roomId }: RoomSharingProps) {
           onClick={handleDownloadQR}
         >
           <Download className="mr-2 h-4 w-4" />
-          下载
+          {t("sharing.download")}
         </Button>
       </div>
 

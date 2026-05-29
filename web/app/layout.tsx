@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./shiki.css";
 import { Providers } from "@/components/providers";
+import { I18nProvider } from "@/i18n/provider";
 import { Toaster } from "@/components/ui/toaster";
 import { FontSizeManager } from "@/components/font-size-manager";
 
@@ -24,11 +25,13 @@ export default function RootLayout({
         <link rel="stylesheet" href="https://unpkg.com/heti/umd/heti.min.css" />
       </head>
       <body className="font-sans antialiased">
-        <Providers>
-          <FontSizeManager />
-          {children}
-          <Toaster />
-        </Providers>
+        <I18nProvider>
+          <Providers>
+            <FontSizeManager />
+            {children}
+            <Toaster />
+          </Providers>
+        </I18nProvider>
       </body>
     </html>
   );

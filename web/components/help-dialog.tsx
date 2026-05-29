@@ -27,6 +27,7 @@ import {
     Share2,
     Trash2,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 interface HelpSectionProps {
     title: string;
@@ -65,101 +66,95 @@ const HelpItem: React.FC<HelpItemProps> = ({ title, icon: Icon, children }) => (
 );
 
 export function HelpDialog({ children }: { children: React.ReactNode }) {
+    const t = useTranslations("help");
+
     return (
         <Dialog>
             <DialogTrigger asChild>{children}</DialogTrigger>
             <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
                 <DialogHeader className="shrink-0">
-                    <DialogTitle>帮助文档</DialogTitle>
+                    <DialogTitle>{t("title")}</DialogTitle>
                     <DialogDescription>
-                        Elizabeth 使用指南和功能说明
+                        {t("description")}
                     </DialogDescription>
                 </DialogHeader>
 
                 <ScrollArea className="flex-1 pr-4 -mr-4 overflow-y-auto">
                     <div className="space-y-8 py-4 pr-4">
-                        <HelpSection title="顶部工具栏" icon={Settings}>
-                            <HelpItem title="复制按钮" icon={Copy}>
-                                复制选中的消息到剪贴板。可以在设置中配置是否包含元信息（时间戳和消息编号）。
+                        <HelpSection title={t("sections.toolbar.title")} icon={Settings}>
+                            <HelpItem title={t("sections.toolbar.copyButton.title")} icon={Copy}>
+                                {t("sections.toolbar.copyButton.description")}
                             </HelpItem>
-                            <HelpItem title="下载按钮" icon={Download}>
-                                将选中的消息导出为 Markdown
-                                文件下载到本地。可以在设置中配置是否包含元信息。
+                            <HelpItem title={t("sections.toolbar.downloadButton.title")} icon={Download}>
+                                {t("sections.toolbar.downloadButton.description")}
                             </HelpItem>
-                            <HelpItem title="保存按钮" icon={Save}>
-                                保存所有未保存的更改到服务器。当有未保存的消息（新建、编辑或删除）时，按钮会高亮显示。
+                            <HelpItem title={t("sections.toolbar.saveButton.title")} icon={Save}>
+                                {t("sections.toolbar.saveButton.description")}
                             </HelpItem>
-                            <HelpItem title="删除按钮" icon={Trash2}>
-                                标记选中的消息为待删除状态。需要点击保存按钮后才会真正删除。可以在设置中配置是否显示删除确认对话框。
+                            <HelpItem title={t("sections.toolbar.deleteButton.title")} icon={Trash2}>
+                                {t("sections.toolbar.deleteButton.description")}
                             </HelpItem>
-                            <HelpItem title="帮助按钮" icon={HelpCircle}>
-                                打开帮助文档（当前页面）。
+                            <HelpItem title={t("sections.toolbar.helpButton.title")} icon={HelpCircle}>
+                                {t("sections.toolbar.helpButton.description")}
                             </HelpItem>
-                            <HelpItem title="设置按钮" icon={Settings}>
-                                打开系统设置对话框，配置应用程序的行为和偏好设置。
+                            <HelpItem title={t("sections.toolbar.settingsButton.title")} icon={Settings}>
+                                {t("sections.toolbar.settingsButton.description")}
                             </HelpItem>
                         </HelpSection>
 
-                        <HelpSection title="房间设置" icon={Settings}>
-                            <HelpItem title="过期时间" icon={Clock}>
-                                设置房间的过期时间。过期后房间内容会被清空并重置。可以选择：1
-                                分钟、10 分钟、1 小时、12 小时、1 天、1
-                                周或永不过期。
+                        <HelpSection title={t("sections.roomSettings.title")} icon={Settings}>
+                            <HelpItem title={t("sections.roomSettings.expiry.title")} icon={Clock}>
+                                {t("sections.roomSettings.expiry.description")}
                             </HelpItem>
-                            <HelpItem title="房间密码" icon={Lock}>
-                                为房间设置密码保护。启用后，访问房间时需要输入密码。
+                            <HelpItem title={t("sections.roomSettings.password.title")} icon={Lock}>
+                                {t("sections.roomSettings.password.description")}
                             </HelpItem>
-                            <HelpItem title="最大查看次数" icon={Eye}>
-                                设置房间的最大访问次数。达到次数后，房间内容会被清空并重置。
+                            <HelpItem title={t("sections.roomSettings.maxViews.title")} icon={Eye}>
+                                {t("sections.roomSettings.maxViews.description")}
                             </HelpItem>
-                            <HelpItem title="房间权限" icon={KeyRound}>
-                                设置当前用户对房间的权限：
+                            <HelpItem title={t("sections.roomSettings.permissions.title")} icon={KeyRound}>
+                                {t("sections.roomSettings.permissions.description")}
                                 <ul className="list-disc list-inside mt-2 space-y-1">
                                     <li>
-                                        <strong>预览</strong>：查看房间内容
+                                        <strong>{t("sections.roomSettings.permissions.items.preview.label")}</strong>：{t("sections.roomSettings.permissions.items.preview.description")}
                                     </li>
                                     <li>
-                                        <strong>编辑</strong>
-                                        ：上传和修改内容（需要预览权限）
+                                        <strong>{t("sections.roomSettings.permissions.items.edit.label")}</strong>
+                                        ：{t("sections.roomSettings.permissions.items.edit.description")}
                                     </li>
                                     <li>
-                                        <strong>分享</strong>
-                                        ：公开分享房间（需要预览权限）
+                                        <strong>{t("sections.roomSettings.permissions.items.share.label")}</strong>
+                                        ：{t("sections.roomSettings.permissions.items.share.description")}
                                     </li>
                                     <li>
-                                        <strong>删除</strong>
-                                        ：删除房间内容（需要预览和编辑权限）
+                                        <strong>{t("sections.roomSettings.permissions.items.delete.label")}</strong>
+                                        ：{t("sections.roomSettings.permissions.items.delete.description")}
                                     </li>
                                 </ul>
                             </HelpItem>
                         </HelpSection>
 
-                        <HelpSection title="房间分享" icon={Share2}>
-                            <HelpItem title="分享链接" icon={Share2}>
-                                当房间有分享权限时，可以通过房间名称直接访问（例如：http://domain.com/room_name）。
-                                如果没有分享权限，会生成一个包含 UUID
-                                的唯一链接（例如：http://domain.com/room_name_uuid）。
+                        <HelpSection title={t("sections.roomSharing.title")} icon={Share2}>
+                            <HelpItem title={t("sections.roomSharing.shareLink.title")} icon={Share2}>
+                                {t("sections.roomSharing.shareLink.description")}
                             </HelpItem>
-                            <HelpItem title="二维码" icon={QrCode}>
-                                点击“获取链接”按钮可以查看房间的分享链接和二维码。可以下载二维码图片或复制链接分享给其他人。
+                            <HelpItem title={t("sections.roomSharing.qrcode.title")} icon={QrCode}>
+                                {t("sections.roomSharing.qrcode.description")}
                             </HelpItem>
                         </HelpSection>
 
-                        <HelpSection title="消息操作" icon={BookCopy}>
-                            <HelpItem title="编辑消息" icon={Pencil}>
-                                点击消息气泡上的编辑按钮可以编辑消息。编辑时，消息会显示“正在编辑”标识，编辑器顶部会显示编辑提示。
-                                编辑完成后点击发送按钮，消息会标记为“已编辑”状态，需要点击保存按钮保存到服务器。
+                        <HelpSection title={t("sections.messageOperations.title")} icon={BookCopy}>
+                            <HelpItem title={t("sections.messageOperations.editMessage.title")} icon={Pencil}>
+                                {t("sections.messageOperations.editMessage.description")}
                             </HelpItem>
-                            <HelpItem title="复制消息" icon={Copy}>
-                                点击消息气泡上的复制按钮可以复制单条消息。复制内容会根据设置中的“复制时包含元信息”配置决定是否包含时间戳和消息编号。
+                            <HelpItem title={t("sections.messageOperations.copyMessage.title")} icon={Copy}>
+                                {t("sections.messageOperations.copyMessage.description")}
                             </HelpItem>
-                            <HelpItem title="删除消息" icon={Trash2}>
-                                点击消息气泡上的删除按钮可以标记消息为待删除状态。删除的消息会显示删除线效果。
-                                需要点击顶部工具栏的保存按钮后才会真正删除。点击撤销按钮可以取消删除。
+                            <HelpItem title={t("sections.messageOperations.deleteMessage.title")} icon={Trash2}>
+                                {t("sections.messageOperations.deleteMessage.description")}
                             </HelpItem>
-                            <HelpItem title="保存更改" icon={Save}>
-                                所有的消息操作（新建、编辑、删除）都需要点击顶部工具栏的保存按钮才会保存到服务器。
-                                有未保存的更改时，保存按钮会高亮显示。
+                            <HelpItem title={t("sections.messageOperations.saveChanges.title")} icon={Save}>
+                                {t("sections.messageOperations.saveChanges.description")}
                             </HelpItem>
                         </HelpSection>
                     </div>

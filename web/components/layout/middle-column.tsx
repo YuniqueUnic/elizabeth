@@ -11,6 +11,7 @@ import {
 } from "@/api/messageService";
 import { useAppStore } from "@/lib/store";
 import { useCallback, useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import type { LocalMessage, Message } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { Group, Panel, Separator } from "react-resizable-panels";
@@ -32,6 +33,7 @@ import {
 } from "@/lib/utils/mutations";
 
 export function MiddleColumn() {
+  const t = useTranslations("room");
   const currentRoomId = useAppStore((state) => state.currentRoomId);
   const messages = useAppStore((state) => state.messages);
   const setMessages = useAppStore((state) => state.setMessages);
@@ -75,7 +77,7 @@ export function MiddleColumn() {
         setMessages(fetchedMessages);
       } catch (error) {
         handleMutationError(error, toast, {
-          description: "无法加载消息，请刷新重试",
+          description: t("chat.loadFailed"),
         });
       } finally {
         setIsLoading(false);
@@ -120,7 +122,7 @@ export function MiddleColumn() {
         );
       }
       handleMutationError(error, toast, {
-        description: "无法发送消息，请重试",
+        description: t("chat.sendFailed"),
       });
     },
     onSuccess: (newMessage, content, context) => {
@@ -134,7 +136,7 @@ export function MiddleColumn() {
       );
 
       handleMutationSuccess(toast, {
-        title: "消息已发送",
+        title: t("chat.messageSent"),
       });
     },
     onSettled: () => {
@@ -154,13 +156,13 @@ export function MiddleColumn() {
       queryClient.invalidateQueries({ queryKey: ["messages", currentRoomId] });
       cancelEditMessage();
       toast({
-        title: "消息已更新",
-        description: "您的消息已成功更新",
+        title: t("chat.messageUpdated"),
+        description: t("chat.messageUpdatedDescription"),
       });
     },
     onError: () => {
       handleMutationError(null, toast, {
-        description: "无法更新消息，请重试",
+        description: t("chat.updateFailed"),
       });
     },
   });
@@ -169,11 +171,11 @@ export function MiddleColumn() {
     mutationFn: (messageId: string) => deleteMessage(currentRoomId, messageId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["messages", currentRoomId] });
-      handleMutationSuccess(toast, { title: "消息已删除" });
+      handleMutationSuccess(toast, { title: t("chat.messageDeleted") });
     },
     onError: (error) => {
       handleMutationError(error, toast, {
-        description: "无法删除消息，请重试",
+        description: t("chat.deleteFailed"),
       });
     },
   });
@@ -253,9 +255,9 @@ export function MiddleColumn() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>你确定要删除这条消息吗？</AlertDialogTitle>
+            <AlertDialogTitle>{t("chat.deleteConfirmTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              这个操作将会被记录，直到你点击保存按钮。
+              {t("chat.deleteConfirmDescription")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -270,10 +272,10 @@ export function MiddleColumn() {
                   setDeleteCandidateId(null);
                 }}
               >
-                确认/并不再提示
+                {t("chat.confirmAndDisable")}
               </Button>
               <div className="flex gap-2">
-                <AlertDialogCancel>取消</AlertDialogCancel>
+                <AlertDialogCancel>{t("chat.cancel")}</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={() => {
                     if (deleteCandidateId) {
@@ -281,7 +283,7 @@ export function MiddleColumn() {
                     }
                   }}
                 >
-                  确认
+                  {t("chat.confirm")}
                 </AlertDialogAction>
               </div>
             </div>

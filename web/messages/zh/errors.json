@@ -1,0 +1,21 @@
+{
+  "enterRoomName": "请输入房间名称",
+  "roomNameLength3to50": "房间名称长度必须在 3 到 50 个字符之间",
+  "roomNameLength3to150": "房间名称长度必须在 3 到 150 个字符之间",
+  "roomNameFormat": "房间名称只能包含字母、数字、下划线和连字符，且不能以连字符或下划线开头或结尾",
+  "passwordsDoNotMatch": "两次输入的密码不一致",
+  "enterPasswordFirst": "请先输入密码",
+  "roomNameAlreadyExists": "房间名称已存在，请使用其他名称",
+  "createRoomFailed": "创建房间失败，请重试",
+  "backendRoomNameLength3to50": "房间名称长度必须在 3-50 个字符之间。",
+  "backendRoomNameFormat": "房间名称只能包含字母、数字、下划线和连字符，且不能以连字符或下划线开头或结尾。",
+  "backendRoomPasswordLength4to100": "房间密码长度必须在 4-100 个字符之间。",
+  "requestParameterError": "请求参数错误，请检查输入。",
+  "roomInaccessibleViaLink": "房间无法通过该链接进入：可能已过期、达到最大进入次数，或已切换为私密地址（请使用新的分享链接）。",
+  "roomNotFoundAutoCreateFailed": "房间不存在，且自动创建失败。请稍后重试。",
+  "cannotAccessRoom": "无法访问房间，请稍后重试（请检查后端服务是否可用以及前端 API 代理配置）。",
+  "wrongPassword": "密码错误",
+  "passwordVerificationRetry": "无法验证密码，请稍后重试",
+  "enterPassword": "请输入密码",
+  "passwordVerificationFailed": "密码验证失败"
+}

@@ -17,8 +17,11 @@ import { createRoom } from "@/api/roomService";
 import { getAccessToken } from "@/api/authService";
 import { ArrowRight, Eye, EyeOff, Lock, Plus } from "lucide-react";
 import { ThemeSwitcher } from "@/components/theme-switcher";
+import { useTranslations } from "next-intl";
 
 export default function HomePage() {
+  const t = useTranslations("home");
+  const tErrors = useTranslations("errors");
   const router = useRouter();
   const [mode, setMode] = useState<"home" | "create" | "join">("home");
   const [roomName, setRoomName] = useState("");
@@ -32,30 +35,30 @@ export default function HomePage() {
   const handleCreateRoom = async () => {
     const trimmed = roomName.trim();
     if (!trimmed) {
-      setError("请输入房间名称");
+      setError(tErrors("enterRoomName"));
       return;
     }
 
     if (trimmed.length < 3 || trimmed.length > 50) {
-      setError("房间名称长度必须在 3 到 50 个字符之间");
+      setError(tErrors("roomNameLength3to50"));
       return;
     }
 
     const nameRegex = /^[a-zA-Z0-9](?:[a-zA-Z0-9_-]{1,48}[a-zA-Z0-9])?$/;
     if (!nameRegex.test(trimmed)) {
-      setError("房间名称只能包含字母、数字、下划线和连字符，且不能以连字符或下划线开头或结尾");
+      setError(tErrors("roomNameFormat"));
       return;
     }
 
     // 验证密码：如果输入了密码，必须确认密码一致
     if (password && password !== confirmPassword) {
-      setError("两次输入的密码不一致");
+      setError(tErrors("passwordsDoNotMatch"));
       return;
     }
 
     // 如果只输入了确认密码而没有输入密码
     if (!password && confirmPassword) {
-      setError("请先输入密码");
+      setError(tErrors("enterPasswordFirst"));
       return;
     }
 
@@ -73,9 +76,9 @@ export default function HomePage() {
       router.push(`/${trimmed}`);
     } catch (err: any) {
       if (err.message?.includes("409") || err.message?.includes("exists")) {
-        setError("房间名称已存在，请使用其他名称");
+        setError(tErrors("roomNameAlreadyExists"));
       } else {
-        setError(err.message || "创建房间失败，请重试");
+        setError(err.message || tErrors("createRoomFailed"));
       }
     } finally {
       setLoading(false);
@@ -85,18 +88,18 @@ export default function HomePage() {
   const handleJoinRoom = () => {
     const trimmed = roomName.trim();
     if (!trimmed) {
-      setError("请输入房间名称");
+      setError(tErrors("enterRoomName"));
       return;
     }
 
     if (trimmed.length < 3 || trimmed.length > 150) {
-      setError("房间名称长度必须在 3 到 150 个字符之间");
+      setError(tErrors("roomNameLength3to150"));
       return;
     }
 
     const identifierRegex = /^[a-zA-Z0-9][a-zA-Z0-9_-]*[a-zA-Z0-9]$/;
     if (!identifierRegex.test(trimmed)) {
-      setError("房间名称只能包含字母、数字、下划线和连字符，且不能以连字符或下划线开头或结尾");
+      setError(tErrors("roomNameFormat"));
       return;
     }
 
@@ -115,7 +118,7 @@ export default function HomePage() {
           <div className="text-center">
             <h1 className="text-4xl font-bold tracking-tight">Elizabeth</h1>
             <p className="mt-2 text-muted-foreground">
-              安全、临时、可控的文件分享与协作平台
+              {t("platformDescription")}
             </p>
           </div>
 
@@ -130,8 +133,8 @@ export default function HomePage() {
                     <Plus className="h-5 w-5 text-primary" />
                   </div>
                   <div>
-                    <CardTitle>创建房间</CardTitle>
-                    <CardDescription>创建一个新的协作空间</CardDescription>
+                    <CardTitle>{t("createRoom")}</CardTitle>
+                    <CardDescription>{t("createRoomDescription")}</CardDescription>
                   </div>
                 </div>
               </CardHeader>
@@ -147,8 +150,8 @@ export default function HomePage() {
                     <ArrowRight className="h-5 w-5 text-primary" />
                   </div>
                   <div>
-                    <CardTitle>加入房间</CardTitle>
-                    <CardDescription>通过房间名称加入现有房间</CardDescription>
+                    <CardTitle>{t("joinRoom")}</CardTitle>
+                    <CardDescription>{t("joinRoomDescription")}</CardDescription>
                   </div>
                 </div>
               </CardHeader>
@@ -156,7 +159,7 @@ export default function HomePage() {
           </div>
 
           <div className="text-center text-sm text-muted-foreground">
-            <p>无需注册，房间即身份</p>
+            <p>{t("noRegistrationNeeded")}</p>
           </div>
         </div>
       </div>
@@ -172,14 +175,14 @@ export default function HomePage() {
 
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle>创建房间</CardTitle>
+            <CardTitle>{t("createRoomHeader")}</CardTitle>
             <CardDescription>
-              设置房间名称和可选的密码保护
+              {t("createRoomHeaderDescription")}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="room-name">房间名称 *</Label>
+              <Label htmlFor="room-name">{t("roomNameRequired")}</Label>
               <Input
                 id="room-name"
                 value={roomName}
@@ -192,7 +195,7 @@ export default function HomePage() {
                     handleCreateRoom();
                   }
                 }}
-                placeholder="例如：project-alpha"
+                placeholder={t("roomNamePlaceholder")}
                 disabled={loading}
                 autoFocus
               />
@@ -202,7 +205,7 @@ export default function HomePage() {
               <Label htmlFor="password">
                 <div className="flex items-center gap-2">
                   <Lock className="h-4 w-4" />
-                  <span>密码保护（可选）</span>
+                  <span>{t("passwordProtectionOptional")}</span>
                 </div>
               </Label>
               <div className="relative">
@@ -219,7 +222,7 @@ export default function HomePage() {
                       handleCreateRoom();
                     }
                   }}
-                  placeholder="留空表示不设置密码"
+                  placeholder={t("leaveEmptyNoPassword")}
                   disabled={loading}
                 />
                 <Button
@@ -243,7 +246,7 @@ export default function HomePage() {
               <Label htmlFor="confirm-password">
                 <div className="flex items-center gap-2">
                   <Lock className="h-4 w-4" />
-                  <span>确认密码</span>
+                  <span>{t("confirmPassword")}</span>
                 </div>
               </Label>
               <div className="relative">
@@ -260,7 +263,7 @@ export default function HomePage() {
                       handleCreateRoom();
                     }
                   }}
-                  placeholder={password ? "再次输入密码" : "请先输入密码"}
+                  placeholder={password ? t("reenterPassword") : tErrors("enterPasswordFirst")}
                   disabled={loading || !password}
                 />
                 <Button
@@ -301,14 +304,14 @@ export default function HomePage() {
                 disabled={loading}
                 className="flex-1"
               >
-                返回
+                {t("back")}
               </Button>
               <Button
                 onClick={handleCreateRoom}
                 disabled={loading || !roomName.trim()}
                 className="flex-1"
               >
-                {loading ? "创建中..." : "创建房间"}
+                {loading ? t("creating") : t("createRoom")}
               </Button>
             </div>
           </CardContent>
@@ -326,14 +329,14 @@ export default function HomePage() {
 
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>加入房间</CardTitle>
+          <CardTitle>{t("joinRoomHeader")}</CardTitle>
           <CardDescription>
-            输入房间名称以加入现有房间
+            {t("joinRoomHeaderDescription")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="join-room-name">房间名称</Label>
+            <Label htmlFor="join-room-name">{t("roomName")}</Label>
             <Input
               id="join-room-name"
               value={roomName}
@@ -341,7 +344,7 @@ export default function HomePage() {
                 setRoomName(e.target.value);
                 setError(null);
               }}
-              placeholder="例如：project-alpha"
+              placeholder={t("roomNamePlaceholder")}
               autoFocus
               onKeyDown={(e) => {
                 if (e.key === "Enter" && roomName.trim()) {
@@ -367,14 +370,14 @@ export default function HomePage() {
               }}
               className="flex-1"
             >
-              返回
+              {t("back")}
             </Button>
             <Button
               onClick={handleJoinRoom}
               disabled={!roomName.trim()}
               className="flex-1"
             >
-              加入房间
+              {t("joinRoom")}
             </Button>
           </div>
         </CardContent>

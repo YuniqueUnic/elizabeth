@@ -47,6 +47,10 @@ function mergeServerMessagesWithPending(
 }
 
 interface AppState {
+  // Locale
+  locale: "zh" | "en";
+  setLocale: (locale: "zh" | "en") => void;
+
   // Theme management
   theme: Theme;
   setTheme: (theme: Theme) => void;
@@ -55,6 +59,10 @@ interface AppState {
   // Settings
   sendOnEnter: boolean;
   setSendOnEnter: (value: boolean) => void;
+
+  // Auto-scroll
+  autoScroll: boolean;
+  setAutoScroll: (value: boolean) => void;
 
   // Editor and message font sizes
   editorFontSize: number;
@@ -95,6 +103,10 @@ interface AppState {
   currentRoomId: string;
   setCurrentRoomId: (roomId: string) => void;
 
+  // File preview (from message link clicks)
+  previewFileId: string | null;
+  setPreviewFileId: (id: string | null) => void;
+
   // Authentication state (derived from localStorage tokens)
   isAuthenticated: (roomName?: string) => boolean;
   getCurrentRoomToken: () => TokenInfo | null;
@@ -115,6 +127,7 @@ interface AppState {
   markMessageForDeletion: (messageId: string) => void;
   revertMessageChanges: (messageId: string) => void;
   hasUnsavedChanges: () => boolean;
+  isSaving: boolean;
   saveMessages: () => Promise<void>;
   syncMessagesFromServer: () => Promise<void>;
 
@@ -143,6 +156,15 @@ interface AppState {
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
+      // Locale
+      locale: "zh",
+      setLocale: (locale) => {
+        set({ locale });
+        if (typeof window !== "undefined") {
+          document.documentElement.lang = locale === "zh" ? "zh-CN" : "en";
+        }
+      },
+
       // Theme
       theme: "system",
       setTheme: (theme) => set({ theme }),
@@ -159,6 +181,10 @@ export const useAppStore = create<AppState>()(
       // Settings
       sendOnEnter: true,
       setSendOnEnter: (value) => set({ sendOnEnter: value }),
+
+      // Auto-scroll
+      autoScroll: true,
+      setAutoScroll: (value) => set({ autoScroll: value }),
 
       // Editor and message font sizes
       editorFontSize: 15,
@@ -243,7 +269,12 @@ export const useAppStore = create<AppState>()(
           composerContent: "",
           composerEditingMessageId: null,
           composerInsertRequest: null,
+          previewFileId: null,
         }),
+
+      // File preview
+      previewFileId: null,
+      setPreviewFileId: (id) => set({ previewFileId: id }),
 
       // Authentication (derived from localStorage tokens)
       isAuthenticated: (roomName) => {
@@ -333,45 +364,50 @@ export const useAppStore = create<AppState>()(
           activeUploads > 0
         );
       },
+      isSaving: false,
       saveMessages: async () => {
-        const { messages, currentRoomId } = get();
-        const unsavedMessages = messages.filter(
-          (m) => m.isNew || m.isDirty || m.isPendingDelete,
-        );
+        if (get().isSaving) return;
+        set({ isSaving: true });
+        try {
+          const { messages, currentRoomId } = get();
+          const unsavedMessages = messages.filter(
+            (m) => m.isNew || m.isDirty || m.isPendingDelete,
+          );
 
-        if (unsavedMessages.length === 0) {
-          return;
-        }
+          if (unsavedMessages.length === 0) {
+            return;
+          }
 
-        const promises = unsavedMessages.map((msg) => {
-          if (msg.isPendingDelete) {
-            // For new messages that are deleted before saving, just remove them locally
-            if (msg.isNew) {
-              return Promise.resolve();
+          const promises = unsavedMessages.map((msg) => {
+            if (msg.isPendingDelete) {
+              if (msg.isNew) {
+                return Promise.resolve();
+              }
+              return deleteMessage(currentRoomId, msg.id);
             }
-            return deleteMessage(currentRoomId, msg.id);
-          }
-          if (msg.isNew) {
-            return postMessage(currentRoomId, msg.content);
-          }
-          if (msg.isDirty) {
-            return updateMessage(currentRoomId, msg.id, msg.content);
-          }
-          return Promise.resolve();
-        });
+            if (msg.isNew) {
+              return postMessage(currentRoomId, msg.content);
+            }
+            if (msg.isDirty) {
+              return updateMessage(currentRoomId, msg.id, msg.content);
+            }
+            return Promise.resolve();
+          });
 
-        await Promise.all(promises);
+          await Promise.all(promises);
 
-        // Refetch messages from the server to ensure consistency
-        const updatedMessages = await getMessages(currentRoomId);
-        set({
-          messages: updatedMessages.map((m) => ({
-            ...m,
-            isNew: false,
-            isDirty: false,
-            isPendingDelete: false,
-          })),
-        });
+          const updatedMessages = await getMessages(currentRoomId);
+          set({
+            messages: updatedMessages.map((m) => ({
+              ...m,
+              isNew: false,
+              isDirty: false,
+              isPendingDelete: false,
+            })),
+          });
+        } finally {
+          set({ isSaving: false });
+        }
       },
 
       syncMessagesFromServer: async () => {
@@ -431,8 +467,10 @@ export const useAppStore = create<AppState>()(
       storage: createJSONStorage(() => localStorage),
       // Only persist a subset of the state
       partialize: (state) => ({
-        // Persist UI preferences
+        // Persist locale and UI preferences
+        locale: state.locale,
         sendOnEnter: state.sendOnEnter,
+        autoScroll: state.autoScroll,
         includeMetadataInCopy: state.includeMetadataInCopy,
         includeMetadataInDownload: state.includeMetadataInDownload,
         includeMetadataInExport: state.includeMetadataInExport,

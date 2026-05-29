@@ -23,6 +23,7 @@ import { UrlViewer } from "./url-viewer";
 import { API_BASE_URL } from "@/lib/config";
 import { getRoomTokenString } from "@/lib/utils/api";
 import { insertMarkdownIntoComposer } from "@/lib/composer-editor";
+import { useTranslations } from "next-intl";
 
 // Dynamic import for PDFViewer to avoid SSR issues with DOMMatrix
 const PDFViewer = dynamic(
@@ -31,7 +32,7 @@ const PDFViewer = dynamic(
     ssr: false,
     loading: () => (
       <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">加载 PDF 查看器...</p>
+        <p className="text-muted-foreground">Loading PDF viewer...</p>
       </div>
     ),
   },
@@ -47,6 +48,7 @@ interface FilePreviewModalProps {
 export function FilePreviewModal(
   { file, open, onOpenChange, onDelete }: FilePreviewModalProps,
 ) {
+  const t = useTranslations("room");
   const { toast } = useToast();
   const currentRoomId = useAppStore((state) => state.currentRoomId);
   const requestInsertMarkdown = useAppStore((state) => state.requestInsertMarkdown);
@@ -71,19 +73,19 @@ export function FilePreviewModal(
   const handleDownload = async () => {
     try {
       toast({
-        title: "开始下载",
-        description: `正在下载 ${file.name}`,
+        title: t("filePreviewModal.downloadStart"),
+        description: t("filePreviewModal.downloading", { fileName: file.name }),
       });
       await downloadFile(currentRoomId, file.id, file.name);
       toast({
-        title: "下载完成",
-        description: `${file.name} 已成功下载`,
+        title: t("filePreviewModal.downloadComplete"),
+        description: t("filePreviewModal.downloadCompleteDescription", { fileName: file.name }),
       });
     } catch (error) {
       console.error("Download failed:", error);
       toast({
-        title: "下载失败",
-        description: "无法下载文件，请重试",
+        title: t("filePreviewModal.downloadFailed"),
+        description: t("filePreviewModal.downloadFailedDescription"),
         variant: "destructive",
       });
     }
@@ -97,8 +99,8 @@ export function FilePreviewModal(
 
     navigator.clipboard.writeText(downloadUrl);
     toast({
-      title: "链接已复制",
-      description: "文件下载链接已复制到剪贴板",
+      title: t("filePreviewModal.linkCopied"),
+      description: t("filePreviewModal.linkCopiedDescription"),
     });
   };
 
@@ -112,8 +114,8 @@ export function FilePreviewModal(
     const markdown = buildMarkdownLink();
     navigator.clipboard.writeText(markdown);
     toast({
-      title: "Markdown 已复制",
-      description: "可直接粘贴到编辑器中",
+      title: t("filePreviewModal.markdownCopied"),
+      description: t("filePreviewModal.markdownCopiedDescription"),
     });
   };
 
@@ -123,8 +125,8 @@ export function FilePreviewModal(
       requestInsertMarkdown(markdown);
     }
     toast({
-      title: "已插入到编辑器",
-      description: "已将 Markdown 链接插入到当前光标位置",
+      title: t("filePreviewModal.insertedToEditor"),
+      description: t("filePreviewModal.insertedToEditorDescription"),
     });
     onOpenChange(false);
   };
@@ -133,8 +135,8 @@ export function FilePreviewModal(
     onDelete(file.id);
     onOpenChange(false);
     toast({
-      title: "文件已删除",
-      description: `${file.name} 已从房间中删除`,
+      title: t("filePreviewModal.fileDeleted"),
+      description: t("filePreviewModal.fileDeletedDescription", { fileName: file.name }),
     });
   };
 
@@ -142,7 +144,7 @@ export function FilePreviewModal(
     if (file.url) {
       window.open(file.url, "_blank");
       toast({
-        title: "已在新标签页打开",
+        title: t("filePreviewModal.openedInNewTab"),
       });
     }
   };
@@ -205,7 +207,7 @@ export function FilePreviewModal(
                   disabled={!can.delete}
                 >
                   <Trash2 className="h-4 w-4 mr-1" />
-                  <span className="hidden sm:inline">删除</span>
+                  <span className="hidden sm:inline">{t("filePreviewModal.delete")}</span>
                 </Button>
                 <Button
                   variant="outline"
@@ -214,7 +216,7 @@ export function FilePreviewModal(
                   className="h-8"
                 >
                   <Download className="h-4 w-4 mr-1" />
-                  <span className="hidden sm:inline">下载</span>
+                  <span className="hidden sm:inline">{t("filePreviewModal.download")}</span>
                 </Button>
                 <Button
                   variant="outline"
@@ -223,7 +225,7 @@ export function FilePreviewModal(
                   className="h-8"
                 >
                   <Copy className="h-4 w-4 mr-1" />
-                  <span className="hidden sm:inline">复制链接</span>
+                  <span className="hidden sm:inline">{t("filePreviewModal.copyLink")}</span>
                 </Button>
                 <Button
                   variant="outline"
@@ -232,7 +234,7 @@ export function FilePreviewModal(
                   className="h-8"
                 >
                   <Copy className="h-4 w-4 mr-1" />
-                  <span className="hidden sm:inline">复制 Markdown</span>
+                  <span className="hidden sm:inline">{t("filePreviewModal.copyMarkdown")}</span>
                 </Button>
                 <Button
                   variant="outline"
@@ -241,19 +243,19 @@ export function FilePreviewModal(
                   className="h-8"
                 >
                   <Copy className="h-4 w-4 mr-1" />
-                  <span className="hidden sm:inline">插入到编辑器</span>
+                  <span className="hidden sm:inline">{t("filePreviewModal.insertToEditor")}</span>
                 </Button>
                 <div className="flex-1" />
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setIsFullscreen(!isFullscreen)}
-                  title={isFullscreen ? "退出全屏" : "全屏查看"}
+                  title={isFullscreen ? t("filePreviewModal.exitFullscreen") : t("filePreviewModal.fullscreen")}
                   className="h-8"
                 >
                   <Maximize2 className="h-4 w-4 mr-1" />
                   <span className="hidden sm:inline">
-                    {isFullscreen ? "退出全屏" : "全屏"}
+                    {isFullscreen ? t("filePreviewModal.exitFullscreen") : t("filePreviewModal.fullscreen")}
                   </span>
                 </Button>
               </div>
@@ -273,7 +275,7 @@ export function FilePreviewModal(
           )}
           {isImage && !imageUrl && (
             <div className="flex items-center justify-center h-full p-4 text-muted-foreground">
-              <p>无法生成图片 URL（缺少 token 或 URL）</p>
+              <p>{t("filePreviewModal.imageLoadError")}</p>
             </div>
           )}
 
@@ -285,7 +287,7 @@ export function FilePreviewModal(
                 controls
                 className="max-w-full max-h-full rounded-lg"
               >
-                您的浏览器不支持视频播放
+                {t("filePreviewModal.videoNotSupported")}
               </video>
             </div>
           )}
@@ -315,8 +317,8 @@ export function FilePreviewModal(
 
           {!isImage && !isVideo && !isPdf && !isLink && !isTextFile && (
             <div className="flex flex-col items-center justify-center p-8 text-muted-foreground">
-              <p>无法预览此文件类型</p>
-              <p className="text-sm mt-2">请下载文件以查看内容</p>
+              <p>{t("filePreviewModal.unsupportedType")}</p>
+              <p className="text-sm mt-2">{t("filePreviewModal.downloadToView")}</p>
             </div>
           )}
         </div>

@@ -32,19 +32,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useTranslations } from "next-intl";
 
 interface RoomConfigFormProps {
   roomDetails: RoomDetails;
 }
 
-const EXPIRY_OPTIONS = [
-  { label: "1 分钟", value: "1min", ms: 60 * 1000 },
-  { label: "10 分钟", value: "10min", ms: 10 * 60 * 1000 },
-  { label: "1 小时", value: "1hr", ms: 60 * 60 * 1000 },
-  { label: "12 小时", value: "12hr", ms: 12 * 60 * 60 * 1000 },
-  { label: "1 天", value: "1day", ms: 24 * 60 * 60 * 1000 },
-  { label: "1 周", value: "1week", ms: 7 * 24 * 60 * 60 * 1000 },
-  // { label: "永不过期", value: "never", ms: 0 }, // 暂不提供，未来可能支持
+const EXPIRY_OPTIONS_KEYS = [
+  { key: "config.expiry.options.oneMinute", value: "1min", ms: 60 * 1000 },
+  { key: "config.expiry.options.tenMinutes", value: "10min", ms: 10 * 60 * 1000 },
+  { key: "config.expiry.options.oneHour", value: "1hr", ms: 60 * 60 * 1000 },
+  { key: "config.expiry.options.twelveHours", value: "12hr", ms: 12 * 60 * 60 * 1000 },
+  { key: "config.expiry.options.oneDay", value: "1day", ms: 24 * 60 * 60 * 1000 },
+  { key: "config.expiry.options.oneWeek", value: "1week", ms: 7 * 24 * 60 * 60 * 1000 },
 ];
 
 function getExpiryOptionFromDate(expiresAt: string | null | undefined): string {
@@ -59,10 +59,10 @@ function getExpiryOptionFromDate(expiresAt: string | null | undefined): string {
   // 如果已过期或即将过期，默认 1 分钟
   if (diff <= 0) return "1min";
 
-  let closestOption = EXPIRY_OPTIONS[0];
+  let closestOption = EXPIRY_OPTIONS_KEYS[0];
   let minDiff = Math.abs(diff - closestOption.ms);
 
-  for (const option of EXPIRY_OPTIONS) {
+  for (const option of EXPIRY_OPTIONS_KEYS) {
     if (option.ms === 0) continue; // 跳过永不过期选项（如果未来启用）
     const currentDiff = Math.abs(diff - option.ms);
     if (currentDiff < minDiff) {
@@ -81,20 +81,6 @@ const PERMISSIONS = {
   SHARE: 1 << 2, // 0100 - 分享权限
   DELETE: 1 << 3, // 1000 - 删除权限
 } as const;
-
-const permissionLabels: Record<RoomPermission, string> = {
-  read: "预览",
-  edit: "编辑",
-  share: "分享",
-  delete: "删除",
-};
-
-const permissionDescriptions: Record<RoomPermission, string> = {
-  read: "查看房间内容",
-  edit: "上传和修改内容",
-  share: "公开分享房间",
-  delete: "删除房间内容",
-};
 
 function permissionsToFlags(permissions: RoomPermission[]): number {
   let flags = 0;
@@ -133,6 +119,7 @@ function canTogglePermission(
 }
 
 export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
+  const t = useTranslations("room");
   const currentRoomId = useAppStore((state) => state.currentRoomId);
   const setRoomRedirectTarget = useAppStore((state) =>
     state.setRoomRedirectTarget
@@ -184,6 +171,20 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
 
   const allPermissions: RoomPermission[] = ["read", "edit", "share", "delete"];
 
+  const permissionLabels: Record<RoomPermission, string> = {
+    read: t("config.permissions.labels.read"),
+    edit: t("config.permissions.labels.edit"),
+    share: t("config.permissions.labels.share"),
+    delete: t("config.permissions.labels.delete"),
+  };
+
+  const permissionDescriptions: Record<RoomPermission, string> = {
+    read: t("config.permissions.descriptions.read"),
+    edit: t("config.permissions.descriptions.edit"),
+    share: t("config.permissions.descriptions.share"),
+    delete: t("config.permissions.descriptions.delete"),
+  };
+
   const handleTogglePermission = (permission: RoomPermission, checked: boolean) => {
     if (!canTogglePermission(permission, permissionFlags, checked)) {
       return;
@@ -216,12 +217,12 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
   const copyRedirectUrl = async (slug: string) => {
     try {
       await navigator.clipboard.writeText(`${window.location.origin}/${slug}`);
-      toast({ title: "已复制新链接" });
+      toast({ title: t("config.linkCopied") });
     } catch (error) {
       console.error("Failed to copy redirect url:", error);
       toast({
-        title: "复制失败",
-        description: "无法复制链接，请手动复制。",
+        title: t("config.copyFailTitle"),
+        description: t("config.copyFailDescription"),
         variant: "destructive",
       });
     }
@@ -233,7 +234,7 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
       const oldPermissionValue = encodePermissions(roomDetails.permissions);
 
       // 1) settings patch（仅在发生变化时发字段）
-      const option = EXPIRY_OPTIONS.find((opt) => opt.value === expiryOption);
+      const option = EXPIRY_OPTIONS_KEYS.find((opt) => opt.value === expiryOption);
       let expiresAt: string | null | undefined = undefined;
       if (expiryOption !== baseExpiryOption) {
         if (option && option.ms > 0) {
@@ -241,7 +242,7 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
           const expireDate = new Date(now.getTime() + option.ms);
           expiresAt = expireDate.toISOString().replace("Z", "");
         } else {
-          // NOTE: backend 当前无法区分“字段缺失”和“null”，此处保守不主动清空 expire_at
+          // NOTE: backend 当前无法区分"字段缺失"和"null"，此处保守不主动清空 expire_at
           expiresAt = undefined;
         }
       }
@@ -289,7 +290,7 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
       const { oldIdentifier, newIdentifier, finalRoom, oldPermissionValue, newPermissionValue } =
         result;
 
-      toast({ title: "配置已保存", description: "房间配置已成功更新" });
+      toast({ title: t("config.save.successTitle"), description: t("config.save.successDescription") });
 
       if (newIdentifier !== oldIdentifier) {
         // slug 变更：保持当前页可用（避免 refetch 触发 401），并提示用户手动跳转
@@ -315,8 +316,8 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
     onError: (error: any) => {
       console.error("Failed to save room config:", error);
       toast({
-        title: "保存失败",
-        description: error?.message || "无法保存房间配置，请重试",
+        title: t("config.save.failTitle"),
+        description: error?.message || t("config.save.failDescription"),
         variant: "destructive",
       });
     },
@@ -332,28 +333,28 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="mb-3 text-sm font-semibold">房间配置</h3>
+        <h3 className="mb-3 text-sm font-semibold">{t("config.title")}</h3>
 
         {!canModify && (
           <p className="text-xs text-muted-foreground mb-3 p-2 bg-muted rounded-md">
-            只有房间管理员（拥有删除权限）可以修改房间配置
+            {t("config.adminOnly")}
           </p>
         )}
 
         <div className="space-y-2 mt-2">
-          <Label htmlFor="expires-at">过期时间</Label>
+          <Label htmlFor="expires-at">{t("config.expiry.label")}</Label>
           <Select
             value={expiryOption}
             onValueChange={setExpiryOption}
             disabled={!canModify}
           >
             <SelectTrigger className="w-full">
-              <SelectValue placeholder="选择过期时间" />
+              <SelectValue placeholder={t("config.expiry.placeholder")} />
             </SelectTrigger>
             <SelectContent>
-              {EXPIRY_OPTIONS.map((option) => (
+              {EXPIRY_OPTIONS_KEYS.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
-                  {option.label}
+                  {t(option.key)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -361,14 +362,14 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
         </div>
 
         <div className="space-y-2 mt-2">
-          <Label htmlFor="password">房间密码</Label>
+          <Label htmlFor="password">{t("config.password.label")}</Label>
           <div className="relative">
             <Input
               id="password"
               type={showPassword ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="设置房间密码"
+              placeholder={t("config.password.placeholder")}
               disabled={!canModify}
             />
             <Button
@@ -387,7 +388,7 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
         </div>
 
         <div className="space-y-2 mt-2">
-          <Label htmlFor="max-views">最大查看次数</Label>
+          <Label htmlFor="max-views">{t("config.maxViews.label")}</Label>
           <Input
             id="max-views"
             type="number"
@@ -399,7 +400,7 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
         </div>
 
         <div className="mt-6 space-y-3">
-          <h3 className="text-sm font-semibold">房间权限</h3>
+          <h3 className="text-sm font-semibold">{t("config.permissions.title")}</h3>
           <div className="flex flex-wrap gap-2">
             {allPermissions.map((permission) => {
               const isEnabled = (permissionFlags &
@@ -448,7 +449,7 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
             })}
           </div>
           <p className="text-xs text-muted-foreground italic">
-            提示：编辑、分享需要预览权限；删除需要预览和编辑权限
+            {t("config.permissions.hint")}
           </p>
         </div>
 
@@ -459,11 +460,11 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
               className="flex-1"
               disabled={!hasAnyChanges || saveMutation.isPending}
             >
-              {saveMutation.isPending ? "保存中..." : "保存配置"}
+              {saveMutation.isPending ? t("config.save.saving") : t("config.save.saveConfig")}
             </Button>
             {hasAnyChanges && (
               <Button variant="outline" onClick={resetAll}>
-                取消
+                {t("config.cancel")}
               </Button>
             )}
           </div>
@@ -471,7 +472,7 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
 
         {!canModify && (
           <p className="text-xs text-muted-foreground mt-2">
-            只有房间管理员可以保存配置
+            {t("config.adminSaveOnly")}
           </p>
         )}
       </div>
