@@ -307,7 +307,7 @@ export function FilePreviewModal(
           {/* Text file preview (Markdown, code, plain text) */}
           {isTextFile && file.url && (
             <FileContentPreview
-              fileUrl={file.url}
+              fileUrl={`/rooms/${currentRoomId}/contents/${file.id}`}
               fileName={file.name}
               mimeType={file.mimeType}
               roomName={currentRoomId}

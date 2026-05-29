@@ -9,9 +9,11 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
+  Loader2,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useTranslations } from "next-intl";
+import { api } from "@/lib/utils/api";
 
 interface UrlViewerProps {
   url: string;
@@ -22,16 +24,50 @@ interface UrlViewerProps {
 export function UrlViewer({ url, name, description }: UrlViewerProps) {
   const t = useTranslations("room");
   const [showPreview, setShowPreview] = useState(false);
-  const [iframeError, setIframeError] = useState(false);
+  const [previewContent, setPreviewContent] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+
+  const isServerUrl = url.startsWith("/");
 
   const handleOpenInNewTab = () => {
     window.open(url, "_blank", "noopener,noreferrer");
   };
 
   const handleTogglePreview = () => {
-    setShowPreview((prev) => !prev);
-    setIframeError(false);
+    if (showPreview) {
+      setShowPreview(false);
+      setPreviewContent(null);
+    } else {
+      setShowPreview(true);
+      if (isServerUrl && !previewContent) {
+        fetchPreview();
+      }
+    }
+  };
+
+  const fetchPreview = async () => {
+    setPreviewLoading(true);
+    setPreviewError(false);
+    try {
+      const response = await api.getRaw(url);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType.includes("text") || contentType.includes("json") || contentType.includes("javascript") || contentType.includes("html") || contentType.includes("xml")) {
+        const text = await response.text();
+        setPreviewContent(text);
+      } else {
+        // Binary content — can't preview as text
+        setPreviewError(true);
+      }
+    } catch {
+      setPreviewError(true);
+    } finally {
+      setPreviewLoading(false);
+    }
   };
 
   const handleToggleExpand = () => {
@@ -42,7 +78,6 @@ export function UrlViewer({ url, name, description }: UrlViewerProps) {
     <div className="flex flex-col h-full">
       {/* Compact Toolbar */}
       <div className="border-b bg-muted/30">
-        {/* Main Toolbar Row */}
         <div className="flex items-center justify-between gap-2 px-4">
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <span className="font-medium truncate">{name}</span>
@@ -60,14 +95,6 @@ export function UrlViewer({ url, name, description }: UrlViewerProps) {
           </div>
 
           <div className="flex items-center gap-1">
-            {showPreview && !iframeError && (
-              <div className="flex items-center gap-1">
-                <AlertCircle className="h-4 w-4" />
-                <p className="text-sm text-muted-foreground pr-3">
-                  {t("urlViewer.iframeWarning")}
-                </p>
-              </div>
-            )}
             <Button
               variant={showPreview ? "default" : "ghost"}
               size="sm"
@@ -139,19 +166,21 @@ export function UrlViewer({ url, name, description }: UrlViewerProps) {
           </div>
         )}
 
-        {showPreview && !iframeError && (
-          <div className="h-full p-4">
-            <iframe
-              src={url}
-              className="w-full h-[calc(100%-5rem)] border rounded-lg"
-              sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
-              onError={() => setIframeError(true)}
-              title={name}
-            />
+        {showPreview && previewLoading && (
+          <div className="flex items-center justify-center h-full p-8">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
         )}
 
-        {showPreview && iframeError && (
+        {showPreview && !previewLoading && previewContent && (
+          <div className="p-4 h-full">
+            <pre className="whitespace-pre-wrap font-mono text-sm p-4 rounded-lg bg-gray-900 text-gray-100 overflow-auto h-full">
+              {previewContent}
+            </pre>
+          </div>
+        )}
+
+        {showPreview && !previewLoading && previewError && (
           <div className="flex flex-col items-center justify-center h-full p-8">
             <Alert variant="destructive" className="max-w-md">
               <AlertCircle className="h-4 w-4" />
