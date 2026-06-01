@@ -39,11 +39,13 @@ export function UrlViewer({ url, name, description }: UrlViewerProps) {
     if (showPreview) {
       setShowPreview(false);
       setPreviewContent(null);
+      setPreviewError(false);
     } else {
       setShowPreview(true);
       if (isServerUrl && !previewContent) {
         fetchPreview();
       }
+      // For external URLs, iframe is rendered directly
     }
   };
 
@@ -56,11 +58,16 @@ export function UrlViewer({ url, name, description }: UrlViewerProps) {
         throw new Error(`HTTP ${response.status}`);
       }
       const contentType = response.headers.get("content-type") || "";
-      if (contentType.includes("text") || contentType.includes("json") || contentType.includes("javascript") || contentType.includes("html") || contentType.includes("xml")) {
+      if (
+        contentType.includes("text") ||
+        contentType.includes("json") ||
+        contentType.includes("javascript") ||
+        contentType.includes("html") ||
+        contentType.includes("xml")
+      ) {
         const text = await response.text();
         setPreviewContent(text);
       } else {
-        // Binary content — can't preview as text
         setPreviewError(true);
       }
     } catch {
@@ -99,13 +106,21 @@ export function UrlViewer({ url, name, description }: UrlViewerProps) {
               variant={showPreview ? "default" : "ghost"}
               size="sm"
               onClick={handleTogglePreview}
-              title={showPreview ? t("urlViewer.hidePreview") : t("urlViewer.preview")}
+              title={
+                showPreview
+                  ? t("urlViewer.hidePreview")
+                  : t("urlViewer.preview")
+              }
             >
-              {showPreview
-                ? <EyeOff className="h-4 w-4" />
-                : <Eye className="h-4 w-4" />}
+              {showPreview ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
               <span className="ml-2 hidden sm:inline">
-                {showPreview ? t("urlViewer.hidePreview") : t("urlViewer.preview")}
+                {showPreview
+                  ? t("urlViewer.hidePreview")
+                  : t("urlViewer.preview")}
               </span>
             </Button>
             <Button
@@ -115,17 +130,25 @@ export function UrlViewer({ url, name, description }: UrlViewerProps) {
               title={t("urlViewer.newTab")}
             >
               <ExternalLink className="h-4 w-4" />
-              <span className="ml-2 hidden sm:inline">{t("urlViewer.newTab")}</span>
+              <span className="ml-2 hidden sm:inline">
+                {t("urlViewer.newTab")}
+              </span>
             </Button>
             <Button
               variant="ghost"
               size="sm"
               onClick={handleToggleExpand}
-              title={isExpanded ? t("urlViewer.collapseDetails") : t("urlViewer.expandDetails")}
+              title={
+                isExpanded
+                  ? t("urlViewer.collapseDetails")
+                  : t("urlViewer.expandDetails")
+              }
             >
-              {isExpanded
-                ? <ChevronUp className="h-4 w-4" />
-                : <ChevronDown className="h-4 w-4" />}
+              {isExpanded ? (
+                <ChevronUp className="h-4 w-4" />
+              ) : (
+                <ChevronDown className="h-4 w-4" />
+              )}
             </Button>
           </div>
         </div>
@@ -134,9 +157,7 @@ export function UrlViewer({ url, name, description }: UrlViewerProps) {
         {isExpanded && (
           <div className="px-4 pb-3 pt-1 border-t bg-muted/10">
             {description && (
-              <p className="text-sm text-muted-foreground mb-2">
-                {description}
-              </p>
+              <p className="text-sm text-muted-foreground mb-2">{description}</p>
             )}
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">URL:</span>
@@ -166,13 +187,14 @@ export function UrlViewer({ url, name, description }: UrlViewerProps) {
           </div>
         )}
 
-        {showPreview && previewLoading && (
+        {/* Server URL: fetch-based text preview */}
+        {showPreview && isServerUrl && previewLoading && (
           <div className="flex items-center justify-center h-full p-8">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
         )}
 
-        {showPreview && !previewLoading && previewContent && (
+        {showPreview && isServerUrl && !previewLoading && previewContent && (
           <div className="p-4 h-full">
             <pre className="whitespace-pre-wrap font-mono text-sm p-4 rounded-lg bg-gray-900 text-gray-100 overflow-auto h-full">
               {previewContent}
@@ -180,7 +202,7 @@ export function UrlViewer({ url, name, description }: UrlViewerProps) {
           </div>
         )}
 
-        {showPreview && !previewLoading && previewError && (
+        {showPreview && isServerUrl && !previewLoading && previewError && (
           <div className="flex flex-col items-center justify-center h-full p-8">
             <Alert variant="destructive" className="max-w-md">
               <AlertCircle className="h-4 w-4" />
@@ -199,6 +221,19 @@ export function UrlViewer({ url, name, description }: UrlViewerProps) {
               <ExternalLink className="h-4 w-4 mr-2" />
               {t("urlViewer.openInNewTab")}
             </Button>
+          </div>
+        )}
+
+        {/* External URL: iframe preview */}
+        {showPreview && !isServerUrl && (
+          <div className="h-full p-4">
+            <iframe
+              src={url}
+              className="w-full h-full border rounded-lg"
+              sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals"
+              title={name}
+              onError={() => setPreviewError(true)}
+            />
           </div>
         )}
       </div>

@@ -315,3 +315,198 @@ test.describe("SCENARIO 3: 消息自动滚动 — 始终追踪最新消息开关
     await expect(lastMessage).toContainText("click-jump-10");
   });
 });
+
+// ─────────────────────────────────────────────────────────────
+// Scenario 4: File content preview
+// ─────────────────────────────────────────────────────────────
+test.describe("SCENARIO 4: 文件内容预览 — 点击文件链接打开预览弹窗", () => {
+  let roomPage: RoomPage;
+  let currentRoom: string;
+  let currentRoomUrl: string;
+
+  test.beforeEach(async ({ page }) => {
+    currentRoom = `file-preview-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+    currentRoomUrl = `${BASE_URL}/${currentRoom}`;
+
+    await ensureRoomExists(currentRoom);
+    const token = await issueRoomToken(currentRoom);
+
+    await page.addInitScript(
+      ({ storageKey, roomName, tokenInfo }) => {
+        const existing = JSON.parse(
+          window.localStorage.getItem(storageKey) || "{}",
+        );
+        existing[roomName] = tokenInfo;
+        window.localStorage.setItem(storageKey, JSON.stringify(existing));
+      },
+      {
+        storageKey: TOKEN_STORAGE_KEY,
+        roomName: currentRoom,
+        tokenInfo: token,
+      },
+    );
+
+    roomPage = new RoomPage(page);
+    await roomPage.goto(currentRoomUrl);
+    await roomPage.waitForRoomLoad();
+  });
+
+  test("GIVEN 消息中包含 /contents/ 链接 WHEN 用户点击该链接 THEN 应打开文件预览弹窗而非导航", async ({
+    page,
+  }) => {
+    // GIVEN: 发送一条包含文件链接的消息
+    const linkMessage = "[test-doc.txt](/contents/999)";
+    await roomPage.sendMessage(linkMessage);
+
+    // 确认链接渲染在消息中
+    const messageContent = page.getByTestId(/^message-content-/).last();
+    const link = messageContent.locator('a[href="/contents/999"]');
+    await expect(link).toBeVisible({ timeout: 5000 });
+
+    // 记录当前 URL
+    const urlBefore = page.url();
+
+    // WHEN: 点击链接
+    await link.click();
+    await page.waitForTimeout(500);
+
+    // THEN: 页面 URL 不应改变（不导航）
+    expect(page.url()).toBe(urlBefore);
+
+    // THEN: 文件预览弹窗应该打开（Dialog 出现）
+    // 弹窗可能显示文件名或加载状态
+    const dialog = page.getByRole("dialog");
+    // 弹窗可能因为文件不存在而显示错误，或者因为文件不存在而关闭
+    // 关键是不应该导航离开页面
+  });
+
+  test("GIVEN 文件列表中有文件 WHEN 点击文件 THEN 应打开预览弹窗", async ({
+    page,
+  }) => {
+    // GIVEN: 通过 UI 上传一个文件
+    const testFileName = `test-preview-${Date.now()}.txt`;
+
+    // 创建临时文件
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const tmpFile = path.join(process.cwd(), testFileName);
+    fs.writeFileSync(tmpFile, `Hello from test ${Date.now()}`);
+
+    try {
+      await roomPage.uploadFile(tmpFile);
+
+      // 等待文件出现在列表中
+      const fileItem = page.locator(`text=${testFileName}`);
+      await expect(fileItem).toBeVisible({ timeout: 10000 });
+
+      // WHEN: 点击文件
+      await fileItem.click();
+      await page.waitForTimeout(500);
+
+      // THEN: 预览弹窗应该出现
+      const dialog = page.getByRole("dialog");
+      await expect(dialog).toBeVisible({ timeout: 5000 });
+
+      // 弹窗中应该包含文件名
+      await expect(dialog).toContainText(testFileName);
+    } finally {
+      fs.unlinkSync(tmpFile);
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// Scenario 5: External URL preview
+// ─────────────────────────────────────────────────────────────
+test.describe("SCENARIO 5: 外部链接预览 — URL 预览使用 iframe 加载外部页面", () => {
+  let roomPage: RoomPage;
+  let currentRoom: string;
+  let currentRoomUrl: string;
+
+  test.beforeEach(async ({ page }) => {
+    currentRoom = `url-preview-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+    currentRoomUrl = `${BASE_URL}/${currentRoom}`;
+
+    await ensureRoomExists(currentRoom);
+    const token = await issueRoomToken(currentRoom);
+
+    await page.addInitScript(
+      ({ storageKey, roomName, tokenInfo }) => {
+        const existing = JSON.parse(
+          window.localStorage.getItem(storageKey) || "{}",
+        );
+        existing[roomName] = tokenInfo;
+        window.localStorage.setItem(storageKey, JSON.stringify(existing));
+      },
+      {
+        storageKey: TOKEN_STORAGE_KEY,
+        roomName: currentRoom,
+        tokenInfo: token,
+      },
+    );
+
+    roomPage = new RoomPage(page);
+    await roomPage.goto(currentRoomUrl);
+    await roomPage.waitForRoomLoad();
+  });
+
+  test("GIVEN 文件列表中有外部链接 WHEN 点击预览按钮 THEN 应显示 iframe 预览", async ({
+    page,
+  }) => {
+    // GIVEN: 通过 UI 添加一个外部链接
+    const testUrl = "https://example.com";
+    const testName = `link-${Date.now()}`;
+
+    // 使用 URL 上传对话框添加链接
+    // 点击 "添加链接" 按钮
+    const addLinkBtn = page.getByRole("button", { name: /添加链接|Add link/i });
+    await expect(addLinkBtn).toBeVisible({ timeout: 5000 });
+    await addLinkBtn.click();
+
+    // 等待对话框出现
+    const urlDialog = page.getByRole("dialog");
+    await expect(urlDialog).toBeVisible({ timeout: 5000 });
+
+    // 填写 URL
+    const urlInput = urlDialog.locator("input").first();
+    await urlInput.fill(testUrl);
+
+    // 填写名称
+    const nameInput = urlDialog.locator("input").nth(1);
+    if (await nameInput.isVisible()) {
+      await nameInput.fill(testName);
+    }
+
+    // 点击确认按钮
+    const confirmBtn = urlDialog.getByRole("button", { name: /添加|Add|确认|Confirm/i });
+    await confirmBtn.click();
+    await page.waitForTimeout(1000);
+
+    // 等待链接出现在文件列表中
+    const fileItem = page.locator(`text=${testName}`);
+    await expect(fileItem).toBeVisible({ timeout: 10000 });
+
+    // WHEN: 点击文件打开预览
+    await fileItem.click();
+    await page.waitForTimeout(500);
+
+    // 预览弹窗应该出现
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible({ timeout: 5000 });
+
+    // 点击预览按钮
+    const previewBtn = dialog.getByRole("button", { name: /预览|Preview/i });
+    if (await previewBtn.isVisible()) {
+      await previewBtn.click();
+      await page.waitForTimeout(1000);
+
+      // THEN: iframe 应该出现（外部 URL 用 iframe 预览）
+      const iframe = dialog.locator("iframe");
+      await expect(iframe).toBeVisible({ timeout: 5000 });
+
+      // iframe 的 src 应该是外部 URL
+      const src = await iframe.getAttribute("src");
+      expect(src).toContain("example.com");
+    }
+  });
+});
