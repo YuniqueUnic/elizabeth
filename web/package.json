@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "build": "bun typecheck && next build",
+    "build:embedded": "bun run build && rm -rf ../crates/board/web-out && cp -r out ../crates/board/web-out",
     "dev": "next dev",
     "e2e:clean": "rimraf playwright-report target",
     "e2e:test": "playwright test",

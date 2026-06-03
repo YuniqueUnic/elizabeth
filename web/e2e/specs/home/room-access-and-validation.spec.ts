@@ -9,6 +9,7 @@ import {
 } from "../../screenplay/home/tasks/Home.tasks";
 import { AlertText, CurrentRoomName } from "../../screenplay/room/questions/Room.questions";
 import { RoomScreen } from "../../screenplay/room/screens/Room.screen";
+import { tErrors } from "../../screenplay/support/i18n";
 import { UnlockProtectedRoom } from "../../screenplay/room/tasks/Room.tasks";
 import { uniqueRoomName } from "../../screenplay/support/test-data";
 
@@ -62,9 +63,7 @@ test.describe("Home room access and validation", () => {
     await HomeScreen.createRoomButton(page).click();
 
     await expect(HomeScreen.alert(page)).toBeVisible();
-    await expect(HomeScreen.alert(page)).toContainText(
-      "房间名称只能包含字母、数字、下划线和连字符",
-    );
+    await expect(HomeScreen.alert(page)).toContainText(tErrors("roomNameFormat"));
     await expect(page).toHaveURL(/\/$/);
   });
 
@@ -78,9 +77,7 @@ test.describe("Home room access and validation", () => {
     await HomeScreen.joinRoomButton(page).click();
 
     await expect(HomeScreen.alert(page)).toBeVisible();
-    await expect(HomeScreen.alert(page)).toContainText(
-      "房间名称只能包含字母、数字、下划线和连字符",
-    );
+    await expect(HomeScreen.alert(page)).toContainText(tErrors("roomNameFormat"));
     await expect(page).toHaveURL(/\/$/);
   });
 
@@ -88,6 +85,6 @@ test.describe("Home room access and validation", () => {
     await page.goto("/-invalid-name");
 
     await expect(RoomScreen.alert(page)).toBeVisible();
-    expect(await actor.answer(AlertText())).toContain("房间名称只能包含字母、数字、下划线和连字符");
+    expect(await actor.answer(AlertText())).toContain(tErrors("backendRoomNameFormat"));
   });
 });

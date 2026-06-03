@@ -1,5 +1,7 @@
 import type { Locator, Page } from "@playwright/test";
 
+import { tCommon, tPattern, tRoom } from "../../support/i18n";
+
 export const RoomScreen = {
   mainArea: (page: Page): Locator =>
     page.locator("main"),
@@ -8,10 +10,10 @@ export const RoomScreen = {
     page.locator(".tiptap-editor-content [contenteditable='true']").first(),
 
   sendButton: (page: Page): Locator =>
-    page.getByRole("button", { name: "发送" }).first(),
+    page.getByRole("button", { name: tRoom("messageInput.send") }).first(),
 
   expandEditorButton: (page: Page): Locator =>
-    page.getByRole("button", { name: "展开编辑器" }),
+    page.getByRole("button", { name: tRoom("messageInput.expandEditor") }),
 
   saveMessagesButton: (page: Page): Locator =>
     page.getByTestId("save-messages-btn"),
@@ -47,28 +49,28 @@ export const RoomScreen = {
     page.getByTestId(/^message-editing-badge-/),
 
   messageCountSummary: (page: Page): Locator =>
-    page.getByText(/共 \d+ 条消息/),
+    page.getByText(tPattern(tRoom("messageList.totalCount"), { count: /\d+/ })),
 
   messageSelectAllButton: (page: Page): Locator =>
-    page.getByRole("button", { name: "全选" }),
+    page.getByRole("button", { name: tRoom("messageList.selectAll") }),
 
   messageInvertSelectionButton: (page: Page): Locator =>
-    page.getByRole("button", { name: "反选" }),
+    page.getByRole("button", { name: tRoom("messageList.invertSelection") }),
 
   messageListScroll: (page: Page): Locator =>
     page.getByTestId("message-list-scroll"),
 
   jumpToLatestButton: (page: Page): Locator =>
-    page.getByRole("button", { name: "回到底部" }),
+    page.getByRole("button", { name: tRoom("messageList.scrollToLatest") }),
 
   editorCancelButton: (page: Page): Locator =>
-    page.getByRole("button", { name: "取消" }).last(),
+    page.getByRole("button", { name: tRoom("messageInput.cancel") }).last(),
 
   roomConfigRoot: (page: Page): Locator =>
     page.locator("aside").first(),
 
   roomConfigTitle: (page: Page): Locator =>
-    page.locator("aside").first().getByText("房间配置"),
+    page.locator("aside").first().getByText(tRoom("config.title")),
 
   expirySelect: (page: Page): Locator =>
     page.getByRole("combobox").first(),
@@ -80,28 +82,30 @@ export const RoomScreen = {
     page.locator("aside").first().locator("#max-views"),
 
   saveRoomConfigButton: (page: Page): Locator =>
-    page.locator("aside").first().getByRole("button", { name: /保存/ }).last(),
+    page.locator("aside").first().getByRole("button", {
+      name: tRoom("config.save.saveConfig"),
+    }),
 
   resetRoomConfigButton: (page: Page): Locator =>
-    page.locator("aside").first().getByRole("button", { name: "重置" }),
+    page.locator("aside").first().getByRole("button", { name: tRoom("config.cancel") }),
 
   permissionButton: (page: Page, label: string): Locator =>
     page.locator("aside").first().getByRole("button", { name: label }).first(),
 
   capacityInfo: (page: Page): Locator =>
-    page.locator("aside").first().getByText(/房间占用|容量使用/).locator(".."),
+    page.locator("aside").first().getByText(tRoom("capacity.title")).locator(".."),
 
   shareLinkButton: (page: Page): Locator =>
-    page.locator("aside").first().getByRole("button", { name: "获取链接" }).first(),
+    page.locator("aside").first().getByRole("button", { name: tRoom("sharing.getLink") }).first(),
 
   shareDownloadQrButton: (page: Page): Locator =>
-    page.locator("aside").first().getByRole("button", { name: "下载" }).first(),
+    page.locator("aside").first().getByRole("button", { name: tRoom("sharing.download") }).first(),
 
   qrCodeImage: (page: Page): Locator =>
     page.locator("aside").first().locator('img[alt="Room QR Code"]'),
 
   closeRoomButton: (page: Page): Locator =>
-    page.getByRole("button", { name: "关闭房间" }).first(),
+    page.getByRole("button", { name: tRoom("closeRoom.button") }).first(),
 
   dialog: (page: Page): Locator =>
     page.getByRole("dialog"),
@@ -110,19 +114,19 @@ export const RoomScreen = {
     page.locator("#close-room-password"),
 
   closeRoomNextButton: (page: Page): Locator =>
-    page.getByRole("button", { name: "下一步" }),
+    page.getByRole("button", { name: tRoom("closeRoom.nextStep") }),
 
   closeRoomConfirmButton: (page: Page): Locator =>
-    page.getByRole("button", { name: "确定物理关闭" }),
+    page.getByRole("button", { name: tRoom("closeRoom.confirmPhysicalClose") }),
 
   closeRoomCancelButton: (page: Page): Locator =>
-    page.getByRole("dialog").getByRole("button", { name: "取消" }).first(),
+    page.getByRole("dialog").getByRole("button", { name: tRoom("closeRoom.cancel") }).first(),
 
   passwordDialogInput: (page: Page): Locator =>
     page.getByRole("dialog").locator("#password").first(),
 
   passwordDialogEnterRoomButton: (page: Page): Locator =>
-    page.getByRole("button", { name: "进入房间" }),
+    page.getByRole("button", { name: tRoom("passwordDialog.enterRoom") }),
 
   passwordDialogError: (page: Page): Locator =>
     page.getByRole("dialog").getByRole("alert"),
@@ -134,13 +138,13 @@ export const RoomScreen = {
     page.locator("aside").last(),
 
   fileUploadButton: (page: Page): Locator =>
-    page.locator("aside").last().locator("button[title='上传文件']"),
+    page.locator("aside").last().locator(`button[title='${tRoom("fileManager.uploadFile")}']`),
 
   fileInput: (page: Page): Locator =>
     page.locator("input[type='file']").last(),
 
   fileEmptyState: (page: Page): Locator =>
-    page.getByText("暂无文件"),
+    page.getByText(tRoom("fileListView.empty")),
 
   fileCards: (page: Page): Locator =>
     page.locator("div.group.relative.flex.items-center.gap-3.rounded-lg.border"),
@@ -152,13 +156,13 @@ export const RoomScreen = {
     page.locator("div.group.relative.flex.items-center.gap-3.rounded-lg.border p.text-sm.font-medium"),
 
   fileUploadZone: (page: Page): Locator =>
-    page.getByText("拖拽文件到此处或点击上传"),
+    page.getByText(tRoom("fileUploadZone.dragOrClick")),
 
   fileSelectAllButton: (page: Page): Locator =>
-    page.locator("aside").last().getByRole("button", { name: "全选" }),
+    page.locator("aside").last().getByRole("button", { name: tRoom("fileManager.selectAll") }),
 
   fileInvertSelectionButton: (page: Page): Locator =>
-    page.locator("aside").last().getByRole("button", { name: "反选" }),
+    page.locator("aside").last().getByRole("button", { name: tRoom("fileManager.invertSelection") }),
 
   filePreviewDialog: (page: Page): Locator =>
     page.getByRole("dialog"),

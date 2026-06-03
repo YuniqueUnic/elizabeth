@@ -1,5 +1,6 @@
 import zhCommon from "../../../messages/zh/common.json";
 import zhErrors from "../../../messages/zh/errors.json";
+import zhHome from "../../../messages/zh/home.json";
 import zhRoom from "../../../messages/zh/room.json";
 
 type MessageBundle = Record<string, unknown>;
@@ -30,6 +31,10 @@ function formatMessage(template: string, values?: Record<string, string | number
   });
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function translate(
   bundle: MessageBundle,
   key: string,
@@ -44,5 +49,34 @@ export const tCommon = (key: string, values?: Record<string, string | number>) =
 export const tErrors = (key: string, values?: Record<string, string | number>) =>
   translate(zhErrors as MessageBundle, key, values);
 
+export const tHome = (key: string, values?: Record<string, string | number>) =>
+  translate(zhHome as MessageBundle, key, values);
+
 export const tRoom = (key: string, values?: Record<string, string | number>) =>
   translate(zhRoom as MessageBundle, key, values);
+
+export const tPattern = (
+  message: string,
+  values?: Record<string, string | number | RegExp>,
+) => {
+  const segments = message.split(/(\{\w+\})/g).filter(Boolean);
+  const pattern = segments.map((segment) => {
+    const match = segment.match(/^\{(\w+)\}$/);
+    if (!match) {
+      return escapeRegExp(segment);
+    }
+
+    const value = values?.[match[1]];
+    if (value === undefined) {
+      return "(.+?)";
+    }
+
+    if (value instanceof RegExp) {
+      return value.source;
+    }
+
+    return escapeRegExp(String(value));
+  }).join("");
+
+  return new RegExp(`^${pattern}$`);
+};

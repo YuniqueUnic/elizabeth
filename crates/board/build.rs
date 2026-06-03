@@ -1,5 +1,6 @@
 pub fn main() {
     println!("cargo:rerun-if-env-changed=DYNAMIC");
+    println!("cargo:rerun-if-env-changed=ELIZABETH_SKIP_WEB_BUILD");
     if std::env::var("DYNAMIC").is_ok() {
         println!("cargo:rustc-cfg=feature=\"dynamic\"");
     }
@@ -43,6 +44,173 @@ pub fn main() {
             eprintln!("Failed to generate frontend bindings: {}", e);
         }
     }
+
+    if let Err(error) = ensure_embedded_frontend() {
+        panic!("Failed to prepare embedded frontend assets: {error:#}");
+    }
+}
+
+const FRONTEND_INPUTS: &[&str] = &[
+    "web/app",
+    "web/api",
+    "web/components",
+    "web/hooks",
+    "web/i18n",
+    "web/lib",
+    "web/messages",
+    "web/public",
+    "web/styles",
+    "web/types/generated",
+    "web/package.json",
+    "web/bun.lock",
+    "web/next.config.mjs",
+    "web/postcss.config.mjs",
+    "web/tsconfig.json",
+    "web/proxy.ts",
+];
+
+fn ensure_embedded_frontend() -> anyhow::Result<()> {
+    let manifest_dir = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR")?);
+    let workspace_root = manifest_dir
+        .parent()
+        .and_then(|parent| parent.parent())
+        .ok_or_else(|| anyhow::anyhow!("Failed to determine workspace root from CARGO_MANIFEST_DIR"))?;
+    let web_dir = workspace_root.join("web");
+    let embedded_dir = manifest_dir.join("web-out");
+
+    for input in FRONTEND_INPUTS {
+        register_rerun_path(&workspace_root.join(input))?;
+    }
+
+    if !web_dir.exists() {
+        eprintln!(
+            "[board/build.rs] skipping embedded frontend rebuild because {:?} is unavailable in this build context",
+            web_dir
+        );
+        return Ok(());
+    }
+
+    if should_skip_embedded_frontend_build() {
+        if !has_embedded_frontend_assets(&embedded_dir) {
+            anyhow::bail!(
+                "`ELIZABETH_SKIP_WEB_BUILD` is set, but {:?} is empty or missing. Run `bun run build:embedded` in `web/` first.",
+                embedded_dir
+            );
+        }
+        eprintln!(
+            "[board/build.rs] skipping `bun run build:embedded` because ELIZABETH_SKIP_WEB_BUILD is set"
+        );
+        return Ok(());
+    }
+
+    if !embedded_frontend_build_needed(&workspace_root, &embedded_dir)? {
+        return Ok(());
+    }
+
+    eprintln!("[board/build.rs] running `bun run build:embedded` in {:?}", web_dir);
+
+    let status = std::process::Command::new("bun")
+        .arg("run")
+        .arg("build:embedded")
+        .current_dir(&web_dir)
+        .status()
+        .map_err(|error| match error.kind() {
+            std::io::ErrorKind::NotFound => anyhow::anyhow!(
+                "`bun` was not found in PATH. Install Bun or set ELIZABETH_SKIP_WEB_BUILD=1 if you intentionally want to reuse existing embedded assets."
+            ),
+            _ => anyhow::Error::new(error),
+        })?;
+
+    if !status.success() {
+        anyhow::bail!("`bun run build:embedded` failed with status {status}");
+    }
+
+    if !has_embedded_frontend_assets(&embedded_dir) {
+        anyhow::bail!(
+            "`bun run build:embedded` completed, but {:?} is still empty or missing",
+            embedded_dir
+        );
+    }
+
+    Ok(())
+}
+
+fn should_skip_embedded_frontend_build() -> bool {
+    matches!(
+        std::env::var("ELIZABETH_SKIP_WEB_BUILD"),
+        Ok(value) if matches!(value.as_str(), "1" | "true" | "TRUE" | "yes" | "YES")
+    )
+}
+
+fn embedded_frontend_build_needed(
+    workspace_root: &std::path::Path,
+    embedded_dir: &std::path::Path,
+) -> anyhow::Result<bool> {
+    if !has_embedded_frontend_assets(embedded_dir) {
+        return Ok(true);
+    }
+
+    let newest_input = FRONTEND_INPUTS
+        .iter()
+        .filter_map(|path| newest_modified_at(&workspace_root.join(path)).transpose())
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .max();
+
+    let newest_output = newest_modified_at(embedded_dir)?;
+
+    Ok(match (newest_input, newest_output) {
+        (_, None) => true,
+        (Some(input), Some(output)) => input > output,
+        (None, Some(_)) => false,
+    })
+}
+
+fn register_rerun_path(path: &std::path::Path) -> anyhow::Result<()> {
+    if !path.exists() {
+        return Ok(());
+    }
+
+    println!("cargo:rerun-if-changed={}", path.display());
+    if path.is_dir() {
+        for entry in std::fs::read_dir(path)? {
+            let entry = entry?;
+            register_rerun_path(&entry.path())?;
+        }
+    }
+
+    Ok(())
+}
+
+fn newest_modified_at(path: &std::path::Path) -> anyhow::Result<Option<std::time::SystemTime>> {
+    if !path.exists() {
+        return Ok(None);
+    }
+
+    let metadata = std::fs::metadata(path)?;
+    let mut newest = metadata.modified().ok();
+
+    if metadata.is_dir() {
+        for entry in std::fs::read_dir(path)? {
+            let entry = entry?;
+            if let Some(child_modified) = newest_modified_at(&entry.path())? {
+                newest = Some(match newest {
+                    Some(current) if current >= child_modified => current,
+                    _ => child_modified,
+                });
+            }
+        }
+    }
+
+    Ok(newest)
+}
+
+fn has_embedded_frontend_assets(path: &std::path::Path) -> bool {
+    path.exists()
+        && path.is_dir()
+        && std::fs::read_dir(path)
+            .map(|mut entries| entries.next().is_some())
+            .unwrap_or(false)
 }
 
 // 包含 CLI 定义

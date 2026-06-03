@@ -11,7 +11,9 @@ import {
   ConfigureRoom,
   OpenRoom,
   SetRoomPermissions,
+  UnlockProtectedRoom,
 } from "../../screenplay/room/tasks/Room.tasks";
+import { tRoom } from "../../screenplay/support/i18n";
 
 test.describe("Room settings", () => {
   let room: ProvisionedRoom;
@@ -27,7 +29,7 @@ test.describe("Room settings", () => {
 
   test("shows the room identity and capacity summary", async ({ actor }) => {
     expect(await actor.answer(CurrentRoomName())).toBe(room.name);
-    expect(await actor.answer(RoomCapacitySummary())).toMatch(/MB|房间占用|容量使用/);
+    expect(await actor.answer(RoomCapacitySummary())).toContain("MB");
   });
 
   test("updates expiry, password, and max views in one save", async ({ actor, page }) => {
@@ -35,13 +37,25 @@ test.describe("Room settings", () => {
 
     await actor.attemptsTo(
       ConfigureRoom({
-        expiry: "1 小时",
+        expiry: tRoom("config.expiry.options.oneHour"),
         maxViews: 75,
         password,
       }),
     );
 
     await page.reload();
+    const postReloadState = await Promise.race([
+      RoomScreen.messageInput(page)
+        .waitFor({ state: "visible", timeout: 30_000 })
+        .then(() => "room" as const),
+      RoomScreen.passwordDialogInput(page)
+        .waitFor({ state: "visible", timeout: 30_000 })
+        .then(() => "password" as const),
+    ]);
+
+    if (postReloadState === "password") {
+      await actor.attemptsTo(UnlockProtectedRoom(password));
+    }
     await expect(RoomScreen.messageInput(page)).toBeVisible();
     await expect(RoomScreen.roomPasswordInput(page)).toHaveValue(password);
     await expect(RoomScreen.maxViewsInput(page)).toHaveValue("75");
@@ -50,17 +64,17 @@ test.describe("Room settings", () => {
   test("updates permission toggles and keeps their saved states", async ({ actor, page }) => {
     await actor.attemptsTo(
       SetRoomPermissions({
-        "删除": false,
+        delete: false,
       }),
     );
 
     await page.reload();
     await expect(RoomScreen.messageInput(page)).toBeVisible();
 
-    expect(await actor.answer(PermissionState("预览"))).toBe(true);
-    expect(await actor.answer(PermissionState("编辑"))).toBe(true);
-    expect(await actor.answer(PermissionState("分享"))).toBe(true);
-    expect(await actor.answer(PermissionState("删除"))).toBe(false);
+    expect(await actor.answer(PermissionState("read"))).toBe(true);
+    expect(await actor.answer(PermissionState("edit"))).toBe(true);
+    expect(await actor.answer(PermissionState("share"))).toBe(true);
+    expect(await actor.answer(PermissionState("delete"))).toBe(false);
   });
 
   test("exposes the sharing controls", async ({ page }) => {

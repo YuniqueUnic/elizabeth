@@ -1,5 +1,6 @@
 import { expect, test } from "../../screenplay/fixtures/screenplay.fixture";
 import { API_BASE_URL } from "../../screenplay/support/constants";
+import { tErrors } from "../../screenplay/support/i18n";
 import { uniqueRoomName } from "../../screenplay/support/test-data";
 import { RoomScreen } from "../../screenplay/room/screens/Room.screen";
 import { ConfigureRoom, OpenRoom } from "../../screenplay/room/tasks/Room.tasks";
@@ -27,7 +28,9 @@ test.describe("Room lifecycle and limits", () => {
 
     await visitorB.page.goto(room.url);
     await expect(RoomScreen.alert(visitorB.page)).toBeVisible();
-    await expect(RoomScreen.alert(visitorB.page)).toContainText("达到最大进入次数");
+    await expect(RoomScreen.alert(visitorB.page)).toContainText(
+      tErrors("roomInaccessibleViaLink"),
+    );
   });
 
   test.fixme("blocks access after the room has been force-expired through the API", async ({
@@ -60,6 +63,8 @@ test.describe("Room lifecycle and limits", () => {
 
     await visitor.page.goto(room.url);
     await expect(RoomScreen.alert(visitor.page)).toBeVisible();
-    await expect(RoomScreen.alert(visitor.page)).toContainText("可能已过期");
+    await expect(RoomScreen.alert(visitor.page)).toContainText(
+      tErrors("roomInaccessibleViaLink"),
+    );
   });
 });

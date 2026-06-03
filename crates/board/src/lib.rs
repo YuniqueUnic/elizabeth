@@ -299,7 +299,7 @@ fn serve_html_asset(name: &str) -> Response {
         None => (
             StatusCode::SERVICE_UNAVAILABLE,
             format!(
-                "Frontend asset '{}' not embedded. Run `bun run build` in web/ first.",
+                "Frontend asset '{}' not embedded. Run `bun run build:embedded` in web/ first, or rebuild `elizabeth-board` without `ELIZABETH_SKIP_WEB_BUILD`.",
                 name
             ),
         )

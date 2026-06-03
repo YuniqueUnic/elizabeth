@@ -144,7 +144,7 @@ export const DeleteFileNamed = (name: string) =>
       has: page.getByText(name, { exact: true }),
     }).first();
     await fileCard.hover();
-    await fileCard.getByRole("button", { name: /删除/ }).click();
+    await fileCard.getByRole("button", { name: tRoom("fileCard.deleteFile") }).click();
   });
 
 export const OpenFilePreviewNamed = (name: string) =>
@@ -216,7 +216,7 @@ export const EditLatestMessage = (content: string) =>
     const page = await nativePageFor(actor);
     const latestMessage = RoomScreen.messageItems(page).last();
     await latestMessage.hover();
-    await latestMessage.getByRole("button", { name: "编辑" }).click();
+    await latestMessage.getByRole("button", { name: tRoom("messageBubble.edit") }).click();
     await RoomScreen.messageInput(page).fill(content);
     await RoomScreen.sendButton(page).click();
   });
