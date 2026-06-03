@@ -88,6 +88,6 @@ test.describe("Home room access and validation", () => {
     await page.goto("/-invalid-name");
 
     await expect(RoomScreen.alert(page)).toBeVisible();
-    expect(await actor.answer(AlertText())).toContain("房间名称不合法");
+    expect(await actor.answer(AlertText())).toContain("房间名称只能包含字母、数字、下划线和连字符");
   });
 });

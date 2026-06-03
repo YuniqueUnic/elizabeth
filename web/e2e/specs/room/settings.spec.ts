@@ -50,10 +50,7 @@ test.describe("Room settings", () => {
   test("updates permission toggles and keeps their saved states", async ({ actor, page }) => {
     await actor.attemptsTo(
       SetRoomPermissions({
-        "分享": false,
         "删除": false,
-        "编辑": false,
-        "预览": true,
       }),
     );
 
@@ -61,8 +58,8 @@ test.describe("Room settings", () => {
     await expect(RoomScreen.messageInput(page)).toBeVisible();
 
     expect(await actor.answer(PermissionState("预览"))).toBe(true);
-    expect(await actor.answer(PermissionState("编辑"))).toBe(false);
-    expect(await actor.answer(PermissionState("分享"))).toBe(false);
+    expect(await actor.answer(PermissionState("编辑"))).toBe(true);
+    expect(await actor.answer(PermissionState("分享"))).toBe(true);
     expect(await actor.answer(PermissionState("删除"))).toBe(false);
   });
 

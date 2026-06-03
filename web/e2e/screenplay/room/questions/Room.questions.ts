@@ -3,6 +3,7 @@ import { Question, the } from "@serenity-js/core";
 import { CallElizabethApi } from "../../abilities/CallElizabethApi.ability";
 import { nativePageFor } from "../../support/actor-page";
 import { readClipboard } from "../../support/clipboard";
+import { tRoom } from "../../support/i18n";
 import { RoomScreen } from "../screens/Room.screen";
 
 export const CurrentUrl = () =>
@@ -87,10 +88,15 @@ export const RoomCapacitySummary = () =>
     return text?.trim() ?? "";
   });
 
-export const PermissionState = (label: "预览" | "编辑" | "分享" | "删除") =>
+export const PermissionState = (label: "read" | "edit" | "share" | "delete") =>
   Question.about(the`whether the ${label} permission is enabled`, async (actor) => {
     const page = await nativePageFor(actor);
-    return (await RoomScreen.permissionButton(page, label).getAttribute("aria-pressed")) === "true";
+    return (
+      await RoomScreen.permissionButton(
+        page,
+        tRoom(`config.permissions.labels.${label}`),
+      ).getAttribute("aria-pressed")
+    ) === "true";
   });
 
 export const AlertText = () =>

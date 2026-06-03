@@ -1,6 +1,7 @@
 import { Interaction, the } from "@serenity-js/core";
 
 import { nativePageFor } from "../../support/actor-page";
+import { tRoom } from "../../support/i18n";
 import type { UploadableFile } from "../../support/test-data";
 import { RoomScreen } from "../screens/Room.screen";
 
@@ -56,16 +57,49 @@ export const SetRoomMaxViews = (count: number) =>
 export const SaveRoomConfiguration = () =>
   Interaction.where(the`#actor saves the room configuration`, async (actor) => {
     const page = await nativePageFor(actor);
-    await RoomScreen.saveRoomConfigButton(page).click();
+    const saveButton = RoomScreen.saveRoomConfigButton(page);
+    if (await saveButton.isDisabled()) {
+      throw new Error("Room configuration save button is disabled before saving");
+    }
+
+    const saveRequest = page.waitForResponse((response) => {
+      const url = response.url();
+      const method = response.request().method();
+      return url.includes("/api/v1/rooms/") &&
+        (
+          (method === "PUT" && url.includes("/settings")) ||
+          (method === "POST" && url.includes("/permissions"))
+        );
+    }, { timeout: 10_000 });
+
+    await saveButton.click();
+
+    const response = await saveRequest;
+    if (!response.ok()) {
+      throw new Error(
+        `Saving room configuration failed: ${response.status()} ${response.statusText()}`,
+      );
+    }
+
+    try {
+      await RoomScreen.toast(page).waitFor({ state: "visible", timeout: 5_000 });
+    } catch {
+      if (!(await saveButton.isDisabled())) {
+        throw new Error("Room configuration save completed without a visible success signal");
+      }
+    }
   });
 
 export const SetPermissionState = (
-  label: "预览" | "编辑" | "分享" | "删除",
+  label: "read" | "edit" | "share" | "delete",
   desired: boolean,
 ) =>
   Interaction.where(the`#actor sets the ${label} permission to ${desired}`, async (actor) => {
     const page = await nativePageFor(actor);
-    const button = RoomScreen.permissionButton(page, label);
+    const button = RoomScreen.permissionButton(
+      page,
+      tRoom(`config.permissions.labels.${label}`),
+    );
     const current = await button.getAttribute("aria-pressed");
 
     if ((current === "true") !== desired) {

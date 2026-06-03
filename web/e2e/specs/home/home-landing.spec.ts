@@ -7,6 +7,7 @@ import {
 } from "../../screenplay/home/tasks/Home.tasks";
 import { CurrentRoomName } from "../../screenplay/room/questions/Room.questions";
 import { RoomScreen } from "../../screenplay/room/screens/Room.screen";
+import { OpenRoom } from "../../screenplay/room/tasks/Room.tasks";
 import { uniqueRoomName } from "../../screenplay/support/test-data";
 
 test.describe("Home landing", () => {
@@ -23,6 +24,17 @@ test.describe("Home landing", () => {
     const roomName = uniqueRoomName("screenplay-home-basic");
 
     await actor.attemptsTo(CreateRoomFromHome(roomName));
+
+    await expect(RoomScreen.messageInput(page)).toBeVisible();
+    expect(await actor.answer(CurrentRoomName())).toBe(roomName);
+  });
+
+  test("opens a room directly from its URL", async ({ actor, page }) => {
+    const roomName = uniqueRoomName("screenplay-direct-room");
+
+    await actor.attemptsTo(
+      OpenRoom(`/${roomName}`),
+    );
 
     await expect(RoomScreen.messageInput(page)).toBeVisible();
     expect(await actor.answer(CurrentRoomName())).toBe(roomName);

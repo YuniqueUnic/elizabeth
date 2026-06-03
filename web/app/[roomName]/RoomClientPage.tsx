@@ -161,14 +161,38 @@ export default function RoomPage() {
       } catch (err: any) {
         if (isCancelled) return;
 
-        const status: number | undefined =
-          err?.code ?? err?.status ?? err?.response?.status;
-        const message: string =
+        const statusCandidate =
+          err?.response?.status ?? err?.status ?? err?.code;
+        const status = typeof statusCandidate === "number"
+          ? statusCandidate
+          : typeof statusCandidate === "string" &&
+              Number.isFinite(Number(statusCandidate))
+          ? Number(statusCandidate)
+          : undefined;
+        const rawMessage: string =
           typeof err?.message === "string" ? err.message : "";
+        const message = rawMessage
+          .replace(/^Validation error:\s*/i, "")
+          .replace(/^Authentication failed:\s*/i, "");
+        const isValidationError =
+          status === 400 ||
+          err?.code === "VALIDATION_ERROR" ||
+          /^Validation error:/i.test(rawMessage);
+        const isAuthenticationError =
+          status === 401 ||
+          status === 403 ||
+          err?.code === "AUTHENTICATION_FAILED" ||
+          /^Authentication failed:/i.test(rawMessage);
 
-        if (status === 400) {
+        if (isValidationError) {
           // Map backend validation errors to user-friendly Chinese messages
           const validationMessages: Record<string, string> = {
+            "Room identifier cannot be empty":
+              tErrors("enterRoomName"),
+            "Room identifier must be between 3 and 150 characters":
+              tErrors("roomNameLength3to150"),
+            "Room identifier can only contain letters, numbers, underscores, and hyphens":
+              tErrors("backendRoomNameFormat"),
             "Room name must be between 3 and 50 characters":
               tErrors("backendRoomNameLength3to50"),
             "Room name can only contain letters, numbers, underscores, and hyphens, and cannot start or end with underscore or hyphen":
@@ -182,7 +206,7 @@ export default function RoomPage() {
           return;
         }
 
-        if (status === 401 || status === 403) {
+        if (isAuthenticationError) {
           setError(
             tErrors("roomInaccessibleViaLink"),
           );

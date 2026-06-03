@@ -29,17 +29,29 @@ case $TEST_TYPE in
         echo "🚀 运行所有测试..."
         npx playwright test --reporter=$REPORTER
         ;;
-    settings)
-        echo "🚀 运行房间设置测试..."
-        npx playwright test room-settings.spec.ts --reporter=$REPORTER
+    home)
+        echo "🚀 运行首页与入房测试..."
+        npx playwright test e2e/specs/home --reporter=$REPORTER
+        ;;
+    files)
+        echo "🚀 运行文件与预览测试..."
+        npx playwright test e2e/specs/room/files.spec.ts --reporter=$REPORTER
         ;;
     messaging)
         echo "🚀 运行消息系统测试..."
-        npx playwright test messaging.spec.ts --reporter=$REPORTER
+        npx playwright test e2e/specs/room/messaging.spec.ts --reporter=$REPORTER
         ;;
-    sample)
-        echo "🚀 运行示例测试..."
-        npx playwright test sample-room-tests.spec.ts --reporter=$REPORTER
+    settings)
+        echo "🚀 运行房间设置测试..."
+        npx playwright test e2e/specs/room/settings.spec.ts --reporter=$REPORTER
+        ;;
+    close-room)
+        echo "🚀 运行关闭房间测试..."
+        npx playwright test e2e/specs/room/close-room.spec.ts --reporter=$REPORTER
+        ;;
+    realtime)
+        echo "🚀 运行实时同步测试..."
+        npx playwright test e2e/specs/room/realtime.spec.ts --reporter=$REPORTER
         ;;
     ui)
         echo "🚀 运行测试 (UI 模式)..."
@@ -52,13 +64,16 @@ case $TEST_TYPE in
     *)
         echo "❌ 未知的测试类型：$TEST_TYPE"
         echo ""
-        echo "用法：$0 [all|settings|messaging|sample|ui|debug] [reporter]"
+        echo "用法：$0 [all|home|files|messaging|settings|close-room|realtime|ui|debug] [reporter]"
         echo ""
         echo "示例："
         echo "  $0 all                    # 运行所有测试"
+        echo "  $0 home                   # 运行首页与入房测试"
+        echo "  $0 files                  # 运行文件与预览测试"
         echo "  $0 settings               # 运行房间设置测试"
         echo "  $0 messaging              # 运行消息系统测试"
-        echo "  $0 sample                 # 运行示例测试"
+        echo "  $0 close-room             # 运行关闭房间测试"
+        echo "  $0 realtime               # 运行实时同步测试"
         echo "  $0 ui                     # UI 模式运行"
         echo "  $0 debug                  # 调试模式运行"
         exit 1

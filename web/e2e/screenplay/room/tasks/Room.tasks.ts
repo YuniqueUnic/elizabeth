@@ -63,24 +63,24 @@ export const ConfigureRoom = (config: {
     SaveRoomConfiguration(),
   );
 
-export const SetRoomPermissions = (permissions: Partial<Record<"预览" | "编辑" | "分享" | "删除", boolean>>) =>
+export const SetRoomPermissions = (permissions: Partial<Record<"read" | "edit" | "share" | "delete", boolean>>) =>
   {
     const entries = Object.entries(permissions)
       .filter(([, desired]) => desired !== undefined) as Array<
-        ["预览" | "编辑" | "分享" | "删除", boolean]
+        ["read" | "edit" | "share" | "delete", boolean]
       >;
 
-    const enableOrder: Array<"预览" | "编辑" | "分享" | "删除"> = [
-      "预览",
-      "编辑",
-      "分享",
-      "删除",
+    const enableOrder: Array<"read" | "edit" | "share" | "delete"> = [
+      "read",
+      "edit",
+      "share",
+      "delete",
     ];
-    const disableOrder: Array<"预览" | "编辑" | "分享" | "删除"> = [
-      "删除",
-      "分享",
-      "编辑",
-      "预览",
+    const disableOrder: Array<"read" | "edit" | "share" | "delete"> = [
+      "delete",
+      "share",
+      "edit",
+      "read",
     ];
 
     const ordered = [
