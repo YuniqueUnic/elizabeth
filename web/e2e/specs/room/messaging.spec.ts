@@ -11,6 +11,7 @@ import {
   UnsavedBadgeCount,
 } from "../../screenplay/room/questions/Room.questions";
 import { RoomScreen } from "../../screenplay/room/screens/Room.screen";
+import { tCommon, tRoom } from "../../screenplay/support/i18n";
 import {
   OpenRoom,
   SaveMessages,
@@ -69,7 +70,7 @@ test.describe("Room messaging", () => {
 
     await RoomScreen.messageInput(page).fill(draft);
     await actor.attemptsTo(SwitchToMobileViewport());
-    await page.getByRole("tab", { name: "聊天" }).click().catch(() => {});
+    await page.getByRole("tab", { name: tCommon("mobileTabChat") }).click().catch(() => {});
 
     expect((await actor.answer(DraftMessageText())) ?? "").toContain("Draft");
   });
@@ -90,7 +91,7 @@ test.describe("Room messaging", () => {
 
     await expect(
       page.locator("[data-state='open']").filter({
-        hasText: /失败|错误|Error|Fail/,
+        hasText: tRoom("chat.sendFailed"),
       }),
     ).toBeVisible();
   });

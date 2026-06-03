@@ -6,6 +6,7 @@ import {
   FileNames,
 } from "../../screenplay/room/questions/Room.questions";
 import { RoomScreen } from "../../screenplay/room/screens/Room.screen";
+import { tRoom } from "../../screenplay/support/i18n";
 import {
   CopyPreviewRoomFileLink,
   CopyPreviewRoomFileMarkdown,
@@ -55,7 +56,7 @@ test.describe("Room files and preview modal", () => {
       .toContain("notes.md");
 
     await RoomScreen.fileSelectAllButton(page).click();
-    await expect(page.getByText("已选择 2 个文件")).toBeVisible();
+    await expect(page.getByText(tRoom("fileManager.selectedCount", { count: 2 }))).toBeVisible();
   });
 
   test("copies a public absolute download URL from the preview modal", async ({

@@ -30,13 +30,10 @@ jobs:
         working-directory: web
 
       - name: Build frontend (static export)
-        run: bun run build
+        run: bun run build:embedded
         working-directory: web
         env:
           NODE_ENV: production
-
-      - name: Copy assets for rust-embed
-        run: cp -r web/out crates/board/web-out
 
       - name: Upload frontend assets
         uses: actions/upload-artifact@v4
@@ -69,6 +66,8 @@ jobs:
 
       - name: Run Clippy
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+        env:
+          ELIZABETH_SKIP_WEB_BUILD: "1"
 
   test:
     name: Test
@@ -92,6 +91,8 @@ jobs:
 
       - name: Run tests
         run: cargo test --workspace --all-targets --all-features
+        env:
+          ELIZABETH_SKIP_WEB_BUILD: "1"
 
   try-publish:
     name: Try Publish
@@ -115,6 +116,8 @@ jobs:
 
       - name: Dry-run publish
         run: cargo publish --workspace --dry-run --allow-dirty
+        env:
+          ELIZABETH_SKIP_WEB_BUILD: "1"
 
   e2e:
     name: E2E Tests
@@ -145,6 +148,8 @@ jobs:
 
       - name: Build backend
         run: cargo build -p elizabeth-board
+        env:
+          ELIZABETH_SKIP_WEB_BUILD: "1"
 
       - name: Start backend
         run: ./target/debug/board run &

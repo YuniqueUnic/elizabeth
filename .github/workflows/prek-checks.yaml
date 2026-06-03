@@ -17,6 +17,19 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+        working-directory: web
+
+      - name: Build embedded frontend assets
+        run: bun run build:embedded
+        working-directory: web
+        env:
+          NODE_ENV: production
+
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -27,3 +40,5 @@ jobs:
 
       - name: prek
         uses: j178/prek-action@v2
+        env:
+          ELIZABETH_SKIP_WEB_BUILD: "1"

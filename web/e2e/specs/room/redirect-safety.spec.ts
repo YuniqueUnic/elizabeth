@@ -2,6 +2,7 @@ import type { Page, Route } from "@playwright/test";
 
 import { expect, test } from "../../screenplay/fixtures/screenplay.fixture";
 import type { ProvisionedRoom } from "../../screenplay/support/constants";
+import { tCommon } from "../../screenplay/support/i18n";
 import { uniqueRoomName } from "../../screenplay/support/test-data";
 import { PermissionState } from "../../screenplay/room/questions/Room.questions";
 import {
@@ -35,7 +36,7 @@ async function rewriteSlugOnMutation(
 }
 
 const roomAddressChangedAlert = (page: Page) =>
-  page.locator("div[role='alert']").filter({ hasText: "房间地址已变更" });
+  page.locator("div[role='alert']").filter({ hasText: tCommon("roomAddressChanged") });
 
 test.describe("Room redirect safety", () => {
   let room: ProvisionedRoom;
@@ -61,7 +62,7 @@ test.describe("Room redirect safety", () => {
     await page.keyboard.press("Escape").catch(() => {});
 
     await expect(roomAddressChangedAlert(page)).toBeVisible();
-    await expect(roomAddressChangedAlert(page)).toContainText("检测到你有未保存的消息更改");
+    await expect(roomAddressChangedAlert(page)).toContainText(tCommon("unsavedChangesWarning"));
     await expect(roomAddressChangedAlert(page)).toContainText(`/${newSlug}`);
   });
 
@@ -70,14 +71,14 @@ test.describe("Room redirect safety", () => {
     page,
   }) => {
     const newSlug = `${room.name}-perm-renamed`;
-    const shareEnabled = await actor.answer(PermissionState("分享"));
+    const shareEnabled = await actor.answer(PermissionState("share"));
 
     await actor.attemptsTo(SendMessage("Message before permission change"));
     await rewriteSlugOnMutation(page, newSlug);
-    await actor.attemptsTo(SetRoomPermissions({ "分享": !shareEnabled }));
+    await actor.attemptsTo(SetRoomPermissions({ share: !shareEnabled }));
 
     await expect(roomAddressChangedAlert(page)).toBeVisible();
-    await expect(roomAddressChangedAlert(page)).toContainText("检测到你有未保存的消息更改");
+    await expect(roomAddressChangedAlert(page)).toContainText(tCommon("unsavedChangesWarning"));
     await expect(roomAddressChangedAlert(page)).toContainText(`/${newSlug}`);
   });
 });
