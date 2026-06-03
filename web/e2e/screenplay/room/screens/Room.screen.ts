@@ -63,6 +63,9 @@ export const RoomScreen = {
   jumpToLatestButton: (page: Page): Locator =>
     page.getByRole("button", { name: tRoom("messageList.scrollToLatest") }),
 
+  mobileChatTab: (page: Page): Locator =>
+    page.getByRole("tab", { name: tCommon("mobileTabChat") }),
+
   editorCancelButton: (page: Page): Locator =>
     page.getByRole("button", { name: tRoom("messageInput.cancel") }).last(),
 
@@ -134,6 +137,9 @@ export const RoomScreen = {
   alert: (page: Page): Locator =>
     page.locator("div[role='alert'][data-slot='alert']").first(),
 
+  roomAddressChangedAlert: (page: Page): Locator =>
+    page.locator("div[role='alert']").filter({ hasText: tCommon("roomAddressChanged") }).first(),
+
   fileSidebar: (page: Page): Locator =>
     page.locator("aside").last(),
 
@@ -189,4 +195,7 @@ export const RoomScreen = {
     page.locator(
       "[data-state='open'][data-swipe-direction], [data-state='open'][data-sonner-toast], [data-state='open'][role='status'], [data-state='open'][role='alert']",
     ).first(),
+
+  closeRoomPasswordError: (page: Page): Locator =>
+    page.getByRole("dialog").locator("p.text-destructive, [class*='destructive'] p").first(),
 };

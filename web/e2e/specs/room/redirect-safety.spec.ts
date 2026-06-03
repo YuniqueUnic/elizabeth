@@ -3,6 +3,7 @@ import type { Page, Route } from "@playwright/test";
 import { expect, test } from "../../screenplay/fixtures/screenplay.fixture";
 import type { ProvisionedRoom } from "../../screenplay/support/constants";
 import { tCommon } from "../../screenplay/support/i18n";
+import { RoomScreen } from "../../screenplay/room/screens/Room.screen";
 import { uniqueRoomName } from "../../screenplay/support/test-data";
 import { PermissionState } from "../../screenplay/room/questions/Room.questions";
 import {
@@ -35,9 +36,6 @@ async function rewriteSlugOnMutation(
   });
 }
 
-const roomAddressChangedAlert = (page: Page) =>
-  page.locator("div[role='alert']").filter({ hasText: tCommon("roomAddressChanged") });
-
 test.describe("Room redirect safety", () => {
   let room: ProvisionedRoom;
 
@@ -61,9 +59,9 @@ test.describe("Room redirect safety", () => {
     await actor.attemptsTo(ConfigureRoom({ maxViews: 999 }));
     await page.keyboard.press("Escape").catch(() => {});
 
-    await expect(roomAddressChangedAlert(page)).toBeVisible();
-    await expect(roomAddressChangedAlert(page)).toContainText(tCommon("unsavedChangesWarning"));
-    await expect(roomAddressChangedAlert(page)).toContainText(`/${newSlug}`);
+    await expect(RoomScreen.roomAddressChangedAlert(page)).toBeVisible();
+    await expect(RoomScreen.roomAddressChangedAlert(page)).toContainText(tCommon("unsavedChangesWarning"));
+    await expect(RoomScreen.roomAddressChangedAlert(page)).toContainText(`/${newSlug}`);
   });
 
   test("warns about unsaved messages when a permission change returns a new room slug", async ({
@@ -77,8 +75,8 @@ test.describe("Room redirect safety", () => {
     await rewriteSlugOnMutation(page, newSlug);
     await actor.attemptsTo(SetRoomPermissions({ share: !shareEnabled }));
 
-    await expect(roomAddressChangedAlert(page)).toBeVisible();
-    await expect(roomAddressChangedAlert(page)).toContainText(tCommon("unsavedChangesWarning"));
-    await expect(roomAddressChangedAlert(page)).toContainText(`/${newSlug}`);
+    await expect(RoomScreen.roomAddressChangedAlert(page)).toBeVisible();
+    await expect(RoomScreen.roomAddressChangedAlert(page)).toContainText(tCommon("unsavedChangesWarning"));
+    await expect(RoomScreen.roomAddressChangedAlert(page)).toContainText(`/${newSlug}`);
   });
 });
