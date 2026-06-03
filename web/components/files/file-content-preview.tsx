@@ -223,9 +223,8 @@ export function FileContentPreview(
         setLoading(true);
         setError(null);
 
-        // ✅ FIX: Use API client to automatically add token
-        // The fileUrl is a relative path like /api/v1/rooms/{roomName}/contents/{id}
-        // We need to fetch it with authentication
+        // fileUrl is expected to already point to an authenticated content URL,
+        // for example /api/v1/contents/{id}?token=...
         const response = await api.getRaw(fileUrl);
 
         if (!response.ok) {

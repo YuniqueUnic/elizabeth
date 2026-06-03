@@ -47,14 +47,31 @@ async function ensureToken(roomName: string, token?: string): Promise<string> {
   return tokenResponse.token;
 }
 
-function appendTokenToPath(path: string, token?: string): string {
-  if (!token) {
-    return path;
-  }
-
-  const url = new URL(path, "http://elizabeth.local");
+function buildAuthenticatedDownloadPath(fileId: string, token: string): string {
+  const url = new URL(`${API_BASE_URL}/contents/${fileId}`, "http://elizabeth.local");
   url.searchParams.set("token", token);
   return `${url.pathname}${url.search}${url.hash}`;
+}
+
+function triggerBrowserDownload(blob: Blob, fileName: string): void {
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = fileName;
+  link.rel = "noopener";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+}
+
+export async function getDownloadUrl(
+  roomName: string,
+  fileId: string,
+  token?: string,
+): Promise<string> {
+  const authToken = await ensureToken(roomName, token);
+  return buildAuthenticatedDownloadPath(fileId, authToken);
 }
 
 function mapMimeToFileType(mime?: string): FileItem["type"] {
@@ -292,14 +309,14 @@ export async function downloadFile(
   fileName: string,
   token?: string,
 ): Promise<void> {
-  const authToken = await ensureToken(roomName, token);
-  const link = document.createElement("a");
-  link.href = appendTokenToPath(`${API_BASE_URL}/contents/${fileId}`, authToken);
-  link.download = fileName;
-  link.rel = "noopener";
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  const downloadUrl = await getDownloadUrl(roomName, fileId, token);
+  const response = await api.getRaw(
+    downloadUrl,
+    undefined,
+    { skipTokenInjection: true },
+  );
+  const blob = await response.blob();
+  triggerBrowserDownload(blob, fileName);
 }
 
 /**

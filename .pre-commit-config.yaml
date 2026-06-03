@@ -5,7 +5,7 @@
 minimum_prek_version: 0.2.0
 
 # 全局排除自动生成及锁文件，不参与任何 pre-commit 检查与格式化
-exclude: '^(CHANGELOG\.md|\.release-please-manifest\.json|version\.txt|.*bun\.lock|(.*/)?(__generated__|\.generated|generated)/.*)$'
+exclude: '^(CHANGELOG\.md|\.release-please-manifest\.json|version\.txt|.*bun\.lock|(.*/)?(__generated__|\.generated|generated)(/.*)?)$'
 
 repos:
   # 基础文件检查 - 使用 prek 内置的快速实现
