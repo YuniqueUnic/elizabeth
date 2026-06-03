@@ -308,6 +308,8 @@
     "linkCopiedDescription": "文件下载链接已复制到剪贴板",
     "markdownCopied": "Markdown 已复制",
     "markdownCopiedDescription": "可直接粘贴到编辑器中",
+    "copyFailed": "复制失败",
+    "copyFailedDescription": "浏览器拒绝了剪贴板写入，请检查权限后重试",
     "insertedToEditor": "已插入到编辑器",
     "insertedToEditorDescription": "已将 Markdown 链接插入到当前光标位置",
     "fileDeleted": "文件已删除",

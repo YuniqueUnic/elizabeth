@@ -308,6 +308,8 @@
     "linkCopiedDescription": "File download link copied to clipboard",
     "markdownCopied": "Markdown copied",
     "markdownCopiedDescription": "Ready to paste into editor",
+    "copyFailed": "Copy failed",
+    "copyFailedDescription": "The browser rejected clipboard access. Check permissions and try again.",
     "insertedToEditor": "Inserted into editor",
     "insertedToEditorDescription": "Markdown link inserted at cursor position",
     "fileDeleted": "File deleted",

@@ -307,6 +307,7 @@ export function RightSidebar() {
 
       <FilePreviewModal
         file={previewFile}
+        roomName={roomName}
         open={previewOpen}
         onOpenChange={setPreviewOpen}
         onDelete={handleDelete}
