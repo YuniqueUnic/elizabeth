@@ -23,7 +23,7 @@ test.describe("Room lifecycle and limits", () => {
       ConfigureRoom({ maxViews: 2 }),
     );
 
-    await visitorA.page.goto(room.url);
+    await visitorA.actor.attemptsTo(OpenRoom(room.url));
     await expect(RoomScreen.messageInput(visitorA.page)).toBeVisible();
 
     await visitorB.page.goto(room.url);

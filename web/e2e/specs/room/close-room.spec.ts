@@ -60,9 +60,7 @@ test.describe("Room closure", () => {
     await RoomScreen.closeRoomPasswordInput(page).fill("wrong-password-xyz");
     await RoomScreen.closeRoomNextButton(page).click();
 
-    await expect(
-      RoomScreen.dialog(page).locator("p.text-destructive, [class*='destructive'] p"),
-    ).toBeVisible();
+    await expect(RoomScreen.closeRoomPasswordError(page)).toBeVisible();
     await expect(RoomScreen.closeRoomConfirmButton(page)).toHaveCount(0);
     expect(await actor.answer(RoomExists(room.name))).toBe(true);
   });

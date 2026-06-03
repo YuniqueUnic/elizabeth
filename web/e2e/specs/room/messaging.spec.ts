@@ -70,7 +70,7 @@ test.describe("Room messaging", () => {
 
     await RoomScreen.messageInput(page).fill(draft);
     await actor.attemptsTo(SwitchToMobileViewport());
-    await page.getByRole("tab", { name: tCommon("mobileTabChat") }).click().catch(() => {});
+    await RoomScreen.mobileChatTab(page).click().catch(() => {});
 
     expect((await actor.answer(DraftMessageText())) ?? "").toContain("Draft");
   });
@@ -89,10 +89,6 @@ test.describe("Room messaging", () => {
       SaveMessages(),
     );
 
-    await expect(
-      page.locator("[data-state='open']").filter({
-        hasText: tRoom("chat.sendFailed"),
-      }),
-    ).toBeVisible();
+    await expect(RoomScreen.toast(page)).toContainText(tRoom("chat.sendFailed"));
   });
 });
