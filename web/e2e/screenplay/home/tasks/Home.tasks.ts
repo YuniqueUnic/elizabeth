@@ -29,28 +29,32 @@ export const CreateRoomFromHome = (
     confirmPassword?: string;
   } = {},
 ) =>
-  Task.where(
-    the`#actor creates the room called ${roomName}`,
-    VisitHomePage(),
-    OpenCreateRoomForm(),
-    Interaction.where(the`#actor enters the room name`, async (actor) => {
-      const page = await nativePageFor(actor);
-      await HomeScreen.roomNameInput(page).fill(roomName);
-    }),
-    Interaction.where(the`#actor enters optional room credentials`, async (actor) => {
-      const page = await nativePageFor(actor);
-      if (options.password) {
-        await HomeScreen.createPasswordInput(page).fill(options.password);
-      }
-      if (options.confirmPassword) {
-        await HomeScreen.confirmPasswordInput(page).fill(options.confirmPassword);
-      }
-    }),
-    Interaction.where(the`#actor submits the create room form`, async (actor) => {
-      const page = await nativePageFor(actor);
-      await HomeScreen.createRoomButton(page).click();
-    }),
-  );
+  {
+    const confirmPassword = options.confirmPassword ?? options.password;
+
+    return Task.where(
+      the`#actor creates the room called ${roomName}`,
+      VisitHomePage(),
+      OpenCreateRoomForm(),
+      Interaction.where(the`#actor enters the room name`, async (actor) => {
+        const page = await nativePageFor(actor);
+        await HomeScreen.roomNameInput(page).fill(roomName);
+      }),
+      Interaction.where(the`#actor enters optional room credentials`, async (actor) => {
+        const page = await nativePageFor(actor);
+        if (options.password) {
+          await HomeScreen.createPasswordInput(page).fill(options.password);
+        }
+        if (confirmPassword) {
+          await HomeScreen.confirmPasswordInput(page).fill(confirmPassword);
+        }
+      }),
+      Interaction.where(the`#actor submits the create room form`, async (actor) => {
+        const page = await nativePageFor(actor);
+        await HomeScreen.createRoomButton(page).click();
+      }),
+    );
+  };
 
 export const StartJoiningRoom = (roomName: string) =>
   Task.where(

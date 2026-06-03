@@ -4,6 +4,7 @@ playwright-report
 test-files
 test-results
 screenshots
+serenity
 
 # dependencies
 /node_modules

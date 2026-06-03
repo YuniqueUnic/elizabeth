@@ -182,5 +182,7 @@ export const RoomScreen = {
     page.locator("dialog iframe, [role='dialog'] iframe"),
 
   toast: (page: Page): Locator =>
-    page.locator("[data-state='open'][data-sonner-toast], [data-state='open'][role='status'], [data-state='open'][role='alert']").first(),
+    page.locator(
+      "[data-state='open'][data-swipe-direction], [data-state='open'][data-sonner-toast], [data-state='open'][role='status'], [data-state='open'][role='alert']",
+    ).first(),
 };
