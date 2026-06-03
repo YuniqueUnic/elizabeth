@@ -14,13 +14,21 @@ import { formatFileSize } from "@/lib/utils/format";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/lib/store";
 import { useRoomPermissions } from "@/hooks/use-room-permissions";
+import { copyTextToClipboard } from "@/lib/utils/clipboard";
+import {
+  appendToken,
+  buildMarkdownReference,
+  isImageFile,
+  resolveFileAssetPath,
+  resolveFilePreviewHref,
+  toAbsoluteUrl,
+} from "@/lib/utils/file-links";
 
 import { downloadFile } from "@/api/fileService";
 import { FileContentPreview } from "./file-content-preview";
 import dynamic from "next/dynamic";
 import { ImageViewer } from "./image-viewer";
 import { UrlViewer } from "./url-viewer";
-import { API_BASE_URL } from "@/lib/config";
 import { getRoomTokenString } from "@/lib/utils/api";
 import { insertMarkdownIntoComposer } from "@/lib/composer-editor";
 import { useTranslations } from "next-intl";
@@ -40,17 +48,17 @@ const PDFViewer = dynamic(
 
 interface FilePreviewModalProps {
   file: FileItem | null;
+  roomName: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onDelete: (fileId: string) => void;
 }
 
 export function FilePreviewModal(
-  { file, open, onOpenChange, onDelete }: FilePreviewModalProps,
+  { file, roomName, open, onOpenChange, onDelete }: FilePreviewModalProps,
 ) {
   const t = useTranslations("room");
   const { toast } = useToast();
-  const currentRoomId = useAppStore((state) => state.currentRoomId);
   const requestInsertMarkdown = useAppStore((state) => state.requestInsertMarkdown);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const { can } = useRoomPermissions();
@@ -58,12 +66,17 @@ export function FilePreviewModal(
 
   if (!file) return null;
 
-  const isImage = file.type === "image" ||
-    file.name.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i);
+  const isImage = isImageFile(file);
   const isLink = file.type === "link";
   const isVideo = file.type === "video" ||
     file.name.match(/\.(mp4|webm|ogg)$/i);
   const isPdf = file.name.match(/\.pdf$/i);
+  const roomToken = getRoomTokenString(roomName) ?? undefined;
+  const previewHref = resolveFilePreviewHref(file);
+  const assetPath = resolveFileAssetPath(file);
+  const authenticatedAssetPath = assetPath
+    ? (isLink ? assetPath : appendToken(assetPath, roomToken))
+    : undefined;
 
   // Check if file is a text-based file that can be previewed
   const isTextFile = file.name.match(
@@ -76,7 +89,7 @@ export function FilePreviewModal(
         title: t("filePreviewModal.downloadStart"),
         description: t("filePreviewModal.downloading", { fileName: file.name }),
       });
-      await downloadFile(currentRoomId, file.id, file.name);
+      await downloadFile(roomName, file.id, file.name);
       toast({
         title: t("filePreviewModal.downloadComplete"),
         description: t("filePreviewModal.downloadCompleteDescription", { fileName: file.name }),
@@ -91,36 +104,76 @@ export function FilePreviewModal(
     }
   };
 
-  const handleCopyLink = () => {
-    // ✅ FIX: Copy the actual download URL with full domain
-    const downloadUrl = file.url
-      ? `${window.location.origin}${file.url}`
-      : `${window.location.origin}/api/v1/contents/${file.id}`;
+  const handleCopyLink = async () => {
+    const target = authenticatedAssetPath
+      ? toAbsoluteUrl(authenticatedAssetPath, window.location.origin)
+      : undefined;
 
-    navigator.clipboard.writeText(downloadUrl);
-    toast({
-      title: t("filePreviewModal.linkCopied"),
-      description: t("filePreviewModal.linkCopiedDescription"),
-    });
+    if (!target) {
+      toast({
+        title: t("filePreviewModal.copyFailed"),
+        description: t("filePreviewModal.copyFailedDescription"),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await copyTextToClipboard(target);
+      toast({
+        title: t("filePreviewModal.linkCopied"),
+        description: t("filePreviewModal.linkCopiedDescription"),
+      });
+    } catch (error) {
+      console.error("Copy link failed:", error);
+      toast({
+        title: t("filePreviewModal.copyFailed"),
+        description: t("filePreviewModal.copyFailedDescription"),
+        variant: "destructive",
+      });
+    }
   };
 
-  const buildMarkdownLink = () => {
-    const href = file.url ?? `/contents/${file.id}`;
-    if (isImage) return `![](${href})`;
-    return `[${file.name}](${href})`;
+  const buildInsertMarkdownLink = () => {
+    if (!previewHref) {
+      return buildMarkdownReference(file, `/contents/${file.id}`);
+    }
+
+    return buildMarkdownReference(file, previewHref);
   };
 
-  const handleCopyMarkdown = () => {
-    const markdown = buildMarkdownLink();
-    navigator.clipboard.writeText(markdown);
-    toast({
-      title: t("filePreviewModal.markdownCopied"),
-      description: t("filePreviewModal.markdownCopiedDescription"),
-    });
+  const handleCopyMarkdown = async () => {
+    const href = authenticatedAssetPath
+      ? toAbsoluteUrl(authenticatedAssetPath, window.location.origin)
+      : previewHref;
+
+    if (!href) {
+      toast({
+        title: t("filePreviewModal.copyFailed"),
+        description: t("filePreviewModal.copyFailedDescription"),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await copyTextToClipboard(buildMarkdownReference(file, href));
+      toast({
+        title: t("filePreviewModal.markdownCopied"),
+        description: t("filePreviewModal.markdownCopiedDescription"),
+      });
+    } catch (error) {
+      console.error("Copy markdown failed:", error);
+      toast({
+        title: t("filePreviewModal.copyFailed"),
+        description: t("filePreviewModal.copyFailedDescription"),
+        variant: "destructive",
+      });
+    }
   };
 
   const handleInsertMarkdown = () => {
-    const markdown = `\n\n${buildMarkdownLink()}\n`;
+    const markdown = `\n\n${buildInsertMarkdownLink()}\n`;
     if (!insertMarkdownIntoComposer(markdown)) {
       requestInsertMarkdown(markdown);
     }
@@ -149,31 +202,9 @@ export function FilePreviewModal(
     }
   };
 
-  // Get authenticated image URL
-  const getAuthenticatedUrl = (url?: string) => {
-    if (!url) return undefined;
-
-    // If it's a relative URL, it needs authentication and full URL
-    if (url.startsWith("/")) {
-      // ✅ FIX: Use getRoomTokenString to get token from unified storage
-      const token = getRoomTokenString(currentRoomId);
-
-      if (token) {
-        // Build full URL: http://localhost:4092/api/v1 + /rooms/... + ?token=...
-        const fullUrl = `${API_BASE_URL}${url}?token=${token}`;
-        console.log("Generated authenticated URL:", fullUrl);
-        return fullUrl;
-      } else {
-        console.warn("No token found for room:", currentRoomId);
-        return undefined;
-      }
-    }
-    return url;
-  };
-
-  const imageUrl = getAuthenticatedUrl(file.url);
-  const videoUrl = getAuthenticatedUrl(file.url);
-  const pdfUrl = getAuthenticatedUrl(file.url);
+  const imageUrl = authenticatedAssetPath;
+  const videoUrl = authenticatedAssetPath;
+  const pdfUrl = authenticatedAssetPath;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -305,12 +336,12 @@ export function FilePreviewModal(
           )}
 
           {/* Text file preview (Markdown, code, plain text) */}
-          {isTextFile && file.url && (
+          {isTextFile && authenticatedAssetPath && (
             <FileContentPreview
-              fileUrl={`/contents/${file.id}`}
+              fileUrl={authenticatedAssetPath}
               fileName={file.name}
               mimeType={file.mimeType}
-              roomName={currentRoomId}
+              roomName={roomName}
               onFullscreenToggle={setIsFullscreen}
             />
           )}

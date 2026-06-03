@@ -5,6 +5,7 @@
 // To regenerate: cargo build --package elizabeth-board --features typescript-export
 export * from '../types/generated/api.types';
 
+import { buildContentAssetPath, buildContentPreviewPath } from "./utils/file-links";
 import type {
   ContentType as GeneratedContentType,
   Room as GeneratedRoom,
@@ -138,6 +139,7 @@ export interface FileItem {
   size?: number; // in bytes
   type?: "image" | "video" | "pdf" | "link" | "document";
   url?: string;
+  assetUrl?: string;
   mimeType?: string;
   createdAt?: string;
   uploadedAt?: string;
@@ -259,18 +261,13 @@ export function backendContentToFileItem(
     [ContentType.Url]: "link",
   };
 
-  // ✅ FIX: Generate download URL for file content
-  // For file/image content, we need to construct the download URL
-  // For URL content, use the stored URL directly
-  let fileUrl = content.url;
-  if (
-    !fileUrl &&
-    (contentType === ContentType.File || contentType === ContentType.Image)
-  ) {
-    // Construct download URL: /contents/{contentId}
-    // The API client will add the base URL and token
-    fileUrl = `/contents/${content.id}`;
-  }
+  const isExternalLink = contentType === ContentType.Url;
+  const fileUrl = isExternalLink
+    ? (content.url ?? undefined)
+    : buildContentPreviewPath(String(content.id));
+  const assetUrl = isExternalLink
+    ? (content.url ?? undefined)
+    : buildContentAssetPath(String(content.id));
 
   return {
     id: String(content.id),
@@ -279,6 +276,7 @@ export function backendContentToFileItem(
     size: content.size || undefined,
     type: typeMap[contentType],
     url: fileUrl ?? undefined,
+    assetUrl,
     mimeType: content.mime_type || undefined,
     createdAt: content.created_at,
     uploadedAt: content.created_at,

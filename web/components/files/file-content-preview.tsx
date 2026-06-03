@@ -18,6 +18,7 @@ import {
 import { api } from "@/lib/utils/api";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { copyTextToClipboard } from "@/lib/utils/clipboard";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -254,7 +255,7 @@ export function FileContentPreview(
   const handleCopy = async () => {
     if (!content) return;
     try {
-      await navigator.clipboard.writeText(content);
+      await copyTextToClipboard(content);
       setCopied(true);
       toast({
         title: t("filePreview.copied"),

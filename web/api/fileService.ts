@@ -8,7 +8,7 @@
  * - Batch downloading files
  */
 
-import { API_ENDPOINTS } from "../lib/config";
+import { API_BASE_URL, API_ENDPOINTS } from "../lib/config";
 import { api } from "../lib/utils/api";
 import { getAccessToken, getValidToken } from "./authService";
 import type {
@@ -45,6 +45,16 @@ async function ensureToken(roomName: string, token?: string): Promise<string> {
 
   const tokenResponse = await getAccessToken(roomName);
   return tokenResponse.token;
+}
+
+function appendTokenToPath(path: string, token?: string): string {
+  if (!token) {
+    return path;
+  }
+
+  const url = new URL(path, "http://elizabeth.local");
+  url.searchParams.set("token", token);
+  return `${url.pathname}${url.search}${url.hash}`;
 }
 
 function mapMimeToFileType(mime?: string): FileItem["type"] {
@@ -165,7 +175,8 @@ export async function uploadFile(
       mimeType: file.type || undefined,
       createdAt: timestamp,
       uploadedAt: timestamp,
-      url: `${API_ENDPOINTS.content.base(roomName)}/${mergedFile.content_id}`,
+      url: `/contents/${mergedFile.content_id}`,
+      assetUrl: `${API_BASE_URL}/contents/${mergedFile.content_id}`,
     };
   }
 
@@ -282,26 +293,13 @@ export async function downloadFile(
   token?: string,
 ): Promise<void> {
   const authToken = await ensureToken(roomName, token);
-
-  const response = await api.get(
-    `${API_ENDPOINTS.content.base(roomName)}/${fileId}`,
-    undefined,
-    {
-      token: authToken,
-      responseType: "blob", // Important for file downloads
-    },
-  );
-
-  // Create download link for the file
-  const blob = new Blob([response]);
-  const url = window.URL.createObjectURL(blob);
   const link = document.createElement("a");
-  link.href = url;
+  link.href = appendTokenToPath(`${API_BASE_URL}/contents/${fileId}`, authToken);
   link.download = fileName;
+  link.rel = "noopener";
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-  window.URL.revokeObjectURL(url);
 }
 
 /**
