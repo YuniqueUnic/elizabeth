@@ -1,4 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
+import type {
+  SerenityFixtures,
+  SerenityWorkerFixtures,
+} from "@serenity-js/playwright-test";
 
 // 强制本地调试绕过系统代理，避免 localhost 被代理导致 502
 process.env.NO_PROXY = "localhost,127.0.0.1,::1";
@@ -13,8 +17,8 @@ delete process.env.https_proxy;
  * - /api/v1/* → Axum 后端路由
  * - /* → rust-embed 嵌入的 Next.js 静态文件（SPA fallback）
  */
-export default defineConfig({
-  testDir: "./e2e/tests",
+export default defineConfig<SerenityFixtures, SerenityWorkerFixtures>({
+  testDir: "./e2e/specs",
   /* Run tests in files in parallel */
   fullyParallel: false,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
@@ -25,13 +29,33 @@ export default defineConfig({
   workers: 1,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: [
-    ["list"],
-    ["html"],
+    ["line"],
+    ["html", { open: "never" }],
+    ["@serenity-js/playwright-test", {
+      crew: [
+        "@serenity-js/console-reporter",
+        ["@serenity-js/serenity-bdd", {
+          specDirectory: "./e2e/specs",
+          reporter: {
+            includeAbilityDetails: true,
+          },
+        }],
+        ["@serenity-js/core:ArtifactArchiver", {
+          outputDirectory: "target/site/serenity",
+        }],
+      ],
+    }],
   ],
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* 单端口：前端和后端都在 4092 */
     baseURL: "http://localhost:4092",
+    defaultActorName: "Alice",
+    crew: [
+      ["@serenity-js/web:Photographer", {
+        strategy: "TakePhotosOfFailures",
+      }],
+    ],
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: "on-first-retry",
     screenshot: "only-on-failure",

@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Copy, Download, ExternalLink, Maximize2, Trash2 } from "lucide-react";
+import { Copy, Download, Maximize2, Trash2 } from "lucide-react";
 import type { FileItem } from "@/lib/types";
 import { formatFileSize } from "@/lib/utils/format";
 import { useToast } from "@/hooks/use-toast";
@@ -18,13 +18,13 @@ import { copyTextToClipboard } from "@/lib/utils/clipboard";
 import {
   appendToken,
   buildMarkdownReference,
+  buildPreviewMarkdownReference,
   isImageFile,
   resolveFileAssetPath,
-  resolveFilePreviewHref,
   toAbsoluteUrl,
 } from "@/lib/utils/file-links";
 
-import { downloadFile } from "@/api/fileService";
+import { downloadFile, getDownloadUrl } from "@/api/fileService";
 import { FileContentPreview } from "./file-content-preview";
 import dynamic from "next/dynamic";
 import { ImageViewer } from "./image-viewer";
@@ -72,7 +72,6 @@ export function FilePreviewModal(
     file.name.match(/\.(mp4|webm|ogg)$/i);
   const isPdf = file.name.match(/\.pdf$/i);
   const roomToken = getRoomTokenString(roomName) ?? undefined;
-  const previewHref = resolveFilePreviewHref(file);
   const assetPath = resolveFileAssetPath(file);
   const authenticatedAssetPath = assetPath
     ? (isLink ? assetPath : appendToken(assetPath, roomToken))
@@ -104,22 +103,20 @@ export function FilePreviewModal(
     }
   };
 
-  const handleCopyLink = async () => {
-    const target = authenticatedAssetPath
-      ? toAbsoluteUrl(authenticatedAssetPath, window.location.origin)
-      : undefined;
-
-    if (!target) {
-      toast({
-        title: t("filePreviewModal.copyFailed"),
-        description: t("filePreviewModal.copyFailedDescription"),
-        variant: "destructive",
-      });
-      return;
+  const getPublicDownloadHref = async (): Promise<string> => {
+    if (isLink && file.url) {
+      return file.url;
     }
 
+    return toAbsoluteUrl(
+      await getDownloadUrl(roomName, file.id),
+      window.location.origin,
+    );
+  };
+
+  const handleCopyLink = async () => {
     try {
-      await copyTextToClipboard(target);
+      await copyTextToClipboard(await getPublicDownloadHref());
       toast({
         title: t("filePreviewModal.linkCopied"),
         description: t("filePreviewModal.linkCopiedDescription"),
@@ -135,28 +132,12 @@ export function FilePreviewModal(
   };
 
   const buildInsertMarkdownLink = () => {
-    if (!previewHref) {
-      return buildMarkdownReference(file, `/contents/${file.id}`);
-    }
-
-    return buildMarkdownReference(file, previewHref);
+    return buildPreviewMarkdownReference(file);
   };
 
   const handleCopyMarkdown = async () => {
-    const href = authenticatedAssetPath
-      ? toAbsoluteUrl(authenticatedAssetPath, window.location.origin)
-      : previewHref;
-
-    if (!href) {
-      toast({
-        title: t("filePreviewModal.copyFailed"),
-        description: t("filePreviewModal.copyFailedDescription"),
-        variant: "destructive",
-      });
-      return;
-    }
-
     try {
+      const href = await getPublicDownloadHref();
       await copyTextToClipboard(buildMarkdownReference(file, href));
       toast({
         title: t("filePreviewModal.markdownCopied"),
@@ -191,15 +172,6 @@ export function FilePreviewModal(
       title: t("filePreviewModal.fileDeleted"),
       description: t("filePreviewModal.fileDeletedDescription", { fileName: file.name }),
     });
-  };
-
-  const handleOpenInNewTab = () => {
-    if (file.url) {
-      window.open(file.url, "_blank");
-      toast({
-        title: t("filePreviewModal.openedInNewTab"),
-      });
-    }
   };
 
   const imageUrl = authenticatedAssetPath;
@@ -245,6 +217,7 @@ export function FilePreviewModal(
                   size="sm"
                   onClick={handleDownload}
                   className="h-8"
+                  data-testid="file-preview-download"
                 >
                   <Download className="h-4 w-4 mr-1" />
                   <span className="hidden sm:inline">{t("filePreviewModal.download")}</span>
@@ -254,6 +227,7 @@ export function FilePreviewModal(
                   size="sm"
                   onClick={handleCopyLink}
                   className="h-8"
+                  data-testid="file-preview-copy-link"
                 >
                   <Copy className="h-4 w-4 mr-1" />
                   <span className="hidden sm:inline">{t("filePreviewModal.copyLink")}</span>
@@ -263,6 +237,7 @@ export function FilePreviewModal(
                   size="sm"
                   onClick={handleCopyMarkdown}
                   className="h-8"
+                  data-testid="file-preview-copy-markdown"
                 >
                   <Copy className="h-4 w-4 mr-1" />
                   <span className="hidden sm:inline">{t("filePreviewModal.copyMarkdown")}</span>
@@ -272,6 +247,7 @@ export function FilePreviewModal(
                   size="sm"
                   onClick={handleInsertMarkdown}
                   className="h-8"
+                  data-testid="file-preview-insert-markdown"
                 >
                   <Copy className="h-4 w-4 mr-1" />
                   <span className="hidden sm:inline">{t("filePreviewModal.insertToEditor")}</span>

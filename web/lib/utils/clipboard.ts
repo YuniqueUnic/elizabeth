@@ -1,11 +1,6 @@
 "use client";
 
-export async function copyTextToClipboard(text: string): Promise<void> {
-  if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text);
-    return;
-  }
-
+function fallbackCopyText(text: string): void {
   const textArea = document.createElement("textarea");
   textArea.value = text;
   textArea.setAttribute("readonly", "true");
@@ -24,4 +19,17 @@ export async function copyTextToClipboard(text: string): Promise<void> {
   } finally {
     document.body.removeChild(textArea);
   }
+}
+
+export async function copyTextToClipboard(text: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch (error) {
+      console.warn("navigator.clipboard.writeText failed, falling back", error);
+    }
+  }
+
+  fallbackCopyText(text);
 }

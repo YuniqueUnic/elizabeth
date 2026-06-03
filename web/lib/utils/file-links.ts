@@ -63,6 +63,12 @@ export function resolveFileAssetPath(
   return file.assetUrl ?? buildContentAssetPath(file.id);
 }
 
+export function resolveFilePreviewLink(
+  file: Pick<FileItem, "id" | "type" | "url">,
+): string {
+  return resolveFilePreviewHref(file) ?? buildContentPreviewPath(file.id);
+}
+
 export function buildMarkdownReference(
   file: Pick<FileItem, "name" | "type">,
   href: string,
@@ -72,4 +78,10 @@ export function buildMarkdownReference(
   }
 
   return `[${file.name}](${href})`;
+}
+
+export function buildPreviewMarkdownReference(
+  file: Pick<FileItem, "id" | "name" | "type" | "url">,
+): string {
+  return buildMarkdownReference(file, resolveFilePreviewLink(file));
 }
