@@ -7,7 +7,7 @@ use axum::Json;
 use axum::body::Body;
 use axum::extract::{Multipart, Path as AxumPath, Query, State};
 use axum::http::HeaderValue;
-use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
+use axum::http::header::{CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_TYPE};
 use axum::response::Response;
 use chrono::NaiveDateTime;
 use futures::StreamExt;
@@ -658,6 +658,12 @@ async fn serve_content_stream(content: RoomContent) -> Result<Response, AppError
     response
         .headers_mut()
         .insert(CONTENT_DISPOSITION, disposition);
+
+    if let Some(size) = content.size {
+        if let Ok(value) = HeaderValue::from_str(&size.to_string()) {
+            response.headers_mut().insert(CONTENT_LENGTH, value);
+        }
+    }
 
     if let Some(mime) = content.mime_type
         && let Ok(value) = HeaderValue::from_str(&mime)

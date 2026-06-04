@@ -8,6 +8,7 @@
 import { API_ENDPOINTS } from "../lib/config";
 import { api } from "../lib/utils/api";
 import { getValidToken } from "./authService";
+import type { TransferProgress } from "../lib/transfer-types";
 import type {
   ChunkedUploadPreparationRequest,
   ChunkedUploadPreparationResponse,
@@ -22,21 +23,12 @@ import type {
 // ============================================================================
 
 export interface ChunkedUploadOptions {
-  chunkSize?: number; // Size of each chunk in bytes (default: 1MB)
-  maxRetries?: number; // Maximum retries per chunk (default: 3)
-  onProgress?: (progress: ChunkUploadProgress) => void;
+  chunkSize?: number;
+  maxRetries?: number;
+  onProgress?: (progress: TransferProgress) => void;
   onChunkComplete?: (chunkIndex: number, totalChunks: number) => void;
   onError?: (error: Error, chunkIndex?: number) => void;
-}
-
-export interface ChunkUploadProgress {
-  bytesUploaded: number;
-  totalBytes: number;
-  percentage: number;
-  currentChunk: number;
-  totalChunks: number;
-  uploadSpeed: number; // bytes per second
-  estimatedTimeRemaining: number; // seconds
+  abortSignal?: AbortSignal;
 }
 
 export interface ChunkData {
@@ -65,11 +57,12 @@ export async function uploadFileChunked(
   token?: string,
 ): Promise<FileMergeResponse> {
   const {
-    chunkSize = 1024 * 1024, // 1MB default
+    chunkSize = 1024 * 1024,
     maxRetries = 3,
     onProgress,
     onChunkComplete,
     onError,
+    abortSignal,
   } = options;
 
   const authToken = token || await getValidToken(roomName);
@@ -102,6 +95,11 @@ export async function uploadFileChunked(
 
   // Step 2: Upload chunks
   for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+    // Check abort before each chunk
+    if (abortSignal?.aborted) {
+      throw new DOMException("Aborted", "AbortError");
+    }
+
     const start = chunkIndex * chunkSize;
     const end = Math.min(start + chunkSize, file.size);
     const chunk = file.slice(start, end);
@@ -120,32 +118,36 @@ export async function uploadFileChunked(
         },
         authToken,
         maxRetries,
+        abortSignal,
       );
 
-      // Update progress
       bytesUploaded += arrayBuffer.byteLength;
       const elapsed = (Date.now() - startTime) / 1000;
-      const uploadSpeed = bytesUploaded / elapsed;
+      const speed = bytesUploaded / elapsed;
       const remainingBytes = file.size - bytesUploaded;
-      const estimatedTimeRemaining = remainingBytes / uploadSpeed;
+      const estimatedTimeRemaining = speed > 0 ? remainingBytes / speed : 0;
 
-      const progress: ChunkUploadProgress = {
-        bytesUploaded,
+      onProgress?.({
+        bytesTransferred: bytesUploaded,
         totalBytes: file.size,
         percentage: (bytesUploaded / file.size) * 100,
-        currentChunk: chunkIndex + 1,
-        totalChunks,
-        uploadSpeed,
+        speed,
         estimatedTimeRemaining,
-      };
-
-      onProgress?.(progress);
+      });
       onChunkComplete?.(chunkIndex, totalChunks);
     } catch (error) {
       const chunkError = error instanceof Error
         ? error
         : new Error(String(error));
       onError?.(chunkError, chunkIndex);
+
+      // On abort, try to cancel on server to clean up temp files
+      if (abortSignal?.aborted || (error instanceof DOMException && error.name === "AbortError")) {
+        try {
+          const { cancelUpload } = await import("./fileService");
+          await cancelUpload(roomName, reservationId, authToken).catch(() => {});
+        } catch { /* ignore cleanup errors */ }
+      }
       throw chunkError;
     }
   }
@@ -184,41 +186,53 @@ async function uploadChunk(
   chunkData: ChunkData,
   token: string,
   maxRetries: number = 3,
+  abortSignal?: AbortSignal,
 ): Promise<void> {
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (abortSignal?.aborted) {
+      throw new DOMException("Aborted", "AbortError");
+    }
+
     try {
       const formData = new FormData();
       formData.append("upload_token", uploadToken);
       formData.append("chunk_index", chunkData.chunk_index.toString());
       formData.append("chunk_size", chunkData.data.byteLength.toString());
 
-      // Add chunk hash if available (optional)
       const chunkBlob = new Blob([chunkData.data]);
       formData.append("chunk_data", chunkBlob);
 
-      await api.post(
-        API_ENDPOINTS.chunkedUpload.upload(roomName),
-        formData,
-        { token },
-      );
+      // Use fetch directly to support abort signal
+      const url = `${API_ENDPOINTS.chunkedUpload.upload(roomName)}`;
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+        signal: abortSignal,
+      });
 
-      return; // Success
+      if (!response.ok) {
+        const err = new Error(`Chunk upload failed: ${response.status}`) as any;
+        err.code = response.status;
+        throw err;
+      }
+
+      return;
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") throw error;
       lastError = error instanceof Error ? error : new Error(String(error));
 
-      // Don't retry on client errors (4xx)
       if (error && typeof error === "object" && "code" in error) {
         const errorCode = (error as any).code;
-        if (errorCode >= 400 && errorCode < 500) {
+        if (typeof errorCode === "number" && errorCode >= 400 && errorCode < 500) {
           throw lastError;
         }
       }
 
-      // Wait before retrying (except on last attempt)
       if (attempt < maxRetries) {
-        const delay = Math.pow(2, attempt) * 1000; // Exponential backoff
+        const delay = Math.pow(2, attempt) * 1000;
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }

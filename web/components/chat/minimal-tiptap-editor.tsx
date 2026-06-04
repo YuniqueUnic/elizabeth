@@ -392,8 +392,9 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
     const queryClient = useQueryClient();
     const { resolvedTheme } = useTheme();
     const roomName = useAppStore((state) => state.currentRoomId);
-    const incrementActiveUploads = useAppStore((state) => state.incrementActiveUploads);
-    const decrementActiveUploads = useAppStore((state) => state.decrementActiveUploads);
+    const addTransfer = useAppStore((state) => state.addTransfer);
+    const updateTransferStatus = useAppStore((state) => state.updateTransferStatus);
+    const removeTransfer = useAppStore((state) => state.removeTransfer);
     const composerInsertRequest = useAppStore((state) => state.composerInsertRequest);
     const clearInsertMarkdownRequest = useAppStore((state) => state.clearInsertMarkdownRequest);
     const editorFontSize = useAppStore((state) => state.editorFontSize);
@@ -586,9 +587,21 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
         if (!roomName || !editor) return;
 
         for (const file of files) {
-          incrementActiveUploads();
+          const transferId = crypto.randomUUID();
+          addTransfer({
+            id: transferId,
+            fileName: file.name,
+            fileSize: file.size,
+            direction: "upload",
+            status: "active",
+            progress: { bytesTransferred: 0, totalBytes: file.size, percentage: 0, speed: 0, estimatedTimeRemaining: 0 },
+            startedAt: Date.now(),
+            abortController: new AbortController(),
+          });
           try {
             const uploaded = await uploadFile(roomName, file);
+            updateTransferStatus(transferId, "completed");
+            setTimeout(() => removeTransfer(transferId), 3000);
             queryClient.invalidateQueries({ queryKey: ["files", roomName] });
             queryClient.invalidateQueries({ queryKey: ["room", roomName] });
 
@@ -605,17 +618,17 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
               description: uploaded.name,
             });
           } catch (error: any) {
+            updateTransferStatus(transferId, "error", error.message);
+            setTimeout(() => removeTransfer(transferId), 5000);
             toast({
               title: t("uploadFailed"),
               description: error.message || t("uploadFailedDescription"),
               variant: "destructive",
             });
-          } finally {
-            decrementActiveUploads();
           }
         }
       },
-      [roomName, editor, incrementActiveUploads, decrementActiveUploads, queryClient, toast, isSourceMode, value, onChange]
+      [roomName, editor, addTransfer, updateTransferStatus, removeTransfer, queryClient, toast, isSourceMode, value, onChange]
     );
 
     return (

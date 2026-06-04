@@ -30,5 +30,8 @@ pub fn api_router(app_state: Arc<AppState>) -> OpenApiRouter {
         .routes(routes!(
             crate::handlers::chunked_upload::complete_file_merge
         ))
+        .routes(routes!(
+            crate::handlers::chunked_upload::cancel_chunked_upload
+        ))
         .with_state(app_state)
 }

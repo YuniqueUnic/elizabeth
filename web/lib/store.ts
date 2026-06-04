@@ -143,10 +143,13 @@ interface AppState {
   requestInsertMarkdown: (markdown: string) => void;
   clearInsertMarkdownRequest: (requestId: number) => void;
 
-  // Upload state
-  activeUploads: number;
-  incrementActiveUploads: () => void;
-  decrementActiveUploads: () => void;
+  // Transfer state (uploads + downloads)
+  transfers: Record<string, import("./transfer-types").TransferItem>;
+  addTransfer: (item: import("./transfer-types").TransferItem) => void;
+  updateTransferProgress: (id: string, progress: import("./transfer-types").TransferProgress) => void;
+  updateTransferStatus: (id: string, status: import("./transfer-types").TransferStatus, error?: string) => void;
+  removeTransfer: (id: string) => void;
+  cancelTransfer: (id: string) => void;
 
   // Global redirect state (for room renaming)
   roomRedirectTarget: string | null;
@@ -358,10 +361,12 @@ export const useAppStore = create<AppState>()(
       },
       hasUnsavedChanges: () => {
         const messages = get().messages;
-        const activeUploads = get().activeUploads;
+        const hasActiveUploads = Object.values(get().transfers).some(
+          (t) => t.status === "active" && t.direction === "upload",
+        );
         return (
           messages.some((m) => m.isNew || m.isDirty || m.isPendingDelete) ||
-          activeUploads > 0
+          hasActiveUploads
         );
       },
       isSaving: false,
@@ -449,14 +454,39 @@ export const useAppStore = create<AppState>()(
             : {}
         ),
 
-      // Upload state
-      activeUploads: 0,
-      incrementActiveUploads: () =>
-        set((state) => ({ activeUploads: state.activeUploads + 1 })),
-      decrementActiveUploads: () =>
-        set((state) => ({
-          activeUploads: Math.max(0, state.activeUploads - 1),
-        })),
+      // Transfer state (uploads + downloads)
+      transfers: {},
+      addTransfer: (item) =>
+        set((state) => ({ transfers: { ...state.transfers, [item.id]: item } })),
+      updateTransferProgress: (id, progress) =>
+        set((state) => {
+          const existing = state.transfers[id];
+          if (!existing) return {};
+          return { transfers: { ...state.transfers, [id]: { ...existing, progress } } };
+        }),
+      updateTransferStatus: (id, status, error) =>
+        set((state) => {
+          const existing = state.transfers[id];
+          if (!existing) return {};
+          return { transfers: { ...state.transfers, [id]: { ...existing, status, error } } };
+        }),
+      removeTransfer: (id) =>
+        set((state) => {
+          const { [id]: _, ...rest } = state.transfers;
+          return { transfers: rest };
+        }),
+      cancelTransfer: (id) => {
+        const transfer = get().transfers[id];
+        if (transfer) {
+          transfer.abortController.abort();
+          set((state) => ({
+            transfers: {
+              ...state.transfers,
+              [id]: { ...transfer, status: "cancelled" as const },
+            },
+          }));
+        }
+      },
 
       // Global redirect state
       roomRedirectTarget: null,

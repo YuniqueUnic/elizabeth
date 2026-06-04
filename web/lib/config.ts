@@ -116,6 +116,8 @@ export const API_ENDPOINTS = {
       `/rooms/${encodeURIComponent(name)}/uploads/chunks/status`,
     complete: (name: string) =>
       `/rooms/${encodeURIComponent(name)}/uploads/chunks/complete`,
+    cancel: (name: string, reservationId: string) =>
+      `/rooms/${encodeURIComponent(name)}/uploads/chunks/${reservationId}`,
   },
 
   // Authentication
