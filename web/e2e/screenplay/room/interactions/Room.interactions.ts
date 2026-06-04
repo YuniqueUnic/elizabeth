@@ -134,7 +134,28 @@ export const InvertFileSelection = () =>
 export const UploadFiles = (...files: UploadableFile[]) =>
   Interaction.where(the`#actor uploads ${files.length} file(s)`, async (actor) => {
     const page = await nativePageFor(actor);
+
+    // Listen for the upload API response to ensure the upload completes successfully.
+    // This catches runtime errors (like crypto.randomUUID failures) that would otherwise
+    // be silently swallowed by the mutation's error handler.
+    const uploadResponsePromise = page.waitForResponse(
+      (response) => {
+        const url = response.url();
+        return url.includes("/api/v1/rooms/") && url.includes("/contents")
+          && response.request().method() === "POST";
+      },
+      { timeout: 30_000 },
+    );
+
     await RoomScreen.fileInput(page).setInputFiles(files);
+
+    const response = await uploadResponsePromise;
+    if (!response.ok()) {
+      const body = await response.text().catch(() => "");
+      throw new Error(
+        `File upload failed: ${response.status()} ${response.statusText()} — ${body}`,
+      );
+    }
   });
 
 export const DeleteFileNamed = (name: string) =>

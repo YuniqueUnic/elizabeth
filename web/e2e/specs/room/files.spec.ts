@@ -19,6 +19,7 @@ import {
 } from "../../screenplay/room/tasks/Room.tasks";
 import {
   markdownFile,
+  pdfFile,
   pngFile,
   textFile,
 } from "../../screenplay/support/test-data";
@@ -129,6 +130,33 @@ test.describe("Room files and preview modal", () => {
     const download = await downloadPromise;
 
     expect(download.suggestedFilename()).toBe("downloadable.png");
+
+    // Verify the downloaded file has actual content (not an empty blob)
+    const filePath = await download.path();
+    expect(filePath).toBeTruthy();
+  });
+
+  test("uploads and previews a PDF file without errors", async ({
+    actor,
+    page,
+  }) => {
+    await actor.attemptsTo(
+      UploadRoomFiles(pdfFile("test-document")),
+    );
+
+    await expect.poll(async () => (await actor.answer(FileNames())).join("|"))
+      .toContain("test-document.pdf");
+
+    await actor.attemptsTo(
+      PreviewRoomFile("test-document.pdf"),
+    );
+
+    // Verify the preview dialog opened
+    await expect(RoomScreen.filePreviewDialog(page)).toBeVisible();
+
+    // Verify no error message appears in the PDF viewer
+    const errorText = page.locator(".text-destructive").filter({ hasText: /load failed|error/i });
+    await expect(errorText).toHaveCount(0);
   });
 
   test("inserts an internal preview link into the editor and reopens the preview from the message", async ({

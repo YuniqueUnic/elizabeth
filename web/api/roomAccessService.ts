@@ -10,6 +10,7 @@
 
 import { API_ENDPOINTS } from "../lib/config";
 import { api } from "../lib/utils/api";
+import { generateUUID } from "../lib/utils/uuid";
 import { getAccessToken, getValidToken } from "./authService";
 import { backendRoomToRoomDetails as convertRoom } from "../lib/types";
 import type { BackendRoom, RoomDetails } from "../lib/types";
@@ -89,7 +90,7 @@ export async function checkRoomAvailability(
  * Generate UUID for non-shareable rooms
  */
 export function generateRoomUUID(): string {
-  return crypto.randomUUID().replace(/-/g, "").substring(0, 8);
+  return generateUUID().replace(/-/g, "").substring(0, 8);
 }
 
 /**
