@@ -16,7 +16,7 @@ import { uniqueRoomName } from "../../screenplay/support/test-data";
 test.describe("Home room access and validation", () => {
   test("creates a password-protected room from home", async ({ actor, page }) => {
     const roomName = uniqueRoomName("screenplay-home-protected");
-    const password = "test123";
+    const password = "test123"; // pragma: allowlist secret
 
     await actor.attemptsTo(
       CreateRoomFromHome(roomName, {
@@ -32,7 +32,7 @@ test.describe("Home room access and validation", () => {
     createActor,
     provisionRoom,
   }) => {
-    const password = "test123";
+    const password = "test123"; // pragma: allowlist secret
     const room = await provisionRoom({
       injectToken: false,
       password,

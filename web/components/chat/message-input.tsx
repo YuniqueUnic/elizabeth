@@ -130,7 +130,7 @@ export function MessageInput(
             />
           </div>
 
-          <div className="flex-shrink-0 flex justify-end gap-2 px-4 pb-4 sm:px-0 sm:pb-0 pt-3 border-t">
+          <div className="shrink-0 flex justify-end gap-2 px-4 pb-4  sm:pb-0 pt-3 border-t">
             <Button variant="outline" onClick={() => setIsExpanded(false)}>
               {t("messageInput.cancel")}
             </Button>

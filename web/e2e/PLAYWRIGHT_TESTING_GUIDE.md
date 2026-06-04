@@ -30,7 +30,8 @@ web/e2e/
 - `interactions/` 只放原子 UI 操作。
 - `questions/` 只读状态，不做点击或写入。
 - `screens/` 只暴露语义化 locator。
-- `abilities/` 与 `support/` 负责技术接入，例如 API、clipboard、token 注入、多 actor 上下文。
+- `abilities/` 与 `support/` 负责技术接入，例如 API、clipboard、token 注入、多
+  actor 上下文。
 
 ## 运行方式
 
@@ -53,7 +54,8 @@ npx playwright test e2e/specs/room/messaging.spec.ts
 ## 编写规则
 
 - 优先复用 `screenplay/room/**` 与 `screenplay/home/**` 里的 task/question。
-- 允许在 spec 里保留少量 Playwright 断言或 `page.route`，但不要回退到 page-object。
+- 允许在 spec 里保留少量 Playwright 断言或 `page.route`，但不要回退到
+  page-object。
 - 新增 locator 先放到 `screens/`。
 - 新增可复用动作先放到 `interactions/`，再由 `tasks/` 组合。
 - 保持 `specs/` 文件按主题拆分，不把所有场景堆进一个超长文件。

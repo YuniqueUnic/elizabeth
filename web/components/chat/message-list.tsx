@@ -85,10 +85,14 @@ export function MessageList(
   // Scroll to bottom on initial load
   useEffect(() => {
     const el = viewportRef.current;
-    if (el) {
+    if (!el) return;
+    if (autoScroll) {
       el.scrollTop = el.scrollHeight;
+    } else {
+      // When auto-scroll is off, start at the top so user can browse freely
+      el.scrollTop = 0;
     }
-  }, []);
+  }, [autoScroll]);
 
   const scrollToBottom = () => {
     const el = viewportRef.current;

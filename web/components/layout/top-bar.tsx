@@ -18,7 +18,11 @@ import { getRoomDetails } from "@/api/roomService";
 import { deleteMessages, getMessages } from "@/api/messageService";
 import { useAppStore } from "@/lib/store";
 import { useToast } from "@/hooks/use-toast";
-import { formatDate } from "@/lib/utils/format";
+import { copyTextToClipboard } from "@/lib/utils/clipboard";
+import {
+  formatMessagesMarkdown,
+  downloadMarkdown,
+} from "@/lib/utils/message-format";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
@@ -114,23 +118,26 @@ export function TopBar() {
       return;
     }
 
-    const selectedMessagesList = messages
-      .filter((m) => selectedMessages.has(m.id))
-      .map((m, index) => {
-        if (includeMetadataInCopy) {
-          const messageNumber = messages.findIndex((msg) => msg.id === m.id) +
-            1;
-          return `### ${t("messageHeader", { number: messageNumber })}\n**${t("messageUser", { user: m.user || t("messageAnonymous") })}**\n**${t("messageTime", { time: formatDate(m.timestamp) })}**\n\n${m.content}`;
-        }
-        return m.content;
-      })
-      .join("\n\n---\n\n");
-
-    await navigator.clipboard.writeText(selectedMessagesList);
-    toast({
-      title: t("copied"),
-      description: t("copiedMessagesToClipboard", { count: selectedMessages.size }),
-    });
+    try {
+      const text = formatMessagesMarkdown(messages, selectedMessages, {
+        includeMetadata: includeMetadataInCopy,
+        tHeader: (p) => t("messageHeader", p),
+        tUser: (p) => t("messageUser", p),
+        tAnonymous: t("messageAnonymous"),
+        tTime: (p) => t("messageTime", p),
+      });
+      await copyTextToClipboard(text);
+      toast({
+        title: t("copied"),
+        description: t("copiedMessagesToClipboard", { count: selectedMessages.size }),
+      });
+    } catch {
+      toast({
+        title: t("copyFailed"),
+        description: t("copyFailedDescription"),
+        variant: "destructive",
+      });
+    }
   };
 
   const handleDownloadMessages = () => {
@@ -143,32 +150,26 @@ export function TopBar() {
       return;
     }
 
-    const selectedMessagesList = messages
-      .filter((m) => selectedMessages.has(m.id))
-      .map((m, index) => {
-        if (includeMetadataInDownload) {
-          const messageNumber = messages.findIndex((msg) => msg.id === m.id) +
-            1;
-          return `### ${t("messageHeader", { number: messageNumber })}\n**${t("messageUser", { user: m.user || t("messageAnonymous") })}**\n**${t("messageTime", { time: formatDate(m.timestamp) })}**\n\n${m.content}`;
-        }
-        return m.content;
-      })
-      .join("\n\n---\n\n");
-
-    const blob = new Blob([selectedMessagesList], { type: "text/markdown" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `messages-${new Date().toISOString().split("T")[0]}.md`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    toast({
-      title: t("exportSuccess"),
-      description: t("exportedMessagesAsMarkdown", { count: selectedMessages.size }),
-    });
+    try {
+      const text = formatMessagesMarkdown(messages, selectedMessages, {
+        includeMetadata: includeMetadataInDownload,
+        tHeader: (p) => t("messageHeader", p),
+        tUser: (p) => t("messageUser", p),
+        tAnonymous: t("messageAnonymous"),
+        tTime: (p) => t("messageTime", p),
+      });
+      downloadMarkdown(text);
+      toast({
+        title: t("exportSuccess"),
+        description: t("exportedMessagesAsMarkdown", { count: selectedMessages.size }),
+      });
+    } catch {
+      toast({
+        title: t("exportFailed"),
+        description: t("exportFailedDescription"),
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -184,7 +185,7 @@ export function TopBar() {
 
         {/* Room Status */}
         {roomDetails && (
-          <div className="hidden sm:block ml-4 text-sm text-muted-foreground truncate max-w-[150px] md:max-w-none">
+          <div className="hidden sm:block ml-4 text-sm text-muted-foreground truncate max-w-37.5 md:max-w-none">
             {t("roomUsage", { used: (roomDetails.currentSize / (1024 * 1024)).toFixed(1), total: (roomDetails.maxSize / (1024 * 1024)).toFixed(1) })}
           </div>
         )}
@@ -273,7 +274,7 @@ export function TopBar() {
         open={isDeleteConfirmationOpen}
         onOpenChange={setIsDeleteConfirmationOpen}
       >
-        <AlertDialogContent>
+        <AlertDialogContent data-testid="delete-confirm-dialog">
           <AlertDialogHeader>
             <AlertDialogTitle>
               {t("confirmDeleteTitle", { count: selectedMessages.size })}

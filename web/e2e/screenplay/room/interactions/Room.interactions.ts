@@ -228,6 +228,7 @@ export const ScrollMessageListToTop = () =>
       const viewport = element.querySelector("[data-radix-scroll-area-viewport]") as HTMLDivElement | null;
       if (viewport) {
         viewport.scrollTop = 0;
+        viewport.dispatchEvent(new Event("scroll"));
       }
     });
   });
@@ -241,4 +242,101 @@ export const ScrollMessageListToBottom = () =>
         viewport.scrollTop = viewport.scrollHeight;
       }
     });
+  });
+export const OpenSettings = () =>
+  Interaction.where(the`#actor opens the settings dialog`, async (actor) => {
+    const page = await nativePageFor(actor);
+    await RoomScreen.settingsButton(page).click();
+    await page.getByRole("dialog").filter({ hasText: /settings|设置/i }).first().waitFor({ state: "visible" });
+  });
+
+export const CloseSettings = () =>
+  Interaction.where(the`#actor closes the settings dialog`, async (actor) => {
+    const page = await nativePageFor(actor);
+    const dialog = RoomScreen.settingsDialog(page);
+    const closeButton = dialog.locator('[data-slot="dialog-close"]').first();
+
+    if (await closeButton.isVisible().catch(() => false)) {
+      await closeButton.click();
+      await dialog.waitFor({ state: "hidden", timeout: 5_000 });
+      return;
+    }
+
+    await page.keyboard.press("Escape");
+    if (await dialog.isVisible({ timeout: 500 }).catch(() => false)) {
+      await page.mouse.click(10, 10);
+      await dialog.waitFor({ state: "hidden", timeout: 5_000 }).catch(() => {});
+    }
+  });
+
+export const ToggleSetting = (testid: string) =>
+  Interaction.where(the`#actor toggles the setting ${testid}`, async (actor) => {
+    const page = await nativePageFor(actor);
+    await page.getByTestId(testid).click();
+  });
+
+export const SetSettingState = (testid: string, desired: boolean) =>
+  Interaction.where(
+    the`#actor sets the setting ${testid} to ${desired}`,
+    async (actor) => {
+      const page = await nativePageFor(actor);
+      const toggle = page.getByTestId(testid);
+      const current = await toggle.getAttribute("aria-checked");
+
+      if ((current === "true") !== desired) {
+        await toggle.click();
+      }
+    },
+  );
+
+export const ClickCopyMessages = () =>
+  Interaction.where(the`#actor copies the selected messages`, async (actor) => {
+    const page = await nativePageFor(actor);
+    await RoomScreen.copyMessagesButton(page).click();
+  });
+
+export const ClickDownloadMessages = () =>
+  Interaction.where(the`#actor downloads the selected messages`, async (actor) => {
+    const page = await nativePageFor(actor);
+    await RoomScreen.downloadMessagesButton(page).click();
+  });
+
+export const ClickDeleteMessages = () =>
+  Interaction.where(the`#actor clicks the delete messages button`, async (actor) => {
+    const page = await nativePageFor(actor);
+    await RoomScreen.deleteMessagesButton(page).click();
+  });
+
+export const ConfirmDeleteAction = () =>
+  Interaction.where(the`#actor confirms the delete action`, async (actor) => {
+    const page = await nativePageFor(actor);
+    await RoomScreen.deleteConfirmButton(page).click();
+  });
+
+export const ConfirmDeleteAndDisable = () =>
+  Interaction.where(the`#actor confirms delete and disables future confirmations`, async (actor) => {
+    const page = await nativePageFor(actor);
+    await RoomScreen.deleteConfirmAndDisableButton(page).click();
+  });
+
+export const HoverMessage = (messageId: string) =>
+  Interaction.where(the`#actor hovers over the message ${messageId}`, async (actor) => {
+    const page = await nativePageFor(actor);
+    await page.getByTestId(`message-item-${messageId}`).hover();
+  });
+
+export const ClickMessageCopyButton = (messageId: string) =>
+  Interaction.where(the`#actor copies the message ${messageId}`, async (actor) => {
+    const page = await nativePageFor(actor);
+    const item = page.getByTestId(`message-item-${messageId}`);
+    await item.hover();
+    await item.getByRole("button", { name: /copy|复制/i }).click();
+  });
+
+export const ClickMessageDeleteButton = (messageId: string) =>
+  Interaction.where(the`#actor deletes the message ${messageId}`, async (actor) => {
+    const page = await nativePageFor(actor);
+    const item = page.getByTestId(`message-item-${messageId}`);
+    await item.hover();
+    await item.getByRole("button", { name: /delete|删除/i }).click();
   });

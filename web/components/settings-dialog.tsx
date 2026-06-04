@@ -43,7 +43,7 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
   return (
     <Dialog>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md" data-testid="settings-dialog">
         <DialogHeader>
           <DialogTitle>{t("title")}</DialogTitle>
           <DialogDescription>{t("description")}</DialogDescription>
@@ -80,6 +80,7 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
               id="include-metadata-copy"
               checked={includeMetadataInCopy}
               onCheckedChange={setIncludeMetadataInCopy}
+              data-testid="setting-include-metadata-copy"
             />
           </div>
 
@@ -96,6 +97,7 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
               id="include-metadata-download"
               checked={includeMetadataInDownload}
               onCheckedChange={setIncludeMetadataInDownload}
+              data-testid="setting-include-metadata-download"
             />
           </div>
 
@@ -125,6 +127,7 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
               id="delete-confirmation"
               checked={showDeleteConfirmation}
               onCheckedChange={setShowDeleteConfirmation}
+              data-testid="setting-delete-confirmation"
             />
           </div>
 
@@ -140,6 +143,7 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
               id="auto-scroll"
               checked={autoScroll}
               onCheckedChange={setAutoScroll}
+              data-testid="setting-auto-scroll"
             />
           </div>
 
