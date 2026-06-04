@@ -534,12 +534,42 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
     }
 
     async fn purge_expired(&self) -> Result<u64> {
+        let mut tx = self.pool.begin().await?;
+        let now_str = format_naive_datetime(Utc::now().naive_utc());
+
+        // 先释放未消费的过期预留所占用的 current_size
+        sqlx::query(
+            r#"
+            UPDATE rooms
+            SET current_size = CASE
+                    WHEN current_size - sub.total_reserved < 0 THEN 0
+                    ELSE current_size - sub.total_reserved
+                END,
+                updated_at = $1
+            FROM (
+                SELECT room_id, COALESCE(SUM(reserved_size), 0) AS total_reserved
+                FROM room_upload_reservations
+                WHERE CAST(expires_at AS TEXT) <= $1
+                  AND consumed_at IS NULL
+                  AND upload_status IN ('Pending', 'Uploading')
+                GROUP BY room_id
+            ) AS sub
+            WHERE rooms.id = sub.room_id
+            "#,
+        )
+        .bind(&now_str)
+        .execute(&mut *tx)
+        .await?;
+
+        // 再删除过期的预留记录
         let result = sqlx::query(
             "DELETE FROM room_upload_reservations WHERE CAST(expires_at AS TEXT) <= $1",
         )
-        .bind(format_naive_datetime(Utc::now().naive_utc()))
-        .execute(&*self.pool)
+        .bind(&now_str)
+        .execute(&mut *tx)
         .await?;
+
+        tx.commit().await?;
         Ok(result.rows_affected())
     }
 }

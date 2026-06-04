@@ -8,6 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { FileListView } from "@/components/files/file-list-view";
 import { FileUploadZone } from "@/components/files/file-upload-zone";
 import { FilePreviewModal } from "@/components/files/file-preview-modal";
+import { TransferProgressPanel } from "@/components/files/transfer-progress-panel";
 import {
   type UrlUploadData,
   UrlUploadDialog,
@@ -23,7 +24,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   deleteFile,
-  downloadFilesBatch,
+  downloadFile,
   getFilesList,
   uploadFile,
   uploadUrl,
@@ -33,11 +34,25 @@ import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useRoomPermissions } from "@/hooks/use-room-permissions";
 import type { FileItem } from "@/lib/types";
+import type { TransferItem, TransferProgress } from "@/lib/transfer-types";
 import {
   handleMutationError,
   handleMutationSuccess,
 } from "@/lib/utils/mutations";
 import { usePathname } from "next/navigation";
+
+function createTransfer(fileName: string, fileSize: number, direction: "upload" | "download"): TransferItem {
+  return {
+    id: crypto.randomUUID(),
+    fileName,
+    fileSize,
+    direction,
+    status: "active",
+    progress: { bytesTransferred: 0, totalBytes: fileSize, percentage: 0, speed: 0, estimatedTimeRemaining: 0 },
+    startedAt: Date.now(),
+    abortController: new AbortController(),
+  };
+}
 
 export function RightSidebar() {
   const t = useTranslations("room");
@@ -46,15 +61,16 @@ export function RightSidebar() {
   const clearFileSelection = useAppStore((state) => state.clearFileSelection);
   const selectAllFiles = useAppStore((state) => state.selectAllFiles);
   const invertFileSelection = useAppStore((state) => state.invertFileSelection);
-  const incrementActiveUploads = useAppStore((state) => state.incrementActiveUploads);
-  const decrementActiveUploads = useAppStore((state) => state.decrementActiveUploads);
-  const activeUploads = useAppStore((state) => state.activeUploads);
+  const addTransfer = useAppStore((state) => state.addTransfer);
+  const updateTransferProgress = useAppStore((state) => state.updateTransferProgress);
+  const updateTransferStatus = useAppStore((state) => state.updateTransferStatus);
+  const removeTransfer = useAppStore((state) => state.removeTransfer);
+  const transfers = useAppStore((state) => state.transfers);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const { can } = useRoomPermissions();
   const pathname = usePathname();
-  // 从真实 URL 解析房间名（兼容静态导出模式）
   const roomName = pathname.split("/").filter(Boolean)[0] || currentRoomId;
 
   const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
@@ -71,7 +87,6 @@ export function RightSidebar() {
     enabled: !!roomName,
   });
 
-  // Watch for file preview requests from message link clicks
   useEffect(() => {
     if (previewFileId && files.length > 0) {
       const file = files.find((f) => f.id === previewFileId);
@@ -83,14 +98,35 @@ export function RightSidebar() {
     }
   }, [previewFileId, files, setPreviewFileId]);
 
+  const isUploading = Object.values(transfers).some(
+    (t) => t.status === "active" && t.direction === "upload",
+  );
+
   const uploadMutation = useMutation({
-    mutationFn: (file: File) => uploadFile(roomName, file),
-    onMutate: () => incrementActiveUploads(),
-    onSettled: () => decrementActiveUploads(),
+    mutationFn: async (file: File) => {
+      const transfer = createTransfer(file.name, file.size, "upload");
+      addTransfer(transfer);
+      try {
+        const result = await uploadFile(roomName, file, {
+          abortSignal: transfer.abortController.signal,
+          onProgress: (progress: TransferProgress) => {
+            updateTransferProgress(transfer.id, progress);
+          },
+        });
+        updateTransferStatus(transfer.id, "completed");
+        setTimeout(() => removeTransfer(transfer.id), 3000);
+        return result;
+      } catch (err: unknown) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          updateTransferStatus(transfer.id, "cancelled");
+        } else {
+          updateTransferStatus(transfer.id, "error", String(err));
+        }
+        setTimeout(() => removeTransfer(transfer.id), 5000);
+        throw err;
+      }
+    },
     onSuccess: () => {
-      console.log(
-        `[uploadMutation.onSuccess] 上传成功，失效缓存 roomName=${roomName}`,
-      );
       queryClient.invalidateQueries({ queryKey: ["files", roomName] });
       queryClient.invalidateQueries({ queryKey: ["room", currentRoomId] });
       handleMutationSuccess(toast, {
@@ -99,7 +135,7 @@ export function RightSidebar() {
       });
     },
     onError: (error) => {
-      console.error(`[uploadMutation.onError] 上传失败:`, error);
+      if (error instanceof DOMException && error.name === "AbortError") return;
       handleMutationError(error, toast, {
         description: t("toast.uploadFailed"),
       });
@@ -125,8 +161,6 @@ export function RightSidebar() {
 
   const uploadUrlMutation = useMutation({
     mutationFn: (data: UrlUploadData) => uploadUrl(roomName, data),
-    onMutate: () => incrementActiveUploads(),
-    onSettled: () => decrementActiveUploads(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["files", roomName] });
       queryClient.invalidateQueries({ queryKey: ["room", currentRoomId] });
@@ -154,13 +188,31 @@ export function RightSidebar() {
   };
 
   const handleBatchDownload = async () => {
-    if (selectedFiles.size > 0) {
-      toast({
-        title: t("toast.downloadStart"),
-        description: t("toast.downloadStartDescription", { count: selectedFiles.size }),
-      });
-      await downloadFilesBatch(roomName, Array.from(selectedFiles));
-      clearFileSelection();
+    if (selectedFiles.size === 0) return;
+    const filesToDownload = files.filter((f) => selectedFiles.has(f.id));
+    clearFileSelection();
+
+    for (const file of filesToDownload) {
+      const transfer = createTransfer(file.name, file.size || 0, "download");
+      addTransfer(transfer);
+      downloadFile(roomName, file.id, file.name, undefined, {
+        abortSignal: transfer.abortController.signal,
+        onProgress: (progress: TransferProgress) => {
+          updateTransferProgress(transfer.id, progress);
+        },
+      })
+        .then(() => {
+          updateTransferStatus(transfer.id, "completed");
+          setTimeout(() => removeTransfer(transfer.id), 3000);
+        })
+        .catch((err: unknown) => {
+          if (err instanceof DOMException && err.name === "AbortError") {
+            updateTransferStatus(transfer.id, "cancelled");
+          } else {
+            updateTransferStatus(transfer.id, "error", String(err));
+          }
+          setTimeout(() => removeTransfer(transfer.id), 5000);
+        });
     }
   };
 
@@ -197,13 +249,12 @@ export function RightSidebar() {
               variant="ghost"
               size="icon"
               title={t("fileManager.uploadFile")}
-              disabled={uploadMutation.isPending || !can.edit}
+              disabled={isUploading || !can.edit}
               onClick={() => fileInputRef.current?.click()}
             >
               <Upload className="h-4 w-4" />
             </Button>
           </div>
-          {/* 隐藏的文件输入元素 */}
           <input
             ref={fileInputRef}
             type="file"
@@ -213,7 +264,6 @@ export function RightSidebar() {
               const files = Array.from(e.target.files || []);
               if (files.length > 0) {
                 handleUpload(files);
-                // 清空 input 以允许重复上传同一文件
                 e.target.value = "";
               }
             }}
@@ -252,6 +302,9 @@ export function RightSidebar() {
           </div>
         </div>
 
+        {/* Transfer Progress */}
+        <TransferProgressPanel />
+
         {/* Content */}
         <ScrollArea className="flex-1 h-0">
           <div className="p-2 space-y-4">
@@ -273,7 +326,6 @@ export function RightSidebar() {
         </ScrollArea>
 
         <div className="border-t">
-          {/* Download Button */}
           {selectedCount > 0 && (
             <div className="p-4 pb-2">
               <Button
@@ -293,12 +345,11 @@ export function RightSidebar() {
             </div>
           )}
 
-          {/* Upload Zone */}
           {can.edit && (
             <div className="p-4 pt-2">
               <FileUploadZone
                 onUpload={handleUpload}
-                isUploading={activeUploads > 0}
+                isUploading={isUploading}
               />
             </div>
           )}

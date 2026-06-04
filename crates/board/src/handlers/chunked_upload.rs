@@ -767,9 +767,12 @@ pub async fn complete_file_merge(
                         .map_err(|e| AppError::internal(format!("创建内容记录失败：{}", e)))?;
 
                     // 更新房间的 current_size
+                    // reserve_upload() 已在 prepare 阶段将 reserved_size 加入 current_size，
+                    // 这里需要减去 reserved_size 再加上实际文件大小，避免双重计数。
                     let file_size = file_manifest[0].size;
+                    let reserved_size = reservation.reserved_size;
                     let mut updated_room = room.clone();
-                    updated_room.current_size += file_size;
+                    updated_room.current_size = (updated_room.current_size - reserved_size + file_size).max(0);
                     use crate::repository::IRoomRepository;
                     let room_repository = RoomRepository::new(app_state.db_pool.clone());
                     room_repository
@@ -829,6 +832,69 @@ pub async fn complete_file_merge(
             Err(AppError::internal(format!("文件合并失败：{}", e)))
         }
     }
+}
+
+/// 取消分块上传，清理临时文件并释放预留空间
+#[utoipa::path(
+    delete,
+    path = "/api/v1/rooms/{name}/uploads/chunks/{reservation_id}",
+    params(
+        ("name" = String, Path, description = "房间名称"),
+        ("reservation_id" = i64, Path, description = "预留记录 ID")
+    ),
+    responses(
+        (status = 200, description = "上传已取消"),
+        (status = 404, description = "房间或预留记录不存在"),
+        (status = 409, description = "上传已完成，无法取消")
+    ),
+    tag = "chunked-upload"
+)]
+pub async fn cancel_chunked_upload(
+    Path((room_name, reservation_id)): Path<(String, i64)>,
+    State(app_state): State<Arc<AppState>>,
+) -> HandlerResult<serde_json::Value> {
+    RoomNameValidator::validate_identifier(&room_name)?;
+
+    let room_repository = RoomRepository::new(app_state.db_pool.clone());
+    let room = room_repository
+        .find_by_name(&room_name)
+        .await
+        .map_err(|e| AppError::internal(format!("数据库查询错误：{}", e)))?;
+    let room = room.ok_or_else(|| AppError::not_found("房间不存在"))?;
+
+    let reservation_repository = RoomUploadReservationRepository::new(app_state.db_pool.clone());
+    let reservation = reservation_repository
+        .find_by_reservation_id(reservation_id)
+        .await
+        .map_err(|e| AppError::internal(format!("查询预留记录失败：{}", e)))?;
+    let reservation = reservation.ok_or_else(|| AppError::not_found("预留记录不存在"))?;
+
+    if reservation.room_id != room.id.expect("房间 ID 不能为空") {
+        return Err(AppError::permission_denied("预留记录不属于指定房间"));
+    }
+
+    if reservation.consumed_at.is_some() {
+        return Err(AppError::conflict("上传已完成，无法取消"));
+    }
+
+    // 清理临时分块文件
+    let temp_dir = format!("/tmp/elizabeth/chunks/{}", reservation_id);
+    if fs::metadata(&temp_dir).await.is_ok() {
+        if let Err(e) = fs::remove_dir_all(&temp_dir).await {
+            logrs::error!("清理临时分块文件失败：{}", e);
+        }
+    }
+
+    // 释放预留空间
+    reservation_repository
+        .release_if_pending(reservation_id)
+        .await
+        .map_err(|e| AppError::internal(format!("释放预留空间失败：{}", e)))?;
+
+    Ok(Json(serde_json::json!({
+        "message": "上传已取消",
+        "reservation_id": reservation_id,
+    })))
 }
 
 /// 合并分块文件

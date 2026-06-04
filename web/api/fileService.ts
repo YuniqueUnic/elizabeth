@@ -1,16 +1,11 @@
 /**
  * File Management Service
- *
- * This service handles file-related operations including:
- * - Listing files in a room
- * - Uploading files with chunked upload support
- * - Deleting files
- * - Batch downloading files
  */
 
 import { API_BASE_URL, API_ENDPOINTS } from "../lib/config";
 import { api } from "../lib/utils/api";
 import { getAccessToken, getValidToken } from "./authService";
+import type { TransferProgress } from "../lib/transfer-types";
 import type {
   BackendRoomContent,
   FileItem,
@@ -31,18 +26,12 @@ export interface UploadUrlRequest {
   description?: string;
 }
 
-// ============================================================================
-// File Functions
-// ============================================================================
-
 const CHUNKED_UPLOAD_THRESHOLD = 5 * 1024 * 1024; // 5MB
 
 async function ensureToken(roomName: string, token?: string): Promise<string> {
   if (token) return token;
-
   const existing = await getValidToken(roomName);
   if (existing) return existing;
-
   const tokenResponse = await getAccessToken(roomName);
   return tokenResponse.token;
 }
@@ -85,83 +74,44 @@ function mapMimeToFileType(mime?: string): FileItem["type"] {
 
 /**
  * Get all files for a room
- * Filters RoomContent for non-text content (content_type != 0)
- *
- * @param roomName - The name of the room
- * @param token - Optional token for authentication
- * @returns Array of files
  */
 export async function getFilesList(
   roomName: string,
   token?: string,
 ): Promise<FileItem[]> {
   const authToken = await ensureToken(roomName, token);
-
   const contents = await api.get<BackendRoomContent[]>(
     API_ENDPOINTS.content.base(roomName),
     undefined,
     { token: authToken },
   );
-
-  // Filter for non-text content (files only) and convert to FileItem.
-  // Messages are stored as ContentType.Text and should never appear here.
-  const filtered = contents
+  return contents
     .filter((content) => {
       const contentType = parseContentType(content.content_type);
-
-      // Exclude explicit text content
-      if (contentType === CT.Text) {
-        return false;
-      }
-      return true;
+      return contentType !== CT.Text;
     })
-    .map((content) => convertFile(content, roomName)) // ✅ FIX: Pass roomName to generate download URLs
+    .map((content) => convertFile(content, roomName))
     .sort((a, b) =>
       new Date(b.uploadedAt || "").getTime() -
       new Date(a.uploadedAt || "").getTime()
     );
-
-  return filtered;
 }
 
 /**
- * Upload a file to a room
- *
- * For small files (<5MB), uses the simple upload process.
- * For large files, automatically switches to chunked upload.
- *
- * @param roomName - The name of the room
- * @param file - The file to upload
- * @param token - Optional token for authentication
- * @param options - Upload options including progress callbacks
- * @returns The uploaded file item
+ * Upload a file with progress tracking and abort support.
+ * Uses XHR for real upload progress events.
  */
 export async function uploadFile(
   roomName: string,
   file: File,
-  token?: string,
   options?: {
-    useChunkedUpload?: boolean;
-    onProgress?: (progress: {
-      bytesUploaded: number;
-      totalBytes: number;
-      percentage: number;
-    }) => void;
+    token?: string;
+    abortSignal?: AbortSignal;
+    onProgress?: (progress: TransferProgress) => void;
   },
 ): Promise<FileItem> {
-  const authToken = await ensureToken(roomName, token);
-  const useChunkedUpload = options?.useChunkedUpload ??
-    file.size > CHUNKED_UPLOAD_THRESHOLD;
-
-  if (typeof window !== "undefined") {
-    (window as any).__elizabethLastUpload = {
-      room: roomName,
-      name: file.name,
-      size: file.size,
-      threshold: CHUNKED_UPLOAD_THRESHOLD,
-      chunked: useChunkedUpload,
-    };
-  }
+  const authToken = await ensureToken(roomName, options?.token);
+  const useChunkedUpload = file.size > CHUNKED_UPLOAD_THRESHOLD;
 
   if (useChunkedUpload) {
     const { uploadFileChunked } = await import("./chunkedUploadService");
@@ -169,18 +119,14 @@ export async function uploadFile(
       roomName,
       file,
       {
-        onProgress: (progress) => options?.onProgress?.(progress),
+        onProgress: options?.onProgress,
+        abortSignal: options?.abortSignal,
       },
       authToken,
     );
-
     const mergedFile = mergeResponse.merged_files?.[0];
-    if (!mergedFile) {
-      throw new Error("No merged files in response");
-    }
-    if (mergedFile.content_id == null) {
-      throw new Error("Merged file missing content_id");
-    }
+    if (!mergedFile) throw new Error("No merged files in response");
+    if (mergedFile.content_id == null) throw new Error("Merged file missing content_id");
 
     const timestamp = new Date().toISOString();
     return {
@@ -197,12 +143,9 @@ export async function uploadFile(
     };
   }
 
+  // Simple upload with XHR for progress
   const prepareRequest: UploadPreparationRequest = {
-    files: [{
-      name: file.name,
-      size: file.size,
-      mime: file.type,
-    }],
+    files: [{ name: file.name, size: file.size, mime: file.type }],
   };
 
   const prepareResponse = await api.post<UploadPreparationResponse>(
@@ -214,43 +157,71 @@ export async function uploadFile(
   const formData = new FormData();
   formData.append("file", file);
 
-  const uploadOnce = async (reservationId: number) => {
-    const response = await api.post<UploadContentResponse>(
-      `${API_ENDPOINTS.content.base(roomName)}?reservation_id=${reservationId}`,
-      formData,
-      { token: authToken },
-    );
-    return response.uploaded ?? [];
-  };
+  const uploadedContents = await xhrUpload<UploadContentResponse>(
+    `${API_BASE_URL}${API_ENDPOINTS.content.base(roomName)}?reservation_id=${prepareResponse.reservation_id}`,
+    formData,
+    authToken,
+    options?.abortSignal,
+    options?.onProgress,
+  );
 
-  let uploadedContents: BackendRoomContent[];
-  try {
-    uploadedContents = await uploadOnce(prepareResponse.reservation_id);
-  } catch (err: any) {
-    if (err?.code !== 400) {
-      throw err;
-    }
-    const retryPrepare = await api.post<UploadPreparationResponse>(
-      API_ENDPOINTS.content.prepare(roomName),
-      prepareRequest,
-      { token: authToken },
-    );
-    uploadedContents = await uploadOnce(retryPrepare.reservation_id);
-  }
+  const uploaded = uploadedContents.uploaded ?? [];
+  if (uploaded.length === 0) throw new Error("Failed to upload file");
+  return convertFile(uploaded[0]);
+}
 
-  if (uploadedContents.length === 0) {
-    throw new Error("Failed to upload file");
-  }
+/** XHR-based upload with progress events */
+function xhrUpload<T>(
+  url: string,
+  formData: FormData,
+  token: string,
+  abortSignal?: AbortSignal,
+  onProgress?: (progress: TransferProgress) => void,
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url);
+    xhr.setRequestHeader("Authorization", `Bearer ${token}`);
 
-  return convertFile(uploadedContents[0]);
+    let lastLoaded = 0;
+    let lastTime = Date.now();
+
+    xhr.upload.onprogress = (e) => {
+      if (!e.lengthComputable || !onProgress) return;
+      const now = Date.now();
+      const dt = (now - lastTime) / 1000;
+      const dB = e.loaded - lastLoaded;
+      const speed = dt > 0 ? dB / dt : 0;
+      const remaining = speed > 0 ? (e.total - e.loaded) / speed : 0;
+      lastLoaded = e.loaded;
+      lastTime = now;
+      onProgress({
+        bytesTransferred: e.loaded,
+        totalBytes: e.total,
+        percentage: (e.loaded / e.total) * 100,
+        speed,
+        estimatedTimeRemaining: remaining,
+      });
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try { resolve(JSON.parse(xhr.responseText)); }
+        catch { reject(new Error("Invalid JSON response")); }
+      } else {
+        reject(new Error(`Upload failed: ${xhr.status}`));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Upload failed"));
+    xhr.onabort = () => reject(new DOMException("Aborted", "AbortError"));
+
+    abortSignal?.addEventListener("abort", () => xhr.abort());
+    xhr.send(formData);
+  });
 }
 
 /**
  * Delete a file
- *
- * @param roomName - The name of the room
- * @param fileId - The ID of the file to delete
- * @param token - Optional token for authentication
  */
 export async function deleteFile(
   roomName: string,
@@ -258,23 +229,15 @@ export async function deleteFile(
   token?: string,
 ): Promise<void> {
   const authToken = await ensureToken(roomName, token);
-
-  // Backend expects token in query parameter AND ids in both query and body
   const idsParam = parseInt(fileId, 10);
   await api.delete(
-    `${
-      API_ENDPOINTS.content.base(roomName)
-    }?ids=${idsParam}&token=${authToken}`,
+    `${API_ENDPOINTS.content.base(roomName)}?ids=${idsParam}&token=${authToken}`,
     { ids: [idsParam] },
   );
 }
 
 /**
  * Delete multiple files
- *
- * @param roomName - The name of the room
- * @param fileIds - Array of file IDs to delete
- * @param token - Optional token for authentication
  */
 export async function deleteFiles(
   roomName: string,
@@ -282,51 +245,90 @@ export async function deleteFiles(
   token?: string,
 ): Promise<void> {
   const authToken = await ensureToken(roomName, token);
-
   const numericIds = fileIds.map((id) => parseInt(id, 10));
   const idsParam = numericIds.join(",");
-  // Backend expects token in query parameter AND ids in both query and body
   await api.delete(
-    `${
-      API_ENDPOINTS.content.base(roomName)
-    }?ids=${idsParam}&token=${authToken}`,
+    `${API_ENDPOINTS.content.base(roomName)}?ids=${idsParam}&token=${authToken}`,
     { ids: numericIds },
   );
 }
 
 /**
- * Download a single file
- *
- * @param roomName - The name of the room
- * @param fileId - The ID of the file to download
- * @param fileName - The name of the file to download
- * @param token - Optional token for authentication
- * @returns Promise that resolves when download is triggered
+ * Download a file with progress tracking and abort support.
+ * Uses XHR for real download progress events.
  */
 export async function downloadFile(
   roomName: string,
   fileId: string,
   fileName: string,
   token?: string,
+  options?: {
+    abortSignal?: AbortSignal;
+    onProgress?: (progress: TransferProgress) => void;
+  },
 ): Promise<void> {
   const downloadUrl = await getDownloadUrl(roomName, fileId, token);
-  const response = await api.getRaw(
-    downloadUrl,
-    undefined,
-    { skipTokenInjection: true },
-  );
-  const blob = await response.blob();
-  triggerBrowserDownload(blob, fileName);
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.responseType = "blob";
+    xhr.open("GET", downloadUrl);
+
+    let lastLoaded = 0;
+    let lastTime = Date.now();
+
+    xhr.onprogress = (e) => {
+      if (!e.lengthComputable || !options?.onProgress) return;
+      const now = Date.now();
+      const dt = (now - lastTime) / 1000;
+      const dB = e.loaded - lastLoaded;
+      const speed = dt > 0 ? dB / dt : 0;
+      const remaining = speed > 0 ? (e.total - e.loaded) / speed : 0;
+      lastLoaded = e.loaded;
+      lastTime = now;
+      options.onProgress({
+        bytesTransferred: e.loaded,
+        totalBytes: e.total,
+        percentage: (e.loaded / e.total) * 100,
+        speed,
+        estimatedTimeRemaining: remaining,
+      });
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        triggerBrowserDownload(xhr.response as Blob, fileName);
+        resolve();
+      } else {
+        reject(new Error(`Download failed: ${xhr.status}`));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Download failed"));
+    xhr.onabort = () => reject(new DOMException("Aborted", "AbortError"));
+
+    options?.abortSignal?.addEventListener("abort", () => xhr.abort());
+    xhr.send();
+  });
 }
 
 /**
- * Batch download files
- * Downloads multiple files one by one (backend doesn't support ZIP yet)
- *
- * @param roomName - The name of the room
- * @param fileIds - Array of file IDs to download
- * @param token - Optional token for authentication
- * @returns Promise that resolves when all downloads are triggered
+ * Cancel a chunked upload, cleaning up server-side temp files.
+ */
+export async function cancelUpload(
+  roomName: string,
+  reservationId: string,
+  token?: string,
+): Promise<void> {
+  const authToken = await ensureToken(roomName, token);
+  await api.delete(
+    API_ENDPOINTS.chunkedUpload.cancel(roomName, reservationId),
+    undefined,
+    { token: authToken },
+  );
+}
+
+/**
+ * Batch download files one by one
  */
 export async function downloadFilesBatch(
   roomName: string,
@@ -334,37 +336,24 @@ export async function downloadFilesBatch(
   token?: string,
 ): Promise<void> {
   const authToken = await ensureToken(roomName, token);
-
-  // ✅ FIX: Get file list to retrieve file names
   const files = await getFilesList(roomName, authToken);
   const fileMap = new Map(files.map((f) => [f.id, f.name]));
 
-  // Download files one by one instead of creating a ZIP
   for (const fileId of fileIds) {
     try {
       const fileName = fileMap.get(fileId) || `file_${fileId}`;
-
-      // Use the downloadFile function which properly handles file names
       await downloadFile(roomName, fileId, fileName, authToken);
-
-      // Small delay between downloads to avoid overwhelming the browser
       if (fileIds.indexOf(fileId) < fileIds.length - 1) {
         await new Promise((resolve) => setTimeout(resolve, 200));
       }
     } catch (error) {
       console.error(`Failed to download file ${fileId}:`, error);
-      // Continue with other files even if one fails
     }
   }
 }
 
 /**
  * Upload a URL as content to a room
- *
- * @param roomName - The name of the room
- * @param data - URL upload data (url, name, description)
- * @param token - Optional authentication token
- * @returns Promise resolving to the created content
  */
 export async function uploadUrl(
   roomName: string,
@@ -372,38 +361,20 @@ export async function uploadUrl(
   token?: string,
 ): Promise<FileItem> {
   const authToken = await ensureToken(roomName, token);
-
-  // Step 1: Create a minimal text content as placeholder
-  // We'll create a tiny text file to get a content_id
   const placeholderText = `URL: ${data.url}`;
   const placeholderBlob = new Blob([placeholderText], { type: "text/plain" });
-  const placeholderFile = new File([placeholderBlob], data.name, {
-    type: "text/plain",
-  });
+  const placeholderFile = new File([placeholderBlob], data.name, { type: "text/plain" });
 
-  // Step 2: Upload the placeholder file
-  const uploadedContent = await uploadFile(
-    roomName,
-    placeholderFile,
-    authToken,
-  );
+  const uploadedContent = await uploadFile(roomName, placeholderFile, { token: authToken });
 
-  // Step 3: Update the content to URL type
   const updateResponse = await api.put<UpdateContentResponse>(
     `${API_ENDPOINTS.content.byId(roomName, uploadedContent.id)}`,
-    {
-      url: data.url,
-      mime_type: data.description || "text/html",
-    },
+    { url: data.url, mime_type: data.description || "text/html" },
     { token: authToken },
   );
-
-  // Convert and return
   return convertFile(updateResponse.updated, roomName);
 }
 
-// Legacy compatibility exports (for existing components)
-// getFilesList is already exported above
 const fileService = {
   getFilesList,
   uploadFile,
@@ -412,6 +383,7 @@ const fileService = {
   deleteFiles,
   downloadFile,
   downloadFilesBatch,
+  cancelUpload,
 };
 
 export default fileService;
