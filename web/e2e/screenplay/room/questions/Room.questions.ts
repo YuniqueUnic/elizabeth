@@ -81,6 +81,24 @@ export const ClipboardContents = () =>
     return readClipboard(page);
   });
 
+export const TransferProgressVisible = () =>
+  Question.about(the`whether the transfer progress panel is visible`, async (actor) => {
+    const page = await nativePageFor(actor);
+    return RoomScreen.transferProgressPanel(page).isVisible().catch(() => false);
+  });
+
+export const TransferRowCount = () =>
+  Question.about(the`the number of transfer rows`, async (actor) => {
+    const page = await nativePageFor(actor);
+    return RoomScreen.transferRows(page).count();
+  });
+
+export const TransferProgressTexts = () =>
+  Question.about(the`the transfer progress texts`, async (actor) => {
+    const page = await nativePageFor(actor);
+    return RoomScreen.transferRows(page).allInnerTexts();
+  });
+
 export const RoomCapacitySummary = () =>
   Question.about(the`the room capacity summary`, async (actor) => {
     const page = await nativePageFor(actor);

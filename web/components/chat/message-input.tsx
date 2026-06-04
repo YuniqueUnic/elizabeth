@@ -65,7 +65,7 @@ export function MessageInput(
       <div className="bg-background h-full flex flex-col">
         {/* Editing Banner */}
         {editingMessage && (
-          <div className="flex-shrink-0 mb-2 flex items-center justify-between rounded-md bg-muted px-3 py-2 text-sm">
+          <div className="shrink-0 mb-2 flex items-center justify-between rounded-md bg-muted px-3 py-2 text-sm">
             <span>{t("messageInput.editingBanner")}</span>
             <Button
               variant="ghost"
@@ -93,7 +93,7 @@ export function MessageInput(
             />
           </div>
 
-          <div className="flex-shrink-0 flex justify-end gap-2 mb-2 px-2">
+          <div className="shrink-0 flex justify-end gap-2 mb-2 px-2">
             <Button
               variant="outline"
               size="sm"
@@ -116,7 +116,7 @@ export function MessageInput(
       </div>
 
       <Dialog open={isExpanded} onOpenChange={setIsExpanded}>
-        <DialogContent className="max-w-none w-screen h-screen sm:h-[90vh] sm:max-w-4xl lg:max-w-6xl sm:w-full p-0 sm:p-6 gap-0 !flex !flex-col sm:rounded-lg rounded-none">
+        <DialogContent className="max-w-none w-screen h-screen sm:h-[90vh] sm:max-w-4xl lg:max-w-6xl sm:w-full p-0 sm:p-6 gap-0 flex! flex-col! sm:rounded-lg rounded-none">
           <DialogTitle className="sr-only">{t("messageInput.markdownEditor")}</DialogTitle>
           <div className="flex-1 min-h-0">
             <MinimalTiptapEditor

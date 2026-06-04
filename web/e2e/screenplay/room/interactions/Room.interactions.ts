@@ -155,6 +155,12 @@ export const OpenFilePreviewNamed = (name: string) =>
     }).first().click();
   });
 
+export const CancelFirstTransfer = () =>
+  Interaction.where(the`#actor cancels the first transfer`, async (actor) => {
+    const page = await nativePageFor(actor);
+    await RoomScreen.transferCancelButton(page).first().click();
+  });
+
 export const ClickFilePreviewDownload = () =>
   Interaction.where(the`#actor downloads the previewed file`, async (actor) => {
     const page = await nativePageFor(actor);

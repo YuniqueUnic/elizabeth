@@ -170,6 +170,16 @@ export const RoomScreen = {
   fileInvertSelectionButton: (page: Page): Locator =>
     page.locator("aside").last().getByRole("button", { name: tRoom("fileManager.invertSelection") }),
 
+  // Transfer progress panel
+  transferProgressPanel: (page: Page): Locator =>
+    page.locator("aside").last().locator(".border-b.bg-muted\\/30"),
+
+  transferRows: (page: Page): Locator =>
+    page.locator("aside").last().locator(".border-b.bg-muted\\/30 > div"),
+
+  transferCancelButton: (page: Page): Locator =>
+    page.locator("aside").last().locator(".border-b.bg-muted\\/30 button[title='Cancel']"),
+
   filePreviewDialog: (page: Page): Locator =>
     page.getByRole("dialog"),
 
