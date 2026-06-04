@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v1.1.0.html).
 
+## [1.2.0](https://github.com/YuniqueUnic/elizabeth/compare/v1.1.0...v1.2.0) (2026-06-04)
+
+
+### Features
+
+* **chunked-upload:** add cancel endpoint and fix size calculation ([ab6c957](https://github.com/YuniqueUnic/elizabeth/commit/ab6c95773ff2cfc7340761d33e8781414981804c))
+* **file-service:** implement abort support and progress tracking ([ab6c957](https://github.com/YuniqueUnic/elizabeth/commit/ab6c95773ff2cfc7340761d33e8781414981804c))
+* **format:** update date formatting logic ([164b354](https://github.com/YuniqueUnic/elizabeth/commit/164b35422b977dcd60a209371228c97e29583689))
+* **ui:** add transfer progress panel component ([ab6c957](https://github.com/YuniqueUnic/elizabeth/commit/ab6c95773ff2cfc7340761d33e8781414981804c))
+* **url-viewer:** add external URL preview with iframe support ([5dbbf48](https://github.com/YuniqueUnic/elizabeth/commit/5dbbf4816f663e63587dded2adf3be8a079baa10))
+
+
+### Bug Fixes
+
+* **chat:** add file click handling to minimal tiptap viewer ([6452180](https://github.com/YuniqueUnic/elizabeth/commit/645218020d167dbefa8778ede45e7c3284a3633e))
+* **chunked_upload:** correct code formatting in cleanup logic ([2e3b71d](https://github.com/YuniqueUnic/elizabeth/commit/2e3b71dc09bab0ca004bcf231e55cc300868a978))
+* **content:** improve code formatting for header insertion ([2e3b71d](https://github.com/YuniqueUnic/elizabeth/commit/2e3b71dc09bab0ca004bcf231e55cc300868a978))
+* enhance message copy/download functionality with error handling ([a78c8fa](https://github.com/YuniqueUnic/elizabeth/commit/a78c8fadc7edccce5e1ccb19859c6ba9dc4e51c6))
+* **file-service:** enhance file download and sharing functionality ([4d9584d](https://github.com/YuniqueUnic/elizabeth/commit/4d9584d9f238073ba9bb8a534891d817f587cb59))
+* **files:** correct file URL path in preview modal ([5dbbf48](https://github.com/YuniqueUnic/elizabeth/commit/5dbbf4816f663e63587dded2adf3be8a079baa10))
+* **files:** update file preview URL format in modal ([6452180](https://github.com/YuniqueUnic/elizabeth/commit/645218020d167dbefa8778ede45e7c3284a3633e))
+* **i18n:** add internationalization support with next-intl ([9c34f5c](https://github.com/YuniqueUnic/elizabeth/commit/9c34f5cef7dfa6a6e8d6bd0eac8401a36c66c4ca))
+* **pre-commit:** update regex pattern for generated directory exclusion ([e3d02ad](https://github.com/YuniqueUnic/elizabeth/commit/e3d02add31866e5100bf77561c2f726bcb9958a1))
+* **types:** correct formatting inconsistencies in generated TypeScript types ([54c09c1](https://github.com/YuniqueUnic/elizabeth/commit/54c09c1ec45b3640fd6589b854901c13224e10dc))
+* **ui:** improve component styling and layout responsiveness ([164b354](https://github.com/YuniqueUnic/elizabeth/commit/164b35422b977dcd60a209371228c97e29583689))
+
 ## [1.1.0](https://github.com/YuniqueUnic/elizabeth/compare/v1.0.1...v1.1.0) (2026-05-28)
 
 
