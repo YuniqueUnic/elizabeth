@@ -105,7 +105,7 @@ fn ensure_embedded_frontend() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    if !embedded_frontend_build_needed(&workspace_root, &embedded_dir)? {
+    if !embedded_frontend_build_needed(workspace_root, &embedded_dir)? {
         return Ok(());
     }
 

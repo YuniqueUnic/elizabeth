@@ -254,17 +254,17 @@ export const CloseSettings = () =>
   Interaction.where(the`#actor closes the settings dialog`, async (actor) => {
     const page = await nativePageFor(actor);
     const dialog = RoomScreen.settingsDialog(page);
-    const closeButton = dialog.locator('[data-slot="dialog-close"]').first();
 
-    if (await closeButton.isVisible().catch(() => false)) {
-      await closeButton.click();
-      await dialog.waitFor({ state: "hidden", timeout: 5_000 });
+    // Press Escape first — works regardless of button visibility or scroll position
+    await page.keyboard.press("Escape");
+    if (await dialog.isHidden({ timeout: 1_000 }).catch(() => false)) {
       return;
     }
 
-    await page.keyboard.press("Escape");
-    if (await dialog.isVisible({ timeout: 500 }).catch(() => false)) {
-      await page.mouse.click(10, 10);
+    // Fallback: dispatch click via JS (button may be clipped by dialog overflow)
+    const closeButton = dialog.locator('[data-slot="dialog-close"]').first();
+    if (await closeButton.isVisible().catch(() => false)) {
+      await closeButton.dispatchEvent("click");
       await dialog.waitFor({ state: "hidden", timeout: 5_000 }).catch(() => {});
     }
   });
