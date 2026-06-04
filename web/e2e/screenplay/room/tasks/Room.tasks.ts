@@ -3,6 +3,7 @@ import { Navigate } from "@serenity-js/web";
 
 import {
   CancelDialog,
+  CancelFirstTransfer,
   ClickCopyMessages,
   ClickDeleteMessages,
   ClickDownloadMessages,
@@ -150,6 +151,12 @@ export const InsertPreviewRoomFileMarkdown = () =>
   Task.where(
     the`#actor inserts the previewed room file markdown into the editor`,
     ClickFilePreviewInsertToEditor(),
+  );
+
+export const CancelTransfer = () =>
+  Task.where(
+    the`#actor cancels the first active transfer`,
+    CancelFirstTransfer(),
   );
 
 export const CloseRoomWithoutPassword = () =>
