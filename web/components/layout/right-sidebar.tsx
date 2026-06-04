@@ -40,10 +40,11 @@ import {
   handleMutationSuccess,
 } from "@/lib/utils/mutations";
 import { usePathname } from "next/navigation";
+import { generateUUID } from "@/lib/utils/uuid";
 
 function createTransfer(fileName: string, fileSize: number, direction: "upload" | "download"): TransferItem {
   return {
-    id: crypto.randomUUID(),
+    id: generateUUID(),
     fileName,
     fileSize,
     direction,

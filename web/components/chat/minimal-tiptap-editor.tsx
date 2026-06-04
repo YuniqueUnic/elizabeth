@@ -16,6 +16,7 @@ import { uploadFile } from "@/api/fileService";
 import type { FileItem } from "@/lib/types";
 import { registerComposerEditor, unregisterComposerEditor } from "@/lib/composer-editor";
 import { cn } from "@/lib/utils";
+import { generateUUID } from "@/lib/utils/uuid";
 import { Button } from "@/components/ui/button";
 import { ImageAuth } from "./tiptap-extensions/image-auth";
 import {
@@ -587,7 +588,7 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
         if (!roomName || !editor) return;
 
         for (const file of files) {
-          const transferId = crypto.randomUUID();
+          const transferId = generateUUID();
           addTransfer({
             id: transferId,
             fileName: file.name,
