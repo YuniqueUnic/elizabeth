@@ -74,7 +74,7 @@ export function FileCard(
       )}
 
       <div
-        className="flex flex-1 items-center gap-3 cursor-pointer"
+        className="flex min-w-0 flex-1 items-center gap-3 cursor-pointer"
         onClick={() => onClick(file)}
       >
         {/* File Type Icon */}
@@ -83,9 +83,9 @@ export function FileCard(
         </div>
 
         {/* File Info */}
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 overflow-hidden">
           <p
-            className="text-sm font-medium wrap-break-word line-clamp-3"
+            className="text-sm font-medium break-all line-clamp-3"
             title={file.name}
           >
             {file.name}

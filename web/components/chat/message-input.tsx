@@ -93,7 +93,7 @@ export function MessageInput(
             />
           </div>
 
-          <div className="flex-shrink-0 flex justify-end gap-2 mb-2">
+          <div className="flex-shrink-0 flex justify-end gap-2 mb-2 px-2">
             <Button
               variant="outline"
               size="sm"
