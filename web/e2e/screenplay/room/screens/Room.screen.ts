@@ -52,10 +52,10 @@ export const RoomScreen = {
     page.getByText(tPattern(tRoom("messageList.totalCount"), { count: /\d+/ })),
 
   messageSelectAllButton: (page: Page): Locator =>
-    page.getByRole("button", { name: tRoom("messageList.selectAll") }),
+    page.locator("main").getByRole("button", { name: tRoom("messageList.selectAll") }).first(),
 
   messageInvertSelectionButton: (page: Page): Locator =>
-    page.getByRole("button", { name: tRoom("messageList.invertSelection") }),
+    page.locator("main").getByRole("button", { name: tRoom("messageList.invertSelection") }).first(),
 
   messageListScroll: (page: Page): Locator =>
     page.getByTestId("message-list-scroll"),
@@ -198,4 +198,43 @@ export const RoomScreen = {
 
   closeRoomPasswordError: (page: Page): Locator =>
     page.getByRole("dialog").locator("p.text-destructive, [class*='destructive'] p").first(),
+
+  // Settings dialog switches
+  settingIncludeMetadataCopy: (page: Page): Locator =>
+    page.getByTestId("setting-include-metadata-copy"),
+
+  settingIncludeMetadataDownload: (page: Page): Locator =>
+    page.getByTestId("setting-include-metadata-download"),
+
+  settingDeleteConfirmation: (page: Page): Locator =>
+    page.getByTestId("setting-delete-confirmation"),
+
+  settingAutoScroll: (page: Page): Locator =>
+    page.getByTestId("setting-auto-scroll"),
+
+  settingsDialog: (page: Page): Locator =>
+    page.getByTestId("settings-dialog"),
+
+  // Delete confirmation dialogs
+  deleteConfirmDialog: (page: Page): Locator =>
+    page.locator('[data-testid="delete-confirm-dialog"], [role="alertdialog"]').first(),
+
+  deleteConfirmButton: (page: Page): Locator =>
+    RoomScreen.deleteConfirmDialog(page).getByRole("button", {
+      name: /^(?!.*(?:don't|不再)).*(?:confirm|确认)$/i,
+    }).first(),
+
+  deleteConfirmAndDisableButton: (page: Page): Locator =>
+    RoomScreen.deleteConfirmDialog(page).getByRole("button", {
+      name: /(?:don.t.*ask|不再|confirm.*don.t)/i,
+    }).first(),
+
+  deleteCancelButton: (page: Page): Locator =>
+    RoomScreen.deleteConfirmDialog(page).getByRole("button", {
+      name: /cancel|取消/i,
+    }).first(),
+
+  // Message meta row
+  messageMeta: (page: Page, messageId: string): Locator =>
+    page.getByTestId(`message-meta-${messageId}`),
 };

@@ -263,9 +263,35 @@
     --message-font-size: 14px;
 }
 
-/* 消息字体大小 */
+/* 消息字体大小 + 溢出控制 */
 .message-content {
     font-size: var(--message-font-size) !important;
+    overflow-x: hidden;
+    overflow-y: visible;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    min-width: 0;
+}
+
+.message-content .tiptap-viewer-container {
+    overflow-x: hidden;
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+
+.message-content .ProseMirror {
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+
+.message-content .ProseMirror pre {
+    overflow-x: auto;
+    max-width: 100%;
+}
+
+.message-content .ProseMirror img {
+    max-width: 100%;
+    height: auto;
 }
 
 /* Tiptap Editor Styles */

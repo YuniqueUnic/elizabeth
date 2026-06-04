@@ -4,7 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Copy, Edit2, RotateCcw, Trash2 } from "lucide-react";
 import type { Message } from "@/lib/types";
+import { copyTextToClipboard } from "@/lib/utils/clipboard";
 import { formatDate } from "@/lib/utils/format";
+import { formatSingleMessageMarkdown } from "@/lib/utils/message-format";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/lib/store";
@@ -54,21 +56,29 @@ export function MessageBubble(
   const isSelected = selectedMessages.has(message.id);
 
   const handleCopy = async () => {
-    let textToCopy: string;
-
-    if (includeMetadataInCopy) {
-      textToCopy = `### ${tCommon("messageHeader", { number: messageNumber })}\n**${tCommon("messageUser", { user: message.user || tCommon("messageAnonymous") })}**\n**${tCommon("messageTime", { time: formatDate(message.timestamp) })}**\n\n${message.content}`;
-    } else {
-      textToCopy = message.content;
-    }
-
-    await navigator.clipboard.writeText(textToCopy);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-    toast({
-      title: t("messageBubble.copied"),
-      description: t("messageBubble.copiedDescription"),
+    const textToCopy = formatSingleMessageMarkdown(message, messageNumber, {
+      includeMetadata: includeMetadataInCopy,
+      tHeader: (p) => tCommon("messageHeader", p),
+      tUser: (p) => tCommon("messageUser", p),
+      tAnonymous: tCommon("messageAnonymous"),
+      tTime: (p) => tCommon("messageTime", p),
     });
+
+    try {
+      await copyTextToClipboard(textToCopy);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast({
+        title: t("messageBubble.copied"),
+        description: t("messageBubble.copiedDescription"),
+      });
+    } catch {
+      toast({
+        title: tCommon("copyFailed"),
+        description: tCommon("copyFailedDescription"),
+        variant: "destructive",
+      });
+    }
   };
 
   const handleDelete = () => {
@@ -87,7 +97,7 @@ export function MessageBubble(
 
   return (
     <div
-      className={`group relative rounded-lg border bg-card p-4 transition-colors hover:bg-accent/50 ${
+      className={`group relative rounded-lg border bg-card p-4 transition-colors hover:bg-accent/50 min-w-0 ${
         isSelected ? "ring-2 ring-primary" : ""
       } ${message.isPendingDelete ? "opacity-50" : ""}`}
       onMouseEnter={handleMouseEnter}
@@ -106,7 +116,7 @@ export function MessageBubble(
 
       {/* Message Content */}
       <div
-        className={`message-content ${
+        className={`message-content overflow-hidden wrap-break-word ${
           showCheckbox ? "ml-6" : ""
         } ${message.isPendingDelete ? "line-through" : ""}`}
         data-testid={`message-content-${message.id}`}

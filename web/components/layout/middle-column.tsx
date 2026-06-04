@@ -85,7 +85,7 @@ export function MiddleColumn() {
     };
 
     fetchMessages();
-  }, [currentRoomId, setMessages, toast]);
+  }, [currentRoomId, setMessages, t, toast]);
 
   const createOptimisticMessage = (content: string): Message => ({
     id: `temp-${Date.now()}`,
@@ -253,7 +253,7 @@ export function MiddleColumn() {
         open={deleteCandidateId !== null}
         onOpenChange={(open) => !open && setDeleteCandidateId(null)}
       >
-        <AlertDialogContent>
+        <AlertDialogContent data-testid="delete-confirm-dialog">
           <AlertDialogHeader>
             <AlertDialogTitle>{t("chat.deleteConfirmTitle")}</AlertDialogTitle>
             <AlertDialogDescription>

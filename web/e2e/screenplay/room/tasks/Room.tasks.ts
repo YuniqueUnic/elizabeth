@@ -3,6 +3,15 @@ import { Navigate } from "@serenity-js/web";
 
 import {
   CancelDialog,
+  ClickCopyMessages,
+  ClickDeleteMessages,
+  ClickDownloadMessages,
+  ClickMessageCopyButton,
+  ClickMessageDeleteButton,
+  CloseSettings,
+  ConfirmDeleteAction,
+  ConfirmDeleteAndDisable,
+  OpenSettings,
   ClickSaveMessages,
   ClickSend,
   ClickFilePreviewCopyLink,
@@ -20,6 +29,8 @@ import {
   SaveRoomConfiguration,
   ScrollMessageListToBottom,
   ScrollMessageListToTop,
+  ToggleSetting,
+  SetSettingState,
   SelectRoomExpiry,
   SetPermissionState,
   SetRoomMaxViews,
@@ -193,4 +204,68 @@ export const ScrollMessagesDown = () =>
   Task.where(
     the`#actor scrolls back to the latest message`,
     ScrollMessageListToBottom(),
+  );
+
+export const CopySelectedMessages = () =>
+  Task.where(
+    the`#actor copies the selected messages to clipboard`,
+    ClickCopyMessages(),
+  );
+
+export const DownloadSelectedMessages = () =>
+  Task.where(
+    the`#actor downloads the selected messages`,
+    ClickDownloadMessages(),
+  );
+
+export const DeleteSelectedMessages = () =>
+  Task.where(
+    the`#actor deletes the selected messages`,
+    ClickDeleteMessages(),
+  );
+
+export const DeleteMessageById = (messageId: string) =>
+  Task.where(
+    the`#actor deletes the message by id`,
+    ClickMessageDeleteButton(messageId),
+  );
+
+export const ConfirmDelete = () =>
+  Task.where(
+    the`#actor confirms the delete`,
+    ConfirmDeleteAction(),
+  );
+
+export const ConfirmDeleteAndDisableFuture = () =>
+  Task.where(
+    the`#actor confirms delete and disables future confirmations`,
+    ConfirmDeleteAndDisable(),
+  );
+
+export const CopySingleMessage = (messageId: string) =>
+  Task.where(
+    the`#actor copies a single message`,
+    ClickMessageCopyButton(messageId),
+  );
+
+export const EnableSetting = (testid: string) =>
+  Task.where(
+    the`#actor enables the setting`,
+    OpenSettings(),
+    ToggleSetting(testid),
+    CloseSettings(),
+  );
+
+export const SetSettingTo = (testid: string, desired: boolean) =>
+  Task.where(
+    the`#actor sets the setting to ${desired}`,
+    OpenSettings(),
+    SetSettingState(testid, desired),
+    CloseSettings(),
+  );
+
+export const ToggleSettingInOpenDialog = (testid: string) =>
+  Task.where(
+    the`#actor toggles a setting in the open settings dialog`,
+    ToggleSetting(testid),
   );

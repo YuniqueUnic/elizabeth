@@ -43,7 +43,7 @@ export function MinimalTiptapViewer({ content, className, onFileClick }: Minimal
     editorProps: {
       attributes: {
         class: cn(
-          "prose prose-sm dark:prose-invert max-w-none",
+          "prose prose-sm dark:prose-invert max-w-none break-words overflow-hidden",
           "focus:outline-none",
           className
         ),
@@ -91,7 +91,7 @@ export function MinimalTiptapViewer({ content, className, onFileClick }: Minimal
 
   return (
     <div
-        className="tiptap-viewer-container"
+        className="tiptap-viewer-container overflow-hidden"
         style={{ fontSize: `${messageFontSize}px` }}
     >
         <EditorContent editor={editor} className="tiptap-viewer-content" />

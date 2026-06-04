@@ -74,7 +74,9 @@ fn ensure_embedded_frontend() -> anyhow::Result<()> {
     let workspace_root = manifest_dir
         .parent()
         .and_then(|parent| parent.parent())
-        .ok_or_else(|| anyhow::anyhow!("Failed to determine workspace root from CARGO_MANIFEST_DIR"))?;
+        .ok_or_else(|| {
+            anyhow::anyhow!("Failed to determine workspace root from CARGO_MANIFEST_DIR")
+        })?;
     let web_dir = workspace_root.join("web");
     let embedded_dir = manifest_dir.join("web-out");
 
@@ -107,7 +109,10 @@ fn ensure_embedded_frontend() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    eprintln!("[board/build.rs] running `bun run build:embedded` in {:?}", web_dir);
+    eprintln!(
+        "[board/build.rs] running `bun run build:embedded` in {:?}",
+        web_dir
+    );
 
     let status = std::process::Command::new("bun")
         .arg("run")

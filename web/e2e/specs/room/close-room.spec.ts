@@ -46,7 +46,7 @@ test.describe("Room closure", () => {
     page,
     provisionRoom,
   }) => {
-    const password = "correct-password-123";
+    const password = "correct-password-123"; // pragma: allowlist secret
     const room = await provisionRoom({
       actor,
       password,
@@ -70,7 +70,7 @@ test.describe("Room closure", () => {
     page,
     provisionRoom,
   }) => {
-    const password = "correct-password-123";
+    const password = "correct-password-123"; // pragma: allowlist secret
     const room = await provisionRoom({
       actor,
       password,
