@@ -1,210 +1,178 @@
 #!/bin/bash
+set -euo pipefail
 
-# Service Management Script
+# ─────────────────────────────────────────────────────
+# Elizabeth Service Management Script
+#
+# Architecture: single binary — the Rust `board` process
+# serves both the API (/api/v1/*) and the embedded SPA
+# frontend on the same port (default 4092).
+#
+# Usage:
+#   ./manage_services.sh build          # build frontend + backend
+#   ./manage_services.sh start          # start the server
+#   ./manage_services.sh stop           # stop the server
+#   ./manage_services.sh restart        # stop + start
+#   ./manage_services.sh status         # check if running
+#   ./manage_services.sh logs           # tail the log file
+# ─────────────────────────────────────────────────────
 
-# --- Configuration ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BACKEND_DIR="$SCRIPT_DIR"
-BACKEND_CMD="cargo run -p elizabeth-board -- run"
-BACKEND_LOG_FILE="$BACKEND_DIR/backend.log"
-BACKEND_PID_FILE="$BACKEND_DIR/backend.pid"
+LOG_FILE="$SCRIPT_DIR/server.log"
+PID_FILE="$SCRIPT_DIR/server.pid"
 
-FRONTEND_DIR="$SCRIPT_DIR/web"
-FRONTEND_BUILD_CMD="bun run build"
-FRONTEND_CMD="node .next/standalone/server.js"
-FRONTEND_LOG_FILE="$FRONTEND_DIR/frontend.log"
-FRONTEND_PID_FILE="$FRONTEND_DIR/frontend.pid"
-
-
-ENV_FILE="$BACKEND_DIR/.env"
+# Load .env if present
+ENV_FILE="$SCRIPT_DIR/.env"
 if [ -f "$ENV_FILE" ]; then
-    # shellcheck disable=SC1090
     set -a
+    # shellcheck disable=SC1090
     source "$ENV_FILE"
     set +a
 fi
 
-# --- Functions ---
+PORT="${PORT:-4092}"
+LISTEN_ADDR="${LISTEN_ADDR:-127.0.0.1}"
 
-start_backend() {
-    local backend_port="${BACKEND_PORT:-4092}"
-    local backend_listen_addr="${BACKEND_LISTEN_ADDR:-${LISTEN_ADDR:-127.0.0.1}}"
+# ── Helpers ──────────────────────────────────────────
 
-    echo "Ensuring port ${backend_port} is free..."
-    lsof -t -i:"${backend_port}" | xargs kill -9 2>/dev/null || true
+is_running() {
+    [ -f "$PID_FILE" ] && ps -p "$(cat "$PID_FILE")" > /dev/null 2>&1
+}
 
-    if [ -f "$BACKEND_PID_FILE" ] && ps -p $(cat "$BACKEND_PID_FILE") > /dev/null; then
-        echo "Backend is already running (PID: $(cat $BACKEND_PID_FILE))."
+kill_port() {
+    local port="$1"
+    local pids
+    pids=$(lsof -t -i:"$port" 2>/dev/null || true)
+    if [ -n "$pids" ]; then
+        echo "  Killing processes on port $port: $pids"
+        echo "$pids" | xargs kill -9 2>/dev/null || true
+    fi
+}
+
+# ── Commands ─────────────────────────────────────────
+
+cmd_build() {
+    echo "==> Building frontend (static export)..."
+    cd "$SCRIPT_DIR/web" || exit 1
+    if ! bun run build:embedded; then
+        echo "Frontend build failed." >&2
+        exit 1
+    fi
+
+    echo "==> Building backend (debug binary with embedded SPA)..."
+    cd "$SCRIPT_DIR" || exit 1
+    cargo build -p elizabeth-board
+    echo "==> Build complete. Binary: target/debug/board"
+}
+
+cmd_start() {
+    if is_running; then
+        echo "Server is already running (PID: $(cat "$PID_FILE"))."
         return
     fi
-    echo "Starting backend..."
-    cd "$BACKEND_DIR" || exit 1
-    echo "  PORT=$backend_port"
-    echo "  LISTEN_ADDR=$backend_listen_addr"
-    PORT="$backend_port" \
-    LISTEN_ADDR="$backend_listen_addr" \
-        nohup $BACKEND_CMD > "$BACKEND_LOG_FILE" 2>&1 &
-    echo $! > "$BACKEND_PID_FILE"
-    sleep 2 # Give it a moment to start
-    if ps -p $(cat "$BACKEND_PID_FILE") > /dev/null; then
-        echo "Backend started with PID $(cat $BACKEND_PID_FILE). Log: $BACKEND_LOG_FILE"
+
+    kill_port "$PORT"
+
+    echo "Starting Elizabeth server..."
+    echo "  PORT=$PORT"
+    echo "  LISTEN_ADDR=$LISTEN_ADDR"
+    echo "  LOG=$LOG_FILE"
+
+    cd "$SCRIPT_DIR" || exit 1
+
+    # Prefer the release binary if it exists, otherwise use cargo run
+    local cmd
+    if [ -x "$SCRIPT_DIR/target/debug/board" ]; then
+        cmd="$SCRIPT_DIR/target/debug/board run"
     else
-        echo "Failed to start backend. Check log for details: $BACKEND_LOG_FILE"
-        rm "$BACKEND_PID_FILE"
-    fi
-}
-
-stop_backend() {
-    if [ ! -f "$BACKEND_PID_FILE" ]; then
-        echo "Backend is not running."
-        return
-    fi
-    PID=$(cat "$BACKEND_PID_FILE")
-    echo "Stopping backend (PID: $PID)..."
-    if ps -p $PID > /dev/null; then
-        kill "$PID"
-        # Wait for the process to terminate
-        for i in {1..5}; do
-            if ! ps -p $PID > /dev/null; then
-                break
-            fi
-            sleep 1
-        done
-    fi
-    # Force kill if still running
-    if ps -p $PID > /dev/null; then
-        echo "Backend did not stop gracefully, forcing..."
-        kill -9 "$PID"
-    fi
-    rm "$BACKEND_PID_FILE"
-    echo "Backend stopped."
-}
-
-start_frontend() {
-    echo "Ensuring port 4001 is free..."
-    lsof -t -i:4001 | xargs kill -9 2>/dev/null || true
-
-    if [ -f "$FRONTEND_PID_FILE" ] && ps -p $(cat "$FRONTEND_PID_FILE") > /dev/null; then
-        echo "Frontend is already running (PID: $(cat $FRONTEND_PID_FILE))."
-        return
+        cmd="cargo run -p elizabeth-board -- run"
     fi
 
-    # For local development, always use localhost regardless of .env file
-    local internal_api_url="http://localhost:4092/api/v1"
-    local public_api_url="${MANAGER_NEXT_PUBLIC_API_URL:-${NEXT_PUBLIC_API_URL:-/api/v1}}"
-    local app_url="${MANAGER_NEXT_PUBLIC_APP_URL:-${NEXT_PUBLIC_APP_URL:-http://localhost:4001}}"
-    local ws_url="${MANAGER_NEXT_PUBLIC_WS_URL:-${NEXT_PUBLIC_WS_URL:-http://localhost:4092/api/v1/ws}}"
+    PORT="$PORT" \
+    LISTEN_ADDR="$LISTEN_ADDR" \
+        nohup $cmd > "$LOG_FILE" 2>&1 &
+    echo $! > "$PID_FILE"
 
-    echo "Starting frontend..."
-    cd "$FRONTEND_DIR" || exit 1
-
-    if [ "${MANAGER_SKIP_FRONTEND_BUILD:-0}" != "1" ]; then
-        echo "  Building frontend (production bundle)..."
-        if ! NEXT_PUBLIC_API_URL="$public_api_url" \
-             INTERNAL_API_URL="$internal_api_url" \
-             NEXT_PUBLIC_APP_URL="$app_url" \
-             NEXT_PUBLIC_WS_URL="$ws_url" \
-             $FRONTEND_BUILD_CMD > "$FRONTEND_DIR/frontend.build.log" 2>&1; then
-            echo "Frontend build failed. Check $FRONTEND_DIR/frontend.build.log"
-            return 1
-        fi
-        local standalone_dir="$FRONTEND_DIR/.next/standalone"
-        local standalone_next_dir="$standalone_dir/.next"
-        if [ -d "$standalone_dir" ]; then
-            mkdir -p "$standalone_next_dir/static"
-            rsync -a --delete "$FRONTEND_DIR/.next/static/" "$standalone_next_dir/static/" >/dev/null 2>&1
-            if [ -d "$FRONTEND_DIR/public" ]; then
-                mkdir -p "$standalone_dir/public"
-                rsync -a --delete "$FRONTEND_DIR/public/" "$standalone_dir/public/" >/dev/null 2>&1
-            fi
-        else
-            echo "  WARNING: Standalone output not found at $standalone_dir"
-        fi
+    sleep 2
+    if is_running; then
+        echo "Server started (PID: $(cat "$PID_FILE"))."
     else
-        echo "  Skipping frontend build (MANAGER_SKIP_FRONTEND_BUILD=1)."
-    fi
-
-    echo "  NEXT_PUBLIC_API_URL=$public_api_url"
-    echo "  INTERNAL_API_URL=$internal_api_url"
-    echo "  NEXT_PUBLIC_APP_URL=$app_url"
-    echo "  NEXT_PUBLIC_WS_URL=$ws_url"
-    NODE_ENV=production \
-    HOSTNAME=0.0.0.0 \
-    PORT=4001 \
-    NEXT_PUBLIC_API_URL="$public_api_url" \
-    INTERNAL_API_URL="$internal_api_url" \
-    NEXT_PUBLIC_APP_URL="$app_url" \
-    NEXT_PUBLIC_WS_URL="$ws_url" \
-        nohup $FRONTEND_CMD > "$FRONTEND_LOG_FILE" 2>&1 &
-    echo $! > "$FRONTEND_PID_FILE"
-    sleep 2 # Give it a moment to start
-    if ps -p $(cat "$FRONTEND_PID_FILE") > /dev/null; then
-        echo "Frontend started with PID $(cat $FRONTEND_PID_FILE). Log: $FRONTEND_LOG_FILE"
-    else
-        echo "Failed to start frontend. Check log for details: $FRONTEND_LOG_FILE"
-        rm "$FRONTEND_PID_FILE"
+        echo "Failed to start. Check log: $LOG_FILE" >&2
+        rm -f "$PID_FILE"
+        exit 1
     fi
 }
 
-stop_frontend() {
-    if [ ! -f "$FRONTEND_PID_FILE" ]; then
-        echo "Frontend is not running."
+cmd_stop() {
+    if ! is_running; then
+        echo "Server is not running."
+        rm -f "$PID_FILE"
         return
     fi
-    PID=$(cat "$FRONTEND_PID_FILE")
-    echo "Stopping frontend (PID: $PID)..."
-    if ps -p $PID > /dev/null; then
-       kill "$PID"
+
+    local pid
+    pid=$(cat "$PID_FILE")
+    echo "Stopping server (PID: $pid)..."
+    kill "$pid" 2>/dev/null || true
+
+    for _ in {1..5}; do
+        if ! ps -p "$pid" > /dev/null 2>&1; then
+            break
+        fi
+        sleep 1
+    done
+
+    if ps -p "$pid" > /dev/null 2>&1; then
+        echo "Graceful stop failed, sending SIGKILL..."
+        kill -9 "$pid" 2>/dev/null || true
     fi
-    rm "$FRONTEND_PID_FILE"
-    echo "Frontend stopped."
+
+    rm -f "$PID_FILE"
+    echo "Server stopped."
 }
 
-# --- Main Logic ---
+cmd_restart() {
+    cmd_stop
+    sleep 1
+    cmd_start
+}
 
-COMMAND=$1
-SERVICE=$2
+cmd_status() {
+    if is_running; then
+        echo "Elizabeth server: RUNNING (PID: $(cat "$PID_FILE"), port $PORT)"
+    else
+        echo "Elizabeth server: STOPPED"
+    fi
+}
 
-case "$COMMAND" in
-    start)
-        case "$SERVICE" in
-            backend) start_backend ;;
-            frontend) start_frontend ;;
-            all) start_backend; start_frontend ;;
-            *) echo "Usage: $0 start [backend|frontend|all]" >&2; exit 1 ;;
-        esac
-        ;;
-    stop)
-        case "$SERVICE" in
-            backend) stop_backend ;;
-            frontend) stop_frontend ;;
-            all) stop_backend; stop_frontend ;;
-            *) echo "Usage: $0 stop [backend|frontend|all]" >&2; exit 1 ;;
-        esac
-        ;;
-    restart)
-        case "$SERVICE" in
-            backend) stop_backend; sleep 1; start_backend ;;
-            frontend) stop_frontend; sleep 1; start_frontend ;;
-            all) stop_backend; stop_frontend; sleep 1; start_backend; start_frontend ;;
-            *) echo "Usage: $0 restart [backend|frontend|all]" >&2; exit 1 ;;
-        esac
-        ;;
-    status)
-        echo "--- Service Status ---"
-        if [ -f "$BACKEND_PID_FILE" ] && ps -p $(cat "$BACKEND_PID_FILE") > /dev/null; then
-            echo "Backend: RUNNING (PID: $(cat $BACKEND_PID_FILE))"
-        else
-            echo "Backend: STOPPED"
-        fi
-        if [ -f "$FRONTEND_PID_FILE" ] && ps -p $(cat "$FRONTEND_PID_FILE") > /dev/null; then
-            echo "Frontend: RUNNING (PID: $(cat $FRONTEND_PID_FILE))"
-        else
-            echo "Frontend: STOPPED"
-        fi
-        ;;
+cmd_logs() {
+    if [ -f "$LOG_FILE" ]; then
+        tail -f "$LOG_FILE"
+    else
+        echo "No log file found at $LOG_FILE"
+        exit 1
+    fi
+}
+
+# ── Main ─────────────────────────────────────────────
+
+case "${1:-}" in
+    build)   cmd_build   ;;
+    start)   cmd_start   ;;
+    stop)    cmd_stop    ;;
+    restart) cmd_restart ;;
+    status)  cmd_status  ;;
+    logs)    cmd_logs    ;;
     *)
-        echo "Usage: $0 {start|stop|restart|status} [backend|frontend|all]" >&2
+        echo "Usage: $0 {build|start|stop|restart|status|logs}"
+        echo ""
+        echo "Commands:"
+        echo "  build    Build frontend (static export) + backend (release binary)"
+        echo "  start    Start the server (single binary, serves API + SPA on port $PORT)"
+        echo "  stop     Stop the server"
+        echo "  restart  Stop then start"
+        echo "  status   Check if the server is running"
+        echo "  logs     Tail the server log"
         exit 1
         ;;
 esac
