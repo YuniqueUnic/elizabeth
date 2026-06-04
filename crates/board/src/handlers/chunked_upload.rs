@@ -772,7 +772,8 @@ pub async fn complete_file_merge(
                     let file_size = file_manifest[0].size;
                     let reserved_size = reservation.reserved_size;
                     let mut updated_room = room.clone();
-                    updated_room.current_size = (updated_room.current_size - reserved_size + file_size).max(0);
+                    updated_room.current_size =
+                        (updated_room.current_size - reserved_size + file_size).max(0);
                     use crate::repository::IRoomRepository;
                     let room_repository = RoomRepository::new(app_state.db_pool.clone());
                     room_repository

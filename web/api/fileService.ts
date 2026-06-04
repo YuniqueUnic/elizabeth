@@ -178,10 +178,13 @@ function xhrUpload<T>(
   abortSignal?: AbortSignal,
   onProgress?: (progress: TransferProgress) => void,
 ): Promise<T> {
+  // Backend expects token as query parameter, not Authorization header
+  const separator = url.includes("?") ? "&" : "?";
+  const urlWithToken = `${url}${separator}token=${encodeURIComponent(token)}`;
+
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", url);
-    xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    xhr.open("POST", urlWithToken);
 
     let lastLoaded = 0;
     let lastTime = Date.now();
