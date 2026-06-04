@@ -880,11 +880,10 @@ pub async fn cancel_chunked_upload(
 
     // 清理临时分块文件
     let temp_dir = format!("/tmp/elizabeth/chunks/{}", reservation_id);
-    if fs::metadata(&temp_dir).await.is_ok() {
-        if let Err(e) = fs::remove_dir_all(&temp_dir).await {
+    if fs::metadata(&temp_dir).await.is_ok()
+        && let Err(e) = fs::remove_dir_all(&temp_dir).await {
             logrs::error!("清理临时分块文件失败：{}", e);
         }
-    }
 
     // 释放预留空间
     reservation_repository

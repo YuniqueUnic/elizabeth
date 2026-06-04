@@ -659,11 +659,10 @@ async fn serve_content_stream(content: RoomContent) -> Result<Response, AppError
         .headers_mut()
         .insert(CONTENT_DISPOSITION, disposition);
 
-    if let Some(size) = content.size {
-        if let Ok(value) = HeaderValue::from_str(&size.to_string()) {
+    if let Some(size) = content.size
+        && let Ok(value) = HeaderValue::from_str(&size.to_string()) {
             response.headers_mut().insert(CONTENT_LENGTH, value);
         }
-    }
 
     if let Some(mime) = content.mime_type
         && let Ok(value) = HeaderValue::from_str(&mime)
