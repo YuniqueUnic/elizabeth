@@ -845,7 +845,7 @@ dependencies = [
 
 [[package]]
 name = "elizabeth-board"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -886,7 +886,7 @@ dependencies = [
 
 [[package]]
 name = "elizabeth-board-protocol"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "bitflags",
  "bon",
@@ -903,7 +903,7 @@ dependencies = [
 
 [[package]]
 name = "elizabeth-configrs"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "config",
  "fs4",
@@ -918,7 +918,7 @@ dependencies = [
 
 [[package]]
 name = "elizabeth-logrs"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "log",
  "tracing",
