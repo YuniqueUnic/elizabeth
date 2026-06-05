@@ -1,5 +1,8 @@
 use std::sync::Arc;
 
+use axum::extract::FromRequestParts;
+use axum::http::request::Parts;
+
 use crate::errors::{AppError, AppResult};
 use crate::models::{Room, RoomStatus, RoomToken};
 use crate::repository::{
@@ -9,6 +12,45 @@ use crate::services::RoomTokenClaims;
 use crate::state::AppState;
 use crate::validation::RoomNameValidator;
 use crate::validation::TokenValidator;
+
+/// 从 Authorization header 或 ?token= 查询参数中提取 JWT token。
+/// 优先使用 Authorization header，回退到查询参数。
+pub struct AuthToken(pub String);
+
+impl<S: Send + Sync> FromRequestParts<S> for AuthToken {
+    type Rejection = AppError;
+
+    fn from_request_parts(
+        parts: &mut Parts,
+        _state: &S,
+    ) -> impl Future<Output = Result<Self, Self::Rejection>> + Send {
+        let result = (|| {
+            // 1. 优先从 Authorization header 提取
+            if let Some(auth_header) = parts.headers.get("authorization")
+                && let Ok(header_str) = auth_header.to_str()
+                && let Ok(token) = TokenValidator::extract_from_auth_header(header_str)
+            {
+                return Ok(AuthToken(token));
+            }
+
+            // 2. 回退到 ?token= 查询参数
+            if let Some(query) = parts.uri.query() {
+                for pair in query.split('&') {
+                    if let Some((key, value)) = pair.split_once('=')
+                        && key == "token"
+                        && !value.is_empty()
+                    {
+                        return Ok(AuthToken(value.to_string()));
+                    }
+                }
+            }
+
+            Err(AppError::authentication("Missing authentication token"))
+        })();
+
+        std::future::ready(result)
+    }
+}
 
 pub struct VerifiedRoomToken {
     pub room: Room,

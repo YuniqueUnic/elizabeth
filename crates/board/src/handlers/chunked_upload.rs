@@ -31,6 +31,8 @@ use crate::{
     state::AppState,
     validation::RoomNameValidator,
 };
+
+use super::{AuthToken, verify_room_token};
 type HandlerResult<T> = AppResult<Json<T>>;
 
 /// 预留分块上传空间
@@ -38,12 +40,14 @@ type HandlerResult<T> = AppResult<Json<T>>;
     post,
     path = "/api/v1/rooms/{name}/uploads/chunks/prepare",
     params(
-        ("name" = String, Path, description = "房间名称")
+        ("name" = String, Path, description = "房间名称"),
+        ("token" = String, Query, description = "有效的房间 token")
     ),
     request_body = ChunkedUploadPreparationRequest,
     responses(
         (status = 200, description = "预留成功", body = ChunkedUploadPreparationResponse),
         (status = 400, description = "请求参数错误"),
+        (status = 401, description = "token 无效"),
         (status = 403, description = "权限不足"),
         (status = 404, description = "房间不存在"),
         (status = 500, description = "服务器内部错误")
@@ -52,6 +56,7 @@ type HandlerResult<T> = AppResult<Json<T>>;
 )]
 pub async fn prepare_chunked_upload(
     Path(room_name): Path<String>,
+    AuthToken(token): AuthToken,
     State(app_state): State<Arc<AppState>>,
     Json(payload): Json<ChunkedUploadPreparationRequest>,
 ) -> HandlerResult<ChunkedUploadPreparationResponse> {
@@ -78,14 +83,15 @@ pub async fn prepare_chunked_upload(
         }
     }
 
-    // 查找房间
-    let room_repository = RoomRepository::new(app_state.db_pool.clone());
-    let room = room_repository
-        .find_by_name(&room_name)
-        .await
-        .map_err(|e| AppError::internal(format!("数据库查询错误：{}", e)))?;
+    // 验证 token 并获取房间
+    let verified = verify_room_token(app_state.clone(), &room_name, &token).await?;
+    let room = verified.room;
 
-    let room = room.ok_or_else(|| AppError::not_found("房间不存在"))?;
+    // 检查 token 是否有编辑权限
+    let token_permission = verified.claims.as_permission();
+    if !token_permission.can_edit() {
+        return Err(AppError::permission_denied("token 无编辑权限"));
+    }
 
     // 计算总预留大小
     let total_reserved_size: i64 = payload.files.iter().map(|f| f.size).sum();

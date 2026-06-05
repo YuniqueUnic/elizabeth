@@ -313,9 +313,28 @@ function buildURL(
 }
 
 /**
- * Inject token into request
+ * Resolve token from explicit value or localStorage.
+ * Returns the token string, or undefined if not available.
  */
-function injectToken(url: string, token?: string, roomName?: string): string {
+function resolveToken(token?: string, roomName?: string): string | undefined {
+  if (token) return token;
+
+  if (roomName) {
+    const tokenInfo = getRoomToken(roomName);
+    if (tokenInfo && !isTokenExpired(tokenInfo.expiresAt)) {
+      return tokenInfo.token;
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Inject token into URL query parameter.
+ * Used ONLY for media URLs (<img src>, <video src>, PDF.js, etc.)
+ * that cannot send Authorization headers.
+ */
+export function injectTokenToUrl(url: string, token?: string, roomName?: string): string {
   const applyToken = (inputUrl: string, tokenValue: string): string => {
     const urlObj = createURLObject(inputUrl);
     urlObj.searchParams.set("token", tokenValue);
@@ -327,12 +346,10 @@ function injectToken(url: string, token?: string, roomName?: string): string {
     return `${urlObj.pathname}${urlObj.search}${urlObj.hash}`;
   };
 
-  // If token is explicitly provided, use it
   if (token) {
     return applyToken(url, token);
   }
 
-  // Try to get token from storage if roomName is provided
   if (roomName) {
     const tokenInfo = getRoomToken(roomName);
     if (tokenInfo && !isTokenExpired(tokenInfo.expiresAt)) {
@@ -410,14 +427,6 @@ async function request<T = any>(
   const roomMatch = path.match(/\/rooms\/([^\/]+)/);
   const roomName = roomMatch ? decodeURIComponent(roomMatch[1]) : null;
 
-  // Inject token if not skipped
-  if (!skipTokenInjection && token) {
-    url = injectToken(url, token);
-  } else if (!skipTokenInjection && roomName && !token) {
-    // Try to get token from storage for this room
-    url = injectToken(url, undefined, roomName);
-  }
-
   // Set default headers
   const headers = new Headers(fetchOptions.headers);
   if (
@@ -425,6 +434,14 @@ async function request<T = any>(
     typeof fetchOptions.body === "string"
   ) {
     headers.set("Content-Type", "application/json");
+  }
+
+  // Inject token via Authorization header
+  if (!skipTokenInjection) {
+    const resolvedToken = resolveToken(token, roomName ?? undefined);
+    if (resolvedToken) {
+      headers.set("Authorization", `Bearer ${resolvedToken}`);
+    }
   }
 
   let lastError: Error | null = null;
@@ -459,8 +476,7 @@ async function request<T = any>(
           const freshToken = await refreshRoomToken(roomName);
 
           if (freshToken) {
-            url = buildURL(path);
-            url = injectToken(url, freshToken);
+            headers.set("Authorization", `Bearer ${freshToken}`);
             attempt--;
             continue;
           } else {
@@ -556,22 +572,25 @@ export const api = {
       ...fetchOptions
     } = options || {};
 
-    let url = buildURL(path, params);
+    const url = buildURL(path, params);
 
     // Extract room name from path for token refresh logic
     const roomMatch = path.match(/\/rooms\/([^\/]+)/);
     const roomName = roomMatch ? decodeURIComponent(roomMatch[1]) : null;
 
-    // Inject token if not skipped
-    if (!skipTokenInjection && token) {
-      url = injectToken(url, token);
-    } else if (!skipTokenInjection && roomName && !token) {
-      // Try to get token from storage for this room
-      url = injectToken(url, undefined, roomName);
+    const headers = new Headers(fetchOptions.headers);
+
+    // Inject token via Authorization header
+    if (!skipTokenInjection) {
+      const resolvedToken = resolveToken(token, roomName ?? undefined);
+      if (resolvedToken) {
+        headers.set("Authorization", `Bearer ${resolvedToken}`);
+      }
     }
 
     const response = await fetch(url, {
       ...fetchOptions,
+      headers,
       method: "GET",
     });
 

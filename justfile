@@ -26,8 +26,8 @@ verify: check test
 # ── 开发 ─────────────────────────────────────────────
 
 # 启动开发服务器
-dev:
-    cargo run -p elizabeth-board -- run
+dev port="4092" *ARG:
+    cargo run -p elizabeth-board -- run --port={{port}} {{ARG}}
 
 # ── 构建 ─────────────────────────────────────────────
 

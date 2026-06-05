@@ -40,13 +40,12 @@ use crate::services::RoomTokenClaims;
 use crate::state::AppState;
 use crate::validation::{RoomNameValidator, TokenValidator};
 
-use super::{TokenQuery, verify_room_token, verify_room_token_by_id};
+use super::{AuthToken, verify_room_token, verify_room_token_by_id};
 
 type HandlerResult<T> = Result<Json<T>, AppError>;
 
 #[derive(Debug, Deserialize, ToSchema)]
-pub struct UploadContentQuery {
-    pub token: String,
+pub struct UploadReservationQuery {
     pub reservation_id: i64,
 }
 
@@ -66,13 +65,13 @@ pub struct UploadContentQuery {
 )]
 pub async fn list_contents(
     AxumPath(name): AxumPath<String>,
-    Query(query): Query<TokenQuery>,
+    AuthToken(token): AuthToken,
     State(app_state): State<Arc<AppState>>,
 ) -> HandlerResult<Vec<RoomContentView>> {
     // Validate room name using the new validation framework
     RoomNameValidator::validate_identifier(&name)?;
 
-    let verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
+    let verified = verify_room_token(app_state.clone(), &name, &token).await?;
     let room_id = room_id_or_error(&verified.claims)?;
 
     // Manual permission check is used for now
@@ -113,7 +112,7 @@ pub async fn list_contents(
 )]
 pub async fn prepare_upload(
     AxumPath(name): AxumPath<String>,
-    Query(query): Query<TokenQuery>,
+    AuthToken(token): AuthToken,
     State(app_state): State<Arc<AppState>>,
     Json(payload): Json<UploadPreparationRequest>,
 ) -> HandlerResult<UploadPreparationResponse> {
@@ -124,7 +123,7 @@ pub async fn prepare_upload(
         return Err(AppError::validation("No files provided"));
     }
 
-    let mut verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
+    let mut verified = verify_room_token(app_state.clone(), &name, &token).await?;
     ensure_permission(
         &verified.claims,
         verified.room.permission.can_edit(),
@@ -226,7 +225,8 @@ pub async fn prepare_upload(
 )]
 pub async fn upload_contents(
     AxumPath(name): AxumPath<String>,
-    Query(query): Query<UploadContentQuery>,
+    AuthToken(token): AuthToken,
+    Query(query): Query<UploadReservationQuery>,
     State(app_state): State<Arc<AppState>>,
     mut multipart: Multipart,
 ) -> HandlerResult<UploadContentResponse> {
@@ -237,7 +237,7 @@ pub async fn upload_contents(
         return Err(AppError::validation("Invalid reservation id"));
     }
 
-    let mut verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
+    let mut verified = verify_room_token(app_state.clone(), &name, &token).await?;
     ensure_permission(
         &verified.claims,
         verified.room.permission.can_edit(),
@@ -526,7 +526,7 @@ pub async fn upload_contents(
 )]
 pub async fn delete_contents(
     AxumPath(name): AxumPath<String>,
-    Query(query): Query<TokenQuery>,
+    AuthToken(token): AuthToken,
     State(app_state): State<Arc<AppState>>,
     Json(payload): Json<DeleteContentRequest>,
 ) -> HandlerResult<DeleteContentResponse> {
@@ -537,7 +537,7 @@ pub async fn delete_contents(
         return Err(AppError::validation("No content id provided"));
     }
 
-    let mut verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
+    let mut verified = verify_room_token(app_state.clone(), &name, &token).await?;
     ensure_permission(
         &verified.claims,
         verified.room.permission.can_delete(),
@@ -691,11 +691,11 @@ async fn serve_content_stream(content: RoomContent) -> Result<Response, AppError
 )]
 pub async fn download_content_global(
     AxumPath(content_id): AxumPath<i64>,
-    Query(query): Query<TokenQuery>,
+    AuthToken(token): AuthToken,
     State(app_state): State<Arc<AppState>>,
 ) -> Result<Response, AppError> {
     // 验证令牌格式
-    TokenValidator::validate_token_format(&query.token)?;
+    TokenValidator::validate_token_format(&token)?;
 
     // 查找资产
     let repository = RoomContentRepository::new(app_state.db_pool.clone());
@@ -706,8 +706,7 @@ pub async fn download_content_global(
         .ok_or_else(|| AppError::not_found("Content not found"))?;
 
     // 关键！不再依赖 path 中的 room_name，而是使用资产所属的真实 room_id 去校验 token
-    let verified =
-        verify_room_token_by_id(app_state.clone(), content.room_id, &query.token).await?;
+    let verified = verify_room_token_by_id(app_state.clone(), content.room_id, &token).await?;
     ensure_permission(
         &verified.claims,
         verified.room.permission.can_view(),
@@ -778,7 +777,7 @@ fn room_id_or_error(claims: &RoomTokenClaims) -> Result<i64, AppError> {
 )]
 pub async fn update_content(
     AxumPath((name, content_id)): AxumPath<(String, i64)>,
-    Query(query): Query<TokenQuery>,
+    AuthToken(token): AuthToken,
     State(app_state): State<Arc<AppState>>,
     Json(payload): Json<UpdateContentRequest>,
 ) -> HandlerResult<UpdateContentResponse> {
@@ -797,7 +796,7 @@ pub async fn update_content(
         ));
     }
 
-    let mut verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
+    let mut verified = verify_room_token(app_state.clone(), &name, &token).await?;
     ensure_permission(
         &verified.claims,
         verified.room.permission.can_edit(),
@@ -932,7 +931,7 @@ async fn room_repo_update_if_content_size_changed(
 )]
 pub async fn create_message(
     AxumPath(name): AxumPath<String>,
-    Query(query): Query<TokenQuery>,
+    AuthToken(token): AuthToken,
     State(app_state): State<Arc<AppState>>,
     Json(payload): Json<CreateMessageRequest>,
 ) -> HandlerResult<CreateMessageResponse> {
@@ -945,7 +944,7 @@ pub async fn create_message(
         return Err(AppError::validation("Message text cannot be empty"));
     }
 
-    let verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
+    let verified = verify_room_token(app_state.clone(), &name, &token).await?;
     ensure_permission(
         &verified.claims,
         verified.room.permission.can_edit(),

@@ -7,7 +7,7 @@ use std::sync::Arc;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use super::verify_room_token;
+use super::{AuthToken, verify_room_token};
 use crate::dto::rooms::{
     DeleteRoomResponse, IssueTokenRequest, IssueTokenResponse, RevokeTokenResponse, RoomTokenView,
     UpdateRoomPermissionRequest, UpdateRoomSettingsRequest, ValidateTokenRequest,
@@ -33,11 +33,6 @@ fn apply_room_defaults(room: &mut Room, app_state: &AppState) {
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateRoomParams {
     password: Option<String>,
-}
-
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct TokenQuery {
-    pub token: String,
 }
 
 /// 创建房间
@@ -187,7 +182,7 @@ pub async fn find(
 )]
 pub async fn delete(
     Path(name): Path<String>,
-    Query(query): Query<TokenQuery>,
+    AuthToken(token): AuthToken,
     State(app_state): State<Arc<AppState>>,
 ) -> HandlerResult<DeleteRoomResponse> {
     // 验证房间标识符（可能是名称或 slug）
@@ -208,7 +203,7 @@ pub async fn delete(
     }
 
     // 验证令牌并检查删除权限
-    let verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
+    let verified = verify_room_token(app_state.clone(), &name, &token).await?;
 
     if !verified.claims.as_permission().can_delete() {
         return Err(AppError::permission_denied(
@@ -455,14 +450,14 @@ pub async fn validate_token(
 )]
 pub async fn update_permissions(
     Path(name): Path<String>,
-    Query(query): Query<TokenQuery>,
+    AuthToken(token): AuthToken,
     State(app_state): State<Arc<AppState>>,
     Json(payload): Json<UpdateRoomPermissionRequest>,
 ) -> HandlerResult<Room> {
     // 验证房间标识符（可能是名称或 slug）
     RoomNameValidator::validate_identifier(&name)?;
 
-    let verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
+    let verified = verify_room_token(app_state.clone(), &name, &token).await?;
     let token_perm = verified.claims.as_permission();
     if !verified.room.permission.can_delete() {
         return Err(AppError::permission_denied("Permission denied by room"));
@@ -573,13 +568,13 @@ pub async fn update_permissions(
 )]
 pub async fn list_tokens(
     Path(name): Path<String>,
-    Query(query): Query<TokenQuery>,
+    AuthToken(token): AuthToken,
     State(app_state): State<Arc<AppState>>,
 ) -> HandlerResult<Vec<RoomTokenView>> {
     // 验证房间标识符（可能是名称或 slug）
     RoomNameValidator::validate_identifier(&name)?;
 
-    let verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
+    let verified = verify_room_token(app_state.clone(), &name, &token).await?;
     let room_id = verified
         .room
         .id
@@ -612,12 +607,12 @@ pub async fn list_tokens(
 )]
 pub async fn revoke_token(
     Path((name, target_jti)): Path<(String, String)>,
-    Query(query): Query<TokenQuery>,
+    AuthToken(token): AuthToken,
     State(app_state): State<Arc<AppState>>,
 ) -> HandlerResult<RevokeTokenResponse> {
     RoomNameValidator::validate_identifier(&name)?;
 
-    let _verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
+    let _verified = verify_room_token(app_state.clone(), &name, &token).await?;
 
     let token_repo = RoomTokenRepository::new(app_state.db_pool.clone());
     let revoked = token_repo
@@ -648,7 +643,7 @@ pub async fn revoke_token(
 )]
 pub async fn update_room_settings(
     Path(name): Path<String>,
-    Query(query): Query<TokenQuery>,
+    AuthToken(token): AuthToken,
     State(app_state): State<Arc<AppState>>,
     Json(payload): Json<UpdateRoomSettingsRequest>,
 ) -> HandlerResult<Room> {
@@ -656,7 +651,7 @@ pub async fn update_room_settings(
     RoomNameValidator::validate_identifier(&name)?;
 
     // 验证令牌并检查权限
-    let verified = verify_room_token(app_state.clone(), &name, &query.token).await?;
+    let verified = verify_room_token(app_state.clone(), &name, &token).await?;
     let token_perm = verified.claims.as_permission();
 
     // 需要删除权限才能更新房间设置
