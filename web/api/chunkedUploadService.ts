@@ -6,7 +6,7 @@
  */
 
 import { API_ENDPOINTS } from "../lib/config";
-import { api } from "../lib/utils/api";
+import { api, buildURL } from "../lib/utils/api";
 import { getValidToken } from "./authService";
 import type { TransferProgress } from "../lib/transfer-types";
 import type {
@@ -205,7 +205,7 @@ async function uploadChunk(
       formData.append("chunk_data", chunkBlob);
 
       // Use fetch directly to support abort signal
-      const url = `${API_ENDPOINTS.chunkedUpload.upload(roomName)}`;
+      const url = buildURL(API_ENDPOINTS.chunkedUpload.upload(roomName));
       const response = await fetch(url, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },

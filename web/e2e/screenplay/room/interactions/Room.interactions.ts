@@ -141,7 +141,7 @@ export const UploadFiles = (...files: UploadableFile[]) =>
     const uploadResponsePromise = page.waitForResponse(
       (response) => {
         const url = response.url();
-        return url.includes("/api/v1/rooms/") && url.includes("/contents")
+        return url.includes("/api/v1/rooms/") && (url.includes("/contents") || url.includes("/uploads/chunks/complete"))
           && response.request().method() === "POST";
       },
       { timeout: 30_000 },

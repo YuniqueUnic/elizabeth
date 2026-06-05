@@ -8,6 +8,7 @@ const config = [
       "types/generated/**",
       "playwright-report/**",
       "test-results/**",
+      "dev-assets/**",
     ],
   },
   ...nextCoreWebVitals,
