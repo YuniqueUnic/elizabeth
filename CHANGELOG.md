@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v1.1.0.html).
 
+## [1.2.3](https://github.com/YuniqueUnic/elizabeth/compare/v1.2.2...v1.2.3) (2026-06-05)
+
+
+### Bug Fixes
+
+* **upload:** add pure JS SHA-256 fallback, fix HTTP clipboard copy, add missing image loading keys ([40bb263](https://github.com/YuniqueUnic/elizabeth/commit/40bb26305b5b251bddaf0f7c7623a9b751e098ea))
+
 ## [1.2.2](https://github.com/YuniqueUnic/elizabeth/compare/v1.2.1...v1.2.2) (2026-06-05)
 
 
