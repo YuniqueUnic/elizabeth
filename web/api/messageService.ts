@@ -121,12 +121,10 @@ export async function deleteMessage(
     throw new Error("Authentication required to delete messages");
   }
 
-  // Backend expects token in query parameter AND ids in both query and body
   await api.delete(
-    `${
-      API_ENDPOINTS.content.base(roomName)
-    }?ids=${messageId}&token=${authToken}`,
+    `${API_ENDPOINTS.content.base(roomName)}?ids=${messageId}`,
     { ids: [parseInt(messageId, 10)] },
+    { token: authToken },
   );
 }
 
@@ -149,12 +147,10 @@ export async function deleteMessages(
   }
 
   const idsParam = messageIds.join(",");
-  // Backend expects token in query parameter AND ids in both query and body
   await api.delete(
-    `${
-      API_ENDPOINTS.content.base(roomName)
-    }?ids=${idsParam}&token=${authToken}`,
+    `${API_ENDPOINTS.content.base(roomName)}?ids=${idsParam}`,
     { ids: messageIds.map((id) => parseInt(id, 10)) },
+    { token: authToken },
   );
 }
 

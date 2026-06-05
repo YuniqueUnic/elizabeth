@@ -303,10 +303,27 @@ async fn test_chunked_upload_prepare_errors() -> Result<()> {
     let create_response = app.clone().oneshot(create_request).await?;
     assert_eq!(create_response.status(), StatusCode::OK);
 
+    // 发放访问令牌
+    let issue_request = create_http_request(
+        Method::POST,
+        &format!("/api/v1/rooms/{}/tokens", room_name),
+        Some(Body::from(json!({}).to_string())),
+    );
+
+    let issue_response = app.clone().oneshot(issue_request).await?;
+    assert_eq!(issue_response.status(), StatusCode::OK);
+
+    let issue_body = axum::body::to_bytes(issue_response.into_body(), usize::MAX).await?;
+    let issue_json: serde_json::Value = serde_json::from_slice(&issue_body)?;
+    let token = issue_json["token"].as_str().expect("token string");
+
     // 测试空文件列表
     let empty_files_request = create_http_request(
         Method::POST,
-        &format!("/api/v1/rooms/{}/uploads/chunks/prepare", room_name),
+        &format!(
+            "/api/v1/rooms/{}/uploads/chunks/prepare?token={}",
+            room_name, token
+        ),
         Some(Body::from(json!({ "files": [] }).to_string())),
     );
 
@@ -316,7 +333,10 @@ async fn test_chunked_upload_prepare_errors() -> Result<()> {
     // 测试无效文件大小
     let invalid_size_request = create_http_request(
         Method::POST,
-        &format!("/api/v1/rooms/{}/uploads/chunks/prepare", room_name),
+        &format!(
+            "/api/v1/rooms/{}/uploads/chunks/prepare?token={}",
+            room_name, token
+        ),
         Some(Body::from(
             json!({
                 "files": [{

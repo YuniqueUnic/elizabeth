@@ -42,6 +42,11 @@ function buildAuthenticatedDownloadPath(fileId: string, token: string): string {
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
+/** Return the content path without token (for Authorization header usage) */
+function getContentPath(fileId: string): string {
+  return `${API_BASE_URL}/contents/${fileId}`;
+}
+
 function triggerBrowserDownload(blob: Blob, fileName: string): void {
   const objectUrl = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -178,13 +183,10 @@ function xhrUpload<T>(
   abortSignal?: AbortSignal,
   onProgress?: (progress: TransferProgress) => void,
 ): Promise<T> {
-  // Backend expects token as query parameter, not Authorization header
-  const separator = url.includes("?") ? "&" : "?";
-  const urlWithToken = `${url}${separator}token=${encodeURIComponent(token)}`;
-
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", urlWithToken);
+    xhr.open("POST", url);
+    xhr.setRequestHeader("Authorization", `Bearer ${token}`);
 
     let lastLoaded = 0;
     let lastTime = Date.now();
@@ -234,8 +236,9 @@ export async function deleteFile(
   const authToken = await ensureToken(roomName, token);
   const idsParam = parseInt(fileId, 10);
   await api.delete(
-    `${API_ENDPOINTS.content.base(roomName)}?ids=${idsParam}&token=${authToken}`,
+    `${API_ENDPOINTS.content.base(roomName)}?ids=${idsParam}`,
     { ids: [idsParam] },
+    { token: authToken },
   );
 }
 
@@ -251,8 +254,9 @@ export async function deleteFiles(
   const numericIds = fileIds.map((id) => parseInt(id, 10));
   const idsParam = numericIds.join(",");
   await api.delete(
-    `${API_ENDPOINTS.content.base(roomName)}?ids=${idsParam}&token=${authToken}`,
+    `${API_ENDPOINTS.content.base(roomName)}?ids=${idsParam}`,
     { ids: numericIds },
+    { token: authToken },
   );
 }
 
@@ -270,12 +274,14 @@ export async function downloadFile(
     onProgress?: (progress: TransferProgress) => void;
   },
 ): Promise<void> {
-  const downloadUrl = await getDownloadUrl(roomName, fileId, token);
+  const authToken = await ensureToken(roomName, token);
+  const downloadPath = getContentPath(fileId);
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.responseType = "blob";
-    xhr.open("GET", downloadUrl);
+    xhr.open("GET", downloadPath);
+    xhr.setRequestHeader("Authorization", `Bearer ${authToken}`);
 
     let lastLoaded = 0;
     let lastTime = Date.now();
