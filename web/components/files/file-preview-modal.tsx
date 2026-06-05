@@ -21,6 +21,7 @@ import {
   buildPreviewMarkdownReference,
   isImageFile,
   resolveFileAssetPath,
+  resolveFilePreviewLink,
   toAbsoluteUrl,
 } from "@/lib/utils/file-links";
 
@@ -103,22 +104,26 @@ export function FilePreviewModal(
     }
   };
 
-  // 同步构建公共下载链接：直接复用已有的 authenticatedAssetPath，避免再次异步请求 token
-  // file 在此处必然非 null（由上方 if (!file) return null 保证）
-  function buildPublicDownloadUrl(): string {
-    if (isLink && file!.url) {
-      return file!.url;
-    }
-    if (!authenticatedAssetPath) {
-      throw new Error("No asset path available");
-    }
-    return toAbsoluteUrl(authenticatedAssetPath, window.location.origin);
+  /**
+   * Build a shareable URL for clipboard operations.
+   * Never embeds the JWT token — the token is a session credential and must
+   * not appear in URLs (server logs, browser history, Referer header).
+   *
+   * - External links (type === 'link'): use the original URL as-is
+   * - Internal files: use the app-level preview path (/contents/{id})
+   *   which requires normal room authentication when accessed
+   */
+  function buildShareableUrl(): string {
+    const previewPath = resolveFilePreviewLink(file!);
+    // External URLs (http/https) are returned as-is
+    if (/^https?:\/\//.test(previewPath)) return previewPath;
+    // Internal paths → make absolute using current origin (no token)
+    return toAbsoluteUrl(previewPath, window.location.origin);
   }
 
   const handleCopyLink = async () => {
     try {
-      const url = buildPublicDownloadUrl();
-      await copyTextToClipboard(url);
+      await copyTextToClipboard(buildShareableUrl());
       toast({
         title: t("filePreviewModal.linkCopied"),
         description: t("filePreviewModal.linkCopiedDescription"),
@@ -134,13 +139,14 @@ export function FilePreviewModal(
   };
 
   const buildInsertMarkdownLink = () => {
-    return buildPreviewMarkdownReference(file);
+    return buildPreviewMarkdownReference(file!);
   };
 
   const handleCopyMarkdown = async () => {
     try {
-      const href = buildPublicDownloadUrl();
-      await copyTextToClipboard(buildMarkdownReference(file, href));
+      // Use the same token-free preview path so copied markdown is safe to share
+      const href = buildShareableUrl();
+      await copyTextToClipboard(buildMarkdownReference(file!, href));
       toast({
         title: t("filePreviewModal.markdownCopied"),
         description: t("filePreviewModal.markdownCopiedDescription"),
@@ -176,9 +182,9 @@ export function FilePreviewModal(
     });
   };
 
-  const imageUrl = authenticatedAssetPath;
+  const imageUrl = assetPath;
   const videoUrl = authenticatedAssetPath;
-  const pdfUrl = authenticatedAssetPath;
+  const pdfUrl = assetPath;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -279,6 +285,7 @@ export function FilePreviewModal(
             <ImageViewer
               src={imageUrl}
               alt={file.name}
+              roomName={roomName}
               className="max-w-full max-h-full object-contain"
             />
           )}
@@ -302,7 +309,7 @@ export function FilePreviewModal(
           )}
 
           {/* PDF Preview with Enhanced Viewer */}
-          {isPdf && pdfUrl && <PDFViewer url={pdfUrl} />}
+          {isPdf && pdfUrl && <PDFViewer url={pdfUrl} roomName={roomName} />}
 
           {/* URL/Link Preview with Enhanced Viewer */}
           {isLink && file.url && (
@@ -314,9 +321,9 @@ export function FilePreviewModal(
           )}
 
           {/* Text file preview (Markdown, code, plain text) */}
-          {isTextFile && authenticatedAssetPath && (
+          {isTextFile && assetPath && (
             <FileContentPreview
-              fileUrl={authenticatedAssetPath}
+              fileUrl={assetPath}
               fileName={file.name}
               mimeType={file.mimeType}
               roomName={roomName}

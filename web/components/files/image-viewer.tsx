@@ -1,6 +1,4 @@
-"use client";
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Zoom from "react-medium-image-zoom";
 import "react-medium-image-zoom/dist/styles.css";
 import { Button } from "@/components/ui/button";
@@ -13,19 +11,23 @@ import {
   ZoomOut,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useSecureBlobUrl } from "@/hooks/use-secure-blob-url";
 
 interface ImageViewerProps {
   src: string;
   alt: string;
+  roomName?: string;
   className?: string;
 }
 
-export function ImageViewer({ src, alt, className = "" }: ImageViewerProps) {
+export function ImageViewer({ src, alt, roomName, className = "" }: ImageViewerProps) {
   const t = useTranslations("room.image");
   const [rotation, setRotation] = useState(0);
   const [flipH, setFlipH] = useState(false);
   const [flipV, setFlipV] = useState(false);
   const [scale, setScale] = useState(1);
+
+  const { blobUrl, loading: isHookLoading } = useSecureBlobUrl(src, roomName);
 
   const handleRotateRight = () => setRotation((r) => (r + 90) % 360);
   const handleRotateLeft = () => setRotation((r) => (r - 90 + 360) % 360);
@@ -46,6 +48,8 @@ export function ImageViewer({ src, alt, className = "" }: ImageViewerProps) {
     }) scale(${scale})`,
     transition: "transform 0.3s ease",
   };
+
+  const displaySrc = blobUrl || src;
 
   return (
     <div className="flex flex-col h-full">
@@ -118,20 +122,25 @@ export function ImageViewer({ src, alt, className = "" }: ImageViewerProps) {
 
       {/* Image Container */}
       <div className="flex-1 flex items-center justify-center overflow-auto p-4 bg-muted/10">
-        <Zoom>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={src}
-            alt={alt}
-            className={className}
-            style={transformStyle}
-            onError={(e) => {
-              console.error("Image load error:", e);
-              e.currentTarget.src = "/placeholder.svg";
-            }}
-          />
-        </Zoom>
+        {isHookLoading ? (
+          <div className="text-sm text-muted-foreground">{t("loading")}</div>
+        ) : (
+          <Zoom>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={displaySrc || undefined}
+              alt={alt}
+              className={className}
+              style={transformStyle}
+              onError={(e) => {
+                console.error("Image load error:", e);
+                e.currentTarget.src = "/placeholder.svg";
+              }}
+            />
+          </Zoom>
+        )}
       </div>
     </div>
   );
 }
+
