@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v1.1.0.html).
 
+## [1.2.1](https://github.com/YuniqueUnic/elizabeth/compare/v1.2.0...v1.2.1) (2026-06-05)
+
+
+### Bug Fixes
+
+* **api:** export buildURL function for external usage ([e1aace7](https://github.com/YuniqueUnic/elizabeth/commit/e1aace7a5650a642ea74c90dfc30168267dfafe5))
+
 ## [1.2.0](https://github.com/YuniqueUnic/elizabeth/compare/v1.1.0...v1.2.0) (2026-06-04)
 
 
