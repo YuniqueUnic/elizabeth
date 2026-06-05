@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v1.1.0.html).
 
+## [1.2.2](https://github.com/YuniqueUnic/elizabeth/compare/v1.2.1...v1.2.2) (2026-06-05)
+
+
+### Bug Fixes
+
+* **chat:** add image alt text and click support in chat messages ([9c49164](https://github.com/YuniqueUnic/elizabeth/commit/9c49164a94ce3fd7aef22140e979cd47d6936618))
+* **editor:** add link extension with internal path support ([2f2c7d9](https://github.com/YuniqueUnic/elizabeth/commit/2f2c7d96e39a5d7e53b83837699246b0f25b10b8))
+* **editor:** remove deprecated execCommand for undo/redo in source mode ([2f2c7d9](https://github.com/YuniqueUnic/elizabeth/commit/2f2c7d96e39a5d7e53b83837699246b0f25b10b8))
+* **image-viewer:** improve centering and scaling behavior ([9c49164](https://github.com/YuniqueUnic/elizabeth/commit/9c49164a94ce3fd7aef22140e979cd47d6936618))
+* implement secure blob URL loading for authenticated content ([25cd869](https://github.com/YuniqueUnic/elizabeth/commit/25cd8695427bdbb5fe31b115cfb55f5fa147617b))
+
+
+### Performance Improvements
+
+* **files:** optimize public download URL generation in preview modal ([2f2c7d9](https://github.com/YuniqueUnic/elizabeth/commit/2f2c7d96e39a5d7e53b83837699246b0f25b10b8))
+
 ## [1.2.1](https://github.com/YuniqueUnic/elizabeth/compare/v1.2.0...v1.2.1) (2026-06-05)
 
 
