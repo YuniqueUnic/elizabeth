@@ -3,72 +3,51 @@
 import { Image as BaseImage } from "@tiptap/extension-image";
 import { ReactNodeViewRenderer, NodeViewWrapper } from "@tiptap/react";
 import { useAppStore } from "@/lib/store";
-import { getRoomTokenString } from "@/lib/utils/api";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import Zoom from "react-medium-image-zoom";
 import "react-medium-image-zoom/dist/styles.css";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { useSecureBlobUrl } from "@/hooks/use-secure-blob-url";
 
-function ImageWithAuth({ node, updateAttributes }: any) {
+function ImageWithAuth({ node }: any) {
   const t = useTranslations("room.image");
   const currentRoomId = useAppStore((state) => state.currentRoomId);
+  const [imageKey, setImageKey] = useState(0);
   const [hasError, setHasError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [imageKey, setImageKey] = useState(0);
 
-  // 使用 useMemo 确保 URL 计算是响应式的
-  const authenticatedSrc = useMemo(() => {
-    const originalSrc = node.attrs.src;
+  const originalSrc = node.attrs.src;
+  const srcWithRetry = typeof originalSrc === "string" && originalSrc.startsWith("/")
+    ? `${originalSrc}${originalSrc.includes("?") ? "&" : "?"}_retry=${imageKey}`
+    : originalSrc;
 
-    // 只处理相对路径 of 图片（以 / 开头）
-    if (typeof originalSrc === "string" && originalSrc.startsWith("/")) {
-      const token = getRoomTokenString(currentRoomId);
+  const { blobUrl, loading: isHookLoading, error: hookError } = useSecureBlobUrl(
+    srcWithRetry,
+    currentRoomId,
+  );
 
-      if (!token) {
-        console.warn("[ImageAuth] No token for room:", currentRoomId);
-        return originalSrc;
-      }
-
-      try {
-        // 统一捕获 contentId，支持各种老路由与新稳定路由的全局自愈
-        const match = originalSrc.match(/contents\/(\d+)/);
-        if (!match) {
-          return originalSrc;
-        }
-        const contentId = match[1];
-        const path = `/api/v1/contents/${contentId}`;
-
-        // 构建完整的 URL 并附上 token 授权
-        const url = new URL(path, window.location.origin);
-        url.searchParams.set("token", token);
-        const finalUrl = `${url.pathname}${url.search}`;
-
-        console.log("[ImageAuth] Rewritten stable asset URL:", finalUrl);
-        return finalUrl;
-      } catch (e) {
-        console.error("[ImageAuth] URL parse error:", e);
-        return originalSrc;
-      }
-    }
-
-    return originalSrc;
-  }, [node.attrs.src, currentRoomId]);
-
-  // 监听 src 变化，重置加载状态
+  // Sync hook states to local states
   useEffect(() => {
-    console.log("[ImageAuth] SRC changed, resetting load state");
-    setIsLoading(true);
-    setHasError(false);
-  }, [authenticatedSrc]);
+    if (isHookLoading) {
+      setIsLoading(true);
+      setHasError(false);
+    }
+  }, [isHookLoading]);
+
+  useEffect(() => {
+    if (hookError) {
+      handleError();
+    }
+  }, [hookError]);
 
   const handleError = () => {
     console.error("[ImageAuth] Load failed, attempt:", imageKey + 1);
 
     if (imageKey < 3) {
       setTimeout(() => {
-        setImageKey(k => k + 1);
+        setImageKey((k) => k + 1);
         setIsLoading(true);
         setHasError(false);
       }, 1000);
@@ -79,13 +58,15 @@ function ImageWithAuth({ node, updateAttributes }: any) {
   };
 
   const handleLoad = () => {
-    console.log("[ImageAuth] Load success:", authenticatedSrc);
+    console.log("[ImageAuth] Load success:", blobUrl);
     setIsLoading(false);
   };
 
+  const displaySrc = blobUrl || originalSrc;
+
   return (
     <NodeViewWrapper className="inline-block leading-none max-w-full relative">
-      {isLoading && !hasError && (
+      {(isLoading || isHookLoading) && !hasError && (
         <Skeleton className="w-full h-48 rounded-md" />
       )}
 
@@ -94,12 +75,12 @@ function ImageWithAuth({ node, updateAttributes }: any) {
           {t("loadFailed")}
         </div>
       ) : (
-        <div className={cn(isLoading ? "hidden" : "block")}>
+        <div className={cn(isLoading || isHookLoading ? "hidden" : "block")}>
           <Zoom>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              key={`${imageKey}-${authenticatedSrc}`}
-              src={authenticatedSrc}
+              key={`${imageKey}-${displaySrc}`}
+              src={displaySrc || undefined}
               alt={node.attrs.alt || t("defaultAlt")}
               title={node.attrs.title}
               className="max-w-sm max-h-64 object-contain rounded-md border border-border cursor-zoom-in"
@@ -121,3 +102,4 @@ export const ImageAuth = BaseImage.extend({
     return ReactNodeViewRenderer(ImageWithAuth);
   },
 });
+

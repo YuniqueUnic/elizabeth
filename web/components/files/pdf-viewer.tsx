@@ -1,6 +1,4 @@
-"use client";
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
@@ -8,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from "lucide-react";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useTranslations } from "next-intl";
+import { useSecureBlobUrl } from "@/hooks/use-secure-blob-url";
 
 // Configure PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc =
@@ -15,16 +14,27 @@ pdfjs.GlobalWorkerOptions.workerSrc =
 
 interface PDFViewerProps {
   url: string;
+  roomName?: string;
   className?: string;
 }
 
-export function PDFViewer({ url, className = "" }: PDFViewerProps) {
+export function PDFViewer({ url, roomName, className = "" }: PDFViewerProps) {
   const t = useTranslations("room.pdf");
   const [numPages, setNumPages] = useState<number>(0);
   const [pageNumber, setPageNumber] = useState<number>(1);
   const [scale, setScale] = useState<number>(1.0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const { blobUrl, loading: isHookLoading, error: hookError } = useSecureBlobUrl(url, roomName);
+
+  useEffect(() => {
+    if (hookError) {
+      console.error("Secure PDF load failed:", hookError);
+      setError(t("loadFailed"));
+      setLoading(false);
+    }
+  }, [hookError]);
 
   function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
     setNumPages(numPages);
@@ -51,6 +61,8 @@ export function PDFViewer({ url, className = "" }: PDFViewerProps) {
     );
   }
 
+  const displayUrl = blobUrl || url;
+
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
@@ -60,19 +72,19 @@ export function PDFViewer({ url, className = "" }: PDFViewerProps) {
             variant="ghost"
             size="sm"
             onClick={goToPrevPage}
-            disabled={pageNumber <= 1 || loading}
+            disabled={pageNumber <= 1 || loading || isHookLoading}
             title={t("prevPage")}
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <span className="text-sm text-muted-foreground min-w-20 text-center">
-            {loading ? t("loading") : `${pageNumber} / ${numPages}`}
+            {loading || isHookLoading ? t("loading") : `${pageNumber} / ${numPages}`}
           </span>
           <Button
             variant="ghost"
             size="sm"
             onClick={goToNextPage}
-            disabled={pageNumber >= numPages || loading}
+            disabled={pageNumber >= numPages || loading || isHookLoading}
             title={t("nextPage")}
           >
             <ChevronRight className="h-4 w-4" />
@@ -84,7 +96,7 @@ export function PDFViewer({ url, className = "" }: PDFViewerProps) {
             variant="ghost"
             size="sm"
             onClick={handleZoomOut}
-            disabled={scale <= 0.5 || loading}
+            disabled={scale <= 0.5 || loading || isHookLoading}
             title={t("zoomOut")}
           >
             <ZoomOut className="h-4 w-4" />
@@ -96,7 +108,7 @@ export function PDFViewer({ url, className = "" }: PDFViewerProps) {
             variant="ghost"
             size="sm"
             onClick={handleZoomIn}
-            disabled={scale >= 3 || loading}
+            disabled={scale >= 3 || loading || isHookLoading}
             title={t("zoomIn")}
           >
             <ZoomIn className="h-4 w-4" />
@@ -106,26 +118,29 @@ export function PDFViewer({ url, className = "" }: PDFViewerProps) {
 
       {/* PDF Container */}
       <div className="flex-1 overflow-auto flex items-start justify-center p-4 bg-muted/10">
-        {loading && (
+        {(loading || isHookLoading) && (
           <div className="flex items-center justify-center p-8">
             <LoadingSpinner className="h-8 w-8" />
           </div>
         )}
-        <Document
-          file={url}
-          onLoadSuccess={onDocumentLoadSuccess}
-          onLoadError={onDocumentLoadError}
-          loading={null}
-          className={className}
-        >
-          <Page
-            pageNumber={pageNumber}
-            scale={scale}
-            renderTextLayer={true}
-            renderAnnotationLayer={true}
-          />
-        </Document>
+        {!isHookLoading && displayUrl && (
+          <Document
+            file={displayUrl}
+            onLoadSuccess={onDocumentLoadSuccess}
+            onLoadError={onDocumentLoadError}
+            loading={null}
+            className={className}
+          >
+            <Page
+              pageNumber={pageNumber}
+              scale={scale}
+              renderTextLayer={true}
+              renderAnnotationLayer={true}
+            />
+          </Document>
+        )}
       </div>
     </div>
   );
 }
+

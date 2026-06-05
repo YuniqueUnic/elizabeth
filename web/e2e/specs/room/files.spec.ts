@@ -60,7 +60,7 @@ test.describe("Room files and preview modal", () => {
     await expect(page.getByText(tRoom("fileManager.selectedCount", { count: 2 }))).toBeVisible();
   });
 
-  test("copies a public absolute download URL from the preview modal", async ({
+  test("copies a clean token-free link from the preview modal", async ({
     actor,
     page,
   }) => {
@@ -76,21 +76,23 @@ test.describe("Room files and preview modal", () => {
       CopyPreviewRoomFileLink(),
     );
 
-    // Poll for clipboard — copyTextToClipboard is async but should resolve quickly
+    // Poll for clipboard
     await expect.poll(async () => actor.answer(ClipboardContents()), { timeout: 5000 })
       .toMatch(/.+/);
 
     const clipboard = await actor.answer(ClipboardContents());
     const base = escapeForRegex(room.url.replace(/\/[^/]+$/, ""));
 
-    // Must be a real absolute URL with the content ID and token
+    // Must be an app-level preview URL (/contents/{id}) — no API path, no token
     expect(clipboard).toMatch(
-      new RegExp(`^${base}/api/v1/contents/\\d+\\?token=`),
+      new RegExp(`^${base}/contents/\\d+$`),
     );
-    expect(clipboard).toContain(`token=${room.tokenInfo?.token}`);
+    // Security: token must NEVER appear in the copied URL
+    expect(clipboard).not.toContain("token=");
+    expect(clipboard).not.toContain("/api/v1/");
   });
 
-  test("copies markdown using the same public absolute download URL", async ({
+  test("copies markdown with a clean token-free URL", async ({
     actor,
   }) => {
     await actor.attemptsTo(
@@ -112,10 +114,13 @@ test.describe("Room files and preview modal", () => {
     const clipboard = await actor.answer(ClipboardContents());
     const base = escapeForRegex(room.url.replace(/\/[^/]+$/, ""));
 
+    // Must be image markdown with app-level preview URL — no token
     expect(clipboard).toMatch(
-      new RegExp(`^!\\[\\]\\(${base}/api/v1/contents/\\d+\\?token=`),
+      new RegExp(`^!\\[\\]\\(${base}/contents/\\d+\\)$`),
     );
-    expect(clipboard).toContain(`token=${room.tokenInfo?.token}`);
+    // Security: token must NEVER appear in the copied markdown
+    expect(clipboard).not.toContain("token=");
+    expect(clipboard).not.toContain("/api/v1/");
   });
 
   test("file links in messages render as clickable <a> elements not plain text", async ({

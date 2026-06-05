@@ -159,7 +159,7 @@ function getLanguage(fileName: string): string {
 }
 
 export function FileContentPreview(
-  { fileUrl, fileName }: FileContentPreviewProps,
+  { fileUrl, fileName, roomName }: FileContentPreviewProps,
 ) {
   const t = useTranslations("room");
   const { toast } = useToast();
@@ -223,9 +223,13 @@ export function FileContentPreview(
         setLoading(true);
         setError(null);
 
-        // fileUrl is expected to already point to an authenticated content URL,
-        // for example /api/v1/contents/{id}?token=...
-        const response = await api.getRaw(fileUrl);
+        const { getValidToken } = await import("@/api/authService");
+        const token = await getValidToken(roomName);
+
+        // Fetch securely using Authorization header
+        const response = await api.getRaw(fileUrl, undefined, {
+          token: token ?? undefined,
+        });
 
         if (!response.ok) {
           throw new Error(`Failed to fetch file: ${response.statusText}`);
