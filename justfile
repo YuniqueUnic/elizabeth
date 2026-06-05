@@ -26,7 +26,7 @@ verify: check test
 # ── 开发 ─────────────────────────────────────────────
 
 # 启动开发服务器
-dev port="4092" *ARG:
+dev port="4092" *ARG: build-web
     cargo run -p elizabeth-board -- run --port={{port}} {{ARG}}
 
 # ── 构建 ─────────────────────────────────────────────
@@ -75,9 +75,13 @@ docker-clean:
 
 # ── 清理 ─────────────────────────────────────────────
 
-# 清理构建产物
+# 清理 dev 产物(sqlite3, storage)
 clean:
-    cargo clean
+    rm -r storage
+    rm app.db
+    rm app.db-shm
+    rm app.db-wal
+    
 
 # ── 别名 ─────────────────────────────────────────────
 

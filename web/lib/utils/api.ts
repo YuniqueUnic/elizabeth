@@ -296,7 +296,7 @@ export interface RequestOptions extends RequestInit {
 /**
  * Build full URL with query parameters
  */
-function buildURL(
+export function buildURL(
   path: string,
   params?: Record<string, string | number | boolean>,
 ): string {

@@ -208,4 +208,41 @@ test.describe("Room files and preview modal", () => {
     await expect.poll(async () => actor.answer(FileCount())).toBe(0);
     await expect(RoomScreen.fileEmptyState(page)).toBeVisible();
   });
+
+  test("uploads files via chunked upload and downloads successfully", async ({
+    actor,
+    page,
+  }) => {
+    // Set a very low threshold (10 bytes) to force chunked upload
+    await page.evaluate(() => {
+      (window as any).__CHUNKED_UPLOAD_THRESHOLD = 10;
+    });
+
+    await actor.attemptsTo(
+      UploadRoomFiles(
+        textFile("chunked-file.txt", "This is a file that is long enough to exceed the 10-byte threshold for chunked uploads."),
+      ),
+    );
+
+    await expect(RoomScreen.fileEmptyState(page)).toHaveCount(0);
+    await expect.poll(async () => actor.answer(FileCount())).toBe(1);
+    await expect.poll(async () => (await actor.answer(FileNames())).join("|"))
+      .toContain("chunked-file.txt");
+
+    // Verify it can be previewed and downloaded successfully
+    await actor.attemptsTo(
+      PreviewRoomFile("chunked-file.txt"),
+    );
+
+    const downloadPromise = page.waitForEvent("download");
+    await actor.attemptsTo(
+      DownloadPreviewedRoomFile(),
+    );
+    const download = await downloadPromise;
+
+    expect(download.suggestedFilename()).toBe("chunked-file.txt");
+
+    const filePath = await download.path();
+    expect(filePath).toBeTruthy();
+  });
 });

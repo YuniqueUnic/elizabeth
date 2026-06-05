@@ -26,7 +26,11 @@ export interface UploadUrlRequest {
   description?: string;
 }
 
-const CHUNKED_UPLOAD_THRESHOLD = 5 * 1024 * 1024; // 5MB
+const CHUNKED_UPLOAD_THRESHOLD =
+  typeof window !== "undefined" &&
+  (window as any).__CHUNKED_UPLOAD_THRESHOLD !== undefined
+    ? (window as any).__CHUNKED_UPLOAD_THRESHOLD
+    : 5 * 1024 * 1024; // 5MB
 
 async function ensureToken(roomName: string, token?: string): Promise<string> {
   if (token) return token;

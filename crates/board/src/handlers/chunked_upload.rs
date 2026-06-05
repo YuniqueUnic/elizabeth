@@ -165,6 +165,22 @@ pub async fn prepare_chunked_upload(
     .await
     .map_err(|e| AppError::internal(format!("更新预留记录失败：{}", e)))?;
 
+    // 开启后台自动释放任务，防止分块上传中途夭折/未完成导致空间永久泄漏
+    let db_pool = app_state.db_pool.clone();
+    let ttl = app_state.upload_reservation_ttl();
+    let cleanup_delay_seconds = ttl.num_seconds().max(1) as u64;
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(cleanup_delay_seconds)).await;
+        let repo = RoomUploadReservationRepository::new(db_pool);
+        if let Err(err) = repo.release_if_pending(db_reservation_id).await {
+            logrs::warn!(
+                "Failed to release expired chunked reservation {}: {}",
+                db_reservation_id,
+                err
+            );
+        }
+    });
+
     // 构建响应
     let response = ChunkedUploadPreparationResponse {
         reservation_id: db_reservation_id.to_string(),
