@@ -2,6 +2,7 @@
 
 import { useEditor, EditorContent, Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import { Markdown } from "@tiptap/markdown";
@@ -97,9 +98,21 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
 
     const editor = useEditor({
       extensions: [
-        // StarterKit 在 v3 已经包含了 Link 和 Underline
         StarterKit.configure({
           codeBlock: false, // 使用 CodeBlockLowlight 替代
+          link: false,      // 显式关闭内置 Link，使用下面独立配置的版本
+        }),
+        // 独立配置 Link，以支持 /contents/... 相对路径内部链接
+        Link.configure({
+          openOnClick: false,     // 编辑器内不直接跳转，由外部处理
+          autolink: true,
+          HTMLAttributes: {
+            class: "text-primary underline underline-offset-2 cursor-pointer",
+            rel: "noopener noreferrer",
+          },
+          validate: (href) =>
+            // 允许标准 http/https 链接和 /contents/... 内部相对路径
+            /^https?:\/\//.test(href) || href.startsWith("/"),
         }),
         CodeBlockLowlight.configure({
           lowlight,
@@ -250,19 +263,11 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
       clearInsertMarkdownRequest(request.id);
     }, [composerInsertRequest, editor, clearInsertMarkdownRequest, isSourceMode, value, onChange]);
 
-    // 处理工具栏操作
+    // 处理工具栏操作（source 模式下的格式化）
     const handleToolbarAction = useCallback((format: string) => {
       if (textareaRef.current) {
-        if (format === "undo") {
-          textareaRef.current.focus();
-          document.execCommand("undo");
-          return;
-        }
-        if (format === "redo") {
-          textareaRef.current.focus();
-          document.execCommand("redo");
-          return;
-        }
+        // undo/redo: 浏览器原生 Ctrl+Z / Ctrl+Y 对 textarea 有效，无需手动触发
+        if (format === "undo" || format === "redo") return;
         applyMarkdownSyntax(textareaRef.current, format, value, onChange);
       }
     }, [value, onChange]);

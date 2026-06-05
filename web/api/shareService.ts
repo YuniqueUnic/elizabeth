@@ -10,6 +10,7 @@
 
 import { API_ENDPOINTS } from "../lib/config";
 import { api } from "../lib/utils/api";
+import { copyTextToClipboard } from "../lib/utils/clipboard";
 import { getValidToken } from "./authService";
 import { canShareRoom, getUserPermissions } from "./permissionService";
 import { accessRoom } from "./roomAccessService";
@@ -261,25 +262,7 @@ export async function copyShareLink(
   token?: string,
 ): Promise<void> {
   const shareLink = await getShareLink(roomName, token);
-
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    await navigator.clipboard.writeText(shareLink);
-  } else {
-    // Fallback for older browsers
-    const textArea = document.createElement("textarea");
-    textArea.value = shareLink;
-    textArea.style.position = "fixed";
-    textArea.style.left = "-999999px";
-    document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
-
-    try {
-      document.execCommand("copy");
-    } finally {
-      document.body.removeChild(textArea);
-    }
-  }
+  await copyTextToClipboard(shareLink);
 }
 
 /**

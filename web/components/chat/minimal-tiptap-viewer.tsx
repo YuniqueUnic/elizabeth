@@ -2,6 +2,7 @@
 
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import Link from "@tiptap/extension-link";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import { Markdown } from "@tiptap/markdown";
 import { common, createLowlight } from "lowlight";
@@ -26,6 +27,16 @@ export function MinimalTiptapViewer({ content, className, onFileClick }: Minimal
     extensions: [
       StarterKit.configure({
         codeBlock: false,
+        link: false,
+      }),
+      Link.configure({
+        openOnClick: false,
+        autolink: false,
+        HTMLAttributes: {
+          class: "text-primary underline underline-offset-2 cursor-pointer",
+        },
+        validate: (href) =>
+          /^https?:\/\//.test(href) || href.startsWith("/"),
       }),
       CodeBlockLowlight.configure({
         lowlight,
