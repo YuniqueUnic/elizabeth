@@ -64,10 +64,34 @@ export function MinimalTiptapViewer({ content, className, onFileClick }: Minimal
     immediatelyRender: false,
   });
 
-  // DOM-level click interception for file links
+  // DOM-level click interception for file links and images
   const handleClick = useCallback((e: MouseEvent) => {
     if (!onFileClick) return;
     const target = e.target as HTMLElement;
+
+    // 1. Intercept image clicks (<img> elements)
+    if (target.tagName === "IMG") {
+      const fileId = target.getAttribute("data-file-id");
+      if (fileId) {
+        e.preventDefault();
+        e.stopPropagation();
+        onFileClick(fileId);
+        return;
+      }
+
+      const dataSrc = target.getAttribute("data-src") || target.getAttribute("src");
+      if (dataSrc) {
+        const match = dataSrc.match(/contents\/(\d+)/);
+        if (match) {
+          e.preventDefault();
+          e.stopPropagation();
+          onFileClick(match[1]);
+          return;
+        }
+      }
+    }
+
+    // 2. Intercept file links (<a> elements)
     const link = target.closest("a");
     if (link) {
       const href = link.getAttribute("href");

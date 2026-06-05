@@ -143,4 +143,3 @@ export function PDFViewer({ url, roomName, className = "" }: PDFViewerProps) {
     </div>
   );
 }
-
