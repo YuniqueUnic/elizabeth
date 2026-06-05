@@ -351,6 +351,7 @@
     "downloadStartDescription": "Preparing to download {count} files"
   },
   "image": {
+    "loading": "Loading...",
     "loadFailed": "Image failed to load",
     "defaultAlt": "Image",
     "rotateLeft": "Rotate counterclockwise",
