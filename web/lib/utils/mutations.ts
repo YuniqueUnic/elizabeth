@@ -24,9 +24,16 @@ export const handleMutationError = (
     toast: UseToastReturnType["toast"],
     config: MutationErrorConfig = {},
 ) => {
+    let description = config.description;
+
+    if (!description && error && typeof error === "object") {
+        const errObj = error as Record<string, any>;
+        description = errObj.message;
+    }
+
     toast({
         title: config.title || "操作失败",
-        description: config.description || "请重试",
+        description: description || "请重试",
         variant: "destructive",
     });
 };

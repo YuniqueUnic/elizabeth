@@ -222,7 +222,8 @@
     "toolbarPreviewMode": "切换回预览模式",
     "uploadSuccess": "上传成功",
     "uploadFailed": "上传失败",
-    "uploadFailedDescription": "文件上传失败，请重试"
+    "uploadFailedDescription": "文件上传失败，请重试",
+    "uploadFailedSizeExceeded": "文件过大，超出房间容量上限，上传失败"
   },
   "messageList": {
     "loading": "加载消息中...",
@@ -338,6 +339,7 @@
     "uploadSuccess": "上传成功",
     "uploadSuccessDescription": "文件已成功上传到房间",
     "uploadFailed": "文件上传失败，请重试",
+    "uploadFailedSizeExceeded": "文件过大，超出房间容量上限，上传失败",
     "deleteSuccess": "删除成功",
     "deleteSuccessDescription": "文件已从房间中删除",
     "deleteFailed": "无法删除文件，请重试",

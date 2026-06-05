@@ -33,6 +33,7 @@ import { useAppStore } from "@/lib/store";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useRoomPermissions } from "@/hooks/use-room-permissions";
+import { getRoomDetails } from "@/api/roomService";
 import type { FileItem } from "@/lib/types";
 import type { TransferItem, TransferProgress } from "@/lib/transfer-types";
 import {
@@ -88,6 +89,13 @@ export function RightSidebar() {
     enabled: !!roomName,
   });
 
+  const { data: roomDetails } = useQuery({
+    queryKey: ["room", currentRoomId],
+    queryFn: () => getRoomDetails(currentRoomId),
+    staleTime: 1000,
+    enabled: !!currentRoomId,
+  });
+
   useEffect(() => {
     if (previewFileId && files.length > 0) {
       const file = files.find((f) => f.id === previewFileId);
@@ -135,10 +143,16 @@ export function RightSidebar() {
         description: t("toast.uploadSuccessDescription"),
       });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       if (error instanceof DOMException && error.name === "AbortError") return;
+      const isSizeError =
+        error?.code === 413 ||
+        (error?.code === 403 &&
+          (error?.message?.includes("空间不足") ||
+            error?.message?.includes("limit exceeded") ||
+            error?.message?.includes("容量")));
       handleMutationError(error, toast, {
-        description: t("toast.uploadFailed"),
+        description: isSizeError ? t("toast.uploadFailedSizeExceeded") : t("toast.uploadFailed"),
       });
     },
   });
@@ -179,6 +193,23 @@ export function RightSidebar() {
   });
 
   const handleUpload = async (acceptedFiles: File[]) => {
+    if (roomDetails) {
+      const activeUploadsSize = Object.values(transfers)
+        .filter((t) => t.status === "active" && t.direction === "upload")
+        .reduce((sum, t) => sum + (t.fileSize || 0), 0);
+
+      const totalBatchSize = acceptedFiles.reduce((sum, f) => sum + f.size, 0);
+
+      if (roomDetails.currentSize + activeUploadsSize + totalBatchSize > roomDetails.maxSize) {
+        toast({
+          title: t("toast.uploadFailed"),
+          description: t("toast.uploadFailedSizeExceeded"),
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     for (const file of acceptedFiles) {
       await uploadMutation.mutateAsync(file);
     }
