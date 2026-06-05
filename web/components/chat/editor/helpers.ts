@@ -116,8 +116,9 @@ export function buildMarkdownForFile(
   original: File,
 ): string {
   const href = fileToRoomPath(roomName, file);
+  const name = file.name || "";
   if (isLikelyImageFile(original)) {
-    return `\n\n![](${href})\n`;
+    return `\n\n![${name}](${href})\n`;
   }
-  return `\n\n[${file.name}](${href})\n`;
+  return `\n\n[${name}](${href})\n`;
 }

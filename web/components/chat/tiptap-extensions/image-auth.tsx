@@ -19,6 +19,9 @@ function ImageWithAuth({ node }: any) {
   const [isLoading, setIsLoading] = useState(true);
 
   const originalSrc = node.attrs.src;
+  const match = typeof originalSrc === "string" ? originalSrc.match(/contents\/(\d+)/) : null;
+  const contentId = match ? match[1] : undefined;
+
   const srcWithRetry = typeof originalSrc === "string" && originalSrc.startsWith("/")
     ? `${originalSrc}${originalSrc.includes("?") ? "&" : "?"}_retry=${imageKey}`
     : originalSrc;
@@ -83,6 +86,8 @@ function ImageWithAuth({ node }: any) {
               src={displaySrc || undefined}
               alt={node.attrs.alt || t("defaultAlt")}
               title={node.attrs.title}
+              data-file-id={contentId}
+              data-src={originalSrc}
               className="max-w-sm max-h-64 object-contain rounded-md border border-border cursor-zoom-in"
               onLoad={handleLoad}
               onError={handleError}
@@ -102,4 +107,3 @@ export const ImageAuth = BaseImage.extend({
     return ReactNodeViewRenderer(ImageWithAuth);
   },
 });
-

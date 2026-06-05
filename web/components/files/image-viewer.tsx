@@ -121,26 +121,37 @@ export function ImageViewer({ src, alt, roomName, className = "" }: ImageViewerP
       </div>
 
       {/* Image Container */}
-      <div className="flex-1 flex items-center justify-center overflow-auto p-4 bg-muted/10">
+      <div className="flex-1 flex overflow-auto p-4 bg-muted/10">
         {isHookLoading ? (
-          <div className="text-sm text-muted-foreground">{t("loading")}</div>
+          <div className="text-sm text-muted-foreground m-auto">{t("loading")}</div>
         ) : (
-          <Zoom>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={displaySrc || undefined}
-              alt={alt}
-              className={className}
-              style={transformStyle}
-              onError={(e) => {
-                console.error("Image load error:", e);
-                e.currentTarget.src = "/placeholder.svg";
-              }}
-            />
-          </Zoom>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              minWidth: `${100 * scale}%`,
+              minHeight: `${100 * scale}%`,
+              margin: "auto",
+              transition: "min-width 0.3s ease, min-height 0.3s ease",
+            }}
+          >
+            <Zoom>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={displaySrc || undefined}
+                alt={alt}
+                className={className}
+                style={transformStyle}
+                onError={(e) => {
+                  console.error("Image load error:", e);
+                  e.currentTarget.src = "/placeholder.svg";
+                }}
+              />
+            </Zoom>
+          </div>
         )}
       </div>
     </div>
   );
 }
-

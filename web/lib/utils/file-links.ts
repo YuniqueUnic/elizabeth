@@ -73,11 +73,12 @@ export function buildMarkdownReference(
   file: Pick<FileItem, "name" | "type">,
   href: string,
 ): string {
+  const name = file.name || "";
   if (isImageFile(file)) {
-    return `![](${href})`;
+    return `![${name}](${href})`;
   }
 
-  return `[${file.name}](${href})`;
+  return `[${name}](${href})`;
 }
 
 export function buildPreviewMarkdownReference(

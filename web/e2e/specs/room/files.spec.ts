@@ -116,7 +116,7 @@ test.describe("Room files and preview modal", () => {
 
     // Must be image markdown with app-level preview URL — no token
     expect(clipboard).toMatch(
-      new RegExp(`^!\\[\\]\\(${base}/contents/\\d+\\)$`),
+      new RegExp(`^!\\[pixel\\.png\\]\\(${base}/contents/\\d+\\)$`),
     );
     // Security: token must NEVER appear in the copied markdown
     expect(clipboard).not.toContain("token=");
@@ -291,5 +291,42 @@ test.describe("Room files and preview modal", () => {
 
     const filePath = await download.path();
     expect(filePath).toBeTruthy();
+  });
+
+  test("clicking an image in a message bubble opens the file preview modal", async ({
+    actor,
+    page,
+  }) => {
+    // 1. Upload an image
+    await actor.attemptsTo(
+      UploadRoomFiles(pngFile("message-image.png")),
+    );
+
+    await expect.poll(async () => (await actor.answer(FileNames())).join("|"))
+      .toContain("message-image.png");
+
+    // 2. Insert the image markdown into the composer and send
+    await actor.attemptsTo(
+      PreviewRoomFile("message-image.png"),
+      InsertPreviewRoomFileMarkdown(),
+    );
+
+    // Make sure preview dialog is closed
+    await expect(RoomScreen.filePreviewDialog(page)).toHaveCount(0);
+
+    // Click send
+    await RoomScreen.sendButton(page).click();
+
+    // 3. Find the image in the last message bubble
+    const lastMessage = RoomScreen.messageContents(page).last();
+    const imgElement = lastMessage.locator("img");
+    await expect(imgElement).toBeVisible();
+
+    // 4. Click the image to open the preview modal
+    await imgElement.click();
+
+    // 5. Verify the dialog opens for the correct file name
+    await expect(RoomScreen.filePreviewDialog(page)).toBeVisible();
+    await expect(RoomScreen.filePreviewTitle(page)).toHaveText("message-image.png");
   });
 });
