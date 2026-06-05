@@ -223,7 +223,8 @@
     "uploadSuccess": "上传成功",
     "uploadFailed": "上传失败",
     "uploadFailedDescription": "文件上传失败，请重试",
-    "uploadFailedSizeExceeded": "文件过大，超出房间容量上限，上传失败"
+    "uploadFailedSizeExceeded": "文件过大，超出房间容量上限，上传失败",
+    "markdownEditorSubtitle": "支持完整的 Markdown 标记和快捷键"
   },
   "messageList": {
     "loading": "加载消息中...",

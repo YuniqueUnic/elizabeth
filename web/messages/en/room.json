@@ -223,7 +223,8 @@
     "uploadSuccess": "Upload Success",
     "uploadFailed": "Upload Failed",
     "uploadFailedDescription": "File upload failed, please try again",
-    "uploadFailedSizeExceeded": "File is too large, exceeds room capacity limit, upload failed"
+    "uploadFailedSizeExceeded": "File is too large, exceeds room capacity limit, upload failed",
+    "markdownEditorSubtitle": "Supports full Markdown syntax and hotkeys"
   },
   "messageList": {
     "loading": "Loading messages...",

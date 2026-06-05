@@ -20,126 +20,16 @@ import { cn } from "@/lib/utils";
 import { generateUUID } from "@/lib/utils/uuid";
 import { Button } from "@/components/ui/button";
 import { ImageAuth } from "./tiptap-extensions/image-auth";
-import {
-  Bold,
-  Italic,
-  Strikethrough,
-  Code,
-  List,
-  ListOrdered,
-  Quote,
-  Undo,
-  Redo,
-  Heading1,
-  Heading2,
-  Heading3,
-  Image as ImageIcon,
-  Link as LinkIcon,
-  Paperclip,
-  FileCode,
-} from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  getMarkdownFromEditor,
+  setMarkdownToEditor,
+  applyMarkdownSyntax,
+  buildMarkdownForFile,
+} from "./editor/helpers";
+import { EditorToolbar } from "./editor/editor-toolbar";
 
 const lowlight = createLowlight(common);
-
-// 辅助函数：获取 markdown 内容
-function getMarkdownFromEditor(editor: Editor | null): string {
-  if (!editor) return "";
-  try {
-    const doc = editor.getJSON();
-    return editor.storage.markdown?.manager?.serialize(doc) || editor.getText();
-  } catch (e) {
-    console.error("Failed to serialize markdown:", e);
-    return editor.getText();
-  }
-}
-
-// 辅助函数：设置 markdown 内容
-function setMarkdownToEditor(editor: Editor, markdown: string): void {
-  try {
-    const json = editor.storage.markdown?.manager?.parse(markdown);
-    if (json) {
-      editor.commands.setContent(json);
-    } else {
-      editor.commands.setContent(markdown);
-    }
-  } catch (e) {
-    console.error("Failed to parse markdown:", e);
-    editor.commands.setContent(markdown);
-  }
-}
-
-// 辅助函数：在 Textarea 中应用 Markdown 语法
-function applyMarkdownSyntax(
-  textarea: HTMLTextAreaElement,
-  format: string,
-  value: string,
-  onChange: (value: string) => void
-) {
-  const start = textarea.selectionStart;
-  const end = textarea.selectionEnd;
-  const selection = value.substring(start, end);
-  let before = value.substring(0, start);
-  let after = value.substring(end);
-  let newSelection = selection;
-  let cursorOffset = 0;
-
-  switch (format) {
-    case "bold":
-      newSelection = `**${selection}**`;
-      cursorOffset = 2;
-      break;
-    case "italic":
-      newSelection = `*${selection}*`;
-      cursorOffset = 1;
-      break;
-    case "strike":
-      newSelection = `~~${selection}~~`;
-      cursorOffset = 2;
-      break;
-    case "code":
-      newSelection = `\`${selection}\``;
-      cursorOffset = 1;
-      break;
-    case "heading-1":
-      before = `${before}# `;
-      cursorOffset = 2;
-      break;
-    case "heading-2":
-      before = `${before}## `;
-      cursorOffset = 3;
-      break;
-    case "heading-3":
-      before = `${before}### `;
-      cursorOffset = 4;
-      break;
-    case "bulletList":
-      before = `${before}- `;
-      cursorOffset = 2;
-      break;
-    case "orderedList":
-      before = `${before}1. `;
-      cursorOffset = 3;
-      break;
-    case "blockquote":
-      before = `${before}> `;
-      cursorOffset = 2;
-      break;
-  }
-
-  const newValue = before + newSelection + after;
-  onChange(newValue);
-
-  // 恢复焦点和光标位置
-  requestAnimationFrame(() => {
-    textarea.focus();
-    if (selection) {
-      textarea.setSelectionRange(start + cursorOffset, end + cursorOffset);
-    } else {
-      textarea.setSelectionRange(start + cursorOffset, start + cursorOffset);
-    }
-  });
-}
 
 export interface MinimalTiptapEditorMethods {
   setMarkdown: (markdown: string) => void;
@@ -156,237 +46,25 @@ interface MinimalTiptapEditorProps {
   disabled?: boolean;
   sendOnEnter?: boolean;
   className?: string;
-}
-
-function isLikelyImageFile(file: File): boolean {
-  if (file.type.startsWith("image/")) return true;
-  return /\.(png|jpe?g|gif|webp|svg)$/i.test(file.name);
-}
-
-function fileToRoomPath(roomName: string, file: FileItem): string {
-  if (file.url) return file.url;
-  return `/contents/${file.id}`;
-}
-
-function buildMarkdownForFile(
-  roomName: string,
-  file: FileItem,
-  original: File,
-): string {
-  const href = fileToRoomPath(roomName, file);
-  if (isLikelyImageFile(original)) {
-    return `\n\n![](${href})\n`;
-  }
-  return `\n\n[${file.name}](${href})\n`;
-}
-
-// Toolbar context and external button component to avoid ESLint error
-const ToolbarDisabledContext = createContext(false);
-
-const ToolbarButton = ({
-  onClick,
-  active,
-  children,
-  title,
-  disabled: buttonDisabled
-}: {
-  onClick: () => void;
-  active?: boolean;
-  children: React.ReactNode;
-  title: string;
-  disabled?: boolean;
-}) => {
-  const parentDisabled = useContext(ToolbarDisabledContext);
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="sm"
-      onClick={onClick}
-      disabled={parentDisabled || buttonDisabled}
-      className={cn(
-        "h-8 w-8 p-0",
-        active && "bg-muted"
-      )}
-      title={title}
-    >
-      {children}
-    </Button>
-  );
-};
-
-// Toolbar 组件
-function EditorToolbar({ editor, onUpload, disabled, isSourceMode, onToggleSourceMode, onAction }: {
-  editor: Editor | null;
-  onUpload: (files: File[]) => void;
-  disabled?: boolean;
-  isSourceMode: boolean;
-  onToggleSourceMode: () => void;
-  onAction: (format: string) => void;
-}) {
-  const t = useTranslations("room.messageInput");
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  if (!editor) return null;
-
-  const handleAction = (format: string, run: () => void) => {
-    if (isSourceMode) {
-      onAction(format);
-    } else {
-      run();
-    }
-  };
-
-  return (
-    <ToolbarDisabledContext.Provider value={disabled || false}>
-      <div className="flex flex-wrap items-center gap-0.5 border-b border-border bg-muted/30 p-1">
-      <ToolbarButton
-        onClick={() => handleAction("bold", () => editor.chain().focus().toggleBold().run())}
-        active={!isSourceMode && editor.isActive("bold")}
-        title={t("toolbarBold")}
-      >
-        <Bold className="h-4 w-4" />
-      </ToolbarButton>
-
-      <ToolbarButton
-        onClick={() => handleAction("italic", () => editor.chain().focus().toggleItalic().run())}
-        active={!isSourceMode && editor.isActive("italic")}
-        title={t("toolbarItalic")}
-      >
-        <Italic className="h-4 w-4" />
-      </ToolbarButton>
-
-      <ToolbarButton
-        onClick={() => handleAction("strike", () => editor.chain().focus().toggleStrike().run())}
-        active={!isSourceMode && editor.isActive("strike")}
-        title={t("toolbarStrike")}
-      >
-        <Strikethrough className="h-4 w-4" />
-      </ToolbarButton>
-
-      <ToolbarButton
-        onClick={() => handleAction("code", () => editor.chain().focus().toggleCode().run())}
-        active={!isSourceMode && editor.isActive("code")}
-        title={t("toolbarCode")}
-      >
-        <Code className="h-4 w-4" />
-      </ToolbarButton>
-
-      <div className="w-px h-6 bg-border mx-1" />
-
-      <ToolbarButton
-        onClick={() => handleAction("heading-1", () => editor.chain().focus().toggleHeading({ level: 1 }).run())}
-        active={!isSourceMode && editor.isActive("heading", { level: 1 })}
-        title={t("toolbarH1")}
-      >
-        <Heading1 className="h-4 w-4" />
-      </ToolbarButton>
-
-      <ToolbarButton
-        onClick={() => handleAction("heading-2", () => editor.chain().focus().toggleHeading({ level: 2 }).run())}
-        active={!isSourceMode && editor.isActive("heading", { level: 2 })}
-        title={t("toolbarH2")}
-      >
-        <Heading2 className="h-4 w-4" />
-      </ToolbarButton>
-
-      <ToolbarButton
-        onClick={() => handleAction("heading-3", () => editor.chain().focus().toggleHeading({ level: 3 }).run())}
-        active={!isSourceMode && editor.isActive("heading", { level: 3 })}
-        title={t("toolbarH3")}
-      >
-        <Heading3 className="h-4 w-4" />
-      </ToolbarButton>
-
-      <div className="w-px h-6 bg-border mx-1" />
-
-      <ToolbarButton
-        onClick={() => handleAction("bulletList", () => editor.chain().focus().toggleBulletList().run())}
-        active={!isSourceMode && editor.isActive("bulletList")}
-        title={t("toolbarBulletList")}
-      >
-        <List className="h-4 w-4" />
-      </ToolbarButton>
-
-      <ToolbarButton
-        onClick={() => handleAction("orderedList", () => editor.chain().focus().toggleOrderedList().run())}
-        active={!isSourceMode && editor.isActive("orderedList")}
-        title={t("toolbarOrderedList")}
-      >
-        <ListOrdered className="h-4 w-4" />
-      </ToolbarButton>
-
-      <ToolbarButton
-        onClick={() => handleAction("blockquote", () => editor.chain().focus().toggleBlockquote().run())}
-        active={!isSourceMode && editor.isActive("blockquote")}
-        title={t("toolbarBlockquote")}
-      >
-        <Quote className="h-4 w-4" />
-      </ToolbarButton>
-
-      <div className="w-px h-6 bg-border mx-1" />
-
-      <ToolbarButton
-        onClick={() => handleAction("undo", () => editor.chain().focus().undo().run())}
-        title={t("toolbarUndo")}
-      >
-        <Undo className="h-4 w-4" />
-      </ToolbarButton>
-
-      <ToolbarButton
-        onClick={() => handleAction("redo", () => editor.chain().focus().redo().run())}
-        title={t("toolbarRedo")}
-      >
-        <Redo className="h-4 w-4" />
-      </ToolbarButton>
-
-      <div className="w-px h-6 bg-border mx-1" />
-
-      <ToolbarButton
-        onClick={() => fileInputRef.current?.click()}
-        title={t("toolbarUpload")}
-      >
-        <Paperclip className="h-4 w-4" />
-      </ToolbarButton>
-
-      <div className="flex-1" />
-
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={onToggleSourceMode}
-        disabled={disabled}
-        className={cn(
-          "h-8 w-8 p-0",
-          isSourceMode && "bg-muted"
-        )}
-        title={isSourceMode ? t("toolbarPreviewMode") : t("toolbarSourceMode")}
-      >
-        <FileCode className="h-4 w-4" />
-      </Button>
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        className="hidden"
-        onChange={(e) => {
-          const files = Array.from(e.target.files || []);
-          if (files.length > 0) {
-            onUpload(files);
-          }
-          e.target.value = "";
-        }}
-      />
-    </div>
-    </ToolbarDisabledContext.Provider>
-  );
+  toolbarPosition?: "top" | "bottom" | "none";
+  editorClassName?: string;
+  renderActions?: () => React.ReactNode;
 }
 
 export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, MinimalTiptapEditorProps>(
   function MinimalTiptapEditor(
-    { value, onChange, onRequestSend, placeholder, disabled, sendOnEnter = true, className },
+    {
+      value,
+      onChange,
+      onRequestSend,
+      placeholder,
+      disabled,
+      sendOnEnter = true,
+      className,
+      toolbarPosition = "top",
+      editorClassName,
+      renderActions
+    },
     ref
   ) {
     const { toast } = useToast();
@@ -646,7 +324,7 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
           } catch (error: any) {
             updateTransferStatus(transferId, "error", error.message);
             setTimeout(() => removeTransfer(transferId), 5000);
-            
+
             const isSizeError =
               error?.code === 413 ||
               (error?.code === 403 &&
@@ -668,27 +346,31 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
     return (
       <div
         className={cn(
-          "flex flex-col border border-border rounded-md overflow-hidden bg-card tiptap-editor-container",
+          "flex flex-col border border-border rounded-xl bg-card transition-all duration-200 focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/10 overflow-hidden tiptap-editor-container",
           disabled && "opacity-50 pointer-events-none",
           className
         )}
         style={{ fontSize: `${editorFontSize}px` }}
       >
-        <EditorToolbar
-          editor={editor}
-          onUpload={handleUploadFiles}
-          disabled={disabled}
-          isSourceMode={isSourceMode}
-          onToggleSourceMode={() => setIsSourceMode(!isSourceMode)}
-          onAction={handleToolbarAction}
-        />
-        {isSourceMode ? (
-          <div className="flex-1 min-h-0 relative">
+        {toolbarPosition === "top" && (
+          <EditorToolbar
+            editor={editor}
+            onUpload={handleUploadFiles}
+            disabled={disabled}
+            isSourceMode={isSourceMode}
+            onToggleSourceMode={() => setIsSourceMode(!isSourceMode)}
+            onAction={handleToolbarAction}
+            className="border-b border-border bg-muted/20"
+          />
+        )}
+
+        <div className={cn("flex-1 min-h-0 relative flex flex-col overflow-hidden", editorClassName)}>
+          {isSourceMode ? (
             <Textarea
               ref={textareaRef}
               value={value}
               onChange={(e) => onChange(e.target.value)}
-              className="w-full h-full resize-none p-3 font-mono border-0 focus-visible:ring-0 rounded-none bg-transparent"
+              className="w-full h-full resize-none p-4 font-mono border-0 focus-visible:ring-0 rounded-none bg-transparent"
               placeholder={placeholder}
               disabled={disabled}
               onKeyDown={(e) => {
@@ -711,9 +393,28 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
               }}
               style={{ fontSize: `${editorFontSize}px` }}
             />
+          ) : (
+            <EditorContent editor={editor} className="tiptap-editor-content" />
+          )}
+        </div>
+
+        {toolbarPosition === "bottom" && (
+          <div className="flex items-center justify-between border-t border-border bg-muted/10 p-1.5 min-h-10">
+            <EditorToolbar
+              editor={editor}
+              onUpload={handleUploadFiles}
+              disabled={disabled}
+              isSourceMode={isSourceMode}
+              onToggleSourceMode={() => setIsSourceMode(!isSourceMode)}
+              onAction={handleToolbarAction}
+              className="flex-1"
+            />
+            {renderActions && (
+              <div className="flex items-center gap-1.5 px-2 shrink-0">
+                {renderActions()}
+              </div>
+            )}
           </div>
-        ) : (
-          <EditorContent editor={editor} className="tiptap-editor-content" />
         )}
       </div>
     );
