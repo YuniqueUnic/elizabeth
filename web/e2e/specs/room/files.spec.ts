@@ -62,6 +62,7 @@ test.describe("Room files and preview modal", () => {
 
   test("copies a public absolute download URL from the preview modal", async ({
     actor,
+    page,
   }) => {
     await actor.attemptsTo(
       UploadRoomFiles(textFile("public-link.txt", "download me")),
@@ -75,9 +76,14 @@ test.describe("Room files and preview modal", () => {
       CopyPreviewRoomFileLink(),
     );
 
+    // Poll for clipboard — copyTextToClipboard is async but should resolve quickly
+    await expect.poll(async () => actor.answer(ClipboardContents()), { timeout: 5000 })
+      .toMatch(/.+/);
+
     const clipboard = await actor.answer(ClipboardContents());
     const base = escapeForRegex(room.url.replace(/\/[^/]+$/, ""));
 
+    // Must be a real absolute URL with the content ID and token
     expect(clipboard).toMatch(
       new RegExp(`^${base}/api/v1/contents/\\d+\\?token=`),
     );
@@ -99,6 +105,10 @@ test.describe("Room files and preview modal", () => {
       CopyPreviewRoomFileMarkdown(),
     );
 
+    // Poll for clipboard
+    await expect.poll(async () => actor.answer(ClipboardContents()), { timeout: 5000 })
+      .toMatch(/.+/);
+
     const clipboard = await actor.answer(ClipboardContents());
     const base = escapeForRegex(room.url.replace(/\/[^/]+$/, ""));
 
@@ -106,6 +116,38 @@ test.describe("Room files and preview modal", () => {
       new RegExp(`^!\\[\\]\\(${base}/api/v1/contents/\\d+\\?token=`),
     );
     expect(clipboard).toContain(`token=${room.tokenInfo?.token}`);
+  });
+
+  test("file links in messages render as clickable <a> elements not plain text", async ({
+    actor,
+    page,
+  }) => {
+    // Upload a file and insert its preview markdown link into the editor
+    await actor.attemptsTo(
+      UploadRoomFiles(textFile("linked-doc.txt", "content")),
+    );
+
+    await expect.poll(async () => (await actor.answer(FileNames())).join("|"))
+      .toContain("linked-doc.txt");
+
+    // Insert the file markdown link into the composer and send
+    await actor.attemptsTo(
+      PreviewRoomFile("linked-doc.txt"),
+      InsertPreviewRoomFileMarkdown(),
+    );
+
+    await expect(RoomScreen.filePreviewDialog(page)).toHaveCount(0);
+    await RoomScreen.sendButton(page).click();
+
+    const lastMessage = RoomScreen.messageContents(page).last();
+
+    // The link must render as an <a> tag with the /contents/ path — NOT as raw text
+    const link = lastMessage.locator('a[href^="/contents/"]');
+    await expect(link).toBeVisible();
+    await expect(link).toHaveText("linked-doc.txt");
+
+    // Ensure the raw markdown syntax is not leaking through as plain text
+    await expect(lastMessage).not.toContainText("[linked-doc.txt]");
   });
 
   test("downloads the previewed file instead of silently failing", async ({

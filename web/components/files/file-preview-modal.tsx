@@ -24,7 +24,7 @@ import {
   toAbsoluteUrl,
 } from "@/lib/utils/file-links";
 
-import { downloadFile, getDownloadUrl } from "@/api/fileService";
+import { downloadFile } from "@/api/fileService";
 import { FileContentPreview } from "./file-content-preview";
 import dynamic from "next/dynamic";
 import { ImageViewer } from "./image-viewer";
@@ -103,20 +103,22 @@ export function FilePreviewModal(
     }
   };
 
-  const getPublicDownloadHref = async (): Promise<string> => {
-    if (isLink && file.url) {
-      return file.url;
+  // 同步构建公共下载链接：直接复用已有的 authenticatedAssetPath，避免再次异步请求 token
+  // file 在此处必然非 null（由上方 if (!file) return null 保证）
+  function buildPublicDownloadUrl(): string {
+    if (isLink && file!.url) {
+      return file!.url;
     }
-
-    return toAbsoluteUrl(
-      await getDownloadUrl(roomName, file.id),
-      window.location.origin,
-    );
-  };
+    if (!authenticatedAssetPath) {
+      throw new Error("No asset path available");
+    }
+    return toAbsoluteUrl(authenticatedAssetPath, window.location.origin);
+  }
 
   const handleCopyLink = async () => {
     try {
-      await copyTextToClipboard(await getPublicDownloadHref());
+      const url = buildPublicDownloadUrl();
+      await copyTextToClipboard(url);
       toast({
         title: t("filePreviewModal.linkCopied"),
         description: t("filePreviewModal.linkCopiedDescription"),
@@ -137,7 +139,7 @@ export function FilePreviewModal(
 
   const handleCopyMarkdown = async () => {
     try {
-      const href = await getPublicDownloadHref();
+      const href = buildPublicDownloadUrl();
       await copyTextToClipboard(buildMarkdownReference(file, href));
       toast({
         title: t("filePreviewModal.markdownCopied"),
