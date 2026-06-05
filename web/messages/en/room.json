@@ -222,7 +222,8 @@
     "toolbarPreviewMode": "Switch to Preview Mode",
     "uploadSuccess": "Upload Success",
     "uploadFailed": "Upload Failed",
-    "uploadFailedDescription": "File upload failed, please try again"
+    "uploadFailedDescription": "File upload failed, please try again",
+    "uploadFailedSizeExceeded": "File is too large, exceeds room capacity limit, upload failed"
   },
   "messageList": {
     "loading": "Loading messages...",
@@ -338,6 +339,7 @@
     "uploadSuccess": "Upload successful",
     "uploadSuccessDescription": "File has been uploaded to the room",
     "uploadFailed": "File upload failed. Please try again.",
+    "uploadFailedSizeExceeded": "File is too large, exceeds room capacity limit, upload failed",
     "deleteSuccess": "Deleted successfully",
     "deleteSuccessDescription": "File has been removed from the room",
     "deleteFailed": "Unable to delete file. Please try again.",

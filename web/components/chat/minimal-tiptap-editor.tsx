@@ -9,10 +9,11 @@ import { common, createLowlight } from "lowlight";
 import { useCallback, useEffect, useRef, useImperativeHandle, forwardRef, useState, createContext, useContext } from "react";
 import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/lib/store";
 import { uploadFile } from "@/api/fileService";
+import { getRoomDetails } from "@/api/roomService";
 import type { FileItem } from "@/lib/types";
 import { registerComposerEditor, unregisterComposerEditor } from "@/lib/composer-editor";
 import { cn } from "@/lib/utils";
@@ -393,6 +394,12 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
     const queryClient = useQueryClient();
     const { resolvedTheme } = useTheme();
     const roomName = useAppStore((state) => state.currentRoomId);
+    const { data: roomDetails } = useQuery({
+      queryKey: ["room", roomName],
+      queryFn: () => getRoomDetails(roomName),
+      staleTime: 1000,
+      enabled: !!roomName,
+    });
     const addTransfer = useAppStore((state) => state.addTransfer);
     const updateTransferStatus = useAppStore((state) => state.updateTransferStatus);
     const removeTransfer = useAppStore((state) => state.removeTransfer);
@@ -587,6 +594,24 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
       async (files: File[]) => {
         if (!roomName || !editor) return;
 
+        if (roomDetails) {
+          const transfers = useAppStore.getState().transfers;
+          const activeUploadsSize = Object.values(transfers)
+            .filter((t) => t.status === "active" && t.direction === "upload")
+            .reduce((sum, t) => sum + (t.fileSize || 0), 0);
+
+          const totalBatchSize = files.reduce((sum, f) => sum + f.size, 0);
+
+          if (roomDetails.currentSize + activeUploadsSize + totalBatchSize > roomDetails.maxSize) {
+            toast({
+              title: t("uploadFailed"),
+              description: t("uploadFailedSizeExceeded"),
+              variant: "destructive",
+            });
+            return;
+          }
+        }
+
         for (const file of files) {
           const transferId = generateUUID();
           addTransfer({
@@ -621,15 +646,23 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
           } catch (error: any) {
             updateTransferStatus(transferId, "error", error.message);
             setTimeout(() => removeTransfer(transferId), 5000);
+            
+            const isSizeError =
+              error?.code === 413 ||
+              (error?.code === 403 &&
+                (error?.message?.includes("空间不足") ||
+                  error?.message?.includes("limit exceeded") ||
+                  error?.message?.includes("容量")));
+
             toast({
               title: t("uploadFailed"),
-              description: error.message || t("uploadFailedDescription"),
+              description: isSizeError ? t("uploadFailedSizeExceeded") : (error.message || t("uploadFailedDescription")),
               variant: "destructive",
             });
           }
         }
       },
-      [roomName, editor, addTransfer, updateTransferStatus, removeTransfer, queryClient, toast, isSourceMode, value, onChange]
+      [roomName, editor, addTransfer, updateTransferStatus, removeTransfer, queryClient, toast, isSourceMode, value, onChange, roomDetails]
     );
 
     return (
