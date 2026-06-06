@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v1.1.0.html).
 
+## [1.2.4](https://github.com/YuniqueUnic/elizabeth/compare/v1.2.3...v1.2.4) (2026-06-06)
+
+
+### Bug Fixes
+
+* **chat:** implement stable message sorting by reversing stable backend response ([0c6ffd1](https://github.com/YuniqueUnic/elizabeth/commit/0c6ffd174424f44580790960cb01b8f5ad67bece))
+* **chat:** sequential message saving and clean db sort by id ASC with BDD tests ([94273ba](https://github.com/YuniqueUnic/elizabeth/commit/94273bac03b050d15a4cebdde2c0df11144f41df))
+* **chat:** stable sort message list using db id as fallback ([1afc68c](https://github.com/YuniqueUnic/elizabeth/commit/1afc68c337624ed40b3903873d765a4099e19eaf))
+* **clipboard:** replace direct clipboard write calls with robust fallback copy ([5d44778](https://github.com/YuniqueUnic/elizabeth/commit/5d44778665e57c8bfb5617058372e85ff777b681))
+* **editor:** parse raw markdown content before inserting into Tiptap editor ([bcc2bbb](https://github.com/YuniqueUnic/elizabeth/commit/bcc2bbb1929eb159ed84992e46373eae29c88670))
+* **protocol:** add sequence_number field to content models and API ([0cdfb1d](https://github.com/YuniqueUnic/elizabeth/commit/0cdfb1da5c4b4a113da4090bb65ecbc6de7d09a7))
+* **security:** allow blob: URLs in CSP img-src directive to support secure image previews ([acb0860](https://github.com/YuniqueUnic/elizabeth/commit/acb086097afd16748aa96d62a5e77172e8355935))
+* **uuid:** add safe Math.random fallback for non-secure/SSR contexts ([c51b19a](https://github.com/YuniqueUnic/elizabeth/commit/c51b19a54bf2668cd6158b6fc88e31dd9b0a3e63))
+
 ## [1.2.3](https://github.com/YuniqueUnic/elizabeth/compare/v1.2.2...v1.2.3) (2026-06-05)
 
 
