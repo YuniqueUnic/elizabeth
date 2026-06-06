@@ -19,7 +19,7 @@
 ### 服务地址
 
 ```
-Docker Compose（推荐）: http://localhost:4001
+Docker Compose（推荐）: http://localhost:4092
 后端直连（开发/调试）: http://127.0.0.1:4092
 生产环境: https://your-domain.com
 ```
@@ -73,10 +73,10 @@ Elizabeth 使用 JWT (JSON Web Token) 进行认证。大部分 API
 
 ```bash
 # 创建无密码房间
-curl -X POST "http://localhost:4001/api/v1/rooms/my-room"
+curl -X POST "http://localhost:4092/api/v1/rooms/my-room"
 
 # 创建带密码的房间
-curl -X POST "http://localhost:4001/api/v1/rooms/secure-room?password=mypassword123"
+curl -X POST "http://localhost:4092/api/v1/rooms/secure-room?password=mypassword123"
 ```
 
 **响应示例 (200 OK):**
@@ -144,7 +144,7 @@ curl -X POST "http://localhost:4001/api/v1/rooms/secure-room?password=mypassword
 **请求示例：**
 
 ```bash
-curl -X GET "http://localhost:4001/api/v1/rooms/my-room"
+curl -X GET "http://localhost:4092/api/v1/rooms/my-room"
 ```
 
 **响应示例 (200 OK):**
@@ -198,7 +198,7 @@ curl -X GET "http://localhost:4001/api/v1/rooms/my-room"
 **请求示例：**
 
 ```bash
-curl -X DELETE "http://localhost:4001/api/v1/rooms/my-room?token=eyJhbGc..."
+curl -X DELETE "http://localhost:4092/api/v1/rooms/my-room?token=eyJhbGc..."
 ```
 
 **响应示例 (200 OK):**
@@ -268,7 +268,7 @@ curl -X DELETE "http://localhost:4001/api/v1/rooms/my-room?token=eyJhbGc..."
 **请求示例：**
 
 ```bash
-curl -X POST "http://localhost:4001/api/v1/rooms/my-room/permissions?token=eyJhbGc..." \
+curl -X POST "http://localhost:4092/api/v1/rooms/my-room/permissions?token=eyJhbGc..." \
   -H "Content-Type: application/json" \
   -d '{"permission": {"bits": 7}}'
 ```
@@ -322,7 +322,7 @@ curl -X POST "http://localhost:4001/api/v1/rooms/my-room/permissions?token=eyJhb
 **请求示例：**
 
 ```bash
-curl -X POST "http://localhost:4001/api/v1/rooms/my-room/settings?token=eyJhbGc..." \
+curl -X POST "http://localhost:4092/api/v1/rooms/my-room/settings?token=eyJhbGc..." \
   -H "Content-Type: application/json" \
   -d '{
     "max_size": 5368709120,
@@ -378,7 +378,7 @@ curl -X POST "http://localhost:4001/api/v1/rooms/my-room/settings?token=eyJhbGc.
 
 ```bash
 # 首次进入（需要密码）
-curl -X POST "http://localhost:4001/api/v1/rooms/secure-room/tokens" \
+curl -X POST "http://localhost:4092/api/v1/rooms/secure-room/tokens" \
   -H "Content-Type: application/json" \
   -d '{
     "password": "mypassword123",
@@ -386,7 +386,7 @@ curl -X POST "http://localhost:4001/api/v1/rooms/secure-room/tokens" \
   }'
 
 # 刷新 Token（不增加进入次数）
-curl -X POST "http://localhost:4001/api/v1/rooms/my-room/tokens" \
+curl -X POST "http://localhost:4092/api/v1/rooms/my-room/tokens" \
   -H "Content-Type: application/json" \
   -d '{
     "token": "eyJhbGc...",
@@ -474,7 +474,7 @@ curl -X POST "http://localhost:4001/api/v1/rooms/my-room/tokens" \
 **请求示例：**
 
 ```bash
-curl -X POST "http://localhost:4001/api/v1/rooms/my-room/tokens/validate" \
+curl -X POST "http://localhost:4092/api/v1/rooms/my-room/tokens/validate" \
   -H "Content-Type: application/json" \
   -d '{"token": "eyJhbGc..."}'
 ```
@@ -539,7 +539,7 @@ curl -X POST "http://localhost:4001/api/v1/rooms/my-room/tokens/validate" \
 **请求示例：**
 
 ```bash
-curl -X POST "http://localhost:4001/api/v1/rooms/my-room/tokens/revoke?token=eyJhbGc..." \
+curl -X POST "http://localhost:4092/api/v1/rooms/my-room/tokens/revoke?token=eyJhbGc..." \
   -H "Content-Type: application/json" \
   -d '{"jti": "550e8400-e29b-41d4-a716-446655440000"}'
 ```
@@ -571,7 +571,7 @@ curl -X POST "http://localhost:4001/api/v1/rooms/my-room/tokens/revoke?token=eyJ
 **请求示例：**
 
 ```bash
-curl -X GET "http://localhost:4001/api/v1/rooms/my-room/tokens?token=eyJhbGc..."
+curl -X GET "http://localhost:4092/api/v1/rooms/my-room/tokens?token=eyJhbGc..."
 ```
 
 **响应示例 (200 OK):**
@@ -622,7 +622,7 @@ curl -X GET "http://localhost:4001/api/v1/rooms/my-room/tokens?token=eyJhbGc..."
 **请求示例：**
 
 ```bash
-curl -X GET "http://localhost:4001/api/v1/rooms/my-room/contents?token=eyJhbGc..."
+curl -X GET "http://localhost:4092/api/v1/rooms/my-room/contents?token=eyJhbGc..."
 ```
 
 **响应示例 (200 OK):**
@@ -700,7 +700,7 @@ curl -X GET "http://localhost:4001/api/v1/rooms/my-room/contents?token=eyJhbGc..
 **请求示例：**
 
 ```bash
-curl -X POST "http://localhost:4001/api/v1/rooms/my-room/contents/prepare?token=eyJhbGc..." \
+curl -X POST "http://localhost:4092/api/v1/rooms/my-room/contents/prepare?token=eyJhbGc..." \
   -H "Content-Type: application/json" \
   -d '{
     "files": [
@@ -767,7 +767,7 @@ curl -X POST "http://localhost:4001/api/v1/rooms/my-room/contents/prepare?token=
 **请求示例：**
 
 ```bash
-curl -X POST "http://localhost:4001/api/v1/rooms/my-room/contents?token=eyJhbGc...&reservation_id=123" \
+curl -X POST "http://localhost:4092/api/v1/rooms/my-room/contents?token=eyJhbGc...&reservation_id=123" \
   -F "files=@/path/to/document.pdf" \
   -F "files=@/path/to/image.png"
 ```
@@ -826,7 +826,7 @@ curl -X POST "http://localhost:4001/api/v1/rooms/my-room/contents?token=eyJhbGc.
 **请求示例：**
 
 ```bash
-curl -X GET "http://localhost:4001/api/v1/rooms/my-room/contents/1/download?token=eyJhbGc..." \
+curl -X GET "http://localhost:4092/api/v1/rooms/my-room/contents/1/download?token=eyJhbGc..." \
   -O -J
 ```
 
@@ -867,7 +867,7 @@ Content-Length: 2048576
 **请求示例：**
 
 ```bash
-curl -X DELETE "http://localhost:4001/api/v1/rooms/my-room/contents?token=eyJhbGc..." \
+curl -X DELETE "http://localhost:4092/api/v1/rooms/my-room/contents?token=eyJhbGc..." \
   -H "Content-Type: application/json" \
   -d '{"content_ids": [1, 2]}'
 ```
@@ -919,7 +919,7 @@ curl -X DELETE "http://localhost:4001/api/v1/rooms/my-room/contents?token=eyJhbG
 **请求示例：**
 
 ```bash
-curl -X POST "http://localhost:4001/api/v1/auth/refresh" \
+curl -X POST "http://localhost:4092/api/v1/auth/refresh" \
   -H "Content-Type: application/json" \
   -d '{"refresh_token": "ref_1234567890abcdef..."}'
 ```
@@ -970,7 +970,7 @@ curl -X POST "http://localhost:4001/api/v1/auth/refresh" \
 **请求示例：**
 
 ```bash
-curl -X POST "http://localhost:4001/api/v1/auth/revoke" \
+curl -X POST "http://localhost:4092/api/v1/auth/revoke" \
   -H "Content-Type: application/json" \
   -d '{"refresh_token": "ref_1234567890abcdef..."}'
 ```
@@ -994,7 +994,7 @@ curl -X POST "http://localhost:4001/api/v1/auth/revoke" \
 **请求示例：**
 
 ```bash
-curl -X POST "http://localhost:4001/api/v1/auth/cleanup"
+curl -X POST "http://localhost:4092/api/v1/auth/cleanup"
 ```
 
 **响应示例 (200 OK):**
@@ -1018,7 +1018,7 @@ curl -X POST "http://localhost:4001/api/v1/auth/cleanup"
 **请求示例：**
 
 ```bash
-curl -X GET "http://localhost:4001/api/v1/admin/rooms"
+curl -X GET "http://localhost:4092/api/v1/admin/rooms"
 ```
 
 **响应示例 (200 OK):**
@@ -1051,7 +1051,7 @@ curl -X GET "http://localhost:4001/api/v1/admin/rooms"
 **请求示例：**
 
 ```bash
-curl -X POST "http://localhost:4001/api/v1/admin/gc"
+curl -X POST "http://localhost:4092/api/v1/admin/gc"
 ```
 
 **响应示例 (200 OK):**
@@ -1142,7 +1142,7 @@ curl -X POST "http://localhost:4001/api/v1/admin/gc"
 
 ```bash
 # 1. 创建房间
-curl -X POST "http://localhost:4001/api/v1/rooms/my-project?password=secret123"
+curl -X POST "http://localhost:4092/api/v1/rooms/my-project?password=secret123"
 
 # 响应:
 # {
@@ -1153,7 +1153,7 @@ curl -X POST "http://localhost:4001/api/v1/rooms/my-project?password=secret123"
 # }
 
 # 2. 获取访问 Token
-curl -X POST "http://localhost:4001/api/v1/rooms/my-project/tokens" \
+curl -X POST "http://localhost:4092/api/v1/rooms/my-project/tokens" \
   -H "Content-Type: application/json" \
   -d '{
     "password": "secret123",
@@ -1169,7 +1169,7 @@ curl -X POST "http://localhost:4001/api/v1/rooms/my-project/tokens" \
 # }
 
 # 3. 准备上传文件
-curl -X POST "http://localhost:4001/api/v1/rooms/my-project/contents/prepare?token=eyJhbGc..." \
+curl -X POST "http://localhost:4092/api/v1/rooms/my-project/contents/prepare?token=eyJhbGc..." \
   -H "Content-Type: application/json" \
   -d '{
     "files": [
@@ -1189,7 +1189,7 @@ curl -X POST "http://localhost:4001/api/v1/rooms/my-project/contents/prepare?tok
 # }
 
 # 4. 上传文件
-curl -X POST "http://localhost:4001/api/v1/rooms/my-project/contents?token=eyJhbGc...&reservation_id=101" \
+curl -X POST "http://localhost:4092/api/v1/rooms/my-project/contents?token=eyJhbGc...&reservation_id=101" \
   -F "files=@/path/to/report.pdf"
 
 # 响应:
@@ -1212,10 +1212,10 @@ curl -X POST "http://localhost:4001/api/v1/rooms/my-project/contents?token=eyJhb
 
 ```bash
 # 1. 获取房间信息
-curl -X GET "http://localhost:4001/api/v1/rooms/my-project"
+curl -X GET "http://localhost:4092/api/v1/rooms/my-project"
 
 # 2. 获取访问 Token（需要密码）
-curl -X POST "http://localhost:4001/api/v1/rooms/my-project/tokens" \
+curl -X POST "http://localhost:4092/api/v1/rooms/my-project/tokens" \
   -H "Content-Type: application/json" \
   -d '{
     "password": "secret123",
@@ -1223,7 +1223,7 @@ curl -X POST "http://localhost:4001/api/v1/rooms/my-project/tokens" \
   }'
 
 # 3. 列出房间内容
-curl -X GET "http://localhost:4001/api/v1/rooms/my-project/contents?token=eyJhbGc..."
+curl -X GET "http://localhost:4092/api/v1/rooms/my-project/contents?token=eyJhbGc..."
 
 # 响应:
 # [
@@ -1237,7 +1237,7 @@ curl -X GET "http://localhost:4001/api/v1/rooms/my-project/contents?token=eyJhbG
 # ]
 
 # 4. 下载文件
-curl -X GET "http://localhost:4001/api/v1/rooms/my-project/contents/1/download?token=eyJhbGc..." \
+curl -X GET "http://localhost:4092/api/v1/rooms/my-project/contents/1/download?token=eyJhbGc..." \
   -O -J
 ```
 
@@ -1247,7 +1247,7 @@ curl -X GET "http://localhost:4001/api/v1/rooms/my-project/contents/1/download?t
 
 ```bash
 # 1. Token 即将过期时，使用刷新令牌获取新 Token
-curl -X POST "http://localhost:4001/api/v1/auth/refresh" \
+curl -X POST "http://localhost:4092/api/v1/auth/refresh" \
   -H "Content-Type: application/json" \
   -d '{
     "refresh_token": "ref_1234567890abcdef..."
@@ -1262,7 +1262,7 @@ curl -X POST "http://localhost:4001/api/v1/auth/refresh" \
 # }
 
 # 2. 使用新的访问令牌继续操作
-curl -X GET "http://localhost:4001/api/v1/rooms/my-project/contents?token=新的eyJhbGc..."
+curl -X GET "http://localhost:4092/api/v1/rooms/my-project/contents?token=新的eyJhbGc..."
 ```
 
 ---
@@ -1271,15 +1271,15 @@ curl -X GET "http://localhost:4001/api/v1/rooms/my-project/contents?token=新的
 
 ```bash
 # 1. 创建房间（拥有者获得完整权限）
-curl -X POST "http://localhost:4001/api/v1/rooms/team-space"
+curl -X POST "http://localhost:4092/api/v1/rooms/team-space"
 
 # 2. 获取 Token
-curl -X POST "http://localhost:4001/api/v1/rooms/team-space/tokens" \
+curl -X POST "http://localhost:4092/api/v1/rooms/team-space/tokens" \
   -H "Content-Type: application/json" \
   -d '{"with_refresh_token": true}'
 
 # 3. 更新房间权限（只允许查看和编辑，禁止删除）
-curl -X POST "http://localhost:4001/api/v1/rooms/team-space/permissions?token=eyJhbGc..." \
+curl -X POST "http://localhost:4092/api/v1/rooms/team-space/permissions?token=eyJhbGc..." \
   -H "Content-Type: application/json" \
   -d '{
     "permission": {
@@ -1289,7 +1289,7 @@ curl -X POST "http://localhost:4001/api/v1/rooms/team-space/permissions?token=ey
 # bits = 3 = 0b0011 = View(1) + Edit(2)
 
 # 4. 更新房间设置（限制容量和过期时间）
-curl -X POST "http://localhost:4001/api/v1/rooms/team-space/settings?token=eyJhbGc..." \
+curl -X POST "http://localhost:4092/api/v1/rooms/team-space/settings?token=eyJhbGc..." \
   -H "Content-Type: application/json" \
   -d '{
     "max_size": 1073741824,
@@ -1304,7 +1304,7 @@ curl -X POST "http://localhost:4001/api/v1/rooms/team-space/settings?token=eyJhb
 
 ```bash
 # 1. 列出房间内容
-curl -X GET "http://localhost:4001/api/v1/rooms/my-room/contents?token=eyJhbGc..."
+curl -X GET "http://localhost:4092/api/v1/rooms/my-room/contents?token=eyJhbGc..."
 
 # 响应:
 # [
@@ -1314,7 +1314,7 @@ curl -X GET "http://localhost:4001/api/v1/rooms/my-room/contents?token=eyJhbGc..
 # ]
 
 # 2. 删除指定文件（ID 1 和 2）
-curl -X DELETE "http://localhost:4001/api/v1/rooms/my-room/contents?token=eyJhbGc..." \
+curl -X DELETE "http://localhost:4092/api/v1/rooms/my-room/contents?token=eyJhbGc..." \
   -H "Content-Type: application/json" \
   -d '{
     "content_ids": [1, 2]

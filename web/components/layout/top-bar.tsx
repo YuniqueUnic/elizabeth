@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { LanguageSwitcher } from "@/components/language-switcher";
@@ -177,8 +178,15 @@ export function TopBar() {
       {/* Logo */}
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-semibold">
-            E
+          <div className="relative h-8 w-8 overflow-hidden rounded-lg ring-1 ring-border/60">
+            <Image
+              src="/elizabeth-logo.png"
+              alt="Elizabeth logo"
+              fill
+              sizes="32px"
+              className="object-cover"
+              priority
+            />
           </div>
           <span className="text-lg font-semibold">Elizabeth</span>
         </div>

@@ -4,10 +4,10 @@
 
 ## Base URL
 
-- Docker Compose（推荐）：`http://localhost:4001/api/v1`
+- Docker Compose（推荐）：`http://localhost:4092/api/v1`
 - 后端直连（开发/调试）：`http://127.0.0.1:4092/api/v1`
 
-下面示例用 `BASE=http://localhost:4001/api/v1`。
+下面示例用 `BASE=http://localhost:4092/api/v1`。
 
 ## 认证（Token）
 
@@ -19,7 +19,7 @@
 ## 最常用的几个接口
 
 ```bash
-BASE=http://localhost:4001/api/v1
+BASE=http://localhost:4092/api/v1
 
 # 1) 创建房间（可选 password）
 curl -X POST "$BASE/rooms/my-room"
