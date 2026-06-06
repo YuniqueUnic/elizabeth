@@ -38,10 +38,21 @@ function mergeServerMessagesWithPending(
     }
   }
 
-  merged.sort(
-    (a, b) =>
-      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
-  );
+  merged.sort((a, b) => {
+    const timeDiff = new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+    if (timeDiff !== 0) return timeDiff;
+
+    const aIsTemp = a.id.startsWith("temp-");
+    const bIsTemp = b.id.startsWith("temp-");
+    if (aIsTemp && !bIsTemp) return 1;
+    if (!aIsTemp && bIsTemp) return -1;
+
+    if (!aIsTemp && !bIsTemp) {
+      return parseInt(a.id, 10) - parseInt(b.id, 10);
+    }
+
+    return a.id.localeCompare(b.id);
+  });
 
   return merged;
 }
