@@ -8,6 +8,7 @@ import { LeftSidebar } from "@/components/layout/left-sidebar";
 import { MiddleColumn } from "@/components/layout/middle-column";
 import { RightSidebar } from "@/components/layout/right-sidebar";
 import { MobileLayout } from "@/components/layout/mobile-layout";
+import { GlobalFilePreviewModal } from "@/components/files/global-file-preview-modal";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAppStore } from "@/lib/store";
 import { RoomPasswordDialog } from "@/components/room/room-password-dialog";
@@ -429,6 +430,9 @@ export default function RoomPage() {
             <RightSidebar />
           </div>
         )}
+
+      {/* Always mounted — handles file preview triggered from message bubbles */}
+      <GlobalFilePreviewModal />
     </div>
   );
 }
