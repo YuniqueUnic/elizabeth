@@ -56,11 +56,7 @@ export async function getMessages(
 
   return filteredContents
     .map(convertMessage)
-    .sort((a, b) => {
-      const timeDiff = new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
-      if (timeDiff !== 0) return timeDiff;
-      return parseInt(a.id, 10) - parseInt(b.id, 10);
-    });
+    .reverse();
 }
 
 /**
