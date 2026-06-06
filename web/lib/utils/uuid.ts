@@ -6,9 +6,12 @@
  */
 
 function randomHexByte(): string {
-  const array = new Uint8Array(1);
-  crypto.getRandomValues(array);
-  return array[0].toString(16).padStart(2, "0");
+  if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+    const array = new Uint8Array(1);
+    crypto.getRandomValues(array);
+    return array[0].toString(16).padStart(2, "0");
+  }
+  return Math.floor(Math.random() * 256).toString(16).padStart(2, "0");
 }
 
 function generateUUIDv4Fallback(): string {
