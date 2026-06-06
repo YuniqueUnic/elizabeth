@@ -12,6 +12,7 @@ import { useRoomPermissions } from "@/hooks/use-room-permissions";
 import { clearRoomToken } from "@/lib/utils/api";
 import { getAccessToken } from "@/api/authService";
 import { updateRoomPermissions, updateRoomSettings } from "@/api/roomService";
+import { copyTextToClipboard } from "@/lib/utils/clipboard";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -216,7 +217,7 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
 
   const copyRedirectUrl = async (slug: string) => {
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}/${slug}`);
+      await copyTextToClipboard(`${window.location.origin}/${slug}`);
       toast({ title: t("config.linkCopied") });
     } catch (error) {
       console.error("Failed to copy redirect url:", error);

@@ -35,15 +35,35 @@ export async function copyTextToClipboard(text: string): Promise<void> {
   if (typeof document !== "undefined") {
     const textArea = document.createElement("textarea");
     textArea.value = text;
-    // Avoid scrolling to bottom
+    textArea.setAttribute("readonly", ""); // Prevent virtual keyboard on mobile
+
+    // Avoid scrolling and keep it invisible but selectable
+    textArea.style.position = "fixed";
     textArea.style.top = "0";
     textArea.style.left = "0";
-    textArea.style.position = "fixed";
+    textArea.style.width = "2em";
+    textArea.style.height = "2em";
+    textArea.style.padding = "0";
+    textArea.style.border = "none";
+    textArea.style.outline = "none";
+    textArea.style.boxShadow = "none";
+    textArea.style.background = "transparent";
     textArea.style.opacity = "0";
-    textArea.style.pointerEvents = "none";
+
     document.body.appendChild(textArea);
     textArea.focus();
     textArea.select();
+    textArea.setSelectionRange(0, 99999); // Mobile selection support
+
+    // Modern selection fallback
+    const range = document.createRange();
+    range.selectNodeContents(textArea);
+    const selection = window.getSelection();
+    if (selection) {
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+
     try {
       const successful = (document as any).execCommand("copy");
       if (!successful) {
@@ -53,6 +73,9 @@ export async function copyTextToClipboard(text: string): Promise<void> {
       console.error("Fallback copy failed:", err);
       throw new Error("Clipboard copy not supported in this browser environment");
     } finally {
+      if (selection) {
+        selection.removeAllRanges(); // Clean up selection
+      }
       document.body.removeChild(textArea);
     }
     return;

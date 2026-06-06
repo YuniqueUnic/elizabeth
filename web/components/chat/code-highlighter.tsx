@@ -5,6 +5,7 @@ import { Check, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/lib/store";
 import { codeToHtml } from "shiki";
+import { copyTextToClipboard } from "@/lib/utils/clipboard";
 
 interface CodeHighlighterProps {
   code: string;
@@ -61,9 +62,13 @@ export function CodeHighlighter(
   }, [code, language, resolvedTheme, inline]);
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await copyTextToClipboard(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy code:", err);
+    }
   };
 
   if (inline) {
