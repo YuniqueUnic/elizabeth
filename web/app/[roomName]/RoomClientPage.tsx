@@ -270,7 +270,7 @@ export default function RoomPage() {
     return () => {
       isCancelled = true;
     };
-  }, [roomName, setCurrentRoomId, router, setRoomRedirectTarget]);
+  }, [roomName, setCurrentRoomId, router, setRoomRedirectTarget, tErrors]);
 
   const handlePasswordSubmit = async (password: string) => {
     try {

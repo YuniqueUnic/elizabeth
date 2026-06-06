@@ -26,7 +26,11 @@ export function PDFViewer({ url, roomName, className = "" }: PDFViewerProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const { blobUrl, loading: isHookLoading, error: hookError } = useSecureBlobUrl(url, roomName);
+  const {
+    resolvedSrc,
+    loading: isHookLoading,
+    error: hookError,
+  } = useSecureBlobUrl(url, roomName);
 
   useEffect(() => {
     if (hookError) {
@@ -34,7 +38,7 @@ export function PDFViewer({ url, roomName, className = "" }: PDFViewerProps) {
       setError(t("loadFailed"));
       setLoading(false);
     }
-  }, [hookError]);
+  }, [hookError, t]);
 
   function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
     setNumPages(numPages);
@@ -60,8 +64,6 @@ export function PDFViewer({ url, roomName, className = "" }: PDFViewerProps) {
       </div>
     );
   }
-
-  const displayUrl = blobUrl || url;
 
   return (
     <div className="flex flex-col h-full">
@@ -123,9 +125,9 @@ export function PDFViewer({ url, roomName, className = "" }: PDFViewerProps) {
             <LoadingSpinner className="h-8 w-8" />
           </div>
         )}
-        {!isHookLoading && displayUrl && (
+        {!isHookLoading && resolvedSrc && (
           <Document
-            file={displayUrl}
+            file={resolvedSrc}
             onLoadSuccess={onDocumentLoadSuccess}
             onLoadError={onDocumentLoadError}
             loading={null}

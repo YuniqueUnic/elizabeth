@@ -3,7 +3,7 @@
 import { Image as BaseImage } from "@tiptap/extension-image";
 import { ReactNodeViewRenderer, NodeViewWrapper } from "@tiptap/react";
 import { useAppStore } from "@/lib/store";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import Zoom from "react-medium-image-zoom";
 import "react-medium-image-zoom/dist/styles.css";
@@ -26,7 +26,12 @@ function ImageWithAuth({ node }: any) {
     ? `${originalSrc}${originalSrc.includes("?") ? "&" : "?"}_retry=${imageKey}`
     : originalSrc;
 
-  const { blobUrl, loading: isHookLoading, error: hookError } = useSecureBlobUrl(
+  const {
+    resolvedSrc,
+    loading: isHookLoading,
+    error: hookError,
+    requiresAuth,
+  } = useSecureBlobUrl(
     srcWithRetry,
     currentRoomId,
   );
@@ -39,13 +44,7 @@ function ImageWithAuth({ node }: any) {
     }
   }, [isHookLoading]);
 
-  useEffect(() => {
-    if (hookError) {
-      handleError();
-    }
-  }, [hookError]);
-
-  const handleError = () => {
+  const handleError = useCallback(() => {
     console.error("[ImageAuth] Load failed, attempt:", imageKey + 1);
 
     if (imageKey < 3) {
@@ -58,14 +57,18 @@ function ImageWithAuth({ node }: any) {
       setHasError(true);
       setIsLoading(false);
     }
-  };
+  }, [imageKey]);
+
+  useEffect(() => {
+    if (hookError) {
+      handleError();
+    }
+  }, [hookError, handleError]);
 
   const handleLoad = () => {
-    console.log("[ImageAuth] Load success:", blobUrl);
+    console.log("[ImageAuth] Load success:", resolvedSrc);
     setIsLoading(false);
   };
-
-  const displaySrc = blobUrl || originalSrc;
 
   return (
     <NodeViewWrapper className="inline-block leading-none max-w-full relative">
@@ -78,12 +81,12 @@ function ImageWithAuth({ node }: any) {
           {t("loadFailed")}
         </div>
       ) : (
-        <div className={cn(isLoading || isHookLoading ? "hidden" : "block")}>
+        <div className={cn(isLoading || isHookLoading || !resolvedSrc ? "hidden" : "block")}>
           <Zoom>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              key={`${imageKey}-${displaySrc}`}
-              src={displaySrc || undefined}
+              key={`${imageKey}-${resolvedSrc}`}
+              src={resolvedSrc || undefined}
               alt={node.attrs.alt || t("defaultAlt")}
               title={node.attrs.title}
               data-file-id={contentId}
@@ -94,6 +97,9 @@ function ImageWithAuth({ node }: any) {
             />
           </Zoom>
         </div>
+      )}
+      {!hasError && !resolvedSrc && requiresAuth && (
+        <div className="sr-only">{t("loading")}</div>
       )}
     </NodeViewWrapper>
   );

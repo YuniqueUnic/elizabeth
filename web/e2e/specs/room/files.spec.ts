@@ -1,3 +1,4 @@
+import type { Locator, Page, Response } from "@playwright/test";
 import type { ProvisionedRoom } from "../../screenplay/support/constants";
 import { test, expect } from "../../screenplay/fixtures/screenplay.fixture";
 import {
@@ -26,6 +27,54 @@ import {
 
 function escapeForRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function recordContentResponses(page: Page) {
+  const responses: Array<{
+    status: number;
+    resourceType: string;
+    url: string;
+  }> = [];
+
+  const handler = (response: Response) => {
+    if (!response.url().includes("/api/v1/contents/")) {
+      return;
+    }
+
+    responses.push({
+      status: response.status(),
+      resourceType: response.request().resourceType(),
+      url: response.url(),
+    });
+  };
+
+  page.on("response", handler);
+
+  return {
+    responses,
+    reset() {
+      responses.length = 0;
+    },
+    dispose() {
+      page.off("response", handler);
+    },
+  };
+}
+
+async function expectRenderedBlobImage(locator: Locator) {
+  await expect(locator).toBeVisible();
+  await expect.poll(
+    async () => locator.evaluate((element) => (element as HTMLImageElement).complete),
+  ).toBe(true);
+  await expect.poll(
+    async () => locator.evaluate((element) => (element as HTMLImageElement).naturalWidth),
+  ).toBeGreaterThan(0);
+  await expect.poll(
+    async () =>
+      locator.evaluate((element) =>
+        (element as HTMLImageElement).currentSrc || (element as HTMLImageElement).src
+      ),
+  ).toMatch(/^blob:/);
 }
 
 test.describe("Room files and preview modal", () => {
@@ -121,6 +170,34 @@ test.describe("Room files and preview modal", () => {
     // Security: token must NEVER appear in the copied markdown
     expect(clipboard).not.toContain("token=");
     expect(clipboard).not.toContain("/api/v1/");
+  });
+
+  test("previews an image on first open without unauthenticated content requests", async ({
+    actor,
+    page,
+  }) => {
+    const contentResponses = recordContentResponses(page);
+
+    await actor.attemptsTo(
+      UploadRoomFiles(pngFile("first-preview.png")),
+    );
+
+    await expect.poll(async () => (await actor.answer(FileNames())).join("|"))
+      .toContain("first-preview.png");
+
+    contentResponses.reset();
+
+    await actor.attemptsTo(
+      PreviewRoomFile("first-preview.png"),
+    );
+
+    await expect(RoomScreen.filePreviewDialog(page)).toBeVisible();
+    await expectRenderedBlobImage(RoomScreen.filePreviewDialog(page).locator("img").last());
+
+    expect(contentResponses.responses.some((response) => response.status === 401)).toBe(false);
+    expect(contentResponses.responses.some((response) => response.status === 200)).toBe(true);
+
+    contentResponses.dispose();
   });
 
   test("file links in messages render as clickable <a> elements not plain text", async ({
@@ -297,6 +374,8 @@ test.describe("Room files and preview modal", () => {
     actor,
     page,
   }) => {
+    const contentResponses = recordContentResponses(page);
+
     // 1. Upload an image
     await actor.attemptsTo(
       UploadRoomFiles(pngFile("message-image.png")),
@@ -314,13 +393,18 @@ test.describe("Room files and preview modal", () => {
     // Make sure preview dialog is closed
     await expect(RoomScreen.filePreviewDialog(page)).toHaveCount(0);
 
+    // Ignore the secure fetch performed by the preview modal itself.
+    contentResponses.reset();
+
     // Click send
     await RoomScreen.sendButton(page).click();
 
     // 3. Find the image in the last message bubble
     const lastMessage = RoomScreen.messageContents(page).last();
     const imgElement = lastMessage.locator("img");
-    await expect(imgElement).toBeVisible();
+    await expectRenderedBlobImage(imgElement);
+    expect(contentResponses.responses.some((response) => response.status === 401)).toBe(false);
+    expect(contentResponses.responses.some((response) => response.status === 200)).toBe(true);
 
     // 4. Click the image to open the preview modal
     await imgElement.click();
@@ -328,5 +412,8 @@ test.describe("Room files and preview modal", () => {
     // 5. Verify the dialog opens for the correct file name
     await expect(RoomScreen.filePreviewDialog(page)).toBeVisible();
     await expect(RoomScreen.filePreviewTitle(page)).toHaveText("message-image.png");
+    await expectRenderedBlobImage(RoomScreen.filePreviewDialog(page).locator("img").last());
+
+    contentResponses.dispose();
   });
 });
