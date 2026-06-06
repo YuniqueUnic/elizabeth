@@ -175,6 +175,7 @@ async fn room_gc_purges_when_cleanup_after_elapsed_and_no_connections() -> anyho
     let mut content = RoomContent::builder()
         .room_id(room_id)
         .content_type(ContentType::File)
+        .sequence_number(0)
         .now(now)
         .build();
     content.set_path(

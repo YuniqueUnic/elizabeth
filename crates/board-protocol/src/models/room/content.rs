@@ -36,6 +36,8 @@ pub struct RoomContent {
     #[cfg_attr(feature = "typescript-export", ts(type = "number | null"))]
     pub size: Option<i64>, // The size of the content, maybe the usize is better but the SQLite does not support u64
     pub mime_type: Option<String>,
+    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
+    pub sequence_number: i32,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
 }
@@ -51,6 +53,7 @@ fn build_room_content_sqlite(row: &SqliteRow) -> Result<RoomContent, sqlx::Error
         file_name: row.try_get("file_name")?,
         size: row.try_get("size")?,
         mime_type: row.try_get("mime_type")?,
+        sequence_number: row.try_get("sequence_number")?,
         created_at: row.try_get("created_at")?,
         updated_at: row.try_get("updated_at")?,
     })
@@ -67,6 +70,7 @@ fn build_room_content_pg(row: &PgRow) -> Result<RoomContent, sqlx::Error> {
         file_name: row.try_get("file_name")?,
         size: row.try_get("size")?,
         mime_type: row.try_get("mime_type")?,
+        sequence_number: row.try_get("sequence_number")?,
         created_at: row.try_get("created_at")?,
         updated_at: row.try_get("updated_at")?,
     })
@@ -83,6 +87,7 @@ fn build_room_content_any(row: &AnyRow) -> Result<RoomContent, sqlx::Error> {
         file_name: row.try_get("file_name")?,
         size: row.try_get("size")?,
         mime_type: row.try_get("mime_type")?,
+        sequence_number: row.try_get("sequence_number")?,
         created_at: read_datetime_from_any(row, "created_at")?,
         updated_at: read_datetime_from_any(row, "updated_at")?,
     })
@@ -113,12 +118,14 @@ impl RoomContent {
         id: Option<i64>,
         room_id: i64,
         content_type: ContentType,
+        sequence_number: i32,
         now: NaiveDateTime,
     ) -> Self {
         Self {
             id,
             room_id,
             content_type,
+            sequence_number,
             created_at: now,
             updated_at: now,
             text: None,

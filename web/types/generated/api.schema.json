@@ -449,6 +449,13 @@
     "CreateMessageRequest": {
       "type": "object",
       "properties": {
+        "sequence_number": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int32"
+        },
         "text": {
           "type": "string"
         }
@@ -1011,6 +1018,10 @@
           "type": "integer",
           "format": "int64"
         },
+        "sequence_number": {
+          "type": "integer",
+          "format": "int32"
+        },
         "size": {
           "type": [
             "integer",
@@ -1038,6 +1049,7 @@
       "required": [
         "room_id",
         "content_type",
+        "sequence_number",
         "created_at",
         "updated_at"
       ]
@@ -1068,6 +1080,10 @@
             "null"
           ]
         },
+        "sequence_number": {
+          "type": "integer",
+          "format": "int32"
+        },
         "size": {
           "type": [
             "integer",
@@ -1095,6 +1111,7 @@
       "required": [
         "id",
         "content_type",
+        "sequence_number",
         "created_at",
         "updated_at"
       ]
