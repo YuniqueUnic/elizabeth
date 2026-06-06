@@ -28,6 +28,21 @@ export function setMarkdownToEditor(editor: Editor, markdown: string): void {
   }
 }
 
+// 辅助函数：插入 markdown 内容
+export function insertMarkdownToEditor(editor: Editor, markdown: string): void {
+  try {
+    const json = editor.storage.markdown?.manager?.parse(markdown);
+    if (json) {
+      editor.commands.insertContent(json.content || json);
+    } else {
+      editor.commands.insertContent(markdown);
+    }
+  } catch (e) {
+    console.error("Failed to parse and insert markdown:", e);
+    editor.commands.insertContent(markdown);
+  }
+}
+
 // 辅助函数：在 Textarea 中应用 Markdown 语法
 export function applyMarkdownSyntax(
   textarea: HTMLTextAreaElement,
