@@ -95,7 +95,11 @@ export function MiddleColumn() {
   });
 
   const postMutation = useMutation({
-    mutationFn: (content: string) => postMessage(currentRoomId, content),
+    mutationFn: (content: string) => {
+      const currentMessages = queryClient.getQueryData<Message[]>(["messages", currentRoomId]) || [];
+      const sequenceNumber = currentMessages.length;
+      return postMessage(currentRoomId, content, sequenceNumber);
+    },
     onMutate: async (content: string) => {
       await queryClient.cancelQueries({
         queryKey: ["messages", currentRoomId],

@@ -143,6 +143,7 @@ fn create_test_content() -> RoomContent {
         file_name: None,
         size: None,
         mime_type: None,
+        sequence_number: 0,
         created_at: Utc::now().naive_utc(),
         updated_at: Utc::now().naive_utc(),
     }

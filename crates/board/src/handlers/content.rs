@@ -430,6 +430,7 @@ pub async fn upload_contents(
             file_name: Some(temp.original_name.clone()), // 保存原始文件名
             size: None,
             mime_type: None,
+            sequence_number: 0,
             created_at: now,
             updated_at: now,
         };
@@ -954,10 +955,13 @@ pub async fn create_message(
     let room_id = room_id_or_error(&verified.claims)?;
     let now = chrono::Utc::now().naive_utc();
 
+    let seq = payload.sequence_number.unwrap_or(0);
+
     // Create message content using ContentType.Text
     let mut content = RoomContent::builder()
         .room_id(room_id)
         .content_type(ContentType::Text)
+        .sequence_number(seq)
         .now(now)
         .build();
 

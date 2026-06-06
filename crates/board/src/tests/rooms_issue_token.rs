@@ -74,6 +74,7 @@ async fn issue_token_does_not_clear_content_when_reaching_max_entries() -> anyho
     let mut message = RoomContent::builder()
         .room_id(room_id)
         .content_type(ContentType::Text)
+        .sequence_number(0)
         .now(now)
         .build();
     message.set_text("hello".to_string());

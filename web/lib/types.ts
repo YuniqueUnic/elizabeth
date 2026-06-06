@@ -128,6 +128,7 @@ export interface Message {
   isDirty?: boolean;
   isPendingDelete?: boolean;
   originalContent?: string;
+  sequence_number?: number;
 }
 
 export type LocalMessage = Message;
@@ -143,6 +144,7 @@ export interface FileItem {
   mimeType?: string;
   createdAt?: string;
   uploadedAt?: string;
+  sequence_number?: number;
 }
 
 /**
@@ -241,6 +243,7 @@ export function backendContentToMessage(content: BackendRoomContent): Message {
     content: messageContent,
     timestamp: content.created_at,
     fileName: content.file_name || undefined,
+    sequence_number: content.sequence_number,
   };
 }
 
@@ -280,5 +283,6 @@ export function backendContentToFileItem(
     mimeType: content.mime_type || undefined,
     createdAt: content.created_at,
     uploadedAt: content.created_at,
+    sequence_number: content.sequence_number,
   };
 }

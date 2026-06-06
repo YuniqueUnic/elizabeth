@@ -7,6 +7,7 @@ fn set_text_records_utf8_byte_size() {
         .id(1)
         .room_id(1)
         .content_type(ContentType::Text)
+        .sequence_number(0)
         .now(now)
         .build();
 
@@ -23,6 +24,7 @@ fn set_url_records_utf8_byte_size() {
         .id(1)
         .room_id(1)
         .content_type(ContentType::Url)
+        .sequence_number(0)
         .now(now)
         .build();
 

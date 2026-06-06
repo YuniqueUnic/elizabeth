@@ -19,6 +19,8 @@ pub struct RoomContentView {
     #[cfg_attr(feature = "typescript-export", ts(type = "number | null"))]
     pub size: Option<i64>,
     pub mime_type: Option<String>,
+    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
+    pub sequence_number: i32,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
 }
@@ -42,6 +44,7 @@ impl From<RoomContent> for RoomContentView {
             url: value.url,
             size: value.size,
             mime_type: value.mime_type,
+            sequence_number: value.sequence_number,
             created_at: value.created_at,
             updated_at: value.updated_at,
         }
@@ -125,6 +128,8 @@ pub struct UpdateContentResponse {
 #[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct CreateMessageRequest {
     pub text: String,
+    #[cfg_attr(feature = "typescript-export", ts(optional))]
+    pub sequence_number: Option<i32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]

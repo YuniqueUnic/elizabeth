@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS room_contents (
     file_name TEXT,
     size INTEGER DEFAULT 0 CHECK (size >= 0),
     mime_type TEXT,
+    sequence_number INTEGER NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 

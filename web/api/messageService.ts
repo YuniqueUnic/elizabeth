@@ -72,6 +72,7 @@ export async function getMessages(
 export async function postMessage(
   roomName: string,
   content: string,
+  sequenceNumber?: number,
   token?: string,
 ): Promise<Message> {
   const authToken = token || await getValidToken(roomName);
@@ -86,7 +87,7 @@ export async function postMessage(
 
   const response = await api.post<CreateMessageResponse>(
     API_ENDPOINTS.content.messages(roomName),
-    { text: contentString },
+    { text: contentString, sequence_number: sequenceNumber },
     { token: authToken },
   );
 
