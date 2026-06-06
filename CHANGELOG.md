@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v1.1.0.html).
 
+## [1.2.5](https://github.com/YuniqueUnic/elizabeth/compare/v1.2.4...v1.2.5) (2026-06-06)
+
+
+### Bug Fixes
+
+* **room-client:** add tErrors to useEffect dependency array ([e85f4c3](https://github.com/YuniqueUnic/elizabeth/commit/e85f4c30108fe1935a1b7c1c235a8ecf90591750))
+
 ## [1.2.4](https://github.com/YuniqueUnic/elizabeth/compare/v1.2.3...v1.2.4) (2026-06-06)
 
 
