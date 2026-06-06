@@ -9,6 +9,7 @@ import { useTheme } from "@/lib/hooks/use-theme";
 import Zoom from "react-medium-image-zoom";
 import "react-medium-image-zoom/dist/styles.css";
 import { useTranslations } from "next-intl";
+import { copyTextToClipboard } from "@/lib/utils/clipboard";
 
 interface RoomSharingProps {
   roomId: string;
@@ -40,9 +41,13 @@ export function RoomSharing({ roomId }: RoomSharingProps) {
 
   const handleCopyLink = async () => {
     if (shareLink) {
-      await navigator.clipboard.writeText(shareLink);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      try {
+        await copyTextToClipboard(shareLink);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch (err) {
+        console.error("Failed to copy link:", err);
+      }
     }
   };
 

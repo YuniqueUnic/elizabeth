@@ -23,6 +23,7 @@ import { ContentType, parseContentType } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslations } from "next-intl";
+import { copyTextToClipboard } from "@/lib/utils/clipboard";
 
 function RoomRealtimeSync({
   roomName,
@@ -393,7 +394,7 @@ export default function RoomPage() {
                   variant="outline"
                   onClick={async () => {
                     try {
-                      await navigator.clipboard.writeText(
+                      await copyTextToClipboard(
                         `${window.location.origin}/${roomRedirectTarget}`,
                       );
                       toast({ title: t("copiedNewLink") });
