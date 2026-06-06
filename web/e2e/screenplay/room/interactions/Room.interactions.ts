@@ -367,3 +367,9 @@ export const ClickMessageDeleteButton = (messageId: string) =>
     await item.hover();
     await item.getByRole("button", { name: /delete|删除/i }).click();
   });
+
+export const WaitForSavingToComplete = () =>
+  Interaction.where(the`#actor waits for message saving to complete`, async (actor) => {
+    const page = await nativePageFor(actor);
+    await page.locator('[data-testid="save-messages-btn"][disabled]').waitFor({ state: "attached", timeout: 30_000 });
+  });

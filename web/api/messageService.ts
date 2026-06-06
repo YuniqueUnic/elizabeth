@@ -55,8 +55,7 @@ export async function getMessages(
   });
 
   return filteredContents
-    .map(convertMessage)
-    .reverse();
+    .map(convertMessage);
 }
 
 /**
