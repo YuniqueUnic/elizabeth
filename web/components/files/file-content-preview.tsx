@@ -33,7 +33,6 @@ interface FileContentPreviewProps {
   fileName: string;
   mimeType?: string;
   roomName: string;
-  onFullscreenToggle?: (isFullscreen: boolean) => void;
 }
 
 // Detect file type from extension

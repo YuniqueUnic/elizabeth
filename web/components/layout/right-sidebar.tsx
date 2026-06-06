@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -79,8 +79,6 @@ export function RightSidebar() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [urlDialogOpen, setUrlDialogOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const previewFileId = useAppStore((state) => state.previewFileId);
-  const setPreviewFileId = useAppStore((state) => state.setPreviewFileId);
 
   const { data: files = [], isLoading } = useQuery({
     queryKey: ["files", roomName],
@@ -95,17 +93,6 @@ export function RightSidebar() {
     staleTime: 1000,
     enabled: !!currentRoomId,
   });
-
-  useEffect(() => {
-    if (previewFileId && files.length > 0) {
-      const file = files.find((f) => f.id === previewFileId);
-      if (file) {
-        setPreviewFile(file);
-        setPreviewOpen(true);
-        setPreviewFileId(null);
-      }
-    }
-  }, [previewFileId, files, setPreviewFileId]);
 
   const isUploading = Object.values(transfers).some(
     (t) => t.status === "active" && t.direction === "upload",
