@@ -156,7 +156,7 @@ impl IRoomContentRepository for RoomContentRepository {
     }
 
     async fn list_by_room(&self, room_id: i64) -> Result<Vec<RoomContent>> {
-        let sql = format!("{CONTENT_SELECT_BASE} WHERE room_id = $1 ORDER BY created_at DESC, id DESC");
+        let sql = format!("{CONTENT_SELECT_BASE} WHERE room_id = $1 ORDER BY id ASC");
         let rows = sqlx::query_as::<_, RoomContent>(&sql)
             .bind(room_id)
             .fetch_all(&*self.pool)

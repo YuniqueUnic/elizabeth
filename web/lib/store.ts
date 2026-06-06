@@ -378,23 +378,17 @@ export const useAppStore = create<AppState>()(
             return;
           }
 
-          const promises = unsavedMessages.map((msg) => {
+          for (const msg of unsavedMessages) {
             if (msg.isPendingDelete) {
-              if (msg.isNew) {
-                return Promise.resolve();
+              if (!msg.isNew) {
+                await deleteMessage(currentRoomId, msg.id);
               }
-              return deleteMessage(currentRoomId, msg.id);
+            } else if (msg.isNew) {
+              await postMessage(currentRoomId, msg.content);
+            } else if (msg.isDirty) {
+              await updateMessage(currentRoomId, msg.id, msg.content);
             }
-            if (msg.isNew) {
-              return postMessage(currentRoomId, msg.content);
-            }
-            if (msg.isDirty) {
-              return updateMessage(currentRoomId, msg.id, msg.content);
-            }
-            return Promise.resolve();
-          });
-
-          await Promise.all(promises);
+          }
 
           const updatedMessages = await getMessages(currentRoomId);
           set({

@@ -39,6 +39,7 @@ import {
   UploadFiles,
   VerifyCloseRoomPassword,
   WaitForRoomToBeReady,
+  WaitForSavingToComplete,
 } from "../interactions/Room.interactions";
 import type { UploadableFile } from "../../support/test-data";
 
@@ -60,6 +61,7 @@ export const SaveMessages = () =>
   Task.where(
     the`#actor saves the current messages`,
     ClickSaveMessages(),
+    WaitForSavingToComplete(),
   );
 
 export const ConfigureRoom = (config: {
