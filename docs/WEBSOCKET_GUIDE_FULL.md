@@ -19,7 +19,7 @@
 ### WebSocket 服务端点
 
 ```
-ws://localhost:4001/api/v1/ws       # Docker Compose（推荐）
+ws://localhost:4092/api/v1/ws       # Docker Compose（推荐）
 ws://127.0.0.1:4092/api/v1/ws       # 后端直连（开发/调试）
 wss://your-domain.com/api/v1/ws     # 生产环境（使用 WSS 加密）
 ```
@@ -63,7 +63,7 @@ wss://your-domain.com/api/v1/ws     # 生产环境（使用 WSS 加密）
 在建立 WebSocket 连接前，必须先获取有效的房间访问 Token。
 
 ```bash
-curl -X POST "http://localhost:4001/api/v1/rooms/my-room/tokens" \
+curl -X POST "http://localhost:4092/api/v1/rooms/my-room/tokens" \
   -H "Content-Type: application/json" \
   -d '{
     "password": "room-password",
@@ -76,7 +76,7 @@ curl -X POST "http://localhost:4001/api/v1/rooms/my-room/tokens" \
 ### 步骤 2: 建立 WebSocket 连接
 
 ```javascript
-const ws = new WebSocket("ws://localhost:4001/api/v1/ws");
+const ws = new WebSocket("ws://localhost:4092/api/v1/ws");
 
 ws.onopen = () => {
   console.log("WebSocket 连接已建立");
@@ -612,7 +612,7 @@ class ElizabethWebSocket {
   }
 
   connect() {
-    const wsUrl = "ws://localhost:4001/api/v1/ws";
+    const wsUrl = "ws://localhost:4092/api/v1/ws";
     this.ws = new WebSocket(wsUrl);
 
     this.ws.onopen = this.handleOpen.bind(this);
@@ -817,7 +817,7 @@ class ElizabethWebSocket {
 ```typescript
 // 1. 获取 Token
 const response = await fetch(
-  "http://localhost:4001/api/v1/rooms/my-room/tokens",
+  "http://localhost:4092/api/v1/rooms/my-room/tokens",
   {
     method: "POST",
     headers: { "Content-Type": "application/json" },

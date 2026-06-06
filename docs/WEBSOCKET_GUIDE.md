@@ -4,7 +4,7 @@
 
 WebSocket 路径固定为：`/api/v1/ws`。
 
-- Docker Compose（推荐）：`ws://localhost:4001/api/v1/ws`
+- Docker Compose（推荐）：`ws://localhost:4092/api/v1/ws`
 - 后端直连（开发/调试）：`ws://127.0.0.1:4092/api/v1/ws`
 - 生产环境：`wss://<your-domain>/api/v1/ws`
 
@@ -15,7 +15,7 @@ WebSocket 路径固定为：`/api/v1/ws`。
 1. 先签发房间 token：
 
 ```bash
-BASE=http://localhost:4001/api/v1
+BASE=http://localhost:4092/api/v1
 curl -X POST "$BASE/rooms/my-room/tokens" \
   -H "Content-Type: application/json" \
   -d '{"password":null,"with_refresh_token":false}'
@@ -24,7 +24,7 @@ curl -X POST "$BASE/rooms/my-room/tokens" \
 2. 用 token 建立 WebSocket 连接（示意）：
 
 ```js
-const ws = new WebSocket("ws://localhost:4001/api/v1/ws");
+const ws = new WebSocket("ws://localhost:4092/api/v1/ws");
 ws.onopen = () =>
   ws.send(JSON.stringify({
     message_type: "connect",

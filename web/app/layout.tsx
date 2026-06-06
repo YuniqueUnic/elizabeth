@@ -12,6 +12,14 @@ export const metadata: Metadata = {
   title: "Elizabeth - Secure File Sharing",
   description: "A modern, room-centric file sharing and collaboration platform",
   generator: "unic",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/apple-touch-icon.png", type: "image/png", sizes: "180x180" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
+    shortcut: ["/favicon.ico"],
+  },
 };
 
 export default function RootLayout({
