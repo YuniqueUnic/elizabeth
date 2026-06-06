@@ -25,6 +25,7 @@ export function ImageViewer({ src, alt, roomName }: ImageViewerProps) {
   const [flipH, setFlipH] = useState(false);
   const [flipV, setFlipV] = useState(false);
   const [scale, setScale] = useState(1);
+  const [isDraggingState, setIsDraggingState] = useState(false);
   // Pan offset (translate in CSS pixels)
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
@@ -33,8 +34,7 @@ export function ImageViewer({ src, alt, roomName }: ImageViewerProps) {
   const dragStart = useRef({ x: 0, y: 0 });
   const offsetAtDragStart = useRef({ x: 0, y: 0 });
 
-  const { blobUrl, loading } = useSecureBlobUrl(src, roomName);
-  const displaySrc = blobUrl || src;
+  const { resolvedSrc, loading, error, requiresAuth } = useSecureBlobUrl(src, roomName);
 
   const clampScale = (v: number) => Math.min(Math.max(v, 0.25), 5);
 
@@ -62,6 +62,7 @@ export function ImageViewer({ src, alt, roomName }: ImageViewerProps) {
     if (scale <= 1) return;           // no pan needed at fit-to-view
     e.currentTarget.setPointerCapture(e.pointerId);
     isDragging.current = true;
+    setIsDraggingState(true);
     dragStart.current = { x: e.clientX, y: e.clientY };
     offsetAtDragStart.current = { ...offset };
   }, [scale, offset]);
@@ -78,6 +79,7 @@ export function ImageViewer({ src, alt, roomName }: ImageViewerProps) {
 
   const handlePointerUp = useCallback(() => {
     isDragging.current = false;
+    setIsDraggingState(false);
   }, []);
 
   const handleReset = () => {
@@ -151,17 +153,25 @@ export function ImageViewer({ src, alt, roomName }: ImageViewerProps) {
           ? (
             <span className="text-sm text-muted-foreground animate-pulse">{t("loading")}</span>
           )
+          : error
+          ? (
+            <span className="text-sm text-destructive">{t("loadFailed")}</span>
+          )
+          : !resolvedSrc && requiresAuth
+          ? (
+            <span className="text-sm text-muted-foreground animate-pulse">{t("loading")}</span>
+          )
           : (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={displaySrc || undefined}
+              src={resolvedSrc || undefined}
               alt={alt}
               draggable={false}
               style={{
                 transform,
                 // Only transition non-drag moves (toolbar buttons & reset)
                 // During active drag we skip transition for immediate feel
-                transition: isDragging.current ? "none" : "transform 0.2s ease",
+                transition: isDraggingState ? "none" : "transform 0.2s ease",
                 maxWidth: "100%",
                 maxHeight: "100%",
                 objectFit: "contain",

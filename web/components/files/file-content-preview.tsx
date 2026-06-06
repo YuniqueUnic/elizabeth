@@ -251,7 +251,7 @@ export function FileContentPreview(
     } else {
       setLoading(false);
     }
-  }, [fileUrl, fileType]);
+  }, [fileType, fileUrl, roomName]);
 
   // Handle copy to clipboard
   const handleCopy = async () => {

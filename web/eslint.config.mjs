@@ -1,4 +1,5 @@
 import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
+import React from "react";
 
 const config = [
   {
@@ -13,9 +14,20 @@ const config = [
   },
   ...nextCoreWebVitals,
   {
+    settings: {
+      react: {
+        version: React.version,
+      },
+    },
     rules: {
       "@next/next/no-html-link-for-pages": "off",
       "react-hooks/set-state-in-effect": "off",
+    },
+  },
+  {
+    files: ["e2e/**/*.ts"],
+    rules: {
+      "react-hooks/rules-of-hooks": "off",
     },
   },
   {
