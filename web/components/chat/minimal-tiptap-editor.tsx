@@ -25,6 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   getMarkdownFromEditor,
   setMarkdownToEditor,
+  insertMarkdownToEditor,
   applyMarkdownSyntax,
   buildMarkdownForFile,
 } from "./editor/helpers";
@@ -198,7 +199,9 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
         }
       },
       insertMarkdown: (markdown: string) => {
-        editor?.commands.insertContent(markdown);
+        if (editor) {
+          insertMarkdownToEditor(editor, markdown);
+        }
       },
     }), [editor]);
 
@@ -223,7 +226,7 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
           }
         },
         insertMarkdown: (markdown: string) => {
-          editor.commands.insertContent(markdown);
+          insertMarkdownToEditor(editor, markdown);
         },
       } : null;
 
@@ -257,7 +260,7 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
         onChange(newValue);
       } else {
         editor.commands.focus("end");
-        editor.commands.insertContent(request.markdown);
+        insertMarkdownToEditor(editor, request.markdown);
       }
 
       clearInsertMarkdownRequest(request.id);
@@ -319,7 +322,7 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
             if (isSourceMode) {
               onChange(value + markdown);
             } else {
-              editor.commands.insertContent(markdown);
+              insertMarkdownToEditor(editor, markdown);
             }
 
             toast({
