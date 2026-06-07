@@ -13,6 +13,7 @@ import { clearRoomToken } from "@/lib/utils/api";
 import { getAccessToken } from "@/api/authService";
 import { updateRoomPermissions, updateRoomSettings } from "@/api/roomService";
 import { copyTextToClipboard } from "@/lib/utils/clipboard";
+import { ManualCopyDialog } from "@/components/manual-copy-dialog";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -128,6 +129,7 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { can } = useRoomPermissions();
+  const [manualCopyValue, setManualCopyValue] = useState("");
 
   const [expiryOption, setExpiryOption] = useState(() =>
     getExpiryOptionFromDate(roomDetails.settings.expiresAt)
@@ -216,11 +218,13 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
   };
 
   const copyRedirectUrl = async (slug: string) => {
+    const value = `${window.location.origin}/${slug}`;
     try {
-      await copyTextToClipboard(`${window.location.origin}/${slug}`);
+      await copyTextToClipboard(value);
       toast({ title: t("config.linkCopied") });
     } catch (error) {
       console.error("Failed to copy redirect url:", error);
+      setManualCopyValue(value);
       toast({
         title: t("config.copyFailTitle"),
         description: t("config.copyFailDescription"),
@@ -332,7 +336,8 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
   };
 
   return (
-    <div className="space-y-4">
+    <>
+      <div className="space-y-4">
       <div>
         <h3 className="mb-3 text-sm font-semibold">{t("config.title")}</h3>
 
@@ -477,6 +482,14 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
           </p>
         )}
       </div>
-    </div>
+      </div>
+      <ManualCopyDialog
+        open={manualCopyValue.length > 0}
+        value={manualCopyValue}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setManualCopyValue("");
+        }}
+      />
+    </>
   );
 }

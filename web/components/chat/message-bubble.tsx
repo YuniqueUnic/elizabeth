@@ -14,6 +14,7 @@ import { MinimalTiptapViewer } from "./minimal-tiptap-viewer";
 import { Badge } from "@/components/ui/badge";
 import { useRoomPermissions } from "@/hooks/use-room-permissions";
 import { useTranslations } from "next-intl";
+import { ManualCopyDialog } from "@/components/manual-copy-dialog";
 
 
 interface MessageBubbleProps {
@@ -41,6 +42,7 @@ export function MessageBubble(
   const tCommon = useTranslations("common");
   const [isHovered, setIsHovered] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [manualCopyValue, setManualCopyValue] = useState("");
   const { toast } = useToast();
   const selectedMessages = useAppStore((state) => state.selectedMessages);
   const toggleMessageSelection = useAppStore((state) =>
@@ -73,6 +75,7 @@ export function MessageBubble(
         description: t("messageBubble.copiedDescription"),
       });
     } catch {
+      setManualCopyValue(textToCopy);
       toast({
         title: tCommon("copyFailed"),
         description: tCommon("copyFailedDescription"),
@@ -96,7 +99,8 @@ export function MessageBubble(
   };
 
   return (
-    <div
+    <>
+      <div
       className={`group relative rounded-lg border bg-card p-4 transition-colors hover:bg-accent/50 min-w-0 ${
         isSelected ? "ring-2 ring-primary" : ""
       } ${message.isPendingDelete ? "opacity-50" : ""}`}
@@ -244,6 +248,14 @@ export function MessageBubble(
             )}
         </div>
       )}
-    </div>
+      </div>
+      <ManualCopyDialog
+        open={manualCopyValue.length > 0}
+        value={manualCopyValue}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setManualCopyValue("");
+        }}
+      />
+    </>
   );
 }

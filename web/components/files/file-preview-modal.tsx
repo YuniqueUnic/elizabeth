@@ -22,6 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/lib/store";
 import { useRoomPermissions } from "@/hooks/use-room-permissions";
 import { copyTextToClipboard } from "@/lib/utils/clipboard";
+import { ManualCopyDialog } from "@/components/manual-copy-dialog";
 import {
   appendToken,
   buildMarkdownReference,
@@ -69,6 +70,7 @@ export function FilePreviewModal(
   const { toast } = useToast();
   const requestInsertMarkdown = useAppStore((state) => state.requestInsertMarkdown);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [manualCopyValue, setManualCopyValue] = useState("");
   const { can } = useRoomPermissions();
   const isMobile = useIsMobile();
 
@@ -104,19 +106,23 @@ export function FilePreviewModal(
   };
 
   const handleCopyLink = async () => {
+    const value = buildShareableUrl();
     try {
-      await copyTextToClipboard(buildShareableUrl());
+      await copyTextToClipboard(value);
       toast({ title: t("filePreviewModal.linkCopied"), description: t("filePreviewModal.linkCopiedDescription") });
     } catch {
+      setManualCopyValue(value);
       toast({ title: t("filePreviewModal.copyFailed"), description: t("filePreviewModal.copyFailedDescription"), variant: "destructive" });
     }
   };
 
   const handleCopyMarkdown = async () => {
+    const value = buildMarkdownReference(file!, buildShareableUrl());
     try {
-      await copyTextToClipboard(buildMarkdownReference(file!, buildShareableUrl()));
+      await copyTextToClipboard(value);
       toast({ title: t("filePreviewModal.markdownCopied"), description: t("filePreviewModal.markdownCopiedDescription") });
     } catch {
+      setManualCopyValue(value);
       toast({ title: t("filePreviewModal.copyFailed"), description: t("filePreviewModal.copyFailedDescription"), variant: "destructive" });
     }
   };
@@ -143,7 +149,8 @@ export function FilePreviewModal(
     : "File";
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
       {/*
         Layout: flex column, 3 zones
           1. Header   — file name + meta + window controls (close/fullscreen)
@@ -323,7 +330,15 @@ export function FilePreviewModal(
           </Button>
         </div>
       </DialogContent>
-    </Dialog>
+      </Dialog>
+      <ManualCopyDialog
+        open={manualCopyValue.length > 0}
+        value={manualCopyValue}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setManualCopyValue("");
+        }}
+      />
+    </>
   );
 }
 

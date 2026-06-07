@@ -49,6 +49,13 @@
   "goToNewAddress": "Go to new address",
   "copiedNewLink": "New link copied",
   "copyFailed": "Copy failed",
+  "copyFailedDescription": "The browser blocked automatic clipboard access. Please copy it manually.",
   "copyLinkFailed": "Failed to copy link. Please copy it manually.",
-  "copyNewLink": "Copy new link"
+  "copyNewLink": "Copy new link",
+  "manualCopyTitle": "Copy manually",
+  "manualCopyDescription": "The browser blocked automatic clipboard access. The content below is selected for you. Press Ctrl+C or Cmd+C to copy it.",
+  "manualCopyFieldLabel": "Content to copy",
+  "manualCopyShortcut": "On public HTTP pages, Chrome may disable automatic copying; selecting and copying text manually still works.",
+  "manualCopySelectAll": "Select all",
+  "manualCopyClose": "Done"
 }

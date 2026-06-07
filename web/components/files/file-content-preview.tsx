@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -19,6 +19,7 @@ import { api } from "@/lib/utils/api";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { copyTextToClipboard } from "@/lib/utils/clipboard";
+import { ManualCopyDialog } from "@/components/manual-copy-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -166,6 +167,7 @@ export function FileContentPreview(
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [manualCopyValue, setManualCopyValue] = useState("");
   const [darkTheme, setDarkTheme] = useState(true);
   const [markdownPreviewMode, setMarkdownPreviewMode] = useState(true); // true = preview, false = code
 
@@ -265,6 +267,7 @@ export function FileContentPreview(
       });
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
+      setManualCopyValue(content);
       toast({
         title: t("filePreview.copyFailed"),
         description: t("filePreview.copyFailedDescription"),
@@ -355,6 +358,19 @@ export function FileContentPreview(
     </div>
   );
 
+  const withManualCopyDialog = (node: ReactNode) => (
+    <>
+      {node}
+      <ManualCopyDialog
+        open={manualCopyValue.length > 0}
+        value={manualCopyValue}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setManualCopyValue("");
+        }}
+      />
+    </>
+  );
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -391,7 +407,7 @@ export function FileContentPreview(
 
   // Render Markdown
   if (fileType === "markdown") {
-    return (
+    return withManualCopyDialog(
       <div className="flex flex-col h-full">
         {renderToolbar()}
         {markdownPreviewMode
@@ -436,13 +452,13 @@ export function FileContentPreview(
               />
             </div>
           )}
-      </div>
+      </div>,
     );
   }
 
   // Render code with syntax highlighting
   if (fileType === "code") {
-    return (
+    return withManualCopyDialog(
       <div className="flex flex-col h-full">
         {renderToolbar()}
         <div className="p-4 overflow-auto flex-1">
@@ -453,13 +469,13 @@ export function FileContentPreview(
             showLineNumbers={true}
           />
         </div>
-      </div>
+      </div>,
     );
   }
 
   // Render plain text
   if (fileType === "text") {
-    return (
+    return withManualCopyDialog(
       <div className="flex flex-col h-full">
         {renderToolbar()}
         <div className="p-6 overflow-auto flex-1">
@@ -473,7 +489,7 @@ export function FileContentPreview(
             {content}
           </pre>
         </div>
-      </div>
+      </div>,
     );
   }
 

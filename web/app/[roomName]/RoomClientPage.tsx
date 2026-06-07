@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslations } from "next-intl";
 import { copyTextToClipboard } from "@/lib/utils/clipboard";
+import { ManualCopyDialog } from "@/components/manual-copy-dialog";
 
 function RoomRealtimeSync({
   roomName,
@@ -95,6 +96,7 @@ export default function RoomPage() {
   const [error, setError] = useState<string | null>(null);
   const [needsPassword, setNeedsPassword] = useState(false);
   const [tokenReady, setTokenReady] = useState(false);
+  const [manualCopyValue, setManualCopyValue] = useState("");
   const wsToken = tokenReady ? getRoomTokenString(roomName) : null;
 
   useEffect(() => {
@@ -394,13 +396,13 @@ export default function RoomPage() {
                   size="sm"
                   variant="outline"
                   onClick={async () => {
+                    const value = `${window.location.origin}/${roomRedirectTarget}`;
                     try {
-                      await copyTextToClipboard(
-                        `${window.location.origin}/${roomRedirectTarget}`,
-                      );
+                      await copyTextToClipboard(value);
                       toast({ title: t("copiedNewLink") });
                     } catch (err) {
                       console.error("Failed to copy link:", err);
+                      setManualCopyValue(value);
                       toast({
                         title: t("copyFailed"),
                         description: t("copyLinkFailed"),
@@ -433,6 +435,13 @@ export default function RoomPage() {
 
       {/* Always mounted — handles file preview triggered from message bubbles */}
       <GlobalFilePreviewModal />
+      <ManualCopyDialog
+        open={manualCopyValue.length > 0}
+        value={manualCopyValue}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setManualCopyValue("");
+        }}
+      />
     </div>
   );
 }

@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * Copy text to clipboard using the modern Clipboard API.
- * Throws if the API is unavailable (non-HTTPS context without browser permission).
- * The deprecated `document.execCommand('copy')` fallback has been removed — it was
- * unreliable, showed browser warnings, and is not supported in any test environment.
- * All callers should handle the thrown error and show a user-facing message.
+ * Copy text with the modern Clipboard API when the browser permits it.
+ *
+ * Public HTTP origins are not secure contexts, so Chrome can reject these calls.
+ * The legacy `execCommand("copy")` path is only a best-effort fallback; UI callers
+ * must still catch failures and provide a manual-copy path.
  */
 export async function copyTextToClipboard(text: string): Promise<void> {
   // 1. Try modern clipboard API if available
@@ -19,7 +19,11 @@ export async function copyTextToClipboard(text: string): Promise<void> {
   }
 
   // 2. Try ClipboardItem write API if available
-  if (typeof navigator !== "undefined" && navigator.clipboard?.write && typeof ClipboardItem !== "undefined") {
+  if (
+    typeof navigator !== "undefined" &&
+    navigator.clipboard?.write &&
+    typeof ClipboardItem !== "undefined"
+  ) {
     try {
       const type = "text/plain";
       const blob = new Blob([text], { type });
@@ -31,7 +35,7 @@ export async function copyTextToClipboard(text: string): Promise<void> {
     }
   }
 
-  // 3. Fallback for non-secure contexts (HTTP) or when Clipboard APIs fail / are blocked
+  // 3. Best-effort fallback for older browsers and some non-secure contexts.
   if (typeof document !== "undefined") {
     const textArea = document.createElement("textarea");
     textArea.value = text;
@@ -65,7 +69,7 @@ export async function copyTextToClipboard(text: string): Promise<void> {
     }
 
     try {
-      const successful = (document as any).execCommand("copy");
+      const successful = document.execCommand("copy");
       if (!successful) {
         throw new Error("document.execCommand('copy') returned false");
       }

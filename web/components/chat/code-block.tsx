@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { copyTextToClipboard } from "@/lib/utils/clipboard";
+import { ManualCopyDialog } from "@/components/manual-copy-dialog";
 
 interface CodeBlockProps {
   code: string;
@@ -13,6 +14,7 @@ interface CodeBlockProps {
 
 export function CodeBlock({ code, language, inline }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
+  const [manualCopyValue, setManualCopyValue] = useState("");
 
   const handleCopy = async () => {
     try {
@@ -21,6 +23,7 @@ export function CodeBlock({ code, language, inline }: CodeBlockProps) {
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error("Failed to copy code:", err);
+      setManualCopyValue(code);
     }
   };
 
@@ -33,25 +36,34 @@ export function CodeBlock({ code, language, inline }: CodeBlockProps) {
   }
 
   return (
-    <div className="relative group my-4 rounded-lg border bg-muted/50">
-      <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30">
-        <span className="text-xs font-medium text-muted-foreground">
-          {language || "code"}
-        </span>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-6 px-2 opacity-0 group-hover:opacity-100 transition-opacity"
-          onClick={handleCopy}
-        >
-          {copied
-            ? <Check className="h-3 w-3" />
-            : <Copy className="h-3 w-3" />}
-        </Button>
+    <>
+      <div className="relative group my-4 rounded-lg border bg-muted/50">
+        <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30">
+          <span className="text-xs font-medium text-muted-foreground">
+            {language || "code"}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={handleCopy}
+          >
+            {copied
+              ? <Check className="h-3 w-3" />
+              : <Copy className="h-3 w-3" />}
+          </Button>
+        </div>
+        <pre className="overflow-x-auto p-4">
+          <code className="text-sm font-mono leading-relaxed block">{code}</code>
+        </pre>
       </div>
-      <pre className="overflow-x-auto p-4">
-        <code className="text-sm font-mono leading-relaxed block">{code}</code>
-      </pre>
-    </div>
+      <ManualCopyDialog
+        open={manualCopyValue.length > 0}
+        value={manualCopyValue}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setManualCopyValue("");
+        }}
+      />
+    </>
   );
 }

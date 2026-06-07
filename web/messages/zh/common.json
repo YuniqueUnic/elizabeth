@@ -49,6 +49,13 @@
   "goToNewAddress": "跳转到新地址",
   "copiedNewLink": "已复制新链接",
   "copyFailed": "复制失败",
+  "copyFailedDescription": "浏览器阻止了自动写入剪贴板，请手动复制。",
   "copyLinkFailed": "无法复制链接，请手动复制。",
-  "copyNewLink": "复制新链接"
+  "copyNewLink": "复制新链接",
+  "manualCopyTitle": "手动复制",
+  "manualCopyDescription": "浏览器阻止了自动写入剪贴板。下面的内容已为你选中，请使用 Ctrl+C 或 Cmd+C 复制。",
+  "manualCopyFieldLabel": "需要复制的内容",
+  "manualCopyShortcut": "在公网 HTTP 页面中，Chrome 可能禁用自动复制；手动选择文本复制仍可使用。",
+  "manualCopySelectAll": "全选",
+  "manualCopyClose": "完成"
 }

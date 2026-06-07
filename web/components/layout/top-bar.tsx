@@ -20,6 +20,7 @@ import { deleteMessages, getMessages } from "@/api/messageService";
 import { useAppStore } from "@/lib/store";
 import { useToast } from "@/hooks/use-toast";
 import { copyTextToClipboard } from "@/lib/utils/clipboard";
+import { ManualCopyDialog } from "@/components/manual-copy-dialog";
 import {
   formatMessagesMarkdown,
   downloadMarkdown,
@@ -70,6 +71,7 @@ export function TopBar() {
   const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = useState(
     false,
   );
+  const [manualCopyValue, setManualCopyValue] = useState("");
 
   const { data: roomDetails } = useQuery({
     queryKey: ["room", currentRoomId],
@@ -119,20 +121,22 @@ export function TopBar() {
       return;
     }
 
+    const text = formatMessagesMarkdown(messages, selectedMessages, {
+      includeMetadata: includeMetadataInCopy,
+      tHeader: (p) => t("messageHeader", p),
+      tUser: (p) => t("messageUser", p),
+      tAnonymous: t("messageAnonymous"),
+      tTime: (p) => t("messageTime", p),
+    });
+
     try {
-      const text = formatMessagesMarkdown(messages, selectedMessages, {
-        includeMetadata: includeMetadataInCopy,
-        tHeader: (p) => t("messageHeader", p),
-        tUser: (p) => t("messageUser", p),
-        tAnonymous: t("messageAnonymous"),
-        tTime: (p) => t("messageTime", p),
-      });
       await copyTextToClipboard(text);
       toast({
         title: t("copied"),
         description: t("copiedMessagesToClipboard", { count: selectedMessages.size }),
       });
     } catch {
+      setManualCopyValue(text);
       toast({
         title: t("copyFailed"),
         description: t("copyFailedDescription"),
@@ -174,7 +178,8 @@ export function TopBar() {
   };
 
   return (
-    <header className="flex h-14 items-center justify-between border-b bg-background px-4">
+    <>
+      <header className="flex h-14 items-center justify-between border-b bg-background px-4">
       {/* Logo */}
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2">
@@ -184,7 +189,7 @@ export function TopBar() {
               alt="Elizabeth logo"
               fill
               sizes="32px"
-              className="object-cover"
+              className="object-contain p-0.5"
               priority
             />
           </div>
@@ -321,6 +326,14 @@ export function TopBar() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </header>
+      </header>
+      <ManualCopyDialog
+        open={manualCopyValue.length > 0}
+        value={manualCopyValue}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setManualCopyValue("");
+        }}
+      />
+    </>
   );
 }
