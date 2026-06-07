@@ -10,6 +10,7 @@ import Zoom from "react-medium-image-zoom";
 import "react-medium-image-zoom/dist/styles.css";
 import { useTranslations } from "next-intl";
 import { copyTextToClipboard } from "@/lib/utils/clipboard";
+import { ManualCopyDialog } from "@/components/manual-copy-dialog";
 
 interface RoomSharingProps {
   roomId: string;
@@ -18,6 +19,7 @@ interface RoomSharingProps {
 export function RoomSharing({ roomId }: RoomSharingProps) {
   const t = useTranslations("room");
   const [copied, setCopied] = useState(false);
+  const [manualCopyValue, setManualCopyValue] = useState("");
   const { theme } = useTheme();
   const [currentTheme, setCurrentTheme] = useState<"light" | "dark">("light");
 
@@ -47,6 +49,7 @@ export function RoomSharing({ roomId }: RoomSharingProps) {
         setTimeout(() => setCopied(false), 2000);
       } catch (err) {
         console.error("Failed to copy link:", err);
+        setManualCopyValue(shareLink);
       }
     }
   };
@@ -61,7 +64,8 @@ export function RoomSharing({ roomId }: RoomSharingProps) {
   };
 
   return (
-    <div className="space-y-3">
+    <>
+      <div className="space-y-3">
       <h3 className="text-sm font-semibold">{t("sharing.title")}</h3>
 
       {/* QR Code */}
@@ -111,6 +115,14 @@ export function RoomSharing({ roomId }: RoomSharingProps) {
       {shareLink && (
         <p className="text-xs text-muted-foreground break-all">{shareLink}</p>
       )}
-    </div>
+      </div>
+      <ManualCopyDialog
+        open={manualCopyValue.length > 0}
+        value={manualCopyValue}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setManualCopyValue("");
+        }}
+      />
+    </>
   );
 }

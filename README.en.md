@@ -5,7 +5,7 @@
         <img src="https://signature4u.vercel.app/api/sign?text=Elizabeth&font=pacifico&fontSize=120&speed=2.5&charSpacing=7&borderRadius=100&cardPadding=24&fill1=ffffff&fill2=ec4899&stroke=ffffff&stroke2=333333&strokeMode=single&strokeEnabled=1&bg=6e57a2&bgMode=solid&bg2=1e3a8a&texture=tianzige&texColor=ffffff&texSize=126&texThickness=1&texOpacity=0.2&useGlow=1&format=svg" alt="Elizabeth animated signature" width="560" />
       </td>
       <td align="center" valign="middle">
-        <img src="./elizabeth.png" alt="Elizabeth logo" width="240" />
+        <img src="./elizabeth.logo.png" alt="Elizabeth logo" width="240" />
       </td>
     </tr>
   </table>
