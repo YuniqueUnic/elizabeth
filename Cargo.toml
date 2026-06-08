@@ -1,5 +1,5 @@
 [workspace.package]
-version = "1.2.5"
+version = "1.2.6"
 edition = "2024"
 authors = ["unic <yuniqueunic@gmail.com>"]
 license-file = "LICENSE"
@@ -19,9 +19,9 @@ ignored = ["opendal"]
 
 [workspace.dependencies]
 # === Internal Workspace Crates ===
-logrs = { package = "elizabeth-logrs", version = "1.2.5", path = "crates/logrs", features = ["logging"] }
-configrs = { package = "elizabeth-configrs", version = "1.2.5", path = "crates/configrs" }
-board_protocol = { package = "elizabeth-board-protocol", version = "1.2.5", path = "crates/board-protocol" }
+logrs = { package = "elizabeth-logrs", version = "1.2.6", path = "crates/logrs", features = ["logging"] }
+configrs = { package = "elizabeth-configrs", version = "1.2.6", path = "crates/configrs" }
+board_protocol = { package = "elizabeth-board-protocol", version = "1.2.6", path = "crates/board-protocol" }
 
 # === Core Dependencies ===
 anyhow = "1"
