@@ -1,10 +1,22 @@
 "use client";
 
 import type { Editor } from "@tiptap/react";
-import React, { useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import {
+  CODE_BLOCK_LANGUAGE_OPTIONS,
+  DEFAULT_CODE_BLOCK_LANGUAGE,
+  normalizeCodeBlockLanguage,
+} from "../code-block-language";
 import { ToolbarButton } from "./toolbar-button";
 import {
   Bold,
@@ -30,7 +42,7 @@ interface EditorToolbarProps {
   disabled?: boolean;
   isSourceMode: boolean;
   onToggleSourceMode: () => void;
-  onAction: (format: string) => void;
+  onAction: (format: string, options?: { codeBlockLanguage?: string }) => void;
   className?: string;
 }
 
@@ -45,14 +57,54 @@ export function EditorToolbar({
 }: EditorToolbarProps) {
   const t = useTranslations("room.messageInput");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [codeBlockLanguage, setCodeBlockLanguage] = useState(
+    DEFAULT_CODE_BLOCK_LANGUAGE,
+  );
+
+  useEffect(() => {
+    if (!editor) return;
+
+    const syncCodeBlockLanguage = () => {
+      if (!editor.isActive("codeBlock")) return;
+      setCodeBlockLanguage(
+        normalizeCodeBlockLanguage(
+          editor.getAttributes("codeBlock").language,
+        ),
+      );
+    };
+
+    syncCodeBlockLanguage();
+    editor.on("selectionUpdate", syncCodeBlockLanguage);
+    editor.on("transaction", syncCodeBlockLanguage);
+
+    return () => {
+      editor.off("selectionUpdate", syncCodeBlockLanguage);
+      editor.off("transaction", syncCodeBlockLanguage);
+    };
+  }, [editor]);
 
   if (!editor) return null;
 
-  const handleAction = (format: string, run: () => void) => {
+  const handleAction = (
+    format: string,
+    run: () => void,
+    options?: { codeBlockLanguage?: string },
+  ) => {
     if (isSourceMode) {
-      onAction(format);
+      onAction(format, options);
     } else {
       run();
+    }
+  };
+
+  const handleCodeBlockLanguageChange = (language: string) => {
+    const normalizedLanguage = normalizeCodeBlockLanguage(language);
+    setCodeBlockLanguage(normalizedLanguage);
+
+    if (!isSourceMode && editor.isActive("codeBlock")) {
+      editor.chain().focus().updateAttributes("codeBlock", {
+        language: normalizedLanguage,
+      }).run();
     }
   };
 
@@ -106,13 +158,41 @@ export function EditorToolbar({
         </ToolbarButton>
 
         <ToolbarButton
-          onClick={() => handleAction("codeBlock", () => editor.chain().focus().toggleCodeBlock().focus().run())}
+          onClick={() => handleAction(
+            "codeBlock",
+            () => editor.chain().focus().toggleCodeBlock({
+              language: codeBlockLanguage,
+            }).focus().run(),
+            { codeBlockLanguage },
+          )}
           active={!isSourceMode && editor.isActive("codeBlock")}
           title={t("toolbarCodeBlock")}
           disabled={disabled}
         >
           <SquareCode className="h-3.5 w-3.5" />
         </ToolbarButton>
+
+        <Select
+          value={codeBlockLanguage}
+          onValueChange={handleCodeBlockLanguageChange}
+          disabled={disabled}
+        >
+          <SelectTrigger
+            aria-label={t("toolbarCodeLanguage")}
+            className="h-7 w-[118px] px-2 text-xs"
+            data-testid="code-block-language-select"
+            size="sm"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {CODE_BLOCK_LANGUAGE_OPTIONS.map((language) => (
+              <SelectItem key={language.value} value={language.value}>
+                {language.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="w-px h-4 bg-border/60 mx-1 shrink-0" />

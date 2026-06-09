@@ -9,11 +9,22 @@
   margin: 0;
   padding: 1rem;
   overflow-x: auto;
+  max-width: 100%;
+  border: 0;
   font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
   font-size: 0.875rem;
   line-height: 1.7;
   tab-size: 2;
   -moz-tab-size: 2;
+}
+
+.message-content .ProseMirror .shiki-wrapper .shiki-pre,
+.tiptap-viewer-content .ProseMirror .shiki-wrapper .shiki-pre,
+.tiptap-editor-content .ProseMirror .shiki-wrapper .shiki-pre {
+  margin: 0;
+  padding: 1rem;
+  border: 0;
+  background-color: var(--shiki-light-bg, transparent);
 }
 
 .shiki-wrapper .shiki-code {

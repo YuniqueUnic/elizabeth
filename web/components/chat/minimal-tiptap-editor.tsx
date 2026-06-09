@@ -30,6 +30,7 @@ import {
   buildMarkdownForFile,
 } from "./editor/helpers";
 import { EditorToolbar } from "./editor/editor-toolbar";
+import { DEFAULT_CODE_BLOCK_LANGUAGE } from "./code-block-language";
 
 const lowlight = createLowlight(common);
 
@@ -118,7 +119,7 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
         }),
         CodeBlockLowlight.configure({
           lowlight,
-          defaultLanguage: "plaintext",
+          defaultLanguage: DEFAULT_CODE_BLOCK_LANGUAGE,
         }),
         Markdown.configure({
           markedOptions: {
@@ -277,11 +278,20 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
     }, [composerInsertRequest, editor, clearInsertMarkdownRequest, isSourceMode, value, onChange]);
 
     // 处理工具栏操作（source 模式下的格式化）
-    const handleToolbarAction = useCallback((format: string) => {
+    const handleToolbarAction = useCallback((
+      format: string,
+      options?: { codeBlockLanguage?: string },
+    ) => {
       if (textareaRef.current) {
         // undo/redo: 浏览器原生 Ctrl+Z / Ctrl+Y 对 textarea 有效，无需手动触发
         if (format === "undo" || format === "redo") return;
-        applyMarkdownSyntax(textareaRef.current, format, value, onChange);
+        applyMarkdownSyntax(
+          textareaRef.current,
+          format,
+          value,
+          onChange,
+          options,
+        );
       }
     }, [value, onChange]);
 
