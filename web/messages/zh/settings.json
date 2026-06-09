@@ -41,6 +41,10 @@
       "default": "未请求",
       "unsupported": "不支持"
     },
+    "showContent": {
+      "label": "显示通知具体内容",
+      "description": "在桌面通知中显示消息文本、文件名和链接名"
+    },
     "kinds": {
       "message": "消息",
       "file": "文件",
@@ -48,8 +52,8 @@
     },
     "kindDescriptions": {
       "message": "控制消息新增、更新、删除时的通知",
-      "file": "控制文件上传、更新、删除时的通知",
-      "link": "控制链接新增、更新、删除时的通知"
+      "file": "控制文件新增、删除时的通知",
+      "link": "控制链接新增、删除时的通知"
     },
     "actions": {
       "created": "新增",

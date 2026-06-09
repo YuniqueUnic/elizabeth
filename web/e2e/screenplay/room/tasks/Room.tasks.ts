@@ -20,6 +20,7 @@ import {
   ClickFilePreviewDownload,
   ClickFilePreviewInsertToEditor,
   ConfirmPhysicalClose,
+  AddLinkToRoom,
   DeleteFileNamed,
   EditLatestMessage,
   EnterMessage,
@@ -117,6 +118,16 @@ export const UploadRoomFiles = (...files: UploadableFile[]) =>
   Task.where(
     the`#actor uploads room files`,
     UploadFiles(...files),
+  );
+
+export const AddRoomLink = (data: {
+  urlInput: string;
+  name: string;
+  description?: string;
+}) =>
+  Task.where(
+    the`#actor adds a room link`,
+    AddLinkToRoom(data),
   );
 
 export const DeleteRoomFile = (name: string) =>

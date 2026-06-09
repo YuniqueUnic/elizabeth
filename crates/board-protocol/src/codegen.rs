@@ -7,13 +7,14 @@ use ts_rs::TS;
 use crate::dto::{
     ChunkStatusInfo, ChunkUploadRequest, ChunkUploadResponse, ChunkedUploadPreparationRequest,
     ChunkedUploadPreparationResponse, CleanupResponse, CreateMessageRequest, CreateMessageResponse,
-    DeleteContentRequest, DeleteContentResponse, DeleteRoomResponse, FileMergeRequest,
-    FileMergeResponse, FullRoomGcStatusView, IssueTokenRequest, IssueTokenResponse, LogoutRequest,
-    MergedFileInfo, ReservedFileInfo, RevokeTokenResponse, RoomContentView, RoomTokenClaims,
-    RoomTokenView, RunRoomGcResponse, TokenType, UpdateContentRequest, UpdateContentResponse,
-    UpdateRoomPermissionRequest, UpdateRoomSettingsRequest, UploadContentResponse,
-    UploadPreparationRequest, UploadPreparationResponse, UploadStatusQuery, UploadStatusResponse,
-    ValidateTokenRequest, ValidateTokenResponse,
+    CreateUrlContentRequest, CreateUrlContentResponse, DeleteContentRequest, DeleteContentResponse,
+    DeleteRoomResponse, FileMergeRequest, FileMergeResponse, FullRoomGcStatusView,
+    IssueTokenRequest, IssueTokenResponse, LogoutRequest, MergedFileInfo, ReservedFileInfo,
+    RevokeTokenResponse, RoomContentView, RoomTokenClaims, RoomTokenView, RunRoomGcResponse,
+    TokenType, UpdateContentRequest, UpdateContentResponse, UpdateRoomPermissionRequest,
+    UpdateRoomSettingsRequest, UploadContentResponse, UploadPreparationRequest,
+    UploadPreparationResponse, UploadStatusQuery, UploadStatusResponse, ValidateTokenRequest,
+    ValidateTokenResponse,
 };
 #[cfg(feature = "typescript-export")]
 use crate::models::content::{ContentType, RoomContent};
@@ -63,6 +64,8 @@ pub fn export_ts_types_to(output_dir: &Path) -> Result<(), ts_rs::ExportError> {
     DeleteContentResponse::export_all(&output_dir_cfg)?;
     UpdateContentRequest::export_all(&output_dir_cfg)?;
     UpdateContentResponse::export_all(&output_dir_cfg)?;
+    CreateUrlContentRequest::export_all(&output_dir_cfg)?;
+    CreateUrlContentResponse::export_all(&output_dir_cfg)?;
     CreateMessageRequest::export_all(&output_dir_cfg)?;
     CreateMessageResponse::export_all(&output_dir_cfg)?;
 
@@ -121,6 +124,8 @@ pub fn exported_ts_type_names() -> &'static [&'static str] {
         "DeleteContentResponse",
         "UpdateContentRequest",
         "UpdateContentResponse",
+        "CreateUrlContentRequest",
+        "CreateUrlContentResponse",
         "CreateMessageRequest",
         "CreateMessageResponse",
         "ChunkedUploadPreparationRequest",
@@ -181,6 +186,8 @@ pub fn api_schema_json_pretty() -> Result<String, serde_json::Error> {
         delete_content_response: DeleteContentResponse,
         update_content_request: UpdateContentRequest,
         update_content_response: UpdateContentResponse,
+        create_url_content_request: CreateUrlContentRequest,
+        create_url_content_response: CreateUrlContentResponse,
         create_message_request: CreateMessageRequest,
         create_message_response: CreateMessageResponse,
         chunked_upload_preparation_request: ChunkedUploadPreparationRequest,

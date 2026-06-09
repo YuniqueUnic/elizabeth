@@ -2,17 +2,37 @@ import { expect, test } from "../../screenplay/fixtures/screenplay.fixture";
 import type { ProvisionedRoom } from "../../screenplay/support/constants";
 import { readNotifications, setNotificationPermission } from "../../screenplay/support/notifications";
 import { uniqueRoomName } from "../../screenplay/support/test-data";
-import { MessageCount } from "../../screenplay/room/questions/Room.questions";
+import {
+  FileNames,
+  LastMessageText,
+  MessageCount,
+} from "../../screenplay/room/questions/Room.questions";
 import { RoomScreen } from "../../screenplay/room/screens/Room.screen";
 import {
+  AddRoomLink,
   ConfirmDelete,
   DeleteMessageById,
   OpenRoom,
   SaveMessages,
   SendMessage,
   SetSettingTo,
+  UpdateLatestMessage,
 } from "../../screenplay/room/tasks/Room.tasks";
 import { tCommon } from "../../screenplay/support/i18n";
+
+const notificationText = async (page: import("@playwright/test").Page) => {
+  const notifications = await readNotifications(page);
+  return notifications
+    .map((notification) => `${notification.title} ${notification.options?.body ?? ""}`)
+    .join("\n");
+};
+
+const notificationTags = async (page: import("@playwright/test").Page) => {
+  const notifications = await readNotifications(page);
+  return notifications
+    .map((notification) => notification.options?.tag ?? "")
+    .join("\n");
+};
 
 test.describe("Browser desktop notifications", () => {
   let room: ProvisionedRoom;
@@ -42,11 +62,37 @@ test.describe("Browser desktop notifications", () => {
     );
 
     await expect.poll(async () => {
-      const notifications = await readNotifications(page);
-      return notifications
-        .map((notification) => `${notification.title} ${notification.options?.body ?? ""}`)
-        .join("\n");
+      return notificationText(page);
     }).toContain("Remote notification payload");
+  });
+
+  test("can hide the concrete message body in desktop notifications", async ({
+    actor,
+    page,
+    createActor,
+  }) => {
+    await setNotificationPermission(page, "granted");
+    await actor.attemptsTo(
+      SetSettingTo("setting-desktop-notifications", true),
+      SetSettingTo("setting-desktop-notification-show-content", false),
+    );
+
+    const sensitiveMessage = `DO_NOT_LEAK_MESSAGE_${Date.now()}`;
+    const sender = await createActor("notification privacy sender");
+    await sender.actor.attemptsTo(
+      OpenRoom(room.url),
+      SendMessage(sensitiveMessage),
+      SaveMessages(),
+    );
+
+    await expect.poll(async () => actor.answer(MessageCount())).toBe(1);
+    await expect.poll(async () => readNotifications(page).then((items) => items.length))
+      .toBeGreaterThan(0);
+
+    const text = await notificationText(page);
+    expect(text).not.toContain(sensitiveMessage);
+    expect(text).toContain(room.name);
+    expect(text).toContain(tCommon("desktopNotification.summary.message.created"));
   });
 
   test("does not notify when the desktop notification setting is off", async ({
@@ -98,10 +144,7 @@ test.describe("Browser desktop notifications", () => {
     );
 
     await expect.poll(async () => {
-      const notifications = await readNotifications(page);
-      return notifications
-        .map((notification) => `${notification.title} ${notification.options?.body ?? ""}`)
-        .join("\n");
+      return notificationText(page);
     }).toContain(tCommon("desktopNotification.title.message.deleted"));
 
     await expect.poll(async () => {
@@ -147,10 +190,7 @@ test.describe("Browser desktop notifications", () => {
     );
 
     await expect.poll(async () => {
-      const notifications = await readNotifications(page);
-      return notifications
-        .map((notification) => `${notification.title} ${notification.options?.body ?? ""}`)
-        .join("\n");
+      return notificationText(page);
     }).toContain(tCommon("desktopNotification.title.message.deleted"));
 
     await expect.poll(async () => {
@@ -159,6 +199,94 @@ test.describe("Browser desktop notifications", () => {
         .map((notification) => notification.options?.body ?? "")
         .join("\n");
     }).toContain(message);
+  });
+
+  test("sends desktop notifications for remote message updates", async ({
+    actor,
+    page,
+    createActor,
+  }) => {
+    const sender = await createActor("notification update sender");
+    await sender.actor.attemptsTo(
+      OpenRoom(room.url),
+      SendMessage("Original message before update"),
+      SaveMessages(),
+    );
+    await expect.poll(async () => actor.answer(MessageCount())).toBe(1);
+
+    await setNotificationPermission(page, "granted");
+    await actor.attemptsTo(SetSettingTo("setting-desktop-notifications", true));
+
+    const updatedMessage = `Remote updated notification payload ${Date.now()}`;
+    await sender.actor.attemptsTo(
+      UpdateLatestMessage(updatedMessage),
+      SaveMessages(),
+    );
+
+    await expect.poll(async () => actor.answer(LastMessageText()))
+      .toContain(updatedMessage);
+    await expect.poll(async () => notificationTags(page))
+      .toContain(":message:updated:");
+    await expect.poll(async () => notificationText(page))
+      .toContain(updatedMessage);
+  });
+
+  test("does not treat a newly added link as a link update", async ({
+    actor,
+    page,
+    createActor,
+  }) => {
+    await setNotificationPermission(page, "granted");
+    await actor.attemptsTo(
+      SetSettingTo("setting-desktop-notifications", true),
+      SetSettingTo("setting-desktop-notification-link-created", false),
+    );
+
+    const linkName = `Link created off ${Date.now()}`;
+    const sender = await createActor("notification link disabled sender");
+    await sender.actor.attemptsTo(
+      OpenRoom(room.url),
+      AddRoomLink({
+        urlInput: `example.com/disabled-${Date.now()}`,
+        name: linkName,
+        description: "Link created switch is disabled",
+      }),
+    );
+
+    await expect.poll(async () => actor.answer(FileNames())).toContain(linkName);
+    expect(await readNotifications(page)).toHaveLength(0);
+  });
+
+  test("sends one link-created notification without a file-created duplicate", async ({
+    actor,
+    page,
+    createActor,
+  }) => {
+    await setNotificationPermission(page, "granted");
+    await actor.attemptsTo(
+      SetSettingTo("setting-desktop-notifications", true),
+      SetSettingTo("setting-desktop-notification-file-created", false),
+    );
+
+    const linkName = `Link created only ${Date.now()}`;
+    const sender = await createActor("notification link sender");
+    await sender.actor.attemptsTo(
+      OpenRoom(room.url),
+      AddRoomLink({
+        urlInput: `example.com/created-${Date.now()}`,
+        name: linkName,
+        description: "Link created notification should not duplicate file events",
+      }),
+    );
+
+    await expect.poll(async () => actor.answer(FileNames())).toContain(linkName);
+    await expect.poll(async () => notificationTags(page))
+      .toContain(":link:created:");
+
+    const tags = await notificationTags(page);
+    expect(tags).not.toContain(":file:created:");
+    expect(tags).not.toContain(":link:updated:");
+    expect((await readNotifications(page))).toHaveLength(1);
   });
 
   test("keeps the setting off when the browser denies permission", async ({

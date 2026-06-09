@@ -26,6 +26,10 @@ export interface UploadUrlRequest {
   description?: string;
 }
 
+interface CreateUrlContentResponse {
+  created: BackendRoomContent;
+}
+
 const CHUNKED_UPLOAD_THRESHOLD =
   typeof window !== "undefined" &&
   (window as any).__CHUNKED_UPLOAD_THRESHOLD !== undefined
@@ -374,18 +378,12 @@ export async function uploadUrl(
   token?: string,
 ): Promise<FileItem> {
   const authToken = await ensureToken(roomName, token);
-  const placeholderText = `URL: ${data.url}`;
-  const placeholderBlob = new Blob([placeholderText], { type: "text/plain" });
-  const placeholderFile = new File([placeholderBlob], data.name, { type: "text/plain" });
-
-  const uploadedContent = await uploadFile(roomName, placeholderFile, { token: authToken });
-
-  const updateResponse = await api.put<UpdateContentResponse>(
-    `${API_ENDPOINTS.content.byId(roomName, uploadedContent.id)}`,
-    { url: data.url, mime_type: data.description || "text/html" },
+  const response = await api.post<CreateUrlContentResponse>(
+    API_ENDPOINTS.content.url(roomName),
+    data,
     { token: authToken },
   );
-  return convertFile(updateResponse.updated, roomName);
+  return convertFile(response.created, roomName);
 }
 
 const fileService = {

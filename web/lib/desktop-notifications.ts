@@ -24,11 +24,20 @@ export const desktopNotificationActions: DesktopNotificationAction[] = [
   "deleted",
 ];
 
+export const desktopNotificationActionsByKind: Record<
+  DesktopNotificationKind,
+  DesktopNotificationAction[]
+> = {
+  message: ["created", "updated", "deleted"],
+  file: ["created", "deleted"],
+  link: ["created", "deleted"],
+};
+
 export function createDefaultDesktopNotificationTypes(): DesktopNotificationTypes {
   return {
     message: { created: true, updated: true, deleted: true },
-    file: { created: true, updated: true, deleted: true },
-    link: { created: true, updated: true, deleted: true },
+    file: { created: true, updated: false, deleted: true },
+    link: { created: true, updated: false, deleted: true },
   };
 }
 
@@ -36,12 +45,27 @@ export function normalizeDesktopNotificationTypes(
   value: Partial<DesktopNotificationTypes> | undefined,
 ): DesktopNotificationTypes {
   const defaults = createDefaultDesktopNotificationTypes();
-
-  return {
+  const normalized = {
     message: { ...defaults.message, ...value?.message },
     file: { ...defaults.file, ...value?.file },
     link: { ...defaults.link, ...value?.link },
   };
+
+  for (const kind of desktopNotificationKinds) {
+    const supported = new Set(desktopNotificationActionsByKind[kind]);
+    for (const action of desktopNotificationActions) {
+      if (!supported.has(action)) normalized[kind][action] = false;
+    }
+  }
+
+  return normalized;
+}
+
+export function isDesktopNotificationActionSupported(
+  kind: DesktopNotificationKind,
+  action: DesktopNotificationAction,
+): boolean {
+  return desktopNotificationActionsByKind[kind].includes(action);
 }
 
 export function isBrowserNotificationSupported(): boolean {
@@ -118,7 +142,11 @@ export function showContentDesktopNotification({
   }
 
   const kind = getContentNotificationKind(payload);
-  if (!kind || !types[kind]?.[action]) {
+  if (
+    !kind ||
+    !isDesktopNotificationActionSupported(kind, action) ||
+    !types[kind]?.[action]
+  ) {
     return false;
   }
 

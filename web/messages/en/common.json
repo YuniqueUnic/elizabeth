@@ -20,7 +20,8 @@
   "roomUsage": "Room usage: {used} / {total} MB",
   "openProjectOnGitHub": "Open project on GitHub",
   "desktopNotification": {
-    "body": "{roomName}: {subject}",
+    "bodyWithSubject": "{roomName}: {subject}",
+    "bodyWithoutSubject": "{roomName}: {summary}",
     "fallback": {
       "message": "Message",
       "file": "File",
@@ -34,12 +35,25 @@
       },
       "file": {
         "created": "New file",
-        "updated": "File updated",
         "deleted": "File deleted"
       },
       "link": {
         "created": "New link",
-        "updated": "Link updated",
+        "deleted": "Link deleted"
+      }
+    },
+    "summary": {
+      "message": {
+        "created": "New message",
+        "updated": "Message updated",
+        "deleted": "Message deleted"
+      },
+      "file": {
+        "created": "File added",
+        "deleted": "File deleted"
+      },
+      "link": {
+        "created": "Link added",
         "deleted": "Link deleted"
       }
     }

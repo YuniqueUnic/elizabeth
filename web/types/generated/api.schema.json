@@ -36,6 +36,12 @@
     "create_refresh_token_request": {
       "$ref": "#/$defs/CreateRefreshTokenRequest"
     },
+    "create_url_content_request": {
+      "$ref": "#/$defs/CreateUrlContentRequest"
+    },
+    "create_url_content_response": {
+      "$ref": "#/$defs/CreateUrlContentResponse"
+    },
     "delete_content_request": {
       "$ref": "#/$defs/DeleteContentRequest"
     },
@@ -188,6 +194,8 @@
     "delete_content_response",
     "update_content_request",
     "update_content_response",
+    "create_url_content_request",
+    "create_url_content_response",
     "create_message_request",
     "create_message_response",
     "chunked_upload_preparation_request",
@@ -503,6 +511,38 @@
         "access_token_jti",
         "refresh_token",
         "expires_at"
+      ]
+    },
+    "CreateUrlContentRequest": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "url",
+        "name"
+      ]
+    },
+    "CreateUrlContentResponse": {
+      "type": "object",
+      "properties": {
+        "created": {
+          "$ref": "#/$defs/RoomContentView"
+        }
+      },
+      "required": [
+        "created"
       ]
     },
     "DeleteContentRequest": {
