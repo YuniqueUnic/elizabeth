@@ -27,6 +27,9 @@ export const RoomScreen = {
   codeBlockToolbarButton: (page: Page): Locator =>
     page.getByRole("button", { name: tRoom("messageInput.toolbarCodeBlock") }).first(),
 
+  codeBlockLanguageSelect: (page: Page): Locator =>
+    page.getByTestId("code-block-language-select").first(),
+
   sourceModeButton: (page: Page): Locator =>
     page.getByRole("button", { name: tRoom("messageInput.toolbarSourceMode") }).first(),
 

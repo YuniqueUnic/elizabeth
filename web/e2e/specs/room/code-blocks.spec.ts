@@ -28,20 +28,27 @@ test.describe("Room message code blocks", () => {
     );
 
     const latestMessage = RoomScreen.messageContents(page).last();
-    await expect(latestMessage.locator("pre code.language-javascript")).toBeVisible();
-    await expect(latestMessage.locator(".hljs-keyword").first()).toBeVisible();
+    await expect(latestMessage.locator("[data-testid='shiki-code-block']")).toBeVisible();
+    await expect(latestMessage.locator("pre.shiki code.shiki-code")).toBeVisible();
+    await expect(latestMessage.locator("code.shiki-code span[style*='color']").first()).toBeVisible();
   });
 
   test("inserts a code block from the editor toolbar", async ({ page }) => {
+    await RoomScreen.codeBlockLanguageSelect(page).click();
+    await page.getByRole("option", { name: "Rust" }).click();
+
     await RoomScreen.codeBlockToolbarButton(page).click();
     const editor = RoomScreen.messageInput(page);
     await expect(editor).toBeFocused();
     await expect(editor.locator("pre")).toBeVisible();
-    await editor.pressSequentially("const toolbarAnswer = 42;");
+    await editor.pressSequentially('fn main() { println!("toolbar"); }');
     await RoomScreen.sendButton(page).click();
 
     const latestMessage = RoomScreen.messageContents(page).last();
-    await expect(latestMessage.locator("pre")).toBeVisible();
-    await expect(latestMessage).toContainText("toolbarAnswer");
+    const shikiBlock = latestMessage.locator("[data-testid='shiki-code-block']");
+    await expect(shikiBlock).toHaveAttribute("data-language", "rust");
+    await expect(latestMessage.locator("pre.shiki code.shiki-code")).toBeVisible();
+    await expect(latestMessage.locator("code.shiki-code span[style*='color']").first()).toBeVisible();
+    await expect(latestMessage).toContainText("toolbar");
   });
 });

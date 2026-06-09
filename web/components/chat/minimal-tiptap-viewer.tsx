@@ -1,6 +1,12 @@
 "use client";
 
-import { useEditor, EditorContent } from "@tiptap/react";
+import {
+  useEditor,
+  EditorContent,
+  NodeViewWrapper,
+  ReactNodeViewRenderer,
+  type NodeViewProps,
+} from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
@@ -10,8 +16,32 @@ import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { useEffect, useCallback } from "react";
 import { ImageAuth } from "./tiptap-extensions/image-auth";
+import { CodeHighlighter } from "./code-highlighter";
+import {
+  DEFAULT_CODE_BLOCK_LANGUAGE,
+  normalizeCodeBlockLanguage,
+} from "./code-block-language";
 
 const lowlight = createLowlight(common);
+
+function ShikiCodeBlockView({ node }: NodeViewProps) {
+  const language =
+    typeof node.attrs.language === "string" && node.attrs.language.trim()
+      ? normalizeCodeBlockLanguage(node.attrs.language)
+      : DEFAULT_CODE_BLOCK_LANGUAGE;
+
+  return (
+    <NodeViewWrapper className="not-prose" contentEditable={false}>
+      <CodeHighlighter code={node.textContent} language={language} />
+    </NodeViewWrapper>
+  );
+}
+
+const ShikiCodeBlockLowlight = CodeBlockLowlight.extend({
+  addNodeView() {
+    return ReactNodeViewRenderer(ShikiCodeBlockView);
+  },
+});
 
 interface MinimalTiptapViewerProps {
   content: string;
@@ -38,9 +68,9 @@ export function MinimalTiptapViewer({ content, className, onFileClick }: Minimal
         validate: (href) =>
           /^https?:\/\//.test(href) || href.startsWith("/"),
       }),
-      CodeBlockLowlight.configure({
+      ShikiCodeBlockLowlight.configure({
         lowlight,
-        defaultLanguage: "plaintext",
+        defaultLanguage: DEFAULT_CODE_BLOCK_LANGUAGE,
       }),
       Markdown,
       ImageAuth.configure({

@@ -1,5 +1,6 @@
 import type { Editor } from "@tiptap/react";
 import type { FileItem } from "@/lib/types";
+import { DEFAULT_CODE_BLOCK_LANGUAGE } from "../code-block-language";
 
 // 辅助函数：获取 markdown 内容
 export function getMarkdownFromEditor(editor: Editor | null): string {
@@ -49,7 +50,8 @@ export function applyMarkdownSyntax(
   textarea: HTMLTextAreaElement,
   format: string,
   value: string,
-  onChange: (value: string) => void
+  onChange: (value: string) => void,
+  options?: { codeBlockLanguage?: string },
 ) {
   const start = textarea.selectionStart;
   const end = textarea.selectionEnd;
@@ -77,9 +79,11 @@ export function applyMarkdownSyntax(
       cursorOffset = 1;
       break;
     case "codeBlock": {
+      const codeBlockLanguage =
+        options?.codeBlockLanguage ?? DEFAULT_CODE_BLOCK_LANGUAGE;
       const prefix = before.length === 0 || before.endsWith("\n")
-        ? "```\n"
-        : "\n```\n";
+        ? `\`\`\`${codeBlockLanguage}\n`
+        : `\n\`\`\`${codeBlockLanguage}\n`;
       const suffix = after.length === 0 || after.startsWith("\n")
         ? "\n```"
         : "\n```\n";
