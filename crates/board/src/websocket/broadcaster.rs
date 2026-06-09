@@ -4,7 +4,7 @@
 
 use crate::models::content::RoomContent;
 use crate::websocket::connection::ConnectionManager;
-use crate::websocket::types::{RoomInfo, WsMessage, WsMessageType};
+use crate::websocket::types::{RoomInfo, RoomUpdateReason, WsMessage, WsMessageType};
 use serde_json::json;
 use std::sync::Arc;
 
@@ -115,10 +115,12 @@ impl Broadcaster {
         &self,
         room_name: &str,
         room_info: &RoomInfo,
+        reason: RoomUpdateReason,
     ) -> Result<usize, Box<dyn std::error::Error>> {
         let payload = json!({
             "room_name": room_name,
             "room_info": room_info,
+            "reason": reason,
         });
 
         let message = WsMessage::new(WsMessageType::RoomUpdate, Some(payload));

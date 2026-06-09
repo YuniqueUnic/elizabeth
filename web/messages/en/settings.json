@@ -43,22 +43,27 @@
     },
     "showContent": {
       "label": "Show notification content",
-      "description": "Include message text, file names, and link names in desktop notifications"
+      "description": "Include message text, file names, link names, and new room addresses in desktop notifications"
     },
     "kinds": {
       "message": "Messages",
       "file": "Files",
-      "link": "Links"
+      "link": "Links",
+      "room": "Room"
     },
     "kindDescriptions": {
       "message": "Choose which message changes should notify you",
       "file": "Choose which file additions and deletions should notify you",
-      "link": "Choose which link additions and deletions should notify you"
+      "link": "Choose which link additions and deletions should notify you",
+      "room": "Choose whether room address, permission, and configuration changes should notify you"
     },
     "actions": {
       "created": "New",
       "updated": "Updated",
-      "deleted": "Deleted"
+      "deleted": "Deleted",
+      "address_changed": "Address changed",
+      "permissions_changed": "Permissions changed",
+      "settings_changed": "Settings changed"
     }
   },
   "editorFontSize": {

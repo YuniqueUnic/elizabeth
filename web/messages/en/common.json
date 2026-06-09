@@ -25,7 +25,8 @@
     "fallback": {
       "message": "Message",
       "file": "File",
-      "link": "Link"
+      "link": "Link",
+      "room": "Room"
     },
     "title": {
       "message": {
@@ -40,6 +41,11 @@
       "link": {
         "created": "New link",
         "deleted": "Link deleted"
+      },
+      "room": {
+        "address_changed": "Room address changed",
+        "permissions_changed": "Room permissions updated",
+        "settings_changed": "Room settings updated"
       }
     },
     "summary": {
@@ -55,7 +61,18 @@
       "link": {
         "created": "Link added",
         "deleted": "Link deleted"
+      },
+      "room": {
+        "address_changed": "Room address changed",
+        "permissions_changed": "Room permissions updated",
+        "settings_changed": "Room settings updated"
       }
+    },
+    "roomUpdateSubject": {
+      "addressChanged": "Room address changed: {path}",
+      "address_changed": "Room address changed",
+      "permissions_changed": "Room permissions updated",
+      "settings_changed": "Room settings updated"
     }
   },
   "copySelectedMessages": "Copy selected messages",

@@ -93,6 +93,18 @@ pub struct RoomInfo {
     pub current_times_entered: i64,
 }
 
+/// 房间更新原因
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum RoomUpdateReason {
+    /// 房间访问地址已变更
+    AddressChanged,
+    /// 房间权限已变更
+    PermissionsChanged,
+    /// 房间配置已变更
+    SettingsChanged,
+}
+
 /// WebSocket 错误类型
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]

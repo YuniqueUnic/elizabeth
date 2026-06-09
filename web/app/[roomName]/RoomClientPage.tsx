@@ -31,9 +31,23 @@ import {
   getContentNotificationSubject,
   isDesktopNotificationActionSupported,
   showContentDesktopNotification,
+  showRoomDesktopNotification,
   type DesktopNotificationAction,
+  type RoomDesktopNotificationAction,
 } from "@/lib/desktop-notifications";
 import type { ContentEventPayload } from "@/lib/hooks/use-room-events";
+
+function roomUpdateNotificationAction(
+  payload: RoomUpdatePayload,
+  currentRoomName: string,
+): RoomDesktopNotificationAction {
+  const nextSlug = payload.room_info.slug.trim();
+  if (nextSlug && nextSlug !== currentRoomName) {
+    return "address_changed";
+  }
+
+  return payload.reason;
+}
 
 function RoomRealtimeSync({
   roomName,
@@ -84,6 +98,30 @@ function RoomRealtimeSync({
     });
   };
 
+  const notifyRoomUpdate = (payload: RoomUpdatePayload) => {
+    const action = roomUpdateNotificationAction(payload, roomName);
+    const nextSlug = payload.room_info.slug.trim();
+    const addressPath = `/${nextSlug || payload.room_name || roomName}`;
+    const subject = action === "address_changed"
+      ? t("desktopNotification.roomUpdateSubject.addressChanged", {
+        path: addressPath,
+      })
+      : t(`desktopNotification.roomUpdateSubject.${action}`);
+    const summary = t(`desktopNotification.summary.room.${action}`);
+
+    showRoomDesktopNotification({
+      enabled: desktopNotificationsEnabled,
+      types: desktopNotificationTypes,
+      action,
+      roomName,
+      title: t(`desktopNotification.title.room.${action}`),
+      body: desktopNotificationShowContent
+        ? t("desktopNotification.bodyWithSubject", { roomName, subject })
+        : t("desktopNotification.bodyWithoutSubject", { roomName, summary }),
+      tagSubject: nextSlug || payload.room_name || roomName,
+    });
+  };
+
   useRoomEvents({
     wsUrl: resolveWebSocketUrl(),
     roomName,
@@ -108,6 +146,7 @@ function RoomRealtimeSync({
       void syncMessagesFromServer();
     },
     onRoomUpdate: (payload) => {
+      notifyRoomUpdate(payload);
       onRoomUpdate?.(payload);
       queryClient.invalidateQueries({ queryKey: ["room", roomName] });
     },

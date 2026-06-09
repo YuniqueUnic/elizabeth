@@ -22,6 +22,7 @@ use crate::repository::{
 };
 use crate::state::AppState;
 use crate::validation::{PasswordValidator, RoomNameValidator, TokenValidator};
+use crate::websocket::types::{RoomInfo, RoomUpdateReason};
 
 type HandlerResult<T> = Result<Json<T>, AppError>;
 
@@ -522,7 +523,7 @@ pub async fn update_permissions(
 
     // 广播房间更新事件
     let broadcaster = app_state.broadcaster.clone();
-    let room_info = crate::websocket::types::RoomInfo {
+    let room_info = RoomInfo {
         id: updated_room.id.unwrap_or(0),
         name: updated_room.name.clone(),
         slug: updated_room.slug.clone(),
@@ -532,16 +533,21 @@ pub async fn update_permissions(
         current_times_entered: updated_room.current_times_entered,
     };
     let new_slug = updated_room.slug.clone();
+    let update_reason = if new_slug != old_slug {
+        RoomUpdateReason::AddressChanged
+    } else {
+        RoomUpdateReason::PermissionsChanged
+    };
     tokio::spawn(async move {
         if let Err(e) = broadcaster
-            .broadcast_room_update(&old_slug, &room_info)
+            .broadcast_room_update(&old_slug, &room_info, update_reason.clone())
             .await
         {
             log::warn!("Failed to broadcast room update event (old slug): {}", e);
         }
         if new_slug != old_slug
             && let Err(e) = broadcaster
-                .broadcast_room_update(&new_slug, &room_info)
+                .broadcast_room_update(&new_slug, &room_info, update_reason)
                 .await
         {
             log::warn!("Failed to broadcast room update event (new slug): {}", e);
@@ -721,7 +727,7 @@ pub async fn update_room_settings(
 
     // 广播房间更新事件
     let broadcaster = app_state.broadcaster.clone();
-    let room_info = crate::websocket::types::RoomInfo {
+    let room_info = RoomInfo {
         id: updated_room.id.unwrap_or(0),
         name: updated_room.name.clone(),
         slug: updated_room.slug.clone(),
@@ -733,7 +739,7 @@ pub async fn update_room_settings(
     let room_slug = updated_room.slug.clone();
     tokio::spawn(async move {
         if let Err(e) = broadcaster
-            .broadcast_room_update(&room_slug, &room_info)
+            .broadcast_room_update(&room_slug, &room_info, RoomUpdateReason::SettingsChanged)
             .await
         {
             log::warn!("Failed to broadcast room update event: {}", e);
