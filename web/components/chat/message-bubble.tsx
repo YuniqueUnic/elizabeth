@@ -12,7 +12,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/lib/store";
 import { MinimalTiptapViewer } from "./minimal-tiptap-viewer";
 import { Badge } from "@/components/ui/badge";
-import { useRoomPermissions } from "@/hooks/use-room-permissions";
 import { useTranslations } from "next-intl";
 import { ManualCopyDialog } from "@/components/manual-copy-dialog";
 
@@ -25,6 +24,8 @@ interface MessageBubbleProps {
   onRevert: (messageId: string) => void;
   showCheckbox?: boolean;
   isEditing?: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
 }
 
 export function MessageBubble(
@@ -36,6 +37,8 @@ export function MessageBubble(
     onRevert,
     showCheckbox,
     isEditing = false,
+    canEdit,
+    canDelete,
   }: MessageBubbleProps,
 ) {
   const t = useTranslations("room");
@@ -52,8 +55,6 @@ export function MessageBubble(
     (state) => state.includeMetadataInCopy,
   );
   const useHeti = useAppStore((state) => state.useHeti);
-  const { can } = useRoomPermissions();
-
 
   const isSelected = selectedMessages.has(message.id);
 
@@ -191,7 +192,7 @@ export function MessageBubble(
                 className="h-6 w-6"
                 title={t("messageBubble.revertDelete")}
                 onClick={() => onRevert(message.id)}
-                disabled={!can.delete}
+                disabled={!canDelete}
               >
                 <RotateCcw className="h-3 w-3" />
               </Button>
@@ -205,7 +206,7 @@ export function MessageBubble(
                     className="h-6 w-6"
                     title={t("messageBubble.revertEdit")}
                     onClick={() => onRevert(message.id)}
-                    disabled={!can.edit}
+                    disabled={!canEdit}
                   >
                     <RotateCcw className="h-3 w-3" />
                   </Button>
@@ -221,7 +222,7 @@ export function MessageBubble(
                   className="h-7 w-7"
                   onClick={() => onEdit(message)}
                   title={t("messageBubble.edit")}
-                  disabled={!can.edit}
+                  disabled={!canEdit}
                 >
                   <Edit2 className="h-3 w-3" />
                 </Button>
@@ -240,7 +241,7 @@ export function MessageBubble(
                   className="h-7 w-7 text-destructive hover:text-destructive"
                   onClick={handleDelete}
                   title={t("messageBubble.delete")}
-                  disabled={!can.delete}
+                  disabled={!canDelete}
                 >
                   <Trash2 className="h-3 w-3" />
                 </Button>

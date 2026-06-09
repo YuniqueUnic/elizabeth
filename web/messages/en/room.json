@@ -29,6 +29,16 @@
     "verifyFailed": "Password verification failed. Incorrect password or unable to connect to server.",
     "cancel": "Cancel"
   },
+  "permissionDenied": {
+    "title": "Permissions changed",
+    "fileUpload": "Room permissions changed, and no longer have edit access to upload files.",
+    "linkAdd": "Room permissions changed, and no longer have edit access to add links.",
+    "fileDelete": "Room permissions changed, and no longer have delete access to remove files or links.",
+    "roomConfig": "Room permissions changed, and no longer have delete access to modify room configuration.",
+    "roomSettings": "Room permissions changed, and no longer have delete access to modify room settings.",
+    "roomPermissions": "Room permissions changed, and no longer have delete access to modify room permissions.",
+    "closeRoom": "Room permissions changed, and no longer have delete access to close this room."
+  },
   "config": {
     "title": "Room Configuration",
     "adminOnly": "Only room administrators (with delete permission) can modify room configuration",
@@ -128,6 +138,7 @@
   },
   "sharing": {
     "title": "Share Room",
+    "noPermission": "Room sharing is disabled, so public links and QR codes are unavailable.",
     "generatingQr": "Generating QR code...",
     "copied": "Copied",
     "getLink": "Get Link",
@@ -226,6 +237,8 @@
     "uploadFailed": "Upload Failed",
     "uploadFailedDescription": "File upload failed, please try again",
     "uploadFailedSizeExceeded": "File is too large, exceeds room capacity limit, upload failed",
+    "permissionDeniedTitle": "Permissions changed",
+    "uploadPermissionDenied": "Room permissions changed, and you no longer have edit access to upload and insert files.",
     "markdownEditorSubtitle": "Supports full Markdown syntax and hotkeys"
   },
   "messageList": {

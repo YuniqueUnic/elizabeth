@@ -5,6 +5,13 @@
   "saveSuccess": "Saved",
   "allChangesSaved": "All changes saved successfully",
   "saveFailed": "Failed to save changes, please retry",
+  "permissionDenied": {
+    "title": "Permissions changed",
+    "messageSave": "Room permissions changed, and no longer save these message changes to the cloud. Unsaved content remains local and can be saved if edit access is restored.",
+    "messageSaveEdit": "Room permissions changed, and no longer have edit access. New and edited messages remain local and can be saved if edit access is restored.",
+    "messageSaveDelete": "Room permissions changed, and no longer have delete access. Pending delete markers remain local and can be saved if delete access is restored.",
+    "messageSaveMixed": "Room permissions changed, and no longer have the edit or delete access needed for these message changes. Unsaved content remains local and can be saved if access is restored."
+  },
   "noMessagesSelected": "No messages selected",
   "selectMessagesToDelete": "Please select messages to delete first",
   "selectMessagesToCopy": "Please select messages to copy first",

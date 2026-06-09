@@ -49,6 +49,7 @@ import type { TransferItem, TransferProgress } from "@/lib/transfer-types";
 import {
   handleMutationError,
   handleMutationSuccess,
+  isPermissionDeniedError,
 } from "@/lib/utils/mutations";
 import { usePathname } from "next/navigation";
 import { generateUUID } from "@/lib/utils/uuid";
@@ -81,7 +82,6 @@ export function RightSidebar() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const isMobile = useIsMobile();
-  const { can } = useRoomPermissions();
   const pathname = usePathname();
   const roomName = pathname.split("/").filter(Boolean)[0] || currentRoomId;
 
@@ -104,6 +104,7 @@ export function RightSidebar() {
     staleTime: 1000,
     enabled: !!currentRoomId,
   });
+  const { can } = useRoomPermissions(roomDetails?.permissions);
 
   const isUploading = Object.values(transfers).some(
     (t) => t.status === "active" && t.direction === "upload",
@@ -150,7 +151,14 @@ export function RightSidebar() {
             error?.message?.includes("limit exceeded") ||
             error?.message?.includes("容量")));
       handleMutationError(error, toast, {
-        description: isSizeError ? t("toast.uploadFailedSizeExceeded") : t("toast.uploadFailed"),
+        title: isPermissionDeniedError(error)
+          ? t("permissionDenied.title")
+          : undefined,
+        description: isPermissionDeniedError(error)
+          ? t("permissionDenied.fileUpload")
+          : isSizeError
+          ? t("toast.uploadFailedSizeExceeded")
+          : t("toast.uploadFailed"),
       });
     },
   });
@@ -172,7 +180,12 @@ export function RightSidebar() {
     },
     onError: (error) => {
       handleMutationError(error, toast, {
-        description: t("toast.deleteFailed"),
+        title: isPermissionDeniedError(error)
+          ? t("permissionDenied.title")
+          : undefined,
+        description: isPermissionDeniedError(error)
+          ? t("permissionDenied.fileDelete")
+          : t("toast.deleteFailed"),
       });
     },
   });
@@ -190,12 +203,26 @@ export function RightSidebar() {
     },
     onError: (error) => {
       handleMutationError(error, toast, {
-        description: t("toast.linkAddFailed"),
+        title: isPermissionDeniedError(error)
+          ? t("permissionDenied.title")
+          : undefined,
+        description: isPermissionDeniedError(error)
+          ? t("permissionDenied.linkAdd")
+          : t("toast.linkAddFailed"),
       });
     },
   });
 
   const handleUpload = async (acceptedFiles: File[]) => {
+    if (!can.edit) {
+      toast({
+        title: t("permissionDenied.title"),
+        description: t("permissionDenied.fileUpload"),
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (roomDetails) {
       const activeUploadsSize = Object.values(transfers)
         .filter((t) => t.status === "active" && t.direction === "upload")
@@ -219,6 +246,15 @@ export function RightSidebar() {
   };
 
   const handleDelete = (fileId: string) => {
+    if (!can.delete) {
+      toast({
+        title: t("permissionDenied.title"),
+        description: t("permissionDenied.fileDelete"),
+        variant: "destructive",
+      });
+      return;
+    }
+
     const file = files.find((item) => item.id === fileId) ??
       (previewFile?.id === fileId ? previewFile : null);
     if (file) {
@@ -364,6 +400,7 @@ export function RightSidebar() {
                   onDelete={handleDelete}
                   onFileClick={handleFileClick}
                   showCheckboxes={true}
+                  canDelete={can.delete}
                 />
               )}
           </div>
@@ -406,12 +443,23 @@ export function RightSidebar() {
         open={previewOpen}
         onOpenChange={setPreviewOpen}
         onDelete={handleDelete}
+        canDelete={can.delete}
       />
 
       <UrlUploadDialog
         open={urlDialogOpen}
         onOpenChange={setUrlDialogOpen}
-        onSubmit={(data) => uploadUrlMutation.mutate(data)}
+        onSubmit={(data) => {
+          if (!can.edit) {
+            toast({
+              title: t("permissionDenied.title"),
+              description: t("permissionDenied.linkAdd"),
+              variant: "destructive",
+            });
+            return;
+          }
+          uploadUrlMutation.mutate(data);
+        }}
         isUploading={uploadUrlMutation.isPending}
       />
 

@@ -42,8 +42,10 @@ import {
 import {
   handleMutationError,
   handleMutationSuccess,
+  isPermissionDeniedError,
 } from "@/lib/utils/mutations";
 import { cn } from "@/lib/utils";
+import { useRoomPermissions } from "@/hooks/use-room-permissions";
 
 function GitHubIcon({ className }: { className?: string }) {
   return (
@@ -93,8 +95,43 @@ export function TopBar() {
     queryKey: ["room", currentRoomId],
     queryFn: () => getRoomDetails(currentRoomId),
   });
+  const { can } = useRoomPermissions(roomDetails?.permissions);
+
+  const describeLocalSavePermissionBlock = () => {
+    const pendingMessages = messages.filter((message) =>
+      message.isNew || message.isDirty || message.isPendingDelete
+    );
+    const needsEdit = pendingMessages.some((message) =>
+      message.isNew || message.isDirty
+    );
+    const needsDelete = pendingMessages.some((message) =>
+      message.isPendingDelete && !message.isNew
+    );
+
+    if (needsEdit && needsDelete && (!can.edit || !can.delete)) {
+      return t("permissionDenied.messageSaveMixed");
+    }
+    if (needsEdit && !can.edit) {
+      return t("permissionDenied.messageSaveEdit");
+    }
+    if (needsDelete && !can.delete) {
+      return t("permissionDenied.messageSaveDelete");
+    }
+
+    return null;
+  };
 
   const handleSaveChanges = async () => {
+    const localPermissionBlock = describeLocalSavePermissionBlock();
+    if (localPermissionBlock) {
+      toast({
+        title: t("permissionDenied.title"),
+        description: localPermissionBlock,
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       await saveMessages();
       handleMutationSuccess(toast, {
@@ -102,8 +139,12 @@ export function TopBar() {
         description: t("allChangesSaved"),
       });
     } catch (error) {
+      const permissionDenied = isPermissionDeniedError(error);
       handleMutationError(error, toast, {
-        description: t("saveFailed"),
+        title: permissionDenied ? t("permissionDenied.title") : undefined,
+        description: permissionDenied
+          ? t("permissionDenied.messageSave")
+          : t("saveFailed"),
       });
     }
   };
@@ -257,7 +298,7 @@ export function TopBar() {
             className="h-8 w-8 md:h-10 md:w-10"
             title={t("delete")}
             onClick={handleDeleteMessages}
-            disabled={selectedMessages.size === 0}
+            disabled={selectedMessages.size === 0 || !can.delete}
             data-testid="delete-messages-btn"
           >
             <Trash2 className="h-4 w-4" />

@@ -14,9 +14,10 @@ import { ManualCopyDialog } from "@/components/manual-copy-dialog";
 
 interface RoomSharingProps {
   roomId: string;
+  canShare: boolean;
 }
 
-export function RoomSharing({ roomId }: RoomSharingProps) {
+export function RoomSharing({ roomId, canShare }: RoomSharingProps) {
   const t = useTranslations("room");
   const [copied, setCopied] = useState(false);
   const [manualCopyValue, setManualCopyValue] = useState("");
@@ -33,12 +34,13 @@ export function RoomSharing({ roomId }: RoomSharingProps) {
   const { data: qrCodeUrl } = useQuery({
     queryKey: ["qrcode", roomId, currentTheme],
     queryFn: () => getQRCodeImage(roomId, { theme: currentTheme }),
-    enabled: !!roomId,
+    enabled: !!roomId && canShare,
   });
 
   const { data: shareLink } = useQuery({
     queryKey: ["sharelink", roomId],
     queryFn: () => getShareLink(roomId),
+    enabled: !!roomId && canShare,
   });
 
   const handleCopyLink = async () => {
@@ -69,7 +71,13 @@ export function RoomSharing({ roomId }: RoomSharingProps) {
       <h3 className="text-sm font-semibold">{t("sharing.title")}</h3>
 
       {/* QR Code */}
-      {qrCodeUrl
+      {!canShare
+        ? (
+          <div className="rounded-lg border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground">
+            {t("sharing.noPermission")}
+          </div>
+        )
+        : qrCodeUrl
         ? (
           <div className="flex justify-center rounded-lg border border-border bg-background p-4">
             <Zoom>
@@ -98,6 +106,7 @@ export function RoomSharing({ roomId }: RoomSharingProps) {
           variant="outline"
           className="flex-1 bg-transparent"
           onClick={handleCopyLink}
+          disabled={!canShare}
         >
           <LinkIcon className="mr-2 h-4 w-4" />
           {copied ? t("sharing.copied") : t("sharing.getLink")}
@@ -106,6 +115,7 @@ export function RoomSharing({ roomId }: RoomSharingProps) {
           variant="outline"
           className="flex-1 bg-transparent"
           onClick={handleDownloadQR}
+          disabled={!canShare}
         >
           <Download className="mr-2 h-4 w-4" />
           {t("sharing.download")}

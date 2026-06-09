@@ -12,6 +12,7 @@ import type { RoomPermission } from "@/lib/types";
 import { useRouter } from "next/navigation";
 import { clearRoomToken } from "@/lib/utils/api";
 import { useTranslations } from "next-intl";
+import { isPermissionDeniedError } from "@/lib/utils/mutations";
 
 interface RoomPermissionsProps {
   permissions: RoomPermission[];
@@ -76,7 +77,7 @@ export function RoomPermissions({ permissions }: RoomPermissionsProps) {
   );
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { can } = useRoomPermissions();
+  const { can } = useRoomPermissions(permissions);
 
   const [permissionFlags, setPermissionFlags] = useState(
     permissionsToFlags(permissions),
@@ -152,10 +153,14 @@ export function RoomPermissions({ permissions }: RoomPermissionsProps) {
         }
       }
     },
-    onError: () => {
+    onError: (error) => {
       toast({
-        title: t("permissions.save.failTitle"),
-        description: t("permissions.save.failDescription"),
+        title: isPermissionDeniedError(error)
+          ? t("permissionDenied.title")
+          : t("permissions.save.failTitle"),
+        description: isPermissionDeniedError(error)
+          ? t("permissionDenied.roomPermissions")
+          : t("permissions.save.failDescription"),
         variant: "destructive",
       });
     },

@@ -7,7 +7,6 @@ import type { FileItem } from "@/lib/types";
 import { useAppStore } from "@/lib/store";
 import { formatFileSize } from "@/lib/utils/format";
 import { defaultStyles, FileIcon } from "react-file-icon";
-import { useRoomPermissions } from "@/hooks/use-room-permissions";
 import { useTranslations } from "next-intl";
 
 
@@ -44,14 +43,14 @@ interface FileCardProps {
   onDelete: (fileId: string) => void;
   onClick: (file: FileItem) => void;
   showCheckbox: boolean;
+  canDelete: boolean;
 }
 
 export function FileCard(
-  { file, onDelete, onClick, showCheckbox }: FileCardProps,
+  { file, onDelete, onClick, showCheckbox, canDelete }: FileCardProps,
 ) {
   const t = useTranslations("room");
   const { selectedFiles, toggleFileSelection } = useAppStore();
-  const { can } = useRoomPermissions();
   const isSelected = selectedFiles.has(file.id);
 
 
@@ -106,7 +105,7 @@ export function FileCard(
           onDelete(file.id);
         }}
         title={t("fileCard.deleteFile")}
-        disabled={!can.delete}
+        disabled={!canDelete}
       >
         <Trash2 className="h-4 w-4 text-destructive" />
       </Button>

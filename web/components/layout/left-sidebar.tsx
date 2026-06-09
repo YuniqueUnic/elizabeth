@@ -18,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { isPermissionDeniedError } from "@/lib/utils/mutations";
 import {
   Dialog,
   DialogContent,
@@ -44,7 +45,7 @@ export function LeftSidebar() {
 
   const { toast } = useToast();
   const router = useRouter();
-  const { can } = useRoomPermissions();
+  const { can } = useRoomPermissions(roomDetails?.permissions);
 
   const [isCloseDialogOpen, setIsCloseDialogOpen] = useState(false);
   const [password, setPassword] = useState("");
@@ -108,8 +109,12 @@ export function LeftSidebar() {
     } catch (err: any) {
       console.error("Failed to delete room:", err);
       toast({
-        title: t("closeRoom.failTitle"),
-        description: err.message || t("closeRoom.failDescription"),
+        title: isPermissionDeniedError(err)
+          ? t("permissionDenied.title")
+          : t("closeRoom.failTitle"),
+        description: isPermissionDeniedError(err)
+          ? t("permissionDenied.closeRoom")
+          : err.message || t("closeRoom.failDescription"),
         variant: "destructive",
       });
     } finally {
@@ -141,6 +146,7 @@ export function LeftSidebar() {
                   <RoomSharing
                     key={roomDetails.slug}
                     roomId={roomDetails.slug || roomDetails.name}
+                    canShare={can.share}
                   />
                   <RoomCapacity
                     currentSize={roomDetails.currentSize}
@@ -216,6 +222,7 @@ export function LeftSidebar() {
                   <RoomSharing
                     key={roomDetails.slug}
                     roomId={roomDetails.slug || roomDetails.name}
+                    canShare={can.share}
                   />
                   <RoomCapacity
                     currentSize={roomDetails.currentSize}

@@ -9,6 +9,7 @@ import {
   postMessage,
   updateMessage,
 } from "@/api/messageService";
+import { getRoomDetails } from "@/api/roomService";
 import { useAppStore } from "@/lib/store";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
@@ -65,7 +66,13 @@ export function MiddleColumn() {
     null,
   );
   const { toast } = useToast();
-  const { can } = useRoomPermissions();
+  const { data: roomDetails } = useQuery({
+    queryKey: ["room", currentRoomId],
+    queryFn: () => getRoomDetails(currentRoomId),
+    staleTime: 1000,
+    enabled: !!currentRoomId,
+  });
+  const { can } = useRoomPermissions(roomDetails?.permissions);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -231,6 +238,8 @@ export function MiddleColumn() {
             onDelete={handleDelete}
             onRevert={revertMessageChanges}
             editingMessageId={composerEditingMessageId}
+            canEdit={can.edit}
+            canDelete={can.delete}
           />
         </Panel>
 
@@ -240,18 +249,16 @@ export function MiddleColumn() {
         </Separator>
 
         {/* 编辑器面板 */}
-        {can.edit && (
-          <Panel defaultSize={30} minSize={20}>
-            <MessageInput
-              onSend={handleSend}
-              editingMessage={composerEditingMessageId
-                ? messages.find((m) => m.id === composerEditingMessageId) ?? null
-                : null}
-              onCancelEdit={handleCancelEdit}
-              isLoading={postMutation.isPending || updateMutation.isPending}
-            />
-          </Panel>
-        )}
+        <Panel defaultSize={30} minSize={20}>
+          <MessageInput
+            onSend={handleSend}
+            editingMessage={composerEditingMessageId
+              ? messages.find((m) => m.id === composerEditingMessageId) ?? null
+              : null}
+            onCancelEdit={handleCancelEdit}
+            isLoading={postMutation.isPending || updateMutation.isPending}
+          />
+        </Panel>
       </Group>
       <AlertDialog
         open={deleteCandidateId !== null}

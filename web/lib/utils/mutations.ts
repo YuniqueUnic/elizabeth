@@ -16,6 +16,32 @@ interface MutationSuccessConfig {
     showNotification?: boolean;
 }
 
+function numericStatus(value: unknown): number | undefined {
+    if (typeof value === "number") return value;
+    if (typeof value === "string" && Number.isFinite(Number(value))) {
+        return Number(value);
+    }
+    return undefined;
+}
+
+/**
+ * Backend permission failures currently arrive either as code
+ * `PERMISSION_DENIED` or as a 403 with a permission-related message.
+ */
+export function isPermissionDeniedError(error: unknown): boolean {
+    if (!error || typeof error !== "object") return false;
+
+    const err = error as Record<string, any>;
+    const code = err.code ?? err.status ?? err.response?.status;
+    if (code === "PERMISSION_DENIED") return true;
+
+    const status = numericStatus(code);
+    if (status !== 403) return false;
+
+    const message = typeof err.message === "string" ? err.message : "";
+    return /permission|forbidden|denied|权限|无权|没有权限/i.test(message);
+}
+
 /**
  * 标准错误处理函数
  */

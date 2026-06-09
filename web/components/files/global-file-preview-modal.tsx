@@ -22,9 +22,12 @@ import { usePathname } from "next/navigation";
 import { useAppStore } from "@/lib/store";
 import { FilePreviewModal } from "@/components/files/file-preview-modal";
 import { getFilesList, deleteFile } from "@/api/fileService";
+import { getRoomDetails } from "@/api/roomService";
 import type { FileItem } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslations } from "next-intl";
+import { useRoomPermissions } from "@/hooks/use-room-permissions";
+import { isPermissionDeniedError } from "@/lib/utils/mutations";
 
 export function GlobalFilePreviewModal() {
   const { toast } = useToast();
@@ -47,6 +50,13 @@ export function GlobalFilePreviewModal() {
     staleTime: 4000,
     enabled: !!roomName,
   });
+  const { data: roomDetails } = useQuery({
+    queryKey: ["room", roomName],
+    queryFn: () => getRoomDetails(roomName),
+    staleTime: 1000,
+    enabled: !!roomName,
+  });
+  const { can } = useRoomPermissions(roomDetails?.permissions);
 
   // When a file-id arrives from the store (message-bubble click), locate and open it
   useEffect(() => {
@@ -68,16 +78,29 @@ export function GlobalFilePreviewModal() {
         description: t("toast.deleteSuccessDescription"),
       });
     },
-    onError: () => {
+    onError: (error) => {
       toast({
-        title: t("toast.deleteFailed"),
-        description: t("toast.deleteFailed"),
+        title: isPermissionDeniedError(error)
+          ? t("permissionDenied.title")
+          : t("toast.deleteFailed"),
+        description: isPermissionDeniedError(error)
+          ? t("permissionDenied.fileDelete")
+          : t("toast.deleteFailed"),
         variant: "destructive",
       });
     },
   });
 
   const handleDelete = (fileId: string) => {
+    if (!can.delete) {
+      toast({
+        title: t("permissionDenied.title"),
+        description: t("permissionDenied.fileDelete"),
+        variant: "destructive",
+      });
+      return;
+    }
+
     deleteMutation.mutate(fileId);
     setPreviewOpen(false);
     setPreviewFile(null);
@@ -93,6 +116,7 @@ export function GlobalFilePreviewModal() {
         if (!open) setPreviewFile(null);
       }}
       onDelete={handleDelete}
+      canDelete={can.delete}
     />
   );
 }

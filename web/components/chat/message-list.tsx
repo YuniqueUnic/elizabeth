@@ -19,10 +19,12 @@ interface MessageListProps {
   onDelete: (messageId: string) => void;
   onRevert: (messageId: string) => void;
   editingMessageId: string | null;
+  canEdit: boolean;
+  canDelete: boolean;
 }
 
 export function MessageList(
-  { messages, isLoading, onEdit, onDelete, onRevert, editingMessageId }:
+  { messages, isLoading, onEdit, onDelete, onRevert, editingMessageId, canEdit, canDelete }:
     MessageListProps,
 ) {
   const t = useTranslations("room");
@@ -181,6 +183,8 @@ export function MessageList(
                     onRevert={onRevert}
                     showCheckbox={true}
                     isEditing={editingMessageId === message.id}
+                    canEdit={canEdit}
+                    canDelete={canDelete}
                   />
                 ))
               )}

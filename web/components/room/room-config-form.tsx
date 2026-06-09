@@ -13,6 +13,7 @@ import { clearRoomToken } from "@/lib/utils/api";
 import { getAccessToken } from "@/api/authService";
 import { updateRoomPermissions, updateRoomSettings } from "@/api/roomService";
 import { copyTextToClipboard } from "@/lib/utils/clipboard";
+import { isPermissionDeniedError } from "@/lib/utils/mutations";
 import { ManualCopyDialog } from "@/components/manual-copy-dialog";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -128,7 +129,7 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
   );
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { can } = useRoomPermissions();
+  const { can } = useRoomPermissions(roomDetails.permissions);
   const [manualCopyValue, setManualCopyValue] = useState("");
 
   const [expiryOption, setExpiryOption] = useState(() =>
@@ -320,9 +321,14 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
     },
     onError: (error: any) => {
       console.error("Failed to save room config:", error);
+      const permissionDenied = isPermissionDeniedError(error);
       toast({
-        title: t("config.save.failTitle"),
-        description: error?.message || t("config.save.failDescription"),
+        title: permissionDenied
+          ? t("permissionDenied.title")
+          : t("config.save.failTitle"),
+        description: permissionDenied
+          ? t("permissionDenied.roomConfig")
+          : error?.message || t("config.save.failDescription"),
         variant: "destructive",
       });
     },

@@ -1,5 +1,5 @@
 /**
- * React hook for checking room permissions from JWT token
+ * React hook for checking room permissions from JWT token and latest room state.
  */
 
 import { useMemo } from "react";
@@ -8,17 +8,33 @@ import { getRoomTokenString } from "@/lib/utils/api";
 import {
     decodeJWT,
     getPermissionsFromToken,
-    hasAllPermissions,
-    hasAnyPermission,
-    hasPermission,
     type JWTPayload,
 } from "@/lib/utils/jwt";
 import type { RoomPermission } from "@/lib/types";
 
+function resolveEffectivePermissions(
+    tokenPermissions: RoomPermission[],
+    roomPermissions?: RoomPermission[] | null,
+): RoomPermission[] {
+    if (!roomPermissions) {
+        return tokenPermissions;
+    }
+
+    const latestRoomPermissions = new Set(roomPermissions);
+    return tokenPermissions.filter((permission) =>
+        latestRoomPermissions.has(permission)
+    );
+}
+
 /**
- * Hook to get and check room permissions
+ * Hook to get and check room permissions.
+ *
+ * `roomPermissions` should be the latest permissions returned by the room
+ * query. When present, UI actions use token claims AND the latest room state,
+ * so users already in the room do not keep stale write controls after a remote
+ * permission downgrade.
  */
-export function useRoomPermissions() {
+export function useRoomPermissions(roomPermissions?: RoomPermission[] | null) {
     const pathname = usePathname();
     // 从真实 URL 解析房间名，避免静态导出时 useParams() 返回编译期占位符
     const roomName = pathname.split("/").filter(Boolean)[0] ?? undefined;
@@ -38,29 +54,38 @@ export function useRoomPermissions() {
         return decodeJWT(token);
     }, [token]);
 
+    const effectivePermissions = useMemo(
+        () => resolveEffectivePermissions(permissions, roomPermissions),
+        [permissions, roomPermissions],
+    );
+
     const can = useMemo(
         () => ({
-            read: hasPermission(token, "read"),
-            edit: hasPermission(token, "edit"),
-            share: hasPermission(token, "share"),
-            delete: hasPermission(token, "delete"),
+            read: effectivePermissions.includes("read"),
+            edit: effectivePermissions.includes("edit"),
+            share: effectivePermissions.includes("share"),
+            delete: effectivePermissions.includes("delete"),
         }),
-        [token],
+        [effectivePermissions],
     );
 
     const hasAny = useMemo(
-        () => (perms: RoomPermission[]) => hasAnyPermission(token, perms),
-        [token],
+        () => (perms: RoomPermission[]) =>
+            perms.some((permission) => effectivePermissions.includes(permission)),
+        [effectivePermissions],
     );
 
     const hasAll = useMemo(
-        () => (perms: RoomPermission[]) => hasAllPermissions(token, perms),
-        [token],
+        () => (perms: RoomPermission[]) =>
+            perms.every((permission) => effectivePermissions.includes(permission)),
+        [effectivePermissions],
     );
 
     return {
         token,
-        permissions,
+        permissions: effectivePermissions,
+        tokenPermissions: permissions,
+        roomPermissions,
         payload,
         can,
         hasAny,

@@ -20,6 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRoomPermissions } from "@/hooks/use-room-permissions";
 import { getAccessToken } from "@/api/authService";
 import { useTranslations } from "next-intl";
+import { isPermissionDeniedError } from "@/lib/utils/mutations";
 
 interface RoomSettingsFormProps {
   roomDetails: RoomDetails;
@@ -70,7 +71,7 @@ export function RoomSettingsForm({ roomDetails }: RoomSettingsFormProps) {
   const currentRoomId = useAppStore((state) => state.currentRoomId);
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { can } = useRoomPermissions();
+  const { can } = useRoomPermissions(roomDetails.permissions);
 
   const [expiryOption, setExpiryOption] = useState(() =>
     getExpiryOptionFromDate(roomDetails.settings.expiresAt)
@@ -135,8 +136,12 @@ export function RoomSettingsForm({ roomDetails }: RoomSettingsFormProps) {
       const isAuthError = errorCode === 401 || errorCode === 403;
 
       toast({
-        title: t("settings.save.failTitle"),
-        description: isAuthError
+        title: isPermissionDeniedError(error)
+          ? t("permissionDenied.title")
+          : t("settings.save.failTitle"),
+        description: isPermissionDeniedError(error)
+          ? t("permissionDenied.roomSettings")
+          : isAuthError
           ? t("settings.save.authFail")
           : error?.message || t("settings.save.failDescription"),
         variant: "destructive",
