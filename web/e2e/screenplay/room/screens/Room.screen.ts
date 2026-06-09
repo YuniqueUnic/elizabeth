@@ -245,6 +245,9 @@ export const RoomScreen = {
   filePreviewInsertToEditorButton: (page: Page): Locator =>
     page.getByTestId("file-preview-insert-markdown"),
 
+  filePreviewDeleteButton: (page: Page): Locator =>
+    page.getByTestId("file-preview-delete"),
+
   filePreviewIframe: (page: Page): Locator =>
     page.locator("dialog iframe, [role='dialog'] iframe"),
 
@@ -301,6 +304,19 @@ export const RoomScreen = {
     page.getByTestId(`settings-notification-${kind}-trigger`),
 
   // Delete confirmation dialogs
+  fileDeleteConfirmDialog: (page: Page): Locator =>
+    page.getByTestId("file-delete-confirm-dialog"),
+
+  fileDeleteConfirmButton: (page: Page): Locator =>
+    RoomScreen.fileDeleteConfirmDialog(page).getByRole("button", {
+      name: tRoom("fileDeleteConfirm.confirm"),
+    }),
+
+  fileDeleteCancelButton: (page: Page): Locator =>
+    RoomScreen.fileDeleteConfirmDialog(page).getByRole("button", {
+      name: tRoom("fileDeleteConfirm.cancel"),
+    }),
+
   deleteConfirmDialog: (page: Page): Locator =>
     page.locator('[data-testid="delete-confirm-dialog"], [role="alertdialog"]').first(),
 

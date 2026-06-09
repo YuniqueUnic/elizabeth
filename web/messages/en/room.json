@@ -253,6 +253,15 @@
   "fileCard": {
     "deleteFile": "Delete File"
   },
+  "fileDeleteConfirm": {
+    "fileType": "file",
+    "linkType": "link",
+    "title": "Delete this {type}?",
+    "description": "\"{name}\" will be removed from the room immediately. This cannot be undone.",
+    "cancel": "Cancel",
+    "confirm": "Delete",
+    "deleting": "Deleting..."
+  },
   "fileUploadZone": {
     "uploading": "Uploading...",
     "dropToUpload": "Drop to upload",

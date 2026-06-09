@@ -253,6 +253,15 @@
   "fileCard": {
     "deleteFile": "删除文件"
   },
+  "fileDeleteConfirm": {
+    "fileType": "文件",
+    "linkType": "链接",
+    "title": "删除这个{type}？",
+    "description": "「{name}」会立即从房间中删除，且无法撤销。",
+    "cancel": "取消",
+    "confirm": "删除",
+    "deleting": "删除中..."
+  },
   "fileUploadZone": {
     "uploading": "上传中...",
     "dropToUpload": "释放以上传文件",

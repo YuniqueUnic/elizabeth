@@ -18,7 +18,7 @@
       },
       "deleteButton": {
         "title": "Delete Button",
-        "description": "Mark selected messages for deletion. Messages are only actually deleted after clicking the save button. You can configure whether to show a delete confirmation dialog in Settings."
+        "description": "Mark selected messages for deletion. Messages are only actually deleted after clicking the save button. You can configure whether to show a message delete confirmation dialog in Settings."
       },
       "helpButton": {
         "title": "Help Button",

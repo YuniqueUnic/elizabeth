@@ -10,6 +10,16 @@ import { FileUploadZone } from "@/components/files/file-upload-zone";
 import { FilePreviewModal } from "@/components/files/file-preview-modal";
 import { TransferProgressPanel } from "@/components/files/transfer-progress-panel";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   type UrlUploadData,
   UrlUploadDialog,
 } from "@/components/files/url-upload-dialog";
@@ -78,6 +88,7 @@ export function RightSidebar() {
   const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [urlDialogOpen, setUrlDialogOpen] = useState(false);
+  const [deleteCandidate, setDeleteCandidate] = useState<FileItem | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: files = [], isLoading } = useQuery({
@@ -149,6 +160,11 @@ export function RightSidebar() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["files", roomName] });
       queryClient.invalidateQueries({ queryKey: ["room", currentRoomId] });
+      if (previewFile?.id === deleteCandidate?.id) {
+        setPreviewOpen(false);
+        setPreviewFile(null);
+      }
+      setDeleteCandidate(null);
       handleMutationSuccess(toast, {
         title: t("toast.deleteSuccess"),
         description: t("toast.deleteSuccessDescription"),
@@ -203,7 +219,16 @@ export function RightSidebar() {
   };
 
   const handleDelete = (fileId: string) => {
-    deleteMutation.mutate(fileId);
+    const file = files.find((item) => item.id === fileId) ??
+      (previewFile?.id === fileId ? previewFile : null);
+    if (file) {
+      setDeleteCandidate(file);
+    }
+  };
+
+  const handleConfirmDelete = () => {
+    if (!deleteCandidate) return;
+    deleteMutation.mutate(deleteCandidate.id);
   };
 
   const handleBatchDownload = async () => {
@@ -389,6 +414,49 @@ export function RightSidebar() {
         onSubmit={(data) => uploadUrlMutation.mutate(data)}
         isUploading={uploadUrlMutation.isPending}
       />
+
+      <AlertDialog
+        open={deleteCandidate !== null}
+        onOpenChange={(open) => {
+          if (!open && !deleteMutation.isPending) {
+            setDeleteCandidate(null);
+          }
+        }}
+      >
+        <AlertDialogContent data-testid="file-delete-confirm-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t("fileDeleteConfirm.title", {
+                type: deleteCandidate?.type === "link"
+                  ? t("fileDeleteConfirm.linkType")
+                  : t("fileDeleteConfirm.fileType"),
+              })}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("fileDeleteConfirm.description", {
+                name: deleteCandidate?.name ?? "",
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>
+              {t("fileDeleteConfirm.cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteMutation.isPending}
+              onClick={(event) => {
+                event.preventDefault();
+                handleConfirmDelete();
+              }}
+            >
+              {deleteMutation.isPending
+                ? t("fileDeleteConfirm.deleting")
+                : t("fileDeleteConfirm.confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

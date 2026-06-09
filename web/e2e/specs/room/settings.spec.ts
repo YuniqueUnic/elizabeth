@@ -6,6 +6,7 @@ import {
   ScrollMetrics,
 } from "../../screenplay/room/questions/Room.questions";
 import { RoomScreen } from "../../screenplay/room/screens/Room.screen";
+import { tSettings } from "../../screenplay/support/i18n";
 import {
   CopySelectedMessages,
   CopySingleMessage,
@@ -304,6 +305,16 @@ test.describe("Room settings integration", () => {
       await actor.attemptsTo(OpenRoom(room.url));
       await actor.attemptsTo(SendMessage("Test message for delete"));
       await actor.attemptsTo(SaveMessages());
+    });
+
+    test("labels the setting as message delete confirmation", async ({
+      page,
+    }) => {
+      await RoomScreen.settingsButton(page).click();
+
+      await expect(page.getByText(tSettings("showDeleteConfirmation.label"))).toBeVisible();
+      await expect(page.getByText(tSettings("showDeleteConfirmation.description"))).toBeVisible();
+      await expect(page.getByText("删除时提示", { exact: true })).toHaveCount(0);
     });
 
     test("shows confirmation dialog when delete confirmation is on", async ({
