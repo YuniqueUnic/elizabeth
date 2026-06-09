@@ -5,7 +5,7 @@
 
 use board::websocket::broadcaster::Broadcaster;
 use board::websocket::connection::ConnectionManager;
-use board::websocket::types::{RoomInfo, WsMessage, WsMessageType};
+use board::websocket::types::{RoomInfo, RoomUpdateReason, WsMessage, WsMessageType};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
@@ -122,7 +122,7 @@ async fn test_room_subscription_and_broadcast() {
     };
 
     broadcaster
-        .broadcast_room_update(&room1, &room_info)
+        .broadcast_room_update(&room1, &room_info, RoomUpdateReason::PermissionsChanged)
         .await
         .unwrap();
 
@@ -137,7 +137,15 @@ async fn test_room_subscription_and_broadcast() {
         msg2.is_err() || msg2.unwrap().is_none(),
         "房间 2 的连接不应该收到消息"
     );
-    assert_eq!(msg1.unwrap().message_type, WsMessageType::RoomUpdate);
+    let msg1 = msg1.unwrap();
+    assert_eq!(msg1.message_type, WsMessageType::RoomUpdate);
+    assert_eq!(
+        msg1.payload
+            .as_ref()
+            .and_then(|payload| payload.get("reason"))
+            .and_then(|reason| reason.as_str()),
+        Some("permissions_changed")
+    );
 }
 
 // ============================================================================

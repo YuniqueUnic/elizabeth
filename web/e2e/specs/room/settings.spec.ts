@@ -155,6 +155,18 @@ test.describe("Room settings integration", () => {
       .toBeVisible();
     await expect(RoomScreen.settingDesktopNotificationType(page, "link", "updated"))
       .toHaveCount(0);
+
+    await RoomScreen.settingsNotificationKindTrigger(page, "room").click();
+    await expect(RoomScreen.settingsNotificationKindTrigger(page, "room"))
+      .toHaveAttribute("aria-expanded", "true");
+    await expect(RoomScreen.settingDesktopNotificationType(page, "room", "address_changed"))
+      .toBeVisible();
+    await expect(RoomScreen.settingDesktopNotificationType(page, "room", "permissions_changed"))
+      .toBeVisible();
+    await expect(RoomScreen.settingDesktopNotificationType(page, "room", "settings_changed"))
+      .toBeVisible();
+    await expect(RoomScreen.settingDesktopNotificationType(page, "room", "created"))
+      .toHaveCount(0);
   });
 
   test.describe("copy and download with metadata", () => {

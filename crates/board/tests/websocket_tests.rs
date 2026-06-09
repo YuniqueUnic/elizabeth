@@ -6,7 +6,7 @@
 use board::models::room::content::{ContentType, RoomContent};
 use board::websocket::broadcaster::Broadcaster;
 use board::websocket::connection::ConnectionManager;
-use board::websocket::types::{RoomInfo, WsError, WsMessage, WsMessageType};
+use board::websocket::types::{RoomInfo, RoomUpdateReason, WsError, WsMessage, WsMessageType};
 use chrono::Utc;
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -281,7 +281,7 @@ async fn test_broadcaster_room_update() {
     };
 
     broadcaster
-        .broadcast_room_update(&room_name, &room_info)
+        .broadcast_room_update(&room_name, &room_info, RoomUpdateReason::SettingsChanged)
         .await
         .unwrap();
 
@@ -289,6 +289,13 @@ async fn test_broadcaster_room_update() {
     assert!(received.is_some(), "should receive message");
     let msg = received.unwrap();
     assert_eq!(msg.message_type, WsMessageType::RoomUpdate);
+    assert_eq!(
+        msg.payload
+            .as_ref()
+            .and_then(|payload| payload.get("reason"))
+            .and_then(|reason| reason.as_str()),
+        Some("settings_changed")
+    );
 }
 
 // ============================================================================

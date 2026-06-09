@@ -6,16 +6,19 @@ import {
   FileNames,
   LastMessageText,
   MessageCount,
+  PermissionState,
 } from "../../screenplay/room/questions/Room.questions";
 import { RoomScreen } from "../../screenplay/room/screens/Room.screen";
 import {
   AddRoomLink,
+  ConfigureRoom,
   ConfirmDelete,
   DeleteMessageById,
   OpenRoom,
   SaveMessages,
   SendMessage,
   SetSettingTo,
+  SetRoomPermissions,
   UpdateLatestMessage,
 } from "../../screenplay/room/tasks/Room.tasks";
 import { tCommon } from "../../screenplay/support/i18n";
@@ -229,6 +232,97 @@ test.describe("Browser desktop notifications", () => {
       .toContain(":message:updated:");
     await expect.poll(async () => notificationText(page))
       .toContain(updatedMessage);
+  });
+
+  test("sends desktop notifications for remote room setting updates", async ({
+    actor,
+    page,
+    createActor,
+  }) => {
+    await setNotificationPermission(page, "granted");
+    await actor.attemptsTo(SetSettingTo("setting-desktop-notifications", true));
+
+    const sender = await createActor("notification room settings sender");
+    await sender.actor.attemptsTo(
+      OpenRoom(room.url),
+      ConfigureRoom({ maxViews: 777 }),
+    );
+
+    await expect(RoomScreen.maxViewsInput(page)).toHaveValue("777");
+    await expect.poll(async () => notificationTags(page))
+      .toContain(":room:settings_changed:");
+    await expect.poll(async () => notificationText(page))
+      .toContain(tCommon("desktopNotification.title.room.settings_changed"));
+  });
+
+  test("sends desktop notifications for remote room permission updates", async ({
+    actor,
+    page,
+    createActor,
+  }) => {
+    await setNotificationPermission(page, "granted");
+    await actor.attemptsTo(SetSettingTo("setting-desktop-notifications", true));
+
+    const sender = await createActor("notification room permissions sender");
+    await sender.actor.attemptsTo(OpenRoom(room.url));
+    expect(await sender.actor.answer(PermissionState("delete"))).toBe(true);
+
+    await sender.actor.attemptsTo(SetRoomPermissions({ delete: false }));
+
+    await expect(RoomScreen.roomAddressChangedAlert(page)).toHaveCount(0);
+    await expect.poll(async () => notificationTags(page))
+      .toContain(":room:permissions_changed:");
+    await expect.poll(async () => notificationText(page))
+      .toContain(tCommon("desktopNotification.title.room.permissions_changed"));
+  });
+
+  test("sends desktop notifications for remote room address changes", async ({
+    actor,
+    page,
+    createActor,
+  }) => {
+    await setNotificationPermission(page, "granted");
+    await actor.attemptsTo(SetSettingTo("setting-desktop-notifications", true));
+
+    const sender = await createActor("notification room address sender");
+    await sender.actor.attemptsTo(OpenRoom(room.url));
+    const shareEnabled = await sender.actor.answer(PermissionState("share"));
+    expect(shareEnabled).toBe(true);
+
+    await sender.actor.attemptsTo(SetRoomPermissions({ share: false }));
+
+    await expect(RoomScreen.roomAddressChangedAlert(page)).toBeVisible();
+    await expect.poll(async () => notificationTags(page))
+      .toContain(":room:address_changed:");
+    await expect.poll(async () => notificationText(page))
+      .toContain(tCommon("desktopNotification.title.room.address_changed"));
+    const addressSubjectPrefix = tCommon(
+      "desktopNotification.roomUpdateSubject.addressChanged",
+      { path: "/__next_room__" },
+    ).replace("/__next_room__", "");
+    await expect.poll(async () => notificationText(page))
+      .toContain(addressSubjectPrefix);
+  });
+
+  test("respects the room setting update notification switch", async ({
+    actor,
+    page,
+    createActor,
+  }) => {
+    await setNotificationPermission(page, "granted");
+    await actor.attemptsTo(
+      SetSettingTo("setting-desktop-notifications", true),
+      SetSettingTo("setting-desktop-notification-room-settings_changed", false),
+    );
+
+    const sender = await createActor("notification room setting disabled sender");
+    await sender.actor.attemptsTo(
+      OpenRoom(room.url),
+      ConfigureRoom({ maxViews: 888 }),
+    );
+
+    await expect(RoomScreen.maxViewsInput(page)).toHaveValue("888");
+    expect(await readNotifications(page)).toHaveLength(0);
   });
 
   test("does not treat a newly added link as a link update", async ({

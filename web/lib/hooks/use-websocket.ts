@@ -74,9 +74,15 @@ export interface RoomInfo {
   current_times_entered: number;
 }
 
+export type RoomUpdateReason =
+  | "address_changed"
+  | "permissions_changed"
+  | "settings_changed";
+
 export interface RoomUpdatePayload {
   room_name: string;
   room_info: RoomInfo;
+  reason: RoomUpdateReason;
 }
 
 /**

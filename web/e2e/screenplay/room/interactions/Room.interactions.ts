@@ -7,7 +7,7 @@ import type { UploadableFile } from "../../support/test-data";
 import { RoomScreen } from "../screens/Room.screen";
 
 const notificationTypeSettingPattern =
-  /^setting-desktop-notification-(message|file|link)-(created|updated|deleted)$/;
+  /^setting-desktop-notification-(message|file|link|room)-(created|updated|deleted|address_changed|permissions_changed|settings_changed)$/;
 
 interface LinkUploadData {
   urlInput: string;

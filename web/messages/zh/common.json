@@ -25,7 +25,8 @@
     "fallback": {
       "message": "消息",
       "file": "文件",
-      "link": "链接"
+      "link": "链接",
+      "room": "房间"
     },
     "title": {
       "message": {
@@ -40,6 +41,11 @@
       "link": {
         "created": "新链接",
         "deleted": "链接已删除"
+      },
+      "room": {
+        "address_changed": "房间地址已变更",
+        "permissions_changed": "房间权限已更新",
+        "settings_changed": "房间配置已更新"
       }
     },
     "summary": {
@@ -55,7 +61,18 @@
       "link": {
         "created": "链接已新增",
         "deleted": "链接已删除"
+      },
+      "room": {
+        "address_changed": "房间地址已变更",
+        "permissions_changed": "房间权限已更新",
+        "settings_changed": "房间配置已更新"
       }
+    },
+    "roomUpdateSubject": {
+      "addressChanged": "房间地址已变更：{path}",
+      "address_changed": "房间地址已变更",
+      "permissions_changed": "房间权限已更新",
+      "settings_changed": "房间配置已更新"
     }
   },
   "copySelectedMessages": "复制选中消息",

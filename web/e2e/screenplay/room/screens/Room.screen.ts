@@ -280,8 +280,14 @@ export const RoomScreen = {
 
   settingDesktopNotificationType: (
     page: Page,
-    kind: "message" | "file" | "link",
-    action: "created" | "updated" | "deleted",
+    kind: "message" | "file" | "link" | "room",
+    action:
+      | "created"
+      | "updated"
+      | "deleted"
+      | "address_changed"
+      | "permissions_changed"
+      | "settings_changed",
   ): Locator =>
     page.getByTestId(`setting-desktop-notification-${kind}-${action}`),
 

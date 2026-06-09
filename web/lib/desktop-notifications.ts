@@ -3,8 +3,17 @@
 import type { ContentEventPayload } from "@/lib/hooks/use-room-events";
 import { ContentType, parseContentType } from "@/lib/types";
 
-export type DesktopNotificationKind = "message" | "file" | "link";
-export type DesktopNotificationAction = "created" | "updated" | "deleted";
+export type ContentDesktopNotificationKind = "message" | "file" | "link";
+export type RoomDesktopNotificationAction =
+  | "address_changed"
+  | "permissions_changed"
+  | "settings_changed";
+export type DesktopNotificationKind = ContentDesktopNotificationKind | "room";
+export type DesktopNotificationAction =
+  | "created"
+  | "updated"
+  | "deleted"
+  | RoomDesktopNotificationAction;
 export type DesktopNotificationPermission = NotificationPermission | "unsupported";
 
 export type DesktopNotificationTypes = Record<
@@ -12,16 +21,27 @@ export type DesktopNotificationTypes = Record<
   Record<DesktopNotificationAction, boolean>
 >;
 
+type PartialDesktopNotificationTypes = Partial<
+  Record<
+    DesktopNotificationKind,
+    Partial<Record<DesktopNotificationAction, boolean>>
+  >
+>;
+
 export const desktopNotificationKinds: DesktopNotificationKind[] = [
   "message",
   "file",
   "link",
+  "room",
 ];
 
 export const desktopNotificationActions: DesktopNotificationAction[] = [
   "created",
   "updated",
   "deleted",
+  "address_changed",
+  "permissions_changed",
+  "settings_changed",
 ];
 
 export const desktopNotificationActionsByKind: Record<
@@ -31,24 +51,59 @@ export const desktopNotificationActionsByKind: Record<
   message: ["created", "updated", "deleted"],
   file: ["created", "deleted"],
   link: ["created", "deleted"],
+  room: ["address_changed", "permissions_changed", "settings_changed"],
 };
+
+function createDisabledDesktopNotificationActions(): Record<
+  DesktopNotificationAction,
+  boolean
+> {
+  return {
+    created: false,
+    updated: false,
+    deleted: false,
+    address_changed: false,
+    permissions_changed: false,
+    settings_changed: false,
+  };
+}
 
 export function createDefaultDesktopNotificationTypes(): DesktopNotificationTypes {
   return {
-    message: { created: true, updated: true, deleted: true },
-    file: { created: true, updated: false, deleted: true },
-    link: { created: true, updated: false, deleted: true },
+    message: {
+      ...createDisabledDesktopNotificationActions(),
+      created: true,
+      updated: true,
+      deleted: true,
+    },
+    file: {
+      ...createDisabledDesktopNotificationActions(),
+      created: true,
+      deleted: true,
+    },
+    link: {
+      ...createDisabledDesktopNotificationActions(),
+      created: true,
+      deleted: true,
+    },
+    room: {
+      ...createDisabledDesktopNotificationActions(),
+      address_changed: true,
+      permissions_changed: true,
+      settings_changed: true,
+    },
   };
 }
 
 export function normalizeDesktopNotificationTypes(
-  value: Partial<DesktopNotificationTypes> | undefined,
+  value: PartialDesktopNotificationTypes | undefined,
 ): DesktopNotificationTypes {
   const defaults = createDefaultDesktopNotificationTypes();
   const normalized = {
     message: { ...defaults.message, ...value?.message },
     file: { ...defaults.file, ...value?.file },
     link: { ...defaults.link, ...value?.link },
+    room: { ...defaults.room, ...value?.room },
   };
 
   for (const kind of desktopNotificationKinds) {
@@ -91,7 +146,7 @@ export async function requestBrowserNotificationPermission(): Promise<DesktopNot
 
 export function getContentNotificationKind(
   payload: ContentEventPayload,
-): DesktopNotificationKind | null {
+): ContentDesktopNotificationKind | null {
   const contentType = parseContentType(payload.content_type);
 
   switch (contentType) {
@@ -109,7 +164,7 @@ export function getContentNotificationKind(
 
 export function getContentNotificationSubject(
   payload: ContentEventPayload,
-  kind: DesktopNotificationKind,
+  kind: ContentDesktopNotificationKind,
 ): string {
   const raw = kind === "message"
     ? payload.text
@@ -155,6 +210,45 @@ export function showContentDesktopNotification({
     new window.Notification(title, {
       body,
       tag: `elizabeth:${roomName}:${kind}:${action}:${contentId}`,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function showRoomDesktopNotification({
+  enabled,
+  types,
+  action,
+  title,
+  body,
+  roomName,
+  tagSubject,
+}: {
+  enabled: boolean;
+  types: DesktopNotificationTypes;
+  action: RoomDesktopNotificationAction;
+  title: string;
+  body: string;
+  roomName: string;
+  tagSubject: string;
+}): boolean {
+  if (!enabled || getBrowserNotificationPermission() !== "granted") {
+    return false;
+  }
+
+  if (
+    !isDesktopNotificationActionSupported("room", action) ||
+    !types.room?.[action]
+  ) {
+    return false;
+  }
+
+  try {
+    new window.Notification(title, {
+      body,
+      tag: `elizabeth:${roomName}:room:${action}:${tagSubject}`,
     });
     return true;
   } catch {
