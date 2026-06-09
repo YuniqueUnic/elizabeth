@@ -18,6 +18,32 @@
   "exportSuccess": "导出成功",
   "exportedMessagesAsMarkdown": "已导出 {count} 条消息为 Markdown 文件",
   "roomUsage": "房间占用：{used} / {total} MB",
+  "openProjectOnGitHub": "在 GitHub 上打开项目",
+  "desktopNotification": {
+    "body": "{roomName}：{subject}",
+    "fallback": {
+      "message": "消息",
+      "file": "文件",
+      "link": "链接"
+    },
+    "title": {
+      "message": {
+        "created": "新消息",
+        "updated": "消息已更新",
+        "deleted": "消息已删除"
+      },
+      "file": {
+        "created": "新文件",
+        "updated": "文件已更新",
+        "deleted": "文件已删除"
+      },
+      "link": {
+        "created": "新链接",
+        "updated": "链接已更新",
+        "deleted": "链接已删除"
+      }
+    }
+  },
   "copySelectedMessages": "复制选中消息",
   "downloadExportSelectedMessages": "下载导出选中消息",
   "save": "保存",

@@ -1,9 +1,57 @@
 import { Interaction, the } from "@serenity-js/core";
+import type { Page } from "@playwright/test";
 
 import { nativePageFor } from "../../support/actor-page";
 import { tRoom } from "../../support/i18n";
 import type { UploadableFile } from "../../support/test-data";
 import { RoomScreen } from "../screens/Room.screen";
+
+const notificationTypeSettingPattern =
+  /^setting-desktop-notification-(message|file|link)-(created|updated|deleted)$/;
+
+function tabForSetting(testid: string) {
+  if (
+    testid === "setting-include-metadata-copy" ||
+    testid === "setting-include-metadata-download"
+  ) {
+    return "messages";
+  }
+
+  if (
+    testid === "setting-desktop-notifications" ||
+    notificationTypeSettingPattern.test(testid)
+  ) {
+    return "notifications";
+  }
+
+  return "general";
+}
+
+async function revealSetting(page: Page, testid: string) {
+  const tab = tabForSetting(testid);
+  const tabTrigger = RoomScreen.settingsTab(page, tab);
+
+  if (await tabTrigger.getAttribute("aria-selected") !== "true") {
+    await tabTrigger.click();
+  }
+
+  await RoomScreen.settingsTabPanel(page, tab).waitFor({
+    state: "visible",
+    timeout: 5_000,
+  });
+
+  const setting = page.getByTestId(testid);
+  const notificationMatch = testid.match(notificationTypeSettingPattern);
+  if (notificationMatch && !(await setting.isVisible().catch(() => false))) {
+    await RoomScreen.settingsNotificationKindTrigger(
+      page,
+      notificationMatch[1],
+    ).click();
+  }
+
+  await setting.scrollIntoViewIfNeeded();
+  return setting;
+}
 
 export const WaitForRoomToBeReady = () =>
   Interaction.where(the`#actor waits for the room UI to be ready`, async (actor) => {
@@ -255,7 +303,7 @@ export const ScrollMessageListToTop = () =>
       const viewport = element.querySelector("[data-radix-scroll-area-viewport]") as HTMLDivElement | null;
       if (viewport) {
         viewport.scrollTop = 0;
-        viewport.dispatchEvent(new Event("scroll"));
+        viewport.dispatchEvent(new Event("scroll", { bubbles: true }));
       }
     });
   });
@@ -299,7 +347,7 @@ export const CloseSettings = () =>
 export const ToggleSetting = (testid: string) =>
   Interaction.where(the`#actor toggles the setting ${testid}`, async (actor) => {
     const page = await nativePageFor(actor);
-    await page.getByTestId(testid).click();
+    await (await revealSetting(page, testid)).click();
   });
 
 export const SetSettingState = (testid: string, desired: boolean) =>
@@ -307,7 +355,7 @@ export const SetSettingState = (testid: string, desired: boolean) =>
     the`#actor sets the setting ${testid} to ${desired}`,
     async (actor) => {
       const page = await nativePageFor(actor);
-      const toggle = page.getByTestId(testid);
+      const toggle = await revealSetting(page, testid);
       const current = await toggle.getAttribute("aria-checked");
 
       if ((current === "true") !== desired) {

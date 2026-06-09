@@ -592,19 +592,20 @@ pub async fn delete_contents(
     }
 
     let ids_for_response = ids.clone();
+    let deleted_contents = contents.clone();
 
     // 广播内容删除事件
     let broadcaster = app_state.broadcaster.clone();
     let room_name_clone = name.clone();
     tokio::spawn(async move {
-        for content_id in &ids {
+        for content in &deleted_contents {
             if let Err(e) = broadcaster
-                .broadcast_content_deleted(&room_name_clone, *content_id)
+                .broadcast_content_deleted(&room_name_clone, content)
                 .await
             {
                 log::warn!(
                     "Failed to broadcast content deleted event for {}: {}",
-                    content_id,
+                    content.id.unwrap_or_default(),
                     e
                 );
             }

@@ -6,11 +6,29 @@ export const RoomScreen = {
   mainArea: (page: Page): Locator =>
     page.locator("main"),
 
+  brandLabel: (page: Page): Locator =>
+    page.getByText("Elizabeth", { exact: true }),
+
+  githubProjectLink: (page: Page): Locator =>
+    page.getByTestId("github-project-link"),
+
+  topbarSelectionActions: (page: Page): Locator =>
+    page.getByTestId("topbar-selection-actions"),
+
   messageInput: (page: Page): Locator =>
     page.locator(".tiptap-editor-content [contenteditable='true']").first(),
 
+  sourceEditor: (page: Page): Locator =>
+    page.locator("textarea").first(),
+
   sendButton: (page: Page): Locator =>
     page.getByRole("button", { name: tRoom("messageInput.send") }).first(),
+
+  codeBlockToolbarButton: (page: Page): Locator =>
+    page.getByRole("button", { name: tRoom("messageInput.toolbarCodeBlock") }).first(),
+
+  sourceModeButton: (page: Page): Locator =>
+    page.getByRole("button", { name: tRoom("messageInput.toolbarSourceMode") }).first(),
 
   expandEditorButton: (page: Page): Locator =>
     page.getByRole("button", { name: tRoom("messageInput.expandEditor") }),
@@ -39,6 +57,9 @@ export const RoomScreen = {
   messageContents: (page: Page): Locator =>
     page.getByTestId(/^message-content-/),
 
+  messageCheckboxes: (page: Page): Locator =>
+    page.getByTestId(/^message-checkbox-/),
+
   messageUnsavedBadges: (page: Page): Locator =>
     page.getByTestId(/^message-unsaved-badge-/),
 
@@ -60,11 +81,17 @@ export const RoomScreen = {
   messageListScroll: (page: Page): Locator =>
     page.getByTestId("message-list-scroll"),
 
+  messageSelectionToolbar: (page: Page): Locator =>
+    page.getByTestId("message-selection-toolbar"),
+
   jumpToLatestButton: (page: Page): Locator =>
     page.getByRole("button", { name: tRoom("messageList.scrollToLatest") }),
 
   mobileChatTab: (page: Page): Locator =>
     page.getByRole("tab", { name: tCommon("mobileTabChat") }),
+
+  mobileBottomTabs: (page: Page): Locator =>
+    page.getByTestId("mobile-bottom-tabs"),
 
   editorCancelButton: (page: Page): Locator =>
     page.getByRole("button", { name: tRoom("messageInput.cancel") }).last(),
@@ -222,8 +249,33 @@ export const RoomScreen = {
   settingAutoScroll: (page: Page): Locator =>
     page.getByTestId("setting-auto-scroll"),
 
+  settingDesktopNotifications: (page: Page): Locator =>
+    page.getByTestId("setting-desktop-notifications"),
+
+  settingDesktopNotificationType: (
+    page: Page,
+    kind: "message" | "file" | "link",
+    action: "created" | "updated" | "deleted",
+  ): Locator =>
+    page.getByTestId(`setting-desktop-notification-${kind}-${action}`),
+
   settingsDialog: (page: Page): Locator =>
     page.getByTestId("settings-dialog"),
+
+  settingsDialogScroll: (page: Page): Locator =>
+    page.getByTestId("settings-dialog-scroll"),
+
+  settingsTab: (page: Page, tab: string): Locator =>
+    page.getByTestId(`settings-tab-${tab}`),
+
+  settingsTabPanel: (page: Page, tab: string): Locator =>
+    page.getByTestId(`settings-tab-${tab}-panel`),
+
+  settingsNotificationAccordion: (page: Page): Locator =>
+    page.getByTestId("settings-notification-accordion"),
+
+  settingsNotificationKindTrigger: (page: Page, kind: string): Locator =>
+    page.getByTestId(`settings-notification-${kind}-trigger`),
 
   // Delete confirmation dialogs
   deleteConfirmDialog: (page: Page): Locator =>

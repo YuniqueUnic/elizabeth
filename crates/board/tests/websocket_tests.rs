@@ -179,6 +179,37 @@ async fn test_broadcaster_content_created() {
 }
 
 #[tokio::test]
+async fn test_broadcaster_content_deleted_includes_content_metadata() {
+    let manager = Arc::new(ConnectionManager::new());
+    let broadcaster = Broadcaster::new(manager.clone());
+    let room_name = "test-room".to_string();
+    let connection_id = "conn-1".to_string();
+    let (tx, mut rx) = mpsc::unbounded_channel::<WsMessage>();
+
+    manager
+        .subscribe_to_room(connection_id, room_name.clone(), tx)
+        .await
+        .unwrap();
+
+    let content = create_test_content();
+    broadcaster
+        .broadcast_content_deleted(&room_name, &content)
+        .await
+        .unwrap();
+
+    let received: Option<WsMessage> = rx.recv().await;
+    assert!(received.is_some(), "should receive message");
+    let msg = received.unwrap();
+    assert_eq!(msg.message_type, WsMessageType::ContentDeleted);
+
+    let payload = msg.payload.expect("message should have payload");
+    assert_eq!(payload["content_id"].as_i64(), Some(1));
+    assert_eq!(payload["room_name"].as_str(), Some(room_name.as_str()));
+    assert_eq!(payload["content_type"]["type"].as_str(), Some("text"));
+    assert_eq!(payload["text"].as_str(), Some("test content"));
+}
+
+#[tokio::test]
 async fn test_broadcaster_user_joined() {
     let manager = Arc::new(ConnectionManager::new());
     let broadcaster = Broadcaster::new(manager.clone());

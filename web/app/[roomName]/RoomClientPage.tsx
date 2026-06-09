@@ -26,6 +26,13 @@ import { useToast } from "@/hooks/use-toast";
 import { useTranslations } from "next-intl";
 import { copyTextToClipboard } from "@/lib/utils/clipboard";
 import { ManualCopyDialog } from "@/components/manual-copy-dialog";
+import {
+  getContentNotificationKind,
+  getContentNotificationSubject,
+  showContentDesktopNotification,
+  type DesktopNotificationAction,
+} from "@/lib/desktop-notifications";
+import type { ContentEventPayload } from "@/lib/hooks/use-room-events";
 
 function RoomRealtimeSync({
   roomName,
@@ -36,13 +43,38 @@ function RoomRealtimeSync({
   token: string;
   onRoomUpdate?: (payload: RoomUpdatePayload) => void;
 }) {
+  const t = useTranslations("common");
   const queryClient = useQueryClient();
+  const desktopNotificationsEnabled = useAppStore((state) =>
+    state.desktopNotificationsEnabled
+  );
+  const desktopNotificationTypes = useAppStore((state) =>
+    state.desktopNotificationTypes
+  );
   const syncMessagesFromServer = useAppStore((state) =>
     state.syncMessagesFromServer
   );
-  const setRoomRedirectTarget = useAppStore((state) =>
-    state.setRoomRedirectTarget
-  );
+
+  const notifyContentChange = (
+    action: DesktopNotificationAction,
+    payload: ContentEventPayload,
+  ) => {
+    const kind = getContentNotificationKind(payload);
+    if (!kind) return;
+
+    const subject = getContentNotificationSubject(payload, kind) ||
+      t(`desktopNotification.fallback.${kind}`);
+
+    showContentDesktopNotification({
+      enabled: desktopNotificationsEnabled,
+      types: desktopNotificationTypes,
+      payload,
+      action,
+      roomName,
+      title: t(`desktopNotification.title.${kind}.${action}`),
+      body: t("desktopNotification.body", { roomName, subject }),
+    });
+  };
 
   useRoomEvents({
     wsUrl: resolveWebSocketUrl(),
@@ -50,19 +82,21 @@ function RoomRealtimeSync({
     token,
     enableCacheInvalidation: true,
     onContentCreated: (payload) => {
+      notifyContentChange("created", payload);
       const kind = parseContentType(payload.content_type);
       if (kind === ContentType.Text) {
         void syncMessagesFromServer();
       }
     },
     onContentUpdated: (payload) => {
+      notifyContentChange("updated", payload);
       const kind = parseContentType(payload.content_type);
       if (kind === ContentType.Text) {
         void syncMessagesFromServer();
       }
     },
-    onContentDeleted: () => {
-      // Deleted payload does not include content_type; refresh messages to stay consistent.
+    onContentDeleted: (payload) => {
+      notifyContentChange("deleted", payload);
       void syncMessagesFromServer();
     },
     onRoomUpdate: (payload) => {

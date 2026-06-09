@@ -8,6 +8,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useAppStore } from "@/lib/store";
 import { CheckSquare, Repeat, Square, ArrowDown } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { cn } from "@/lib/utils";
 
 const SCROLL_THRESHOLD = 100;
 
@@ -116,7 +117,13 @@ export function MessageList(
 
   return (
     <div className="flex flex-col overflow-hidden h-full">
-      <div className="flex items-center justify-between border-b bg-muted/30 px-4 py-2">
+      <div
+        className={cn(
+          "items-center justify-between border-b bg-muted/30 px-4 py-2",
+          hasSelection ? "flex" : "hidden sm:flex",
+        )}
+        data-testid="message-selection-toolbar"
+      >
         <div className="text-sm text-muted-foreground">
           {hasSelection
             ? t("messageList.selectedCount", { count: selectedMessages.size })

@@ -18,6 +18,32 @@
   "exportSuccess": "Export Successful",
   "exportedMessagesAsMarkdown": "Exported {count} messages as Markdown file",
   "roomUsage": "Room usage: {used} / {total} MB",
+  "openProjectOnGitHub": "Open project on GitHub",
+  "desktopNotification": {
+    "body": "{roomName}: {subject}",
+    "fallback": {
+      "message": "Message",
+      "file": "File",
+      "link": "Link"
+    },
+    "title": {
+      "message": {
+        "created": "New message",
+        "updated": "Message updated",
+        "deleted": "Message deleted"
+      },
+      "file": {
+        "created": "New file",
+        "updated": "File updated",
+        "deleted": "File deleted"
+      },
+      "link": {
+        "created": "New link",
+        "updated": "Link updated",
+        "deleted": "Link deleted"
+      }
+    }
+  },
   "copySelectedMessages": "Copy selected messages",
   "downloadExportSelectedMessages": "Download and export selected messages",
   "save": "Save",

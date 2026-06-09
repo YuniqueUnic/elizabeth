@@ -209,6 +209,7 @@
     "toolbarItalic": "斜体 (Ctrl+I)",
     "toolbarStrike": "删除线",
     "toolbarCode": "行内代码",
+    "toolbarCodeBlock": "代码块",
     "toolbarH1": "标题 1",
     "toolbarH2": "标题 2",
     "toolbarH3": "标题 3",

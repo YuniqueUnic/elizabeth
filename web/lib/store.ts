@@ -2,6 +2,14 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import type { LocalMessage, Message, Theme, TokenInfo } from "./types";
+import {
+  createDefaultDesktopNotificationTypes,
+  normalizeDesktopNotificationTypes,
+  type DesktopNotificationAction,
+  type DesktopNotificationKind,
+  type DesktopNotificationPermission,
+  type DesktopNotificationTypes,
+} from "./desktop-notifications";
 import { getRoomToken } from "./utils/api";
 import { hasValidToken } from "../api/authService";
 import {
@@ -58,6 +66,18 @@ interface AppState {
   // Auto-scroll
   autoScroll: boolean;
   setAutoScroll: (value: boolean) => void;
+
+  // Browser desktop notifications
+  desktopNotificationsEnabled: boolean;
+  setDesktopNotificationsEnabled: (value: boolean) => void;
+  desktopNotificationPermission: DesktopNotificationPermission;
+  setDesktopNotificationPermission: (value: DesktopNotificationPermission) => void;
+  desktopNotificationTypes: DesktopNotificationTypes;
+  setDesktopNotificationType: (
+    kind: DesktopNotificationKind,
+    action: DesktopNotificationAction,
+    value: boolean,
+  ) => void;
 
   // Editor and message font sizes
   editorFontSize: number;
@@ -183,6 +203,25 @@ export const useAppStore = create<AppState>()(
       // Auto-scroll
       autoScroll: true,
       setAutoScroll: (value) => set({ autoScroll: value }),
+
+      // Browser desktop notifications
+      desktopNotificationsEnabled: false,
+      setDesktopNotificationsEnabled: (value) =>
+        set({ desktopNotificationsEnabled: value }),
+      desktopNotificationPermission: "default",
+      setDesktopNotificationPermission: (value) =>
+        set({ desktopNotificationPermission: value }),
+      desktopNotificationTypes: createDefaultDesktopNotificationTypes(),
+      setDesktopNotificationType: (kind, action, value) =>
+        set((state) => ({
+          desktopNotificationTypes: {
+            ...state.desktopNotificationTypes,
+            [kind]: {
+              ...state.desktopNotificationTypes[kind],
+              [action]: value,
+            },
+          },
+        })),
 
       // Editor and message font sizes
       editorFontSize: 15,
@@ -503,7 +542,20 @@ export const useAppStore = create<AppState>()(
         messageFontSize: state.messageFontSize,
         useHeti: state.useHeti,
         showDeleteConfirmation: state.showDeleteConfirmation,
+        desktopNotificationsEnabled: state.desktopNotificationsEnabled,
+        desktopNotificationTypes: state.desktopNotificationTypes,
       }),
+      merge: (persisted, current) => {
+        const state = persisted as Partial<AppState> | undefined;
+        return {
+          ...current,
+          ...state,
+          desktopNotificationPermission: "default",
+          desktopNotificationTypes: normalizeDesktopNotificationTypes(
+            state?.desktopNotificationTypes,
+          ),
+        };
+      },
     },
   ),
 );

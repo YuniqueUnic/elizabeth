@@ -63,11 +63,14 @@ impl Broadcaster {
     pub async fn broadcast_content_deleted(
         &self,
         room_name: &str,
-        content_id: i64,
+        content: &RoomContent,
     ) -> Result<usize, Box<dyn std::error::Error>> {
         let payload = json!({
-            "content_id": content_id,
+            "content_id": content.id,
             "room_name": room_name,
+            "content_type": content.content_type,
+            "text": content.text,
+            "file_name": content.file_name,
         });
 
         let message = WsMessage::new(WsMessageType::ContentDeleted, Some(payload));

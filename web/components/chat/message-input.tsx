@@ -7,10 +7,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Maximize2, Send, X } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useAppStore } from "@/lib/store";
 import type { Message } from "@/lib/types";
-import { MinimalTiptapEditor } from "./minimal-tiptap-editor";
+import {
+  MinimalTiptapEditor,
+  type MinimalTiptapEditorMethods,
+} from "./minimal-tiptap-editor";
 import { useTranslations } from "next-intl";
 
 interface MessageInputProps {
@@ -48,13 +51,15 @@ export function MessageInput(
 ) {
   const t = useTranslations("room");
   const [isExpanded, setIsExpanded] = useState(false);
+  const editorRef = useRef<MinimalTiptapEditorMethods>(null);
   const sendOnEnter = useAppStore((state) => state.sendOnEnter);
   const content = useAppStore((state) => state.composerContent);
   const setContent = useAppStore((state) => state.setComposerContent);
   // const diffMarkdown = editingMessage?.originalContent ?? editingMessage?.content;
 
   const handleSend = useCallback(() => {
-    const sendable = getSendableContent(content);
+    const latestContent = editorRef.current?.getMarkdown() ?? content;
+    const sendable = getSendableContent(latestContent);
     if (!sendable || isLoading) return;
     onSend(sendable);
     setIsExpanded(false);
@@ -80,6 +85,7 @@ export function MessageInput(
 
         <div className="flex-grow min-h-0 relative">
           <MinimalTiptapEditor
+            ref={editorRef}
             value={content}
             onChange={setContent}
             onRequestSend={handleSend}

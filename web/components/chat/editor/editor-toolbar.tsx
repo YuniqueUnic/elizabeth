@@ -21,6 +21,7 @@ import {
   Heading3,
   Paperclip,
   FileCode,
+  SquareCode,
 } from "lucide-react";
 
 interface EditorToolbarProps {
@@ -102,6 +103,15 @@ export function EditorToolbar({
           disabled={disabled}
         >
           <Code className="h-3.5 w-3.5" />
+        </ToolbarButton>
+
+        <ToolbarButton
+          onClick={() => handleAction("codeBlock", () => editor.chain().focus().toggleCodeBlock().focus().run())}
+          active={!isSourceMode && editor.isActive("codeBlock")}
+          title={t("toolbarCodeBlock")}
+          disabled={disabled}
+        >
+          <SquareCode className="h-3.5 w-3.5" />
         </ToolbarButton>
       </div>
 
@@ -212,6 +222,7 @@ export function EditorToolbar({
           isSourceMode && "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
         )}
         title={isSourceMode ? t("toolbarPreviewMode") : t("toolbarSourceMode")}
+        aria-label={isSourceMode ? t("toolbarPreviewMode") : t("toolbarSourceMode")}
       >
         <FileCode className="h-3.5 w-3.5" />
       </Button>

@@ -203,6 +203,12 @@ export const SwitchToMobileViewport = () =>
     ResizeViewport(390, 844),
   );
 
+export const SwitchToShortMobileViewport = () =>
+  Task.where(
+    the`#actor switches to a short mobile viewport`,
+    ResizeViewport(390, 560),
+  );
+
 export const ScrollMessagesUp = () =>
   Task.where(
     the`#actor scrolls away from the latest message`,

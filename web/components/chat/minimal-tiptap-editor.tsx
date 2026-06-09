@@ -96,6 +96,7 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
 
     const lastInsertRequestIdRef = useRef<number | null>(null);
     const isUpdatingFromProp = useRef(false);
+    const locallyEmittedValuesRef = useRef(new Set<string>());
 
     const editor = useEditor({
       extensions: [
@@ -135,6 +136,7 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
         }),
       ],
       content: value,
+      contentType: "markdown",
       editorProps: {
         attributes: {
           class: cn(
@@ -171,6 +173,7 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
       onUpdate: ({ editor }) => {
         if (!isUpdatingFromProp.current) {
           const markdown = getMarkdownFromEditor(editor);
+          locallyEmittedValuesRef.current.add(markdown);
           onChange(markdown);
         }
       },
@@ -238,7 +241,14 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
     useEffect(() => {
       // 如果处于源码模式，不需要同步 Tiptap editor，因为我们直接显示 value
       // 但如果 value 改变了（比如外部更新），我们需要确保 editor 状态也正确，以便切换回来时是对的
-      if (editor && value !== getMarkdownFromEditor(editor) && value !== editor.getText()) {
+      if (!editor) return;
+
+      const wasEmittedByThisEditor = locallyEmittedValuesRef.current.delete(value);
+      if (
+        value !== getMarkdownFromEditor(editor) &&
+        value !== editor.getText() &&
+        !wasEmittedByThisEditor
+      ) {
         isUpdatingFromProp.current = true;
         setMarkdownToEditor(editor, value);
         isUpdatingFromProp.current = false;
