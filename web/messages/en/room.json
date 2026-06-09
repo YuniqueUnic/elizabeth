@@ -209,6 +209,7 @@
     "toolbarItalic": "Italic (Ctrl+I)",
     "toolbarStrike": "Strikethrough",
     "toolbarCode": "Inline Code",
+    "toolbarCodeBlock": "Code Block",
     "toolbarH1": "Heading 1",
     "toolbarH2": "Heading 2",
     "toolbarH3": "Heading 3",

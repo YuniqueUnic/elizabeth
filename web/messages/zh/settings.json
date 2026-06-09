@@ -1,6 +1,12 @@
 {
   "title": "设置",
   "description": "配置应用程序的行为和偏好设置",
+  "tabs": {
+    "general": "通用",
+    "messages": "消息与导出",
+    "notifications": "通知",
+    "appearance": "外观"
+  },
   "sendOnEnter": {
     "label": "按 Enter 键发送消息",
     "enabled": "按 Enter 发送，Shift+Enter 换行",
@@ -25,6 +31,31 @@
   "autoScroll": {
     "label": "始终追踪最新消息",
     "description": "新消息到达时自动滚动到底部，类似 IM 聊天软件"
+  },
+  "desktopNotifications": {
+    "label": "浏览器桌面通知",
+    "description": "请求浏览器权限，并在房间内容变化时通知。当前权限：{permission}",
+    "permission": {
+      "granted": "已允许",
+      "denied": "已阻止",
+      "default": "未请求",
+      "unsupported": "不支持"
+    },
+    "kinds": {
+      "message": "消息",
+      "file": "文件",
+      "link": "链接"
+    },
+    "kindDescriptions": {
+      "message": "控制消息新增、更新、删除时的通知",
+      "file": "控制文件上传、更新、删除时的通知",
+      "link": "控制链接新增、更新、删除时的通知"
+    },
+    "actions": {
+      "created": "新增",
+      "updated": "更新",
+      "deleted": "删除"
+    }
   },
   "editorFontSize": {
     "label": "编辑器字体大小",

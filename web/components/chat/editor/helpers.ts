@@ -5,8 +5,9 @@ import type { FileItem } from "@/lib/types";
 export function getMarkdownFromEditor(editor: Editor | null): string {
   if (!editor) return "";
   try {
-    const doc = editor.getJSON();
-    return editor.storage.markdown?.manager?.serialize(doc) || editor.getText();
+    return editor.getMarkdown?.() ||
+      editor.storage.markdown?.manager?.serialize(editor.getJSON()) ||
+      editor.getText();
   } catch (e) {
     console.error("Failed to serialize markdown:", e);
     return editor.getText();
@@ -20,11 +21,11 @@ export function setMarkdownToEditor(editor: Editor, markdown: string): void {
     if (json) {
       editor.commands.setContent(json);
     } else {
-      editor.commands.setContent(markdown);
+      editor.commands.setContent(markdown, { contentType: "markdown" });
     }
   } catch (e) {
     console.error("Failed to parse markdown:", e);
-    editor.commands.setContent(markdown);
+    editor.commands.setContent(markdown, { contentType: "markdown" });
   }
 }
 
@@ -35,11 +36,11 @@ export function insertMarkdownToEditor(editor: Editor, markdown: string): void {
     if (json) {
       editor.commands.insertContent(json.content || json);
     } else {
-      editor.commands.insertContent(markdown);
+      editor.commands.insertContent(markdown, { contentType: "markdown" });
     }
   } catch (e) {
     console.error("Failed to parse and insert markdown:", e);
-    editor.commands.insertContent(markdown);
+    editor.commands.insertContent(markdown, { contentType: "markdown" });
   }
 }
 
@@ -75,6 +76,17 @@ export function applyMarkdownSyntax(
       newSelection = `\`${selection}\``;
       cursorOffset = 1;
       break;
+    case "codeBlock": {
+      const prefix = before.length === 0 || before.endsWith("\n")
+        ? "```\n"
+        : "\n```\n";
+      const suffix = after.length === 0 || after.startsWith("\n")
+        ? "\n```"
+        : "\n```\n";
+      newSelection = `${prefix}${selection}${suffix}`;
+      cursorOffset = prefix.length;
+      break;
+    }
     case "heading-1":
       before = `${before}# `;
       cursorOffset = 2;

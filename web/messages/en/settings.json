@@ -1,6 +1,12 @@
 {
   "title": "Settings",
   "description": "Configure application behavior and preferences",
+  "tabs": {
+    "general": "General",
+    "messages": "Messages & Export",
+    "notifications": "Notifications",
+    "appearance": "Appearance"
+  },
   "sendOnEnter": {
     "label": "Send on Enter key",
     "enabled": "Press Enter to send, Shift+Enter for new line",
@@ -25,6 +31,31 @@
   "autoScroll": {
     "label": "Always track latest message",
     "description": "Auto-scroll to bottom when new messages arrive, like an IM chat"
+  },
+  "desktopNotifications": {
+    "label": "Browser desktop notifications",
+    "description": "Ask the browser for permission and notify room changes. Current permission: {permission}",
+    "permission": {
+      "granted": "Allowed",
+      "denied": "Blocked",
+      "default": "Not requested",
+      "unsupported": "Unsupported"
+    },
+    "kinds": {
+      "message": "Messages",
+      "file": "Files",
+      "link": "Links"
+    },
+    "kindDescriptions": {
+      "message": "Choose which message changes should notify you",
+      "file": "Choose which file changes should notify you",
+      "link": "Choose which link changes should notify you"
+    },
+    "actions": {
+      "created": "New",
+      "updated": "Updated",
+      "deleted": "Deleted"
+    }
   },
   "editorFontSize": {
     "label": "Editor Font Size",

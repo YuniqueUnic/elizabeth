@@ -24,6 +24,7 @@ export const ToolbarButton = ({
       type="button"
       variant="ghost"
       size="sm"
+      onMouseDown={(event) => event.preventDefault()}
       onClick={onClick}
       disabled={disabled}
       className={cn(
@@ -31,6 +32,7 @@ export const ToolbarButton = ({
         active && "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
       )}
       title={title}
+      aria-label={title}
     >
       {children}
     </Button>

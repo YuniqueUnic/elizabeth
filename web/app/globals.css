@@ -289,6 +289,135 @@
     max-width: 100%;
 }
 
+.message-content .ProseMirror pre code,
+.tiptap-editor-content .ProseMirror pre code {
+    white-space: pre;
+    word-break: normal;
+    overflow-wrap: normal;
+}
+
+.message-content .ProseMirror pre,
+.tiptap-editor-content .ProseMirror pre {
+    @apply rounded-lg border border-border bg-muted/55 p-3 font-mono text-sm leading-relaxed;
+}
+
+.message-content .ProseMirror code:not(pre code),
+.tiptap-editor-content .ProseMirror code:not(pre code) {
+    @apply rounded bg-muted px-1.5 py-0.5 font-mono text-[0.92em];
+}
+
+.message-content .ProseMirror .hljs-comment,
+.tiptap-editor-content .ProseMirror .hljs-comment,
+.message-content .ProseMirror .hljs-quote,
+.tiptap-editor-content .ProseMirror .hljs-quote {
+    color: #6a737d;
+}
+
+.message-content .ProseMirror .hljs-keyword,
+.tiptap-editor-content .ProseMirror .hljs-keyword,
+.message-content .ProseMirror .hljs-selector-tag,
+.tiptap-editor-content .ProseMirror .hljs-selector-tag,
+.message-content .ProseMirror .hljs-subst,
+.tiptap-editor-content .ProseMirror .hljs-subst {
+    color: #d73a49;
+}
+
+.message-content .ProseMirror .hljs-string,
+.tiptap-editor-content .ProseMirror .hljs-string,
+.message-content .ProseMirror .hljs-doctag,
+.tiptap-editor-content .ProseMirror .hljs-doctag {
+    color: #032f62;
+}
+
+.message-content .ProseMirror .hljs-title,
+.tiptap-editor-content .ProseMirror .hljs-title,
+.message-content .ProseMirror .hljs-section,
+.tiptap-editor-content .ProseMirror .hljs-section,
+.message-content .ProseMirror .hljs-selector-id,
+.tiptap-editor-content .ProseMirror .hljs-selector-id {
+    color: #6f42c1;
+}
+
+.message-content .ProseMirror .hljs-number,
+.tiptap-editor-content .ProseMirror .hljs-number,
+.message-content .ProseMirror .hljs-literal,
+.tiptap-editor-content .ProseMirror .hljs-literal,
+.message-content .ProseMirror .hljs-variable,
+.tiptap-editor-content .ProseMirror .hljs-variable,
+.message-content .ProseMirror .hljs-template-variable,
+.tiptap-editor-content .ProseMirror .hljs-template-variable,
+.message-content .ProseMirror .hljs-tag .hljs-attr,
+.tiptap-editor-content .ProseMirror .hljs-tag .hljs-attr {
+    color: #005cc5;
+}
+
+.message-content .ProseMirror .hljs-attr,
+.tiptap-editor-content .ProseMirror .hljs-attr,
+.message-content .ProseMirror .hljs-attribute,
+.tiptap-editor-content .ProseMirror .hljs-attribute,
+.message-content .ProseMirror .hljs-name,
+.tiptap-editor-content .ProseMirror .hljs-name,
+.message-content .ProseMirror .hljs-type,
+.tiptap-editor-content .ProseMirror .hljs-type {
+    color: #22863a;
+}
+
+.dark .message-content .ProseMirror .hljs-comment,
+.dark .tiptap-editor-content .ProseMirror .hljs-comment,
+.dark .message-content .ProseMirror .hljs-quote,
+.dark .tiptap-editor-content .ProseMirror .hljs-quote {
+    color: #8b949e;
+}
+
+.dark .message-content .ProseMirror .hljs-keyword,
+.dark .tiptap-editor-content .ProseMirror .hljs-keyword,
+.dark .message-content .ProseMirror .hljs-selector-tag,
+.dark .tiptap-editor-content .ProseMirror .hljs-selector-tag,
+.dark .message-content .ProseMirror .hljs-subst,
+.dark .tiptap-editor-content .ProseMirror .hljs-subst {
+    color: #ff7b72;
+}
+
+.dark .message-content .ProseMirror .hljs-string,
+.dark .tiptap-editor-content .ProseMirror .hljs-string,
+.dark .message-content .ProseMirror .hljs-doctag,
+.dark .tiptap-editor-content .ProseMirror .hljs-doctag {
+    color: #a5d6ff;
+}
+
+.dark .message-content .ProseMirror .hljs-title,
+.dark .tiptap-editor-content .ProseMirror .hljs-title,
+.dark .message-content .ProseMirror .hljs-section,
+.dark .tiptap-editor-content .ProseMirror .hljs-section,
+.dark .message-content .ProseMirror .hljs-selector-id,
+.dark .tiptap-editor-content .ProseMirror .hljs-selector-id {
+    color: #d2a8ff;
+}
+
+.dark .message-content .ProseMirror .hljs-number,
+.dark .tiptap-editor-content .ProseMirror .hljs-number,
+.dark .message-content .ProseMirror .hljs-literal,
+.dark .tiptap-editor-content .ProseMirror .hljs-literal,
+.dark .message-content .ProseMirror .hljs-variable,
+.dark .tiptap-editor-content .ProseMirror .hljs-variable,
+.dark .message-content .ProseMirror .hljs-template-variable,
+.dark .tiptap-editor-content .ProseMirror .hljs-template-variable,
+.dark .message-content .ProseMirror .hljs-tag .hljs-attr,
+.dark .tiptap-editor-content .ProseMirror .hljs-tag .hljs-attr {
+    color: #79c0ff;
+}
+
+.dark .message-content .ProseMirror .hljs-attr,
+.dark .tiptap-editor-content .ProseMirror .hljs-attr,
+.dark .message-content .ProseMirror .hljs-attribute,
+.dark .tiptap-editor-content .ProseMirror .hljs-attribute,
+.dark .message-content .ProseMirror .hljs-name,
+.dark .tiptap-editor-content .ProseMirror .hljs-name,
+.dark .message-content .ProseMirror .hljs-type,
+.dark .tiptap-editor-content .ProseMirror .hljs-type {
+    color: #7ee787;
+}
+
 .message-content .ProseMirror img {
     max-width: 100%;
     height: auto;

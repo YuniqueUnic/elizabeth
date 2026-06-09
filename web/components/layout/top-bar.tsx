@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { siGithub } from "simple-icons";
 import { Button } from "@/components/ui/button";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { LanguageSwitcher } from "@/components/language-switcher";
@@ -42,6 +43,21 @@ import {
   handleMutationError,
   handleMutationSuccess,
 } from "@/lib/utils/mutations";
+import { cn } from "@/lib/utils";
+
+function GitHubIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      focusable="false"
+      className={className}
+      fill="currentColor"
+    >
+      <path d={siGithub.path} />
+    </svg>
+  );
+}
 
 export function TopBar() {
   const t = useTranslations("common");
@@ -179,9 +195,9 @@ export function TopBar() {
 
   return (
     <>
-      <header className="flex h-14 items-center justify-between border-b bg-background px-4">
+      <header className="flex h-12 items-center justify-between border-b bg-background px-2 sm:h-14 sm:px-4">
       {/* Logo */}
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
         <div className="flex items-center gap-2">
           <div className="relative h-8 w-8 overflow-hidden rounded-lg ring-1 ring-border/60">
             <Image
@@ -193,7 +209,7 @@ export function TopBar() {
               priority
             />
           </div>
-          <span className="text-lg font-semibold">Elizabeth</span>
+          <span className="hidden text-lg font-semibold sm:inline">Elizabeth</span>
         </div>
 
         {/* Room Status */}
@@ -205,29 +221,48 @@ export function TopBar() {
       </div>
 
       {/* Action Buttons */}
-      <div className="flex items-center gap-1 md:gap-2">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 md:h-10 md:w-10"
-          title={t("copySelectedMessages")}
-          onClick={handleCopyMessages}
-          disabled={selectedMessages.size === 0}
-          data-testid="copy-messages-btn"
+      <div className="flex items-center gap-0.5 sm:gap-1 md:gap-2">
+        <div
+          className={cn(
+            "items-center gap-0.5 sm:gap-1 md:gap-2",
+            selectedMessages.size > 0 ? "flex" : "hidden sm:flex",
+          )}
+          data-testid="topbar-selection-actions"
         >
-          <Copy className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 md:h-10 md:w-10"
-          title={t("downloadExportSelectedMessages")}
-          onClick={handleDownloadMessages}
-          disabled={selectedMessages.size === 0}
-          data-testid="download-messages-btn"
-        >
-          <Download className="h-4 w-4" />
-        </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 md:h-10 md:w-10"
+            title={t("copySelectedMessages")}
+            onClick={handleCopyMessages}
+            disabled={selectedMessages.size === 0}
+            data-testid="copy-messages-btn"
+          >
+            <Copy className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 md:h-10 md:w-10"
+            title={t("downloadExportSelectedMessages")}
+            onClick={handleDownloadMessages}
+            disabled={selectedMessages.size === 0}
+            data-testid="download-messages-btn"
+          >
+            <Download className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 md:h-10 md:w-10"
+            title={t("delete")}
+            onClick={handleDeleteMessages}
+            disabled={selectedMessages.size === 0}
+            data-testid="delete-messages-btn"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
         <Button
           variant={hasUnsavedChanges() ? "default" : "ghost"}
           size="icon"
@@ -243,17 +278,6 @@ export function TopBar() {
         >
           <Save className="h-4 w-4" />
         </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 md:h-10 md:w-10"
-          title={t("delete")}
-          onClick={handleDeleteMessages}
-          disabled={selectedMessages.size === 0}
-          data-testid="delete-messages-btn"
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
         <HelpDialog>
           <Button
             variant="ghost"
@@ -266,7 +290,25 @@ export function TopBar() {
           </Button>
         </HelpDialog>
 
-        <div className="mx-1 md:mx-2 h-6 w-px bg-border" />
+        <Button
+          asChild
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 md:h-10 md:w-10"
+          title={t("openProjectOnGitHub")}
+          aria-label={t("openProjectOnGitHub")}
+          data-testid="github-project-link"
+        >
+          <a
+            href="https://github.com/YuniqueUnic/elizabeth"
+            target="_blank"
+            rel="noreferrer"
+          >
+            <GitHubIcon className="h-4 w-4" />
+          </a>
+        </Button>
+
+        <div className="mx-0.5 h-6 w-px bg-border md:mx-2" />
 
         <SettingsDialog>
           <Button

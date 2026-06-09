@@ -8,6 +8,7 @@ import {
 import { CallElizabethApi } from "../abilities/CallElizabethApi.ability";
 import { nativePageFor } from "../support/actor-page";
 import { installClipboardStub } from "../support/clipboard";
+import { installNotificationStub } from "../support/notifications";
 import {
   APP_BASE_URL,
   type ProvisionedRoom,
@@ -46,6 +47,7 @@ const {
 } = useFixtures<ScreenplayFixtures>({
   page: async ({ page }, use) => {
     await installClipboardStub(page);
+    await installNotificationStub(page);
     await use(page);
   },
 
@@ -60,6 +62,7 @@ const {
       const context = await browser.newContext();
       contexts.push(context);
       await installClipboardStub(context);
+      await installNotificationStub(context);
 
       const page = await context.newPage();
       const actor = actorCalled(name).whoCan(

@@ -14,24 +14,47 @@ import {
   ConfirmDelete,
   ConfirmDeleteAndDisableFuture,
   DownloadSelectedMessages,
-  EnableSetting,
   SetSettingTo,
   OpenRoom,
   SaveMessages,
   SendMessage,
+  SwitchToShortMobileViewport,
 } from "../../screenplay/room/tasks/Room.tasks";
 import { SelectAllMessages } from "../../screenplay/room/interactions/Room.interactions";
-import { tCommon, tRoom } from "../../screenplay/support/i18n";
 
 const scrollMessageListToTop = async (page: import("@playwright/test").Page) => {
   const container = page.getByTestId("message-list-scroll");
-  await container.evaluate((element) => {
+  const overflowDistance = await container.evaluate((element) => {
     const viewport = element.querySelector("[data-radix-scroll-area-viewport]") as HTMLDivElement | null;
-    if (viewport) {
-      viewport.scrollTo(0, 0);
-      viewport.dispatchEvent(new Event("scroll"));
-    }
+    if (!viewport) return 0;
+    return viewport.scrollHeight - viewport.clientHeight;
   });
+
+  if (overflowDistance <= 100) {
+    return false;
+  }
+
+  await expect.poll(async () => {
+    await container.evaluate((element) => {
+      const viewport = element.querySelector("[data-radix-scroll-area-viewport]") as HTMLDivElement | null;
+      if (viewport) {
+        viewport.scrollTo(0, 0);
+        viewport.dispatchEvent(new Event("scroll", { bubbles: true }));
+      }
+    });
+
+    return container.evaluate((element) => {
+      const viewport = element.querySelector("[data-radix-scroll-area-viewport]") as HTMLDivElement | null;
+      if (!viewport) return 0;
+      return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+    });
+  }).toBeGreaterThan(100);
+
+  await expect(RoomScreen.jumpToLatestButton(page)).toBeVisible({
+    timeout: 8_000,
+  });
+
+  return true;
 };
 
 test.describe("Room settings integration", () => {
@@ -51,6 +74,76 @@ test.describe("Room settings integration", () => {
     );
   });
 
+  test("keeps the settings dialog usable in a short mobile viewport", async ({
+    actor,
+    page,
+  }) => {
+    await actor.attemptsTo(SwitchToShortMobileViewport());
+    await RoomScreen.settingsButton(page).click();
+
+    const dialogBox = await RoomScreen.settingsDialog(page).boundingBox();
+    expect(dialogBox).not.toBeNull();
+
+    const viewport = page.viewportSize();
+    expect(viewport).not.toBeNull();
+    expect(dialogBox!.y).toBeGreaterThanOrEqual(0);
+    expect(dialogBox!.y + dialogBox!.height).toBeLessThanOrEqual(viewport!.height + 1);
+
+    const scrollMetrics = await RoomScreen.settingsDialogScroll(page).evaluate(
+      (element) => ({
+        clientHeight: element.clientHeight,
+        scrollHeight: element.scrollHeight,
+      }),
+    );
+    expect(scrollMetrics.clientHeight).toBeGreaterThan(0);
+    expect(scrollMetrics.scrollHeight).toBeGreaterThanOrEqual(scrollMetrics.clientHeight);
+
+    await RoomScreen.settingsTab(page, "appearance").click();
+    await expect(RoomScreen.settingsTabPanel(page, "appearance")).toBeVisible();
+    const appearanceScrollMetrics = await RoomScreen.settingsDialogScroll(page)
+      .evaluate((element) => ({
+        clientHeight: element.clientHeight,
+        scrollHeight: element.scrollHeight,
+      }));
+
+    await RoomScreen.settingsDialogScroll(page).evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+    });
+
+    const scrolledTop = await RoomScreen.settingsDialogScroll(page)
+      .evaluate((element) => element.scrollTop);
+    if (appearanceScrollMetrics.scrollHeight > appearanceScrollMetrics.clientHeight) {
+      expect(scrolledTop).toBeGreaterThan(0);
+    }
+    await expect(page.locator("label[for='message-font-size']")).toBeVisible();
+  });
+
+  test("organizes settings into tabs with an accordion notification matrix", async ({
+    page,
+  }) => {
+    await RoomScreen.settingsButton(page).click();
+
+    await expect(page.getByRole("tablist")).toBeVisible();
+
+    for (const tab of ["general", "messages", "notifications", "appearance"]) {
+      await RoomScreen.settingsTab(page, tab).click();
+      await expect(RoomScreen.settingsTabPanel(page, tab)).toBeVisible();
+    }
+
+    await RoomScreen.settingsTab(page, "notifications").click();
+    await expect(RoomScreen.settingsNotificationAccordion(page)).toBeVisible();
+    await expect(RoomScreen.settingsNotificationKindTrigger(page, "message"))
+      .toHaveAttribute("aria-expanded", "true");
+
+    await RoomScreen.settingsNotificationKindTrigger(page, "file").click();
+    await expect(RoomScreen.settingsNotificationKindTrigger(page, "file"))
+      .toHaveAttribute("aria-expanded", "true");
+    await expect(RoomScreen.settingDesktopNotificationType(page, "file", "created"))
+      .toBeVisible();
+    await expect(RoomScreen.settingDesktopNotificationType(page, "file", "created"))
+      .toBeDisabled();
+  });
+
   test.describe("copy and download with metadata", () => {
     test("copies messages without metadata when setting is off", async ({
       actor,
@@ -67,7 +160,6 @@ test.describe("Room settings integration", () => {
 
     test("copies messages with metadata when setting is on", async ({
       actor,
-      page,
     }) => {
       await actor.attemptsTo(SetSettingTo("setting-include-metadata-copy", true));
       await actor.attemptsTo(OpenRoom(room.url));
@@ -163,7 +255,8 @@ test.describe("Room settings integration", () => {
       const msgCount = await RoomScreen.messageItems(page).count();
       test.skip(msgCount < 5, "Not enough messages to test scroll behavior");
 
-      await scrollMessageListToTop(page);
+      const scrolled = await scrollMessageListToTop(page);
+      test.skip(!scrolled, "Message list does not overflow viewport; jump button cannot be verified");
 
       await expect(RoomScreen.jumpToLatestButton(page)).toBeVisible({
         timeout: 8_000,
@@ -179,24 +272,23 @@ test.describe("Room settings integration", () => {
       }
       await actor.attemptsTo(SaveMessages());
 
-      await scrollMessageListToTop(page);
+      const scrolled = await scrollMessageListToTop(page);
+      test.skip(!scrolled, "Message list does not overflow viewport; jump button cannot be verified");
 
       await expect(RoomScreen.jumpToLatestButton(page)).toBeVisible({
         timeout: 8_000,
       });
       await RoomScreen.jumpToLatestButton(page).click();
 
-      await page.waitForTimeout(1000);
-
-      const metrics = await actor.answer(ScrollMetrics());
-      const distanceFromBottom =
-        metrics.scrollHeight - metrics.scrollTop - metrics.clientHeight;
-      expect(distanceFromBottom).toBeLessThan(50);
+      await expect.poll(async () => {
+        const metrics = await actor.answer(ScrollMetrics());
+        return metrics.scrollHeight - metrics.scrollTop - metrics.clientHeight;
+      }).toBeLessThan(50);
     });
   });
 
   test.describe("delete confirmation", () => {
-    test.beforeEach(async ({ actor, page }) => {
+    test.beforeEach(async ({ actor }) => {
       await actor.attemptsTo(OpenRoom(room.url));
       await actor.attemptsTo(SendMessage("Test message for delete"));
       await actor.attemptsTo(SaveMessages());

@@ -35,27 +35,30 @@ export function MobileLayout() {
         </div>
 
         {/* Bottom Tab Bar */}
-        <TabsList className="w-full rounded-none h-14 grid grid-cols-3 border-t">
+        <TabsList
+          className="grid h-11 w-full grid-cols-3 rounded-none border-t"
+          data-testid="mobile-bottom-tabs"
+        >
           <TabsTrigger
             value="settings"
-            className="flex-col gap-1 h-full data-[state=active]:bg-accent"
+            className="h-full flex-col gap-0.5 data-[state=active]:bg-accent"
           >
-            <Settings className="h-5 w-5" />
-            <span className="text-xs">{t("mobileTabSettings")}</span>
+            <Settings className="h-4 w-4" />
+            <span className="text-[11px] leading-none">{t("mobileTabSettings")}</span>
           </TabsTrigger>
           <TabsTrigger
             value="chat"
-            className="flex-col gap-1 h-full data-[state=active]:bg-accent"
+            className="h-full flex-col gap-0.5 data-[state=active]:bg-accent"
           >
-            <MessageSquare className="h-5 w-5" />
-            <span className="text-xs">{t("mobileTabChat")}</span>
+            <MessageSquare className="h-4 w-4" />
+            <span className="text-[11px] leading-none">{t("mobileTabChat")}</span>
           </TabsTrigger>
           <TabsTrigger
             value="files"
-            className="flex-col gap-1 h-full data-[state=active]:bg-accent"
+            className="h-full flex-col gap-0.5 data-[state=active]:bg-accent"
           >
-            <FolderOpen className="h-5 w-5" />
-            <span className="text-xs">{t("mobileTabFiles")}</span>
+            <FolderOpen className="h-4 w-4" />
+            <span className="text-[11px] leading-none">{t("mobileTabFiles")}</span>
           </TabsTrigger>
         </TabsList>
       </Tabs>
