@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v1.1.0.html).
 
+## [1.3.0](https://github.com/YuniqueUnic/elizabeth/compare/v1.2.6...v1.3.0) (2026-06-09)
+
+
+### Features
+
+* **board:** enhance chunk upload handler with structured parsing ([7c0946d](https://github.com/YuniqueUnic/elizabeth/commit/7c0946d3dd60c9f1a5e28fb6d85fcae6f73fce0a))
+* **notification:** implement desktop notifications for content changes ([f0a53c4](https://github.com/YuniqueUnic/elizabeth/commit/f0a53c4318a1d997b716a598d535c36067b07419))
+
+
+### Bug Fixes
+
+* **backend:** prevent slug from becoming public during unrelated permission updates ([9c1ea1f](https://github.com/YuniqueUnic/elizabeth/commit/9c1ea1f0dd385aa6b69a5777168b24f571cf67e8))
+* **chat:** add code block language selection and syntax highlighting ([4515cb0](https://github.com/YuniqueUnic/elizabeth/commit/4515cb0537fe2039e5324ea8fa0b73ccb161bb5a))
+
 ## [1.2.6](https://github.com/YuniqueUnic/elizabeth/compare/v1.2.5...v1.2.6) (2026-06-08)
 
 
