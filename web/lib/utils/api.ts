@@ -273,7 +273,7 @@ export interface APIResponse<T = any> {
 export class APIError extends Error {
   constructor(
     message: string,
-    public code?: number,
+    public code?: number | string,
     public response?: Response,
   ) {
     super(message);
@@ -517,9 +517,14 @@ async function request<T = any>(
       lastError = error as Error;
 
       // Don't retry on client errors (4xx) or abort errors, except for 401 which we handled above
+      const statusCode = error instanceof APIError
+        ? typeof error.code === "number"
+          ? error.code
+          : error.response?.status
+        : undefined;
       if (
-        error instanceof APIError && error.code && error.code >= 400 &&
-        error.code < 500 && error.code !== 401
+        error instanceof APIError && statusCode && statusCode >= 400 &&
+        statusCode < 500 && statusCode !== 401
       ) {
         throw error;
       }

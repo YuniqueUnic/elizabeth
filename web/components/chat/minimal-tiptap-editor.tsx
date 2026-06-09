@@ -16,6 +16,8 @@ import { useAppStore } from "@/lib/store";
 import { uploadFile } from "@/api/fileService";
 import { getRoomDetails } from "@/api/roomService";
 import type { FileItem } from "@/lib/types";
+import { useRoomPermissions } from "@/hooks/use-room-permissions";
+import { isPermissionDeniedError } from "@/lib/utils/mutations";
 import { registerComposerEditor, unregisterComposerEditor } from "@/lib/composer-editor";
 import { cn } from "@/lib/utils";
 import { generateUUID } from "@/lib/utils/uuid";
@@ -81,6 +83,7 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
       staleTime: 1000,
       enabled: !!roomName,
     });
+    const { can } = useRoomPermissions(roomDetails?.permissions);
     const addTransfer = useAppStore((state) => state.addTransfer);
     const updateTransferStatus = useAppStore((state) => state.updateTransferStatus);
     const removeTransfer = useAppStore((state) => state.removeTransfer);
@@ -300,6 +303,15 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
       async (files: File[]) => {
         if (!roomName || !editor) return;
 
+        if (!can.edit) {
+          toast({
+            title: t("permissionDeniedTitle"),
+            description: t("uploadPermissionDenied"),
+            variant: "destructive",
+          });
+          return;
+        }
+
         if (roomDetails) {
           const transfers = useAppStore.getState().transfers;
           const activeUploadsSize = Object.values(transfers)
@@ -361,14 +373,20 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
                   error?.message?.includes("容量")));
 
             toast({
-              title: t("uploadFailed"),
-              description: isSizeError ? t("uploadFailedSizeExceeded") : (error.message || t("uploadFailedDescription")),
+              title: isPermissionDeniedError(error)
+                ? t("permissionDeniedTitle")
+                : t("uploadFailed"),
+              description: isPermissionDeniedError(error)
+                ? t("uploadPermissionDenied")
+                : isSizeError
+                ? t("uploadFailedSizeExceeded")
+                : error.message || t("uploadFailedDescription"),
               variant: "destructive",
             });
           }
         }
       },
-      [roomName, editor, addTransfer, updateTransferStatus, removeTransfer, queryClient, toast, isSourceMode, value, onChange, roomDetails, t]
+      [roomName, editor, can.edit, addTransfer, updateTransferStatus, removeTransfer, queryClient, toast, isSourceMode, value, onChange, roomDetails, t]
     );
 
     return (

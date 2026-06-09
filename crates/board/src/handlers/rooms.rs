@@ -489,19 +489,9 @@ pub async fn update_permissions(
     let was_shareable = room.permission.can_share();
     room.permission = new_permission;
 
-    if payload.share {
-        let desired_slug = room.name.clone();
-        if desired_slug != room.slug {
-            let exists = repo
-                .exists(&desired_slug)
-                .await
-                .map_err(|e| AppError::internal(format!("Database error: {e}")))?;
-            if exists {
-                return Err(AppError::conflict("Slug already in use"));
-            }
-            room.slug = desired_slug;
-        }
-    } else if was_shareable || room.slug == room.name {
+    // `share=false` is the existing address-rotation action; `share=true`
+    // must not make a private slug public during unrelated permission edits.
+    if !payload.share && (was_shareable || room.slug == room.name) {
         // 生成私有 slug，避免冲突
         loop {
             let candidate = format!("{}_{}", room.name, Uuid::new_v4());

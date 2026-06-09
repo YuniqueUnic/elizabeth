@@ -29,6 +29,16 @@
     "verifyFailed": "密码验证失败，密码错误或无法连接服务器",
     "cancel": "取消"
   },
+  "permissionDenied": {
+    "title": "权限已变更",
+    "fileUpload": "房间权限已变更，现在没有编辑权限，无法上传文件。",
+    "linkAdd": "房间权限已变更，现在没有编辑权限，无法新增链接。",
+    "fileDelete": "房间权限已变更，现在没有删除权限，无法删除文件或链接。",
+    "roomConfig": "房间权限已变更，现在没有删除权限，无法修改房间配置。",
+    "roomSettings": "房间权限已变更，现在没有删除权限，无法修改房间设置。",
+    "roomPermissions": "房间权限已变更，现在没有删除权限，无法修改房间权限。",
+    "closeRoom": "房间权限已变更，现在没有删除权限，无法关闭房间。"
+  },
   "config": {
     "title": "房间配置",
     "adminOnly": "只有房间管理员（拥有删除权限）可以修改房间配置",
@@ -128,6 +138,7 @@
   },
   "sharing": {
     "title": "分享房间",
+    "noPermission": "房间分享权限已关闭，无法获取公开链接或二维码。",
     "generatingQr": "正在生成二维码...",
     "copied": "已复制",
     "getLink": "获取链接",
@@ -174,8 +185,8 @@
     "sendFailed": "无法发送消息，请重试",
     "updateFailed": "无法更新消息，请重试",
     "deleteFailed": "无法删除消息，请重试",
-    "deleteConfirmTitle": "你确定要删除这条消息吗？",
-    "deleteConfirmDescription": "这个操作将会被记录，直到你点击保存按钮。",
+    "deleteConfirmTitle": "确定要删除这条消息吗？",
+    "deleteConfirmDescription": "这个操作将会被记录，直到点击保存按钮。",
     "confirmAndDisable": "确认/并不再提示",
     "confirm": "确认",
     "cancel": "取消"
@@ -226,6 +237,8 @@
     "uploadFailed": "上传失败",
     "uploadFailedDescription": "文件上传失败，请重试",
     "uploadFailedSizeExceeded": "文件过大，超出房间容量上限，上传失败",
+    "permissionDeniedTitle": "权限已变更",
+    "uploadPermissionDenied": "房间权限已变更，现在没有编辑权限，无法上传并插入文件。",
     "markdownEditorSubtitle": "支持完整的 Markdown 标记和快捷键"
   },
   "messageList": {

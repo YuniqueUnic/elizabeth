@@ -1,7 +1,10 @@
 import type { Page, Route } from "@playwright/test";
 
 import { expect, test } from "../../screenplay/fixtures/screenplay.fixture";
-import type { ProvisionedRoom } from "../../screenplay/support/constants";
+import {
+  APP_BASE_URL,
+  type ProvisionedRoom,
+} from "../../screenplay/support/constants";
 import { tCommon } from "../../screenplay/support/i18n";
 import { RoomScreen } from "../../screenplay/room/screens/Room.screen";
 import { uniqueRoomName } from "../../screenplay/support/test-data";
@@ -34,6 +37,18 @@ async function rewriteSlugOnMutation(
       response,
     });
   });
+}
+
+async function waitForPermissionMutation(
+  page: Page,
+): Promise<{ name?: string; slug?: string }> {
+  const response = await page.waitForResponse((candidate) =>
+    candidate.url().includes("/api/v1/rooms/") &&
+    candidate.url().includes("/permissions") &&
+    candidate.request().method() === "POST",
+  );
+
+  return response.json();
 }
 
 test.describe("Room redirect safety", () => {
@@ -78,5 +93,36 @@ test.describe("Room redirect safety", () => {
     await expect(RoomScreen.roomAddressChangedAlert(page)).toBeVisible();
     await expect(RoomScreen.roomAddressChangedAlert(page)).toContainText(tCommon("unsavedChangesWarning"));
     await expect(RoomScreen.roomAddressChangedAlert(page)).toContainText(`/${newSlug}`);
+  });
+
+  test("keeps a private room address when delete permission changes", async ({
+    actor,
+    page,
+  }) => {
+    const privateRoomPromise = waitForPermissionMutation(page);
+    await actor.attemptsTo(SetRoomPermissions({ share: false }));
+    const privateRoom = await privateRoomPromise;
+    const privateSlug = privateRoom.slug ?? privateRoom.name;
+
+    if (!privateSlug) {
+      throw new Error("Permission update did not return a room slug");
+    }
+    expect(privateSlug).not.toBe(room.name);
+    await expect(RoomScreen.roomAddressChangedAlert(page)).toBeVisible();
+
+    await actor.attemptsTo(OpenRoom(`${APP_BASE_URL}/${privateSlug}`));
+    await expect.poll(() => new URL(page.url()).pathname)
+      .toBe(`/${privateSlug}`);
+
+    const updatedRoomPromise = waitForPermissionMutation(page);
+    await actor.attemptsTo(SetRoomPermissions({ delete: false }));
+    const updatedRoom = await updatedRoomPromise;
+
+    expect(updatedRoom.slug ?? updatedRoom.name).toBe(privateSlug);
+    await expect(RoomScreen.roomAddressChangedAlert(page)).toHaveCount(0);
+    await expect.poll(() => new URL(page.url()).pathname)
+      .toBe(`/${privateSlug}`);
+    await expect.poll(async () => actor.answer(PermissionState("delete")))
+      .toBe(false);
   });
 });

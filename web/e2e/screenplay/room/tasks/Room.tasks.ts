@@ -68,6 +68,18 @@ export const SaveMessages = () =>
     WaitForSavingToComplete(),
   );
 
+export const TrySaveMessages = () =>
+  Task.where(
+    the`#actor tries to save the current messages`,
+    ClickSaveMessages(),
+  );
+
+export const SendCurrentDraft = () =>
+  Task.where(
+    the`#actor sends the current draft`,
+    ClickSend(),
+  );
+
 export const ConfigureRoom = (config: {
   expiry?: string;
   password?: string;

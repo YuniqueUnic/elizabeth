@@ -22,6 +22,50 @@ use common::{
 
 use board::route::room::api_router;
 
+async fn issue_room_token(app: &axum::Router, room_identifier: &str) -> Result<String> {
+    let issue_request = create_http_request(
+        Method::POST,
+        &format!("/api/v1/rooms/{}/tokens", room_identifier),
+        Some(Body::from(json!({}).to_string())),
+    );
+    let issue_response = app.clone().oneshot(issue_request).await?;
+    assert_eq!(issue_response.status(), StatusCode::OK);
+
+    let issue_body = axum::body::to_bytes(issue_response.into_body(), usize::MAX).await?;
+    let issue_json: serde_json::Value = serde_json::from_slice(&issue_body)?;
+    Ok(issue_json["token"].as_str().unwrap().to_string())
+}
+
+async fn update_room_permissions(
+    app: &axum::Router,
+    room_identifier: &str,
+    token: &str,
+    payload: serde_json::Value,
+) -> Result<serde_json::Value> {
+    let permission_request = create_http_request(
+        Method::POST,
+        &format!(
+            "/api/v1/rooms/{}/permissions?token={}",
+            room_identifier, token
+        ),
+        Some(Body::from(payload.to_string())),
+    );
+    let permission_response = app.clone().oneshot(permission_request).await?;
+    let status = permission_response.status();
+    let permission_body = axum::body::to_bytes(permission_response.into_body(), usize::MAX).await?;
+
+    if status != StatusCode::OK {
+        let response_text = String::from_utf8_lossy(&permission_body);
+        return Err(anyhow::anyhow!(
+            "Permission update failed with status {}: {}",
+            status,
+            response_text
+        ));
+    }
+
+    Ok(serde_json::from_slice(&permission_body)?)
+}
+
 #[tokio::test]
 async fn test_create_room_api() -> Result<()> {
     let (app, _pool) = create_test_app().await?;
@@ -506,6 +550,125 @@ async fn test_update_room_permissions_share_toggle() -> Result<()> {
         create_http_request(Method::GET, &format!("/api/v1/rooms/{}", new_slug), None);
     let private_response = app.clone().oneshot(private_request).await?;
     assert_eq!(private_response.status(), StatusCode::OK);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_private_slug_stays_stable_when_delete_permission_changes() -> Result<()> {
+    let (app, _pool) = create_test_app().await?;
+    let room_name = "permission_private_delete_room";
+
+    let create_request =
+        create_http_request(Method::POST, &format!("/api/v1/rooms/{}", room_name), None);
+    let create_response = app.clone().oneshot(create_request).await?;
+    assert_eq!(create_response.status(), StatusCode::OK);
+
+    let public_token = issue_room_token(&app, room_name).await?;
+    let private_room = update_room_permissions(
+        &app,
+        room_name,
+        &public_token,
+        json!({
+            "edit": true,
+            "share": false,
+            "delete": true
+        }),
+    )
+    .await?;
+    let private_slug = private_room["slug"].as_str().expect("private slug");
+    assert_ne!(private_slug, room_name);
+
+    let private_token = issue_room_token(&app, private_slug).await?;
+    let updated_room = update_room_permissions(
+        &app,
+        private_slug,
+        &private_token,
+        json!({
+            "edit": true,
+            "share": true,
+            "delete": false
+        }),
+    )
+    .await?;
+
+    assert_eq!(updated_room["slug"].as_str(), Some(private_slug));
+    let permission = updated_room["permission"]
+        .as_str()
+        .expect("permission string");
+    assert!(
+        !permission.contains("DELETE"),
+        "delete permission must be removed"
+    );
+
+    let public_request =
+        create_http_request(Method::GET, &format!("/api/v1/rooms/{}", room_name), None);
+    let public_response = app.clone().oneshot(public_request).await?;
+    assert_eq!(public_response.status(), StatusCode::UNAUTHORIZED);
+
+    let private_request = create_http_request(
+        Method::GET,
+        &format!("/api/v1/rooms/{}", private_slug),
+        None,
+    );
+    let private_response = app.clone().oneshot(private_request).await?;
+    assert_eq!(private_response.status(), StatusCode::OK);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_private_slug_stays_stable_when_edit_permission_changes() -> Result<()> {
+    let (app, _pool) = create_test_app().await?;
+    let room_name = "permission_private_edit_room";
+
+    let create_request =
+        create_http_request(Method::POST, &format!("/api/v1/rooms/{}", room_name), None);
+    let create_response = app.clone().oneshot(create_request).await?;
+    assert_eq!(create_response.status(), StatusCode::OK);
+
+    let public_token = issue_room_token(&app, room_name).await?;
+    let private_room = update_room_permissions(
+        &app,
+        room_name,
+        &public_token,
+        json!({
+            "edit": true,
+            "share": false,
+            "delete": true
+        }),
+    )
+    .await?;
+    let private_slug = private_room["slug"].as_str().expect("private slug");
+    assert_ne!(private_slug, room_name);
+
+    let private_token = issue_room_token(&app, private_slug).await?;
+    let updated_room = update_room_permissions(
+        &app,
+        private_slug,
+        &private_token,
+        json!({
+            "edit": false,
+            "share": true,
+            "delete": false
+        }),
+    )
+    .await?;
+
+    assert_eq!(updated_room["slug"].as_str(), Some(private_slug));
+    let permission = updated_room["permission"]
+        .as_str()
+        .expect("permission string");
+    assert!(
+        !permission.contains("EDITABLE"),
+        "edit permission must be removed"
+    );
+    assert!(permission.contains("SHARE"), "share permission must remain");
+
+    let public_request =
+        create_http_request(Method::GET, &format!("/api/v1/rooms/{}", room_name), None);
+    let public_response = app.clone().oneshot(public_request).await?;
+    assert_eq!(public_response.status(), StatusCode::UNAUTHORIZED);
 
     Ok(())
 }

@@ -61,10 +61,11 @@ interface FilePreviewModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onDelete: (fileId: string) => void;
+  canDelete?: boolean;
 }
 
 export function FilePreviewModal(
-  { file, roomName, open, onOpenChange, onDelete }: FilePreviewModalProps,
+  { file, roomName, open, onOpenChange, onDelete, canDelete }: FilePreviewModalProps,
 ) {
   const t = useTranslations("room");
   const { toast } = useToast();
@@ -72,6 +73,7 @@ export function FilePreviewModal(
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [manualCopyValue, setManualCopyValue] = useState("");
   const { can } = useRoomPermissions();
+  const deleteAllowed = canDelete ?? can.delete;
   const isMobile = useIsMobile();
 
   if (!file) return null;
@@ -324,7 +326,7 @@ export function FilePreviewModal(
             size="sm"
             className="h-8"
             onClick={handleDelete}
-            disabled={!can.delete}
+            disabled={!deleteAllowed}
             data-testid="file-preview-delete"
           >
             <Trash2 className="h-3.5 w-3.5 mr-1.5" />

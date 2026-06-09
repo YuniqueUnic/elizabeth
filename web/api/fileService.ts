@@ -3,7 +3,7 @@
  */
 
 import { API_BASE_URL, API_ENDPOINTS } from "../lib/config";
-import { api } from "../lib/utils/api";
+import { APIError, api } from "../lib/utils/api";
 import { getAccessToken, getValidToken } from "./authService";
 import type { TransferProgress } from "../lib/transfer-types";
 import type {
@@ -222,7 +222,7 @@ function xhrUpload<T>(
         try { resolve(JSON.parse(xhr.responseText)); }
         catch { reject(new Error("Invalid JSON response")); }
       } else {
-        reject(new Error(`Upload failed: ${xhr.status}`));
+        reject(parseXhrApiError(xhr, `Upload failed: ${xhr.status}`));
       }
     };
     xhr.onerror = () => reject(new Error("Upload failed"));
@@ -231,6 +231,19 @@ function xhrUpload<T>(
     abortSignal?.addEventListener("abort", () => xhr.abort());
     xhr.send(formData);
   });
+}
+
+function parseXhrApiError(xhr: XMLHttpRequest, fallback: string): APIError {
+  try {
+    const body = JSON.parse(xhr.responseText || "{}");
+    const error = body.error ?? body;
+    return new APIError(
+      error.message || fallback,
+      error.code || xhr.status,
+    );
+  } catch {
+    return new APIError(fallback, xhr.status);
+  }
 }
 
 /**
