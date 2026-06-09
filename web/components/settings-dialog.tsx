@@ -28,7 +28,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import {
-  desktopNotificationActions,
+  desktopNotificationActionsByKind,
   desktopNotificationKinds,
   getBrowserNotificationPermission,
   requestBrowserNotificationPermission,
@@ -148,6 +148,8 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
     setAutoScroll,
     desktopNotificationsEnabled,
     setDesktopNotificationsEnabled,
+    desktopNotificationShowContent,
+    setDesktopNotificationShowContent,
     desktopNotificationPermission,
     setDesktopNotificationPermission,
     desktopNotificationTypes,
@@ -334,6 +336,20 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
                 />
               </SettingRow>
 
+              <SettingRow
+                id="desktop-notification-show-content"
+                label={t("desktopNotifications.showContent.label")}
+                description={t("desktopNotifications.showContent.description")}
+              >
+                <Switch
+                  id="desktop-notification-show-content"
+                  checked={desktopNotificationShowContent}
+                  onCheckedChange={setDesktopNotificationShowContent}
+                  disabled={notificationTypesDisabled}
+                  data-testid="setting-desktop-notification-show-content"
+                />
+              </SettingRow>
+
               <div
                 className="rounded-lg border border-border/70 px-4"
                 data-testid="settings-notification-accordion"
@@ -355,7 +371,7 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
                       </AccordionTrigger>
                       <AccordionContent>
                         <div className="grid gap-2 sm:grid-cols-3">
-                          {desktopNotificationActions.map((action) => {
+                          {desktopNotificationActionsByKind[kind].map((action) => {
                             const switchId =
                               `desktop-notification-${kind}-${action}`;
 

@@ -70,6 +70,8 @@ interface AppState {
   // Browser desktop notifications
   desktopNotificationsEnabled: boolean;
   setDesktopNotificationsEnabled: (value: boolean) => void;
+  desktopNotificationShowContent: boolean;
+  setDesktopNotificationShowContent: (value: boolean) => void;
   desktopNotificationPermission: DesktopNotificationPermission;
   setDesktopNotificationPermission: (value: DesktopNotificationPermission) => void;
   desktopNotificationTypes: DesktopNotificationTypes;
@@ -208,6 +210,9 @@ export const useAppStore = create<AppState>()(
       desktopNotificationsEnabled: false,
       setDesktopNotificationsEnabled: (value) =>
         set({ desktopNotificationsEnabled: value }),
+      desktopNotificationShowContent: true,
+      setDesktopNotificationShowContent: (value) =>
+        set({ desktopNotificationShowContent: value }),
       desktopNotificationPermission: "default",
       setDesktopNotificationPermission: (value) =>
         set({ desktopNotificationPermission: value }),
@@ -543,6 +548,7 @@ export const useAppStore = create<AppState>()(
         useHeti: state.useHeti,
         showDeleteConfirmation: state.showDeleteConfirmation,
         desktopNotificationsEnabled: state.desktopNotificationsEnabled,
+        desktopNotificationShowContent: state.desktopNotificationShowContent,
         desktopNotificationTypes: state.desktopNotificationTypes,
       }),
       merge: (persisted, current) => {
@@ -550,6 +556,8 @@ export const useAppStore = create<AppState>()(
         return {
           ...current,
           ...state,
+          desktopNotificationShowContent:
+            state?.desktopNotificationShowContent ?? true,
           desktopNotificationPermission: "default",
           desktopNotificationTypes: normalizeDesktopNotificationTypes(
             state?.desktopNotificationTypes,

@@ -176,8 +176,25 @@ export const RoomScreen = {
   fileUploadButton: (page: Page): Locator =>
     page.locator("aside").last().locator(`button[title='${tRoom("fileManager.uploadFile")}']`),
 
+  fileAddLinkButton: (page: Page): Locator =>
+    page.locator("aside").last().locator(`button[title='${tRoom("fileManager.addLink")}']`),
+
   fileInput: (page: Page): Locator =>
     page.locator("input[type='file']").last(),
+
+  urlUploadUrlInput: (page: Page): Locator =>
+    page.getByRole("dialog").locator("#url"),
+
+  urlUploadNameInput: (page: Page): Locator =>
+    page.getByRole("dialog").locator("#name"),
+
+  urlUploadDescriptionInput: (page: Page): Locator =>
+    page.getByRole("dialog").locator("#description"),
+
+  urlUploadSubmitButton: (page: Page): Locator =>
+    page.getByRole("dialog").getByRole("button", {
+      name: tRoom("urlUpload.addLink"),
+    }),
 
   fileEmptyState: (page: Page): Locator =>
     page.getByText(tRoom("fileListView.empty")),
@@ -254,6 +271,9 @@ export const RoomScreen = {
 
   settingDesktopNotifications: (page: Page): Locator =>
     page.getByTestId("setting-desktop-notifications"),
+
+  settingDesktopNotificationShowContent: (page: Page): Locator =>
+    page.getByTestId("setting-desktop-notification-show-content"),
 
   settingDesktopNotificationType: (
     page: Page,

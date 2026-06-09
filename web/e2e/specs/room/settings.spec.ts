@@ -134,6 +134,8 @@ test.describe("Room settings integration", () => {
     await expect(RoomScreen.settingsNotificationAccordion(page)).toBeVisible();
     await expect(RoomScreen.settingsNotificationKindTrigger(page, "message"))
       .toHaveAttribute("aria-expanded", "true");
+    await expect(RoomScreen.settingDesktopNotificationType(page, "message", "updated"))
+      .toBeVisible();
 
     await RoomScreen.settingsNotificationKindTrigger(page, "file").click();
     await expect(RoomScreen.settingsNotificationKindTrigger(page, "file"))
@@ -142,6 +144,16 @@ test.describe("Room settings integration", () => {
       .toBeVisible();
     await expect(RoomScreen.settingDesktopNotificationType(page, "file", "created"))
       .toBeDisabled();
+    await expect(RoomScreen.settingDesktopNotificationType(page, "file", "updated"))
+      .toHaveCount(0);
+
+    await RoomScreen.settingsNotificationKindTrigger(page, "link").click();
+    await expect(RoomScreen.settingsNotificationKindTrigger(page, "link"))
+      .toHaveAttribute("aria-expanded", "true");
+    await expect(RoomScreen.settingDesktopNotificationType(page, "link", "created"))
+      .toBeVisible();
+    await expect(RoomScreen.settingDesktopNotificationType(page, "link", "updated"))
+      .toHaveCount(0);
   });
 
   test.describe("copy and download with metadata", () => {

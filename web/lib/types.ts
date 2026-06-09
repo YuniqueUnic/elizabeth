@@ -141,6 +141,7 @@ export interface FileItem {
   type?: "image" | "video" | "pdf" | "link" | "document";
   url?: string;
   assetUrl?: string;
+  description?: string;
   mimeType?: string;
   createdAt?: string;
   uploadedAt?: string;
@@ -280,6 +281,7 @@ export function backendContentToFileItem(
     type: typeMap[contentType],
     url: fileUrl ?? undefined,
     assetUrl,
+    description: isExternalLink ? content.text || undefined : undefined,
     mimeType: content.mime_type || undefined,
     createdAt: content.created_at,
     uploadedAt: content.created_at,

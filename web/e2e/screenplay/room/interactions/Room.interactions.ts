@@ -9,6 +9,12 @@ import { RoomScreen } from "../screens/Room.screen";
 const notificationTypeSettingPattern =
   /^setting-desktop-notification-(message|file|link)-(created|updated|deleted)$/;
 
+interface LinkUploadData {
+  urlInput: string;
+  name: string;
+  description?: string;
+}
+
 function tabForSetting(testid: string) {
   if (
     testid === "setting-include-metadata-copy" ||
@@ -19,6 +25,7 @@ function tabForSetting(testid: string) {
 
   if (
     testid === "setting-desktop-notifications" ||
+    testid === "setting-desktop-notification-show-content" ||
     notificationTypeSettingPattern.test(testid)
   ) {
     return "notifications";
@@ -202,6 +209,38 @@ export const UploadFiles = (...files: UploadableFile[]) =>
       const body = await response.text().catch(() => "");
       throw new Error(
         `File upload failed: ${response.status()} ${response.statusText()} — ${body}`,
+      );
+    }
+  });
+
+export const AddLinkToRoom = (data: LinkUploadData) =>
+  Interaction.where(the`#actor adds the link ${data.name}`, async (actor) => {
+    const page = await nativePageFor(actor);
+
+    await RoomScreen.fileAddLinkButton(page).click();
+    await RoomScreen.urlUploadUrlInput(page).fill(data.urlInput);
+    await RoomScreen.urlUploadNameInput(page).fill(data.name);
+    if (data.description !== undefined) {
+      await RoomScreen.urlUploadDescriptionInput(page).fill(data.description);
+    }
+
+    const createResponsePromise = page.waitForResponse(
+      (response) => {
+        const url = response.url();
+        return url.includes("/api/v1/rooms/") &&
+          url.includes("/contents/url") &&
+          response.request().method() === "POST";
+      },
+      { timeout: 30_000 },
+    );
+
+    await RoomScreen.urlUploadSubmitButton(page).click();
+
+    const response = await createResponsePromise;
+    if (!response.ok()) {
+      const body = await response.text().catch(() => "");
+      throw new Error(
+        `Link creation failed: ${response.status()} ${response.statusText()} - ${body}`,
       );
     }
   });

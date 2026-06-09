@@ -245,7 +245,11 @@ export function FilePreviewModal(
           )}
 
           {isLink && file.url && (
-            <UrlViewer url={file.url} name={file.name} description={file.mimeType} />
+            <UrlViewer
+              url={file.url}
+              name={file.name}
+              description={file.description ?? file.mimeType}
+            />
           )}
 
           {isTextFile && assetPath && (

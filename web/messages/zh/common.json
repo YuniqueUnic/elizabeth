@@ -20,7 +20,8 @@
   "roomUsage": "房间占用：{used} / {total} MB",
   "openProjectOnGitHub": "在 GitHub 上打开项目",
   "desktopNotification": {
-    "body": "{roomName}：{subject}",
+    "bodyWithSubject": "{roomName}：{subject}",
+    "bodyWithoutSubject": "{roomName}：{summary}",
     "fallback": {
       "message": "消息",
       "file": "文件",
@@ -34,12 +35,25 @@
       },
       "file": {
         "created": "新文件",
-        "updated": "文件已更新",
         "deleted": "文件已删除"
       },
       "link": {
         "created": "新链接",
-        "updated": "链接已更新",
+        "deleted": "链接已删除"
+      }
+    },
+    "summary": {
+      "message": {
+        "created": "有新消息",
+        "updated": "消息已更新",
+        "deleted": "消息已删除"
+      },
+      "file": {
+        "created": "文件已新增",
+        "deleted": "文件已删除"
+      },
+      "link": {
+        "created": "链接已新增",
         "deleted": "链接已删除"
       }
     }

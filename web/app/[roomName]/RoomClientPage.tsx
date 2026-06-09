@@ -29,6 +29,7 @@ import { ManualCopyDialog } from "@/components/manual-copy-dialog";
 import {
   getContentNotificationKind,
   getContentNotificationSubject,
+  isDesktopNotificationActionSupported,
   showContentDesktopNotification,
   type DesktopNotificationAction,
 } from "@/lib/desktop-notifications";
@@ -51,6 +52,9 @@ function RoomRealtimeSync({
   const desktopNotificationTypes = useAppStore((state) =>
     state.desktopNotificationTypes
   );
+  const desktopNotificationShowContent = useAppStore((state) =>
+    state.desktopNotificationShowContent
+  );
   const syncMessagesFromServer = useAppStore((state) =>
     state.syncMessagesFromServer
   );
@@ -61,9 +65,11 @@ function RoomRealtimeSync({
   ) => {
     const kind = getContentNotificationKind(payload);
     if (!kind) return;
+    if (!isDesktopNotificationActionSupported(kind, action)) return;
 
     const subject = getContentNotificationSubject(payload, kind) ||
       t(`desktopNotification.fallback.${kind}`);
+    const summary = t(`desktopNotification.summary.${kind}.${action}`);
 
     showContentDesktopNotification({
       enabled: desktopNotificationsEnabled,
@@ -72,7 +78,9 @@ function RoomRealtimeSync({
       action,
       roomName,
       title: t(`desktopNotification.title.${kind}.${action}`),
-      body: t("desktopNotification.body", { roomName, subject }),
+      body: desktopNotificationShowContent
+        ? t("desktopNotification.bodyWithSubject", { roomName, subject })
+        : t("desktopNotification.bodyWithoutSubject", { roomName, summary }),
     });
   };
 

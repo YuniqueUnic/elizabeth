@@ -41,6 +41,10 @@
       "default": "Not requested",
       "unsupported": "Unsupported"
     },
+    "showContent": {
+      "label": "Show notification content",
+      "description": "Include message text, file names, and link names in desktop notifications"
+    },
     "kinds": {
       "message": "Messages",
       "file": "Files",
@@ -48,8 +52,8 @@
     },
     "kindDescriptions": {
       "message": "Choose which message changes should notify you",
-      "file": "Choose which file changes should notify you",
-      "link": "Choose which link changes should notify you"
+      "file": "Choose which file additions and deletions should notify you",
+      "link": "Choose which link additions and deletions should notify you"
     },
     "actions": {
       "created": "New",

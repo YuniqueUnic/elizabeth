@@ -126,6 +126,23 @@ pub struct UpdateContentResponse {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
 #[cfg_attr(feature = "typescript-export", ts(export))]
+pub struct CreateUrlContentRequest {
+    pub url: String,
+    pub name: String,
+    #[cfg_attr(feature = "typescript-export", ts(optional))]
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
+pub struct CreateUrlContentResponse {
+    pub created: RoomContentView,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct CreateMessageRequest {
     pub text: String,
     #[cfg_attr(feature = "typescript-export", ts(optional))]

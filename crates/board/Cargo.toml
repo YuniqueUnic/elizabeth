@@ -64,6 +64,7 @@ mime_guess = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }
 sanitize-filename = { workspace = true }
+url = { workspace = true }
 futures = { workspace = true }
 
 # Storage abstraction layer

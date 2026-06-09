@@ -40,6 +40,8 @@ export * from './DeleteContentRequest';
 export * from './DeleteContentResponse';
 export * from './UpdateContentRequest';
 export * from './UpdateContentResponse';
+export * from './CreateUrlContentRequest';
+export * from './CreateUrlContentResponse';
 export * from './CreateMessageRequest';
 export * from './CreateMessageResponse';
 export * from './ChunkedUploadPreparationRequest';
