@@ -25,8 +25,8 @@
     "description": "使用 heti 排版，使中文排版内容更美观"
   },
   "showDeleteConfirmation": {
-    "label": "删除时提示",
-    "description": "删除时弹出提示保存的 dialog"
+    "label": "删除消息时提示",
+    "description": "标记消息为待删除前弹出确认提示"
   },
   "autoScroll": {
     "label": "始终追踪最新消息",

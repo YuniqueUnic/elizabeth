@@ -25,8 +25,8 @@
     "description": "Use heti typography for more beautiful Chinese text layout"
   },
   "showDeleteConfirmation": {
-    "label": "Show delete confirmation",
-    "description": "Show a confirmation dialog when deleting"
+    "label": "Confirm message deletion",
+    "description": "Show a confirmation dialog before marking messages for deletion"
   },
   "autoScroll": {
     "label": "Always track latest message",

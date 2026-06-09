@@ -3,7 +3,9 @@ import { Navigate } from "@serenity-js/web";
 
 import {
   CancelDialog,
+  CancelFileDeleteAction,
   CancelFirstTransfer,
+  ClickFilePreviewDelete,
   ClickCopyMessages,
   ClickDeleteMessages,
   ClickDownloadMessages,
@@ -12,6 +14,7 @@ import {
   CloseSettings,
   ConfirmDeleteAction,
   ConfirmDeleteAndDisable,
+  ConfirmFileDeleteAction,
   OpenSettings,
   ClickSaveMessages,
   ClickSend,
@@ -136,6 +139,18 @@ export const DeleteRoomFile = (name: string) =>
     DeleteFileNamed(name),
   );
 
+export const ConfirmFileDelete = () =>
+  Task.where(
+    the`#actor confirms the file delete`,
+    ConfirmFileDeleteAction(),
+  );
+
+export const CancelFileDelete = () =>
+  Task.where(
+    the`#actor cancels the file delete`,
+    CancelFileDeleteAction(),
+  );
+
 export const PreviewRoomFile = (name: string) =>
   Task.where(
     the`#actor previews the room file ${name}`,
@@ -164,6 +179,12 @@ export const InsertPreviewRoomFileMarkdown = () =>
   Task.where(
     the`#actor inserts the previewed room file markdown into the editor`,
     ClickFilePreviewInsertToEditor(),
+  );
+
+export const DeletePreviewedRoomFile = () =>
+  Task.where(
+    the`#actor deletes the previewed room file`,
+    ClickFilePreviewDelete(),
   );
 
 export const CancelTransfer = () =>

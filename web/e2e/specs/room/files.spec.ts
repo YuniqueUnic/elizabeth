@@ -9,13 +9,18 @@ import {
 import { RoomScreen } from "../../screenplay/room/screens/Room.screen";
 import { tRoom } from "../../screenplay/support/i18n";
 import {
+  AddRoomLink,
+  CancelFileDelete,
+  ConfirmFileDelete,
   CopyPreviewRoomFileLink,
   CopyPreviewRoomFileMarkdown,
+  DeletePreviewedRoomFile,
   DeleteRoomFile,
   DownloadPreviewedRoomFile,
   InsertPreviewRoomFileMarkdown,
   OpenRoom,
   PreviewRoomFile,
+  SetSettingTo,
   UploadRoomFiles,
 } from "../../screenplay/room/tasks/Room.tasks";
 import {
@@ -315,7 +320,33 @@ test.describe("Room files and preview modal", () => {
     await expect(RoomScreen.filePreviewDialog(page)).toBeVisible();
   });
 
-  test("deletes uploaded files without leaving stale entries behind", async ({
+  test("cancels file deletion without removing the item", async ({
+    actor,
+    page,
+  }) => {
+    await actor.attemptsTo(
+      UploadRoomFiles(textFile("keep-after-cancel.txt", "do not delete")),
+    );
+
+    await expect.poll(async () => actor.answer(FileCount())).toBe(1);
+
+    await actor.attemptsTo(
+      DeleteRoomFile("keep-after-cancel.txt"),
+    );
+
+    await expect(RoomScreen.fileDeleteConfirmDialog(page)).toBeVisible();
+
+    await actor.attemptsTo(
+      CancelFileDelete(),
+    );
+
+    await expect(RoomScreen.fileDeleteConfirmDialog(page)).toHaveCount(0);
+    await expect.poll(async () => actor.answer(FileCount())).toBe(1);
+    await expect.poll(async () => (await actor.answer(FileNames())).join("|"))
+      .toContain("keep-after-cancel.txt");
+  });
+
+  test("confirms uploaded file deletion before removing the item", async ({
     actor,
     page,
   }) => {
@@ -329,8 +360,77 @@ test.describe("Room files and preview modal", () => {
       DeleteRoomFile("to-delete.txt"),
     );
 
+    await expect(RoomScreen.fileDeleteConfirmDialog(page)).toBeVisible();
+    await expect(RoomScreen.fileDeleteConfirmDialog(page)).toContainText("to-delete.txt");
+
+    await actor.attemptsTo(
+      ConfirmFileDelete(),
+    );
+
     await expect.poll(async () => actor.answer(FileCount())).toBe(0);
     await expect(RoomScreen.fileEmptyState(page)).toBeVisible();
+  });
+
+  test("confirms preview modal deletion before removing the item", async ({
+    actor,
+    page,
+  }) => {
+    await actor.attemptsTo(
+      UploadRoomFiles(textFile("preview-delete.txt", "delete from preview")),
+    );
+
+    await expect.poll(async () => actor.answer(FileCount())).toBe(1);
+
+    await actor.attemptsTo(
+      PreviewRoomFile("preview-delete.txt"),
+    );
+
+    await expect(RoomScreen.filePreviewDialog(page)).toBeVisible();
+
+    await actor.attemptsTo(
+      DeletePreviewedRoomFile(),
+    );
+
+    await expect(RoomScreen.fileDeleteConfirmDialog(page)).toBeVisible();
+    await expect(RoomScreen.fileDeleteConfirmDialog(page)).toContainText("preview-delete.txt");
+
+    await actor.attemptsTo(
+      ConfirmFileDelete(),
+    );
+
+    await expect(RoomScreen.filePreviewDialog(page)).toHaveCount(0);
+    await expect.poll(async () => actor.answer(FileCount())).toBe(0);
+  });
+
+  test("confirms link deletion even when message delete confirmation is disabled", async ({
+    actor,
+    page,
+  }) => {
+    await actor.attemptsTo(
+      SetSettingTo("setting-delete-confirmation", false),
+      AddRoomLink({
+        urlInput: "https://example.com/docs",
+        name: "Example docs",
+        description: "External docs",
+      }),
+    );
+
+    await expect.poll(async () => actor.answer(FileCount())).toBe(1);
+    await expect.poll(async () => (await actor.answer(FileNames())).join("|"))
+      .toContain("Example docs");
+
+    await actor.attemptsTo(
+      DeleteRoomFile("Example docs"),
+    );
+
+    await expect(RoomScreen.fileDeleteConfirmDialog(page)).toBeVisible();
+    await expect(RoomScreen.fileDeleteConfirmDialog(page)).toContainText("Example docs");
+
+    await actor.attemptsTo(
+      ConfirmFileDelete(),
+    );
+
+    await expect.poll(async () => actor.answer(FileCount())).toBe(0);
   });
 
   test("uploads files via chunked upload and downloads successfully", async ({

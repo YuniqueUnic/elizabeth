@@ -255,6 +255,18 @@ export const DeleteFileNamed = (name: string) =>
     await fileCard.getByRole("button", { name: tRoom("fileCard.deleteFile") }).click();
   });
 
+export const ConfirmFileDeleteAction = () =>
+  Interaction.where(the`#actor confirms the file delete action`, async (actor) => {
+    const page = await nativePageFor(actor);
+    await RoomScreen.fileDeleteConfirmButton(page).click();
+  });
+
+export const CancelFileDeleteAction = () =>
+  Interaction.where(the`#actor cancels the file delete action`, async (actor) => {
+    const page = await nativePageFor(actor);
+    await RoomScreen.fileDeleteCancelButton(page).click();
+  });
+
 export const OpenFilePreviewNamed = (name: string) =>
   Interaction.where(the`#actor opens the preview for ${name}`, async (actor) => {
     const page = await nativePageFor(actor);
@@ -291,6 +303,12 @@ export const ClickFilePreviewInsertToEditor = () =>
   Interaction.where(the`#actor inserts the preview markdown into the editor`, async (actor) => {
     const page = await nativePageFor(actor);
     await RoomScreen.filePreviewInsertToEditorButton(page).click();
+  });
+
+export const ClickFilePreviewDelete = () =>
+  Interaction.where(the`#actor clicks the preview delete button`, async (actor) => {
+    const page = await nativePageFor(actor);
+    await RoomScreen.filePreviewDeleteButton(page).click();
   });
 
 export const OpenCloseRoomDialog = () =>

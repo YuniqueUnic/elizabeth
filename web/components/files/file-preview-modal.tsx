@@ -136,8 +136,6 @@ export function FilePreviewModal(
 
   const handleDelete = () => {
     onDelete(file.id);
-    onOpenChange(false);
-    toast({ title: t("filePreviewModal.fileDeleted"), description: t("filePreviewModal.fileDeletedDescription", { fileName: file.name }) });
   };
 
   // Derive display type label
