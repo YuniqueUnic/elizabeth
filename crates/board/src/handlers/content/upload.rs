@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::Duration as StdDuration;
 
 use axum::Json;
-use axum::extract::{Multipart, Path as AxumPath, Query, State};
+use axum::extract::{Multipart, Path as AxumPath, Query, State, multipart::Field};
 use futures::StreamExt;
 use serde::Deserialize;
 use tokio::fs;
@@ -27,12 +27,21 @@ use crate::repository::{
 use crate::state::AppState;
 use crate::validation::RoomNameValidator;
 
-use super::{ContentPermission, HandlerResult, ensure_permission, room_id_or_error};
+use super::{
+    ContentPermission, HandlerResult, ensure_permission, ensure_room_storage, room_id_or_error,
+};
 use crate::handlers::{AuthToken, verify_room_token};
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct UploadReservationQuery {
     pub reservation_id: i64,
+}
+
+struct TempUpload {
+    original_name: String,
+    path: PathBuf,
+    size: i64,
+    mime: Option<String>,
 }
 
 #[utoipa::path(
@@ -214,7 +223,7 @@ pub async fn upload_contents(
     AuthToken(token): AuthToken,
     Query(query): Query<UploadReservationQuery>,
     State(app_state): State<Arc<AppState>>,
-    mut multipart: Multipart,
+    multipart: Multipart,
 ) -> HandlerResult<UploadContentResponse> {
     // Validate room name using the new validation framework
     RoomNameValidator::validate_identifier(&name)?;
@@ -223,7 +232,7 @@ pub async fn upload_contents(
         return Err(AppError::validation("Invalid reservation id"));
     }
 
-    let mut verified = verify_room_token(app_state.clone(), &name, &token).await?;
+    let verified = verify_room_token(app_state.clone(), &name, &token).await?;
     ensure_permission(
         &verified.claims,
         verified.room.permission.can_edit(),
@@ -261,6 +270,36 @@ pub async fn upload_contents(
         return Err(AppError::validation("Reservation manifest empty"));
     }
 
+    let expected_map = build_expected_manifest(expected_files)?;
+
+    let storage_dir = ensure_room_storage(app_state.storage_root().as_ref(), room_id)
+        .await
+        .map_err(|e| AppError::internal(format!("Failed to prepare storage directory: {e}")))?;
+
+    let staged = stage_multipart_uploads(multipart, &expected_map, &storage_dir).await?;
+
+    let repository = RoomContentRepository::new(app_state.db_pool.clone());
+    let (uploaded, actual_total) =
+        persist_staged_uploads(&repository, &app_state, &name, room_id, &staged).await?;
+    let current_size = consume_upload_reservation(
+        &reservation_repo,
+        query.reservation_id,
+        room_id,
+        &verified.claims.jti,
+        actual_total,
+        &staged,
+    )
+    .await?;
+
+    Ok(Json(UploadContentResponse {
+        uploaded,
+        current_size,
+    }))
+}
+
+fn build_expected_manifest(
+    expected_files: Vec<UploadFileDescriptor>,
+) -> Result<HashMap<String, UploadFileDescriptor>, AppError> {
     let mut expected_map = HashMap::new();
     for file in expected_files {
         if expected_map.insert(file.name.clone(), file).is_some() {
@@ -269,122 +308,29 @@ pub async fn upload_contents(
             ));
         }
     }
+    Ok(expected_map)
+}
 
-    let storage_dir = ensure_room_storage(app_state.storage_root().as_ref(), room_id)
-        .await
-        .map_err(|e| AppError::internal(format!("Failed to prepare storage directory: {e}")))?;
-
-    struct TempUpload {
-        original_name: String, // 原始文件名（用于显示和下载）
-        path: PathBuf,         // 磁盘上的文件路径（UUID-based）
-        size: i64,
-        mime: Option<String>,
-    }
-
-    let mut staged: Vec<TempUpload> = Vec::new();
+async fn stage_multipart_uploads(
+    mut multipart: Multipart,
+    expected_map: &HashMap<String, UploadFileDescriptor>,
+    storage_dir: &Path,
+) -> Result<Vec<TempUpload>, AppError> {
+    let mut staged = Vec::new();
     let mut seen = HashSet::new();
 
-    while let Some(mut field) = multipart
+    while let Some(field) = multipart
         .next_field()
         .await
         .map_err(|e| AppError::validation(format!("Invalid multipart data: {e}")))?
     {
-        let file_name = field
-            .file_name()
-            .map(|name| name.to_string())
-            .ok_or_else(|| AppError::validation("File name missing"))?;
-
-        let expected = if let Some(exp) = expected_map.get(&file_name) {
-            exp
-        } else {
-            for temp in &staged {
-                fs::remove_file(&temp.path).await.ok();
-            }
-            return Err(AppError::validation(format!(
-                "Unexpected file: {file_name}"
-            )));
-        };
-
-        if !seen.insert(file_name.clone()) {
-            for temp in &staged {
-                fs::remove_file(&temp.path).await.ok();
-            }
-            return Err(AppError::validation(format!(
-                "Duplicate upload file: {file_name}"
-            )));
-        }
-
-        // ✅ FIX: Use original filename, handle conflicts by adding suffix
-        let safe_file_name = sanitize_filename::sanitize(&file_name);
-
-        // Find a unique filename by adding (1), (2), etc. if file exists
-        let mut final_filename = safe_file_name.clone();
-        let mut counter = 1;
-        let mut file_path = storage_dir.join(&final_filename);
-
-        while file_path.exists() {
-            // Extract base name and extension
-            let path = std::path::Path::new(&safe_file_name);
-            let stem = path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or(&safe_file_name);
-            let extension = path.extension().and_then(|s| s.to_str()).unwrap_or("");
-
-            // Create new filename with counter
-            final_filename = if extension.is_empty() {
-                format!("{}({})", stem, counter)
-            } else {
-                format!("{}({}).{}", stem, counter, extension)
-            };
-
-            file_path = storage_dir.join(&final_filename);
-            counter += 1;
-
-            // Prevent infinite loop
-            if counter > 1000 {
-                return Err(AppError::internal("Too many files with the same name"));
+        match stage_upload_field(field, expected_map, storage_dir, &mut seen).await {
+            Ok(temp_upload) => staged.push(temp_upload),
+            Err(error) => {
+                cleanup_staged_uploads(&staged).await;
+                return Err(error);
             }
         }
-        let mut temp_file = fs::File::create(&file_path)
-            .await
-            .map_err(|e| AppError::internal(format!("Cannot create file: {e}")))?;
-
-        let mut size: i64 = 0;
-        while let Some(chunk) = field.next().await {
-            let chunk = chunk
-                .map_err(|e| AppError::validation(format!("Read upload chunk failed: {e}")))?;
-            size += chunk.len() as i64;
-            temp_file
-                .write_all(&chunk)
-                .await
-                .map_err(|e| AppError::internal(format!("Write file failed: {e}")))?;
-        }
-        temp_file
-            .flush()
-            .await
-            .map_err(|e| AppError::internal(format!("Flush file failed: {e}")))?;
-
-        if size != expected.size {
-            fs::remove_file(&file_path).await.ok();
-            for temp in &staged {
-                fs::remove_file(&temp.path).await.ok();
-            }
-            return Err(AppError::validation(format!(
-                "File size mismatch for {file_name}"
-            )));
-        }
-
-        let mime = mime_guess::from_path(&file_path)
-            .first_raw()
-            .map(|m| m.to_string());
-
-        staged.push(TempUpload {
-            original_name: file_name,
-            path: file_path,
-            size,
-            mime,
-        });
     }
 
     if staged.is_empty() {
@@ -392,55 +338,127 @@ pub async fn upload_contents(
     }
 
     if staged.len() != expected_map.len() {
-        for temp in &staged {
-            fs::remove_file(&temp.path).await.ok();
-        }
+        cleanup_staged_uploads(&staged).await;
         return Err(AppError::validation(
             "Uploaded file count mismatch reservation",
         ));
     }
 
-    let repository = RoomContentRepository::new(app_state.db_pool.clone());
+    Ok(staged)
+}
+
+async fn stage_upload_field(
+    mut field: Field<'_>,
+    expected_map: &HashMap<String, UploadFileDescriptor>,
+    storage_dir: &Path,
+    seen: &mut HashSet<String>,
+) -> Result<TempUpload, AppError> {
+    let file_name = field
+        .file_name()
+        .map(|name| name.to_string())
+        .ok_or_else(|| AppError::validation("File name missing"))?;
+
+    let expected = expected_map
+        .get(&file_name)
+        .ok_or_else(|| AppError::validation(format!("Unexpected file: {file_name}")))?;
+
+    if !seen.insert(file_name.clone()) {
+        return Err(AppError::validation(format!(
+            "Duplicate upload file: {file_name}"
+        )));
+    }
+
+    let file_path = unique_upload_path(storage_dir, &file_name)?;
+    let size = write_field_to_file(&mut field, &file_path).await?;
+
+    if size != expected.size {
+        fs::remove_file(&file_path).await.ok();
+        return Err(AppError::validation(format!(
+            "File size mismatch for {file_name}"
+        )));
+    }
+
+    let mime = mime_guess::from_path(&file_path)
+        .first_raw()
+        .map(|m| m.to_string());
+
+    Ok(TempUpload {
+        original_name: file_name,
+        path: file_path,
+        size,
+        mime,
+    })
+}
+
+fn unique_upload_path(storage_dir: &Path, file_name: &str) -> Result<PathBuf, AppError> {
+    let safe_file_name = sanitize_filename::sanitize(file_name);
+    let mut final_filename = safe_file_name.clone();
+    let mut counter = 1;
+    let mut file_path = storage_dir.join(&final_filename);
+
+    while file_path.exists() {
+        let path = Path::new(&safe_file_name);
+        let stem = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or(&safe_file_name);
+        let extension = path.extension().and_then(|s| s.to_str()).unwrap_or("");
+
+        final_filename = if extension.is_empty() {
+            format!("{}({})", stem, counter)
+        } else {
+            format!("{}({}).{}", stem, counter, extension)
+        };
+
+        file_path = storage_dir.join(&final_filename);
+        counter += 1;
+
+        if counter > 1000 {
+            return Err(AppError::internal("Too many files with the same name"));
+        }
+    }
+
+    Ok(file_path)
+}
+
+async fn write_field_to_file(field: &mut Field<'_>, file_path: &Path) -> Result<i64, AppError> {
+    let mut temp_file = fs::File::create(file_path)
+        .await
+        .map_err(|e| AppError::internal(format!("Cannot create file: {e}")))?;
+
+    let mut size: i64 = 0;
+    while let Some(chunk) = field.next().await {
+        let chunk =
+            chunk.map_err(|e| AppError::validation(format!("Read upload chunk failed: {e}")))?;
+        size += chunk.len() as i64;
+        temp_file
+            .write_all(&chunk)
+            .await
+            .map_err(|e| AppError::internal(format!("Write file failed: {e}")))?;
+    }
+    temp_file
+        .flush()
+        .await
+        .map_err(|e| AppError::internal(format!("Flush file failed: {e}")))?;
+
+    Ok(size)
+}
+
+async fn persist_staged_uploads(
+    repository: &RoomContentRepository,
+    app_state: &Arc<AppState>,
+    room_name: &str,
+    room_id: i64,
+    staged: &[TempUpload],
+) -> Result<(Vec<RoomContentView>, i64), AppError> {
     let mut uploaded = Vec::new();
     let mut actual_total: i64 = 0;
 
-    for temp in &staged {
-        let now = chrono::Utc::now().naive_utc();
-        let mut content = RoomContent {
-            id: None,
-            room_id,
-            content_type: ContentType::File,
-            text: None,
-            url: None,
-            path: None,
-            file_name: Some(temp.original_name.clone()), // 保存原始文件名
-            size: None,
-            mime_type: None,
-            sequence_number: 0,
-            created_at: now,
-            updated_at: now,
-        };
-        content.set_path(
-            temp.path.to_string_lossy().to_string(),
-            ContentType::File,
-            temp.size,
-            temp.mime
-                .clone()
-                .unwrap_or_else(|| "application/octet-stream".to_string()),
-        );
-
-        let saved = match repository.create(&content).await {
+    for temp in staged {
+        let saved = match repository.create(&build_file_content(room_id, temp)).await {
             Ok(value) => value,
             Err(e) => {
-                for item in &staged {
-                    if let Err(err) = fs::remove_file(&item.path).await {
-                        log::warn!(
-                            "Failed to remove temp file {}: {}",
-                            item.path.display(),
-                            err
-                        );
-                    }
-                }
+                cleanup_staged_uploads(staged).await;
                 return Err(AppError::internal(format!("Persist content failed: {e}")));
             }
         };
@@ -449,55 +467,97 @@ pub async fn upload_contents(
             .checked_add(temp.size)
             .ok_or_else(|| AppError::internal("Total size overflow"))?;
         uploaded.push(RoomContentView::from(saved.clone()));
-
-        // 广播内容创建事件
-        let broadcaster = app_state.broadcaster.clone();
-        let room_name_clone = name.clone();
-        tokio::spawn(async move {
-            if let Err(e) = broadcaster
-                .broadcast_content_created(&room_name_clone, &saved)
-                .await
-            {
-                log::warn!("Failed to broadcast content created event: {}", e);
-            }
-        });
+        broadcast_content_created(app_state.clone(), room_name.to_string(), saved);
     }
 
-    let actual_manifest: Vec<UploadFileDescriptor> = staged
-        .iter()
-        .map(|temp| UploadFileDescriptor {
-            name: temp.original_name.clone(),
-            size: temp.size,
-            mime: temp.mime.clone(),
-            chunk_size: None, // 普通上传不支持分块
-            file_hash: None,  // 普通上传不提供文件哈希
-        })
-        .collect();
-    let actual_manifest_json = serde_json::to_string(&actual_manifest)
+    Ok((uploaded, actual_total))
+}
+
+fn build_file_content(room_id: i64, temp: &TempUpload) -> RoomContent {
+    let now = chrono::Utc::now().naive_utc();
+    let mut content = RoomContent {
+        id: None,
+        room_id,
+        content_type: ContentType::File,
+        text: None,
+        url: None,
+        path: None,
+        file_name: Some(temp.original_name.clone()),
+        size: None,
+        mime_type: None,
+        sequence_number: 0,
+        created_at: now,
+        updated_at: now,
+    };
+    content.set_path(
+        temp.path.to_string_lossy().to_string(),
+        ContentType::File,
+        temp.size,
+        temp.mime
+            .clone()
+            .unwrap_or_else(|| "application/octet-stream".to_string()),
+    );
+    content
+}
+
+fn broadcast_content_created(app_state: Arc<AppState>, room_name: String, content: RoomContent) {
+    let broadcaster = app_state.broadcaster.clone();
+    tokio::spawn(async move {
+        if let Err(e) = broadcaster
+            .broadcast_content_created(&room_name, &content)
+            .await
+        {
+            log::warn!("Failed to broadcast content created event: {}", e);
+        }
+    });
+}
+
+async fn consume_upload_reservation(
+    reservation_repo: &RoomUploadReservationRepository,
+    reservation_id: i64,
+    room_id: i64,
+    token_jti: &str,
+    actual_total: i64,
+    staged: &[TempUpload],
+) -> Result<i64, AppError> {
+    let actual_manifest_json = serde_json::to_string(&actual_manifest(staged))
         .map_err(|e| AppError::internal(format!("Serialize actual manifest failed: {e}")))?;
 
     let updated_room = reservation_repo
         .consume_reservation(
-            query.reservation_id,
+            reservation_id,
             room_id,
-            &verified.claims.jti,
+            token_jti,
             actual_total,
             &actual_manifest_json,
         )
         .await
         .map_err(|e| AppError::internal(format!("Finalize reservation failed: {e}")))?;
 
-    verified.room = updated_room;
-
-    Ok(Json(UploadContentResponse {
-        uploaded,
-        current_size: verified.room.current_size,
-    }))
+    Ok(updated_room.current_size)
 }
 
-/// 确保房间存储目录存在，使用 room_id 作为目录名
-async fn ensure_room_storage(base_dir: &Path, room_id: i64) -> Result<PathBuf, std::io::Error> {
-    let dir = base_dir.join(room_id.to_string());
-    fs::create_dir_all(&dir).await?;
-    Ok(dir)
+fn actual_manifest(staged: &[TempUpload]) -> Vec<UploadFileDescriptor> {
+    staged
+        .iter()
+        .map(|temp| UploadFileDescriptor {
+            name: temp.original_name.clone(),
+            size: temp.size,
+            mime: temp.mime.clone(),
+            chunk_size: None,
+            file_hash: None,
+        })
+        .collect()
+}
+
+async fn cleanup_staged_uploads(staged: &[TempUpload]) {
+    for item in staged {
+        if let Err(err) = fs::remove_file(&item.path).await {
+            log::warn!(
+                "Failed to remove temp file {}: {}",
+                item.path.display(),
+                err
+            );
+        }
+    }
 }

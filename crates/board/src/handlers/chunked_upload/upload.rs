@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use axum::{
     Json,
-    extract::{Multipart, Path, State},
+    extract::{Multipart, Path, State, multipart::Field},
 };
 use chrono::Utc;
 use sha2::{Digest, Sha256};
@@ -13,7 +13,7 @@ use crate::{
     errors::{AppError, AppResult},
     models::room::{
         chunk_upload::{ChunkStatus, RoomChunkUpload},
-        upload_reservation::UploadStatus,
+        upload_reservation::RoomUploadReservation,
     },
     repository::{
         room_chunk_upload_repository::{IRoomChunkUploadRepository, RoomChunkUploadRepository},
@@ -27,6 +27,14 @@ use crate::{
 };
 
 type HandlerResult<T> = AppResult<Json<T>>;
+
+struct ParsedChunkUpload {
+    upload_token: String,
+    chunk_index: i32,
+    chunk_size: i32,
+    chunk_hash: Option<String>,
+    chunk_data: Vec<u8>,
+}
 
 /// 上传单个分块
 #[utoipa::path(
@@ -49,10 +57,42 @@ type HandlerResult<T> = AppResult<Json<T>>;
 pub async fn upload_chunk(
     Path(room_name): Path<String>,
     State(app_state): State<Arc<AppState>>,
-    mut multipart: Multipart,
+    multipart: Multipart,
 ) -> HandlerResult<ChunkUploadResponse> {
     RoomNameValidator::validate_identifier(&room_name)?;
 
+    let parsed = parse_chunk_upload(multipart).await?;
+    let reservation_repository = RoomUploadReservationRepository::new(app_state.db_pool.clone());
+    let reservation = load_chunk_reservation(&reservation_repository, &parsed.upload_token).await?;
+    let reservation_id = reservation_id_or_error(&reservation)?;
+
+    validate_chunk_reservation(&reservation)?;
+    ensure_upload_room_matches(&app_state, &reservation, &room_name).await?;
+
+    let chunk_repository = RoomChunkUploadRepository::new(app_state.db_pool.clone());
+    ensure_chunk_slot_empty(&chunk_repository, reservation_id, parsed.chunk_index).await?;
+
+    let calculated_hash = validate_chunk_hash(&parsed)?;
+    write_chunk_file(reservation_id, parsed.chunk_index, &parsed.chunk_data).await?;
+    persist_chunk_record(
+        &chunk_repository,
+        &reservation_repository,
+        reservation_id,
+        &parsed,
+        &calculated_hash,
+    )
+    .await?;
+
+    Ok(Json(ChunkUploadResponse {
+        chunk_index: parsed.chunk_index,
+        chunk_size: parsed.chunk_size.into(),
+        chunk_hash: Some(calculated_hash),
+        upload_status: ChunkStatus::Uploaded,
+        uploaded_at: Utc::now().naive_utc(),
+    }))
+}
+
+async fn parse_chunk_upload(mut multipart: Multipart) -> Result<ParsedChunkUpload, AppError> {
     let mut upload_token: Option<String> = None;
     let mut chunk_index: Option<i32> = None;
     let mut chunk_size: Option<i32> = None;
@@ -68,40 +108,18 @@ pub async fn upload_chunk(
 
         match name.as_str() {
             "upload_token" => {
-                let token = field
-                    .text()
-                    .await
-                    .map_err(|e| AppError::validation(format!("读取上传令牌失败：{}", e)))?;
-                upload_token = Some(token);
+                upload_token = Some(read_text_field(field, "读取上传令牌失败").await?);
             }
             "chunk_index" => {
-                let index_str = field
-                    .text()
-                    .await
-                    .map_err(|e| AppError::validation(format!("读取分块索引失败：{}", e)))?;
-                chunk_index = Some(
-                    index_str
-                        .parse::<i32>()
-                        .map_err(|_| AppError::validation("分块索引格式错误"))?,
-                );
+                let value = read_text_field(field, "读取分块索引失败").await?;
+                chunk_index = Some(parse_i32_field(&value, "分块索引格式错误")?);
             }
             "chunk_size" => {
-                let size_str = field
-                    .text()
-                    .await
-                    .map_err(|e| AppError::validation(format!("读取分块大小失败：{}", e)))?;
-                chunk_size = Some(
-                    size_str
-                        .parse::<i32>()
-                        .map_err(|_| AppError::validation("分块大小格式错误"))?,
-                );
+                let value = read_text_field(field, "读取分块大小失败").await?;
+                chunk_size = Some(parse_i32_field(&value, "分块大小格式错误")?);
             }
             "chunk_hash" => {
-                let hash = field
-                    .text()
-                    .await
-                    .map_err(|e| AppError::validation(format!("读取分块哈希失败：{}", e)))?;
-                chunk_hash = Some(hash);
+                chunk_hash = Some(read_text_field(field, "读取分块哈希失败").await?);
             }
             "chunk_data" => {
                 let data = field
@@ -123,14 +141,46 @@ pub async fn upload_chunk(
         return Err(AppError::validation("分块数据大小不匹配"));
     }
 
-    let reservation_repository = RoomUploadReservationRepository::new(app_state.db_pool.clone());
-    let reservation = reservation_repository
-        .find_by_token(&upload_token)
-        .await
-        .map_err(|e| AppError::internal(format!("查询预留记录失败：{}", e)))?;
-    let reservation = reservation.ok_or_else(|| AppError::not_found("预留记录不存在"))?;
-    let reservation_id = reservation.id.expect("预留 ID 不能为空");
+    Ok(ParsedChunkUpload {
+        upload_token,
+        chunk_index,
+        chunk_size,
+        chunk_hash,
+        chunk_data,
+    })
+}
 
+async fn read_text_field(field: Field<'_>, error_message: &str) -> Result<String, AppError> {
+    field
+        .text()
+        .await
+        .map_err(|e| AppError::validation(format!("{error_message}:{e}")))
+}
+
+fn parse_i32_field(value: &str, error_message: &str) -> Result<i32, AppError> {
+    value
+        .parse::<i32>()
+        .map_err(|_| AppError::validation(error_message))
+}
+
+async fn load_chunk_reservation(
+    repository: &RoomUploadReservationRepository,
+    upload_token: &str,
+) -> Result<RoomUploadReservation, AppError> {
+    repository
+        .find_by_token(upload_token)
+        .await
+        .map_err(|e| AppError::internal(format!("查询预留记录失败：{}", e)))?
+        .ok_or_else(|| AppError::not_found("预留记录不存在"))
+}
+
+fn reservation_id_or_error(reservation: &RoomUploadReservation) -> Result<i64, AppError> {
+    reservation
+        .id
+        .ok_or_else(|| AppError::internal("预留 ID 不能为空"))
+}
+
+fn validate_chunk_reservation(reservation: &RoomUploadReservation) -> Result<(), AppError> {
     if reservation.expires_at < Utc::now().naive_utc() {
         return Err(AppError::permission_denied("预留记录已过期"));
     }
@@ -139,6 +189,14 @@ pub async fn upload_chunk(
         return Err(AppError::validation("非分块上传预留记录"));
     }
 
+    Ok(())
+}
+
+async fn ensure_upload_room_matches(
+    app_state: &Arc<AppState>,
+    reservation: &RoomUploadReservation,
+    room_name: &str,
+) -> Result<(), AppError> {
     let room_repository = RoomRepository::new(app_state.db_pool.clone());
     let room = room_repository
         .find_by_id(reservation.room_id)
@@ -150,7 +208,14 @@ pub async fn upload_chunk(
         return Err(AppError::permission_denied("房间名称不匹配"));
     }
 
-    let chunk_repository = RoomChunkUploadRepository::new(app_state.db_pool.clone());
+    Ok(())
+}
+
+async fn ensure_chunk_slot_empty(
+    chunk_repository: &RoomChunkUploadRepository,
+    reservation_id: i64,
+    chunk_index: i32,
+) -> Result<(), AppError> {
     let existing_chunk = chunk_repository
         .find_by_reservation_and_index(reservation_id, chunk_index.into())
         .await
@@ -160,18 +225,28 @@ pub async fn upload_chunk(
         return Err(AppError::conflict("分块已存在"));
     }
 
-    let calculated_hash = {
-        let mut hasher = Sha256::new();
-        hasher.update(&chunk_data);
-        hex::encode(hasher.finalize())
-    };
+    Ok(())
+}
 
-    if let Some(ref provided_hash) = chunk_hash
+fn validate_chunk_hash(parsed: &ParsedChunkUpload) -> Result<String, AppError> {
+    let mut hasher = Sha256::new();
+    hasher.update(&parsed.chunk_data);
+    let calculated_hash = hex::encode(hasher.finalize());
+
+    if let Some(ref provided_hash) = parsed.chunk_hash
         && provided_hash != &calculated_hash
     {
         return Err(AppError::validation("分块哈希验证失败"));
     }
 
+    Ok(calculated_hash)
+}
+
+async fn write_chunk_file(
+    reservation_id: i64,
+    chunk_index: i32,
+    chunk_data: &[u8],
+) -> Result<(), AppError> {
     let temp_dir = format!("/tmp/elizabeth/chunks/{reservation_id}/");
     fs::create_dir_all(&temp_dir)
         .await
@@ -182,16 +257,26 @@ pub async fn upload_chunk(
         .await
         .map_err(|e| AppError::internal(format!("创建分块文件失败：{}", e)))?;
 
-    file.write_all(&chunk_data)
+    file.write_all(chunk_data)
         .await
         .map_err(|e| AppError::internal(format!("写入分块数据失败：{}", e)))?;
 
+    Ok(())
+}
+
+async fn persist_chunk_record(
+    chunk_repository: &RoomChunkUploadRepository,
+    reservation_repository: &RoomUploadReservationRepository,
+    reservation_id: i64,
+    parsed: &ParsedChunkUpload,
+    calculated_hash: &str,
+) -> Result<(), AppError> {
     let chunk_record = RoomChunkUpload {
         id: None,
         reservation_id,
-        chunk_index: chunk_index.into(),
-        chunk_size: chunk_size.into(),
-        chunk_hash: Some(calculated_hash.clone()),
+        chunk_index: parsed.chunk_index.into(),
+        chunk_size: parsed.chunk_size.into(),
+        chunk_hash: Some(calculated_hash.to_string()),
         upload_status: ChunkStatus::Uploaded,
         created_at: Utc::now().naive_utc(),
         updated_at: Utc::now().naive_utc(),
@@ -212,13 +297,5 @@ pub async fn upload_chunk(
         .await
         .map_err(|e| AppError::internal(format!("更新上传进度失败：{}", e)))?;
 
-    let response = ChunkUploadResponse {
-        chunk_index,
-        chunk_size: chunk_size.into(),
-        chunk_hash: Some(calculated_hash),
-        upload_status: ChunkStatus::Uploaded,
-        uploaded_at: Utc::now().naive_utc(),
-    };
-
-    Ok(Json(response))
+    Ok(())
 }

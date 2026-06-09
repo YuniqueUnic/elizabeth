@@ -11,6 +11,7 @@ use axum::{
     http::{Method, Request, StatusCode},
 };
 use serde_json::json;
+use sha2::{Digest, Sha256};
 use tower::ServiceExt;
 
 use common::{
@@ -22,7 +23,6 @@ use common::{
 use board::route::room::api_router;
 
 /// 测试基本的分块上传流程
-#[ignore]
 #[tokio::test]
 async fn test_chunked_upload_complete_workflow() -> Result<()> {
     let (app, _pool) = create_test_app().await?;
@@ -69,7 +69,10 @@ async fn test_chunked_upload_complete_workflow() -> Result<()> {
     });
     let prepare_request = create_http_request(
         Method::POST,
-        &format!("/api/v1/rooms/{}/uploads/chunks/prepare", room_name),
+        &format!(
+            "/api/v1/rooms/{}/uploads/chunks/prepare?token={}",
+            room_name, token
+        ),
         Some(Body::from(prepare_payload.to_string())),
     );
 
@@ -81,6 +84,10 @@ async fn test_chunked_upload_complete_workflow() -> Result<()> {
     let upload_token = prepare_json["upload_token"]
         .as_str()
         .expect("upload token")
+        .to_string();
+    let reservation_id = prepare_json["reservation_id"]
+        .as_str()
+        .expect("reservation id")
         .to_string();
 
     // 4. 分块上传 - 使用 multipart/form-data 和正确的字段
@@ -141,9 +148,11 @@ async fn test_chunked_upload_complete_workflow() -> Result<()> {
     assert_eq!(status_response.status(), StatusCode::OK);
 
     // 6. 完成文件合并
-    let final_hash = "dummy_hash_for_test";
+    let mut hasher = Sha256::new();
+    hasher.update(file_data.as_bytes());
+    let final_hash = hex::encode(hasher.finalize());
     let complete_payload = json!({
-        "reservation_id": upload_token, // 实际上应该是 reservation_id，但 API 看起来使用 upload_token
+        "reservation_id": reservation_id,
         "final_hash": final_hash
     });
     let complete_request = create_http_request(
@@ -153,14 +162,20 @@ async fn test_chunked_upload_complete_workflow() -> Result<()> {
     );
 
     let complete_response = app.clone().oneshot(complete_request).await?;
-    // 注意：由于这是测试环境，文件合并可能会失败，这是正常的
-    // 主要测试的是 API 端点和参数的正确性
+    assert_eq!(complete_response.status(), StatusCode::OK);
+    let complete_body = axum::body::to_bytes(complete_response.into_body(), usize::MAX).await?;
+    let complete_json: serde_json::Value = serde_json::from_slice(&complete_body)?;
+    assert_eq!(complete_json["reservation_id"], reservation_id);
+    assert_eq!(
+        complete_json["merged_files"][0]["file_name"],
+        "test_file.txt"
+    );
+    assert_eq!(complete_json["merged_files"][0]["file_hash"], final_hash);
 
     Ok(())
 }
 
 /// 测试分块上传错误处理
-#[ignore]
 #[tokio::test]
 async fn test_chunked_upload_error_handling() -> Result<()> {
     let (app, _pool) = create_test_app().await?;
@@ -179,6 +194,7 @@ async fn test_chunked_upload_error_handling() -> Result<()> {
 
     // 测试无效的上传令牌
     let boundary = "----error-boundary";
+    let invalid_chunk_data = "test data";
     let chunk_body = format!(
         "--{boundary}\r\n\
          Content-Disposition: form-data; name=\"upload_token\"\r\n\
@@ -191,13 +207,15 @@ async fn test_chunked_upload_error_handling() -> Result<()> {
          --{boundary}\r\n\
          Content-Disposition: form-data; name=\"chunk_size\"\r\n\
          \r\n\
-         10\r\n\
+         {}\r\n\
          --{boundary}\r\n\
          Content-Disposition: form-data; name=\"chunk_data\"; filename=\"error.txt\"\r\n\
          Content-Type: text/plain\r\n\
          \r\n\
-         test data\r\n\
-         --{boundary}--\r\n"
+         {}\r\n\
+         --{boundary}--\r\n",
+        invalid_chunk_data.len(),
+        invalid_chunk_data
     );
 
     let upload_request = Request::builder()
@@ -212,8 +230,8 @@ async fn test_chunked_upload_error_handling() -> Result<()> {
     let upload_response = app.clone().oneshot(upload_request).await?;
     assert_eq!(upload_response.status(), StatusCode::NOT_FOUND);
 
-    // 测试不存在的房间
-    let nonexistent_room_request = create_http_request(
+    // 测试缺少认证 token 的预检请求
+    let missing_token_request = create_http_request(
         Method::POST,
         "/api/v1/rooms/nonexistent_room/uploads/chunks/prepare",
         Some(Body::from(
@@ -228,14 +246,13 @@ async fn test_chunked_upload_error_handling() -> Result<()> {
         )),
     );
 
-    let nonexistent_room_response = app.clone().oneshot(nonexistent_room_request).await?;
-    assert_eq!(nonexistent_room_response.status(), StatusCode::NOT_FOUND);
+    let missing_token_response = app.clone().oneshot(missing_token_request).await?;
+    assert_eq!(missing_token_response.status(), StatusCode::UNAUTHORIZED);
 
     Ok(())
 }
 
 /// 测试分块上传状态查询
-#[ignore]
 #[tokio::test]
 async fn test_chunked_upload_status() -> Result<()> {
     let (app, _pool) = create_test_app().await?;
@@ -252,6 +269,22 @@ async fn test_chunked_upload_status() -> Result<()> {
     let create_response = app.clone().oneshot(create_request).await?;
     assert_eq!(create_response.status(), StatusCode::OK);
 
+    // 发放访问令牌
+    let issue_payload = json!({ "password": "status123" });
+    let issue_request = create_http_request(
+        Method::POST,
+        &format!("/api/v1/rooms/{}/tokens", room_name),
+        Some(Body::from(issue_payload.to_string())),
+    );
+    let issue_response = app.clone().oneshot(issue_request).await?;
+    assert_eq!(issue_response.status(), StatusCode::OK);
+    let issue_body = axum::body::to_bytes(issue_response.into_body(), usize::MAX).await?;
+    let issue_json: serde_json::Value = serde_json::from_slice(&issue_body)?;
+    let token = issue_json["token"]
+        .as_str()
+        .expect("token string")
+        .to_string();
+
     // 预检上传
     let prepare_payload = json!({
         "files": [{
@@ -262,7 +295,10 @@ async fn test_chunked_upload_status() -> Result<()> {
     });
     let prepare_request = create_http_request(
         Method::POST,
-        &format!("/api/v1/rooms/{}/uploads/chunks/prepare", room_name),
+        &format!(
+            "/api/v1/rooms/{}/uploads/chunks/prepare?token={}",
+            room_name, token
+        ),
         Some(Body::from(prepare_payload.to_string())),
     );
 
