@@ -507,7 +507,7 @@ export default function RoomPage() {
           </div>
         )
         : (
-          <div className="flex flex-1 overflow-hidden">
+          <div className="flex min-w-0 flex-1 overflow-hidden">
             <LeftSidebar />
             <MiddleColumn />
             <RightSidebar />

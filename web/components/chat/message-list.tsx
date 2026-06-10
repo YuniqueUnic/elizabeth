@@ -118,7 +118,7 @@ export function MessageList(
   }
 
   return (
-    <div className="flex flex-col overflow-hidden h-full">
+    <div className="flex h-full min-w-0 flex-col overflow-hidden">
       <div
         className={cn(
           "items-center justify-between border-b bg-muted/30 px-4 py-2",
@@ -158,12 +158,15 @@ export function MessageList(
         </div>
       </div>
 
-      <div className="relative flex-1 h-0" data-testid="message-list-scroll">
+      <div
+        className="relative h-0 min-w-0 flex-1"
+        data-testid="message-list-scroll"
+      >
         <ScrollArea
-          className="h-full p-4"
+          className="h-full min-w-0 p-4"
           ref={scrollRef}
         >
-          <div className="space-y-2 mx-2 mt-2">
+          <div className="mx-2 mt-2 min-w-0 space-y-2">
             {messages.length === 0
               ? (
                 <div className="flex h-full items-center justify-center">

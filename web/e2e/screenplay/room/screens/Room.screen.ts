@@ -84,6 +84,11 @@ export const RoomScreen = {
   messageListScroll: (page: Page): Locator =>
     page.getByTestId("message-list-scroll"),
 
+  messageListViewport: (page: Page): Locator =>
+    page.getByTestId("message-list-scroll").locator(
+      "[data-radix-scroll-area-viewport]",
+    ),
+
   messageSelectionToolbar: (page: Page): Locator =>
     page.getByTestId("message-selection-toolbar"),
 
@@ -101,6 +106,18 @@ export const RoomScreen = {
 
   roomConfigRoot: (page: Page): Locator =>
     page.locator("aside").first(),
+
+  leftSidebar: (page: Page): Locator =>
+    page.getByTestId("left-sidebar"),
+
+  leftSidebarCollapseButton: (page: Page): Locator =>
+    page.getByTestId("left-sidebar-collapse"),
+
+  leftSidebarExpandButton: (page: Page): Locator =>
+    page.getByTestId("left-sidebar-expand"),
+
+  leftSidebarCollapsedRail: (page: Page): Locator =>
+    page.getByTestId("left-sidebar-collapsed-rail"),
 
   roomConfigTitle: (page: Page): Locator =>
     page.locator("aside").first().getByText(tRoom("config.title")),

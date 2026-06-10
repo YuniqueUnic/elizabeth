@@ -20,7 +20,7 @@ test.describe("Message list layout and overflow", () => {
     await actor.attemptsTo(OpenRoom(room.url));
   });
 
-  test("long unbroken text does not overflow the message list width", async ({
+  test("long unbroken text stays inside the visible message list viewport when the room settings sidebar is expanded", async ({
     actor,
     page,
   }) => {
@@ -28,19 +28,24 @@ test.describe("Message list layout and overflow", () => {
     await actor.attemptsTo(SendMessage(longText));
     await actor.attemptsTo(SaveMessages());
 
-    const messageListScroll = RoomScreen.messageListScroll(page);
+    await expect(RoomScreen.leftSidebar(page)).toBeVisible();
+    await RoomScreen.leftSidebarCollapseButton(page).click();
+    await expect(RoomScreen.leftSidebarCollapsedRail(page)).toBeVisible();
+    await RoomScreen.leftSidebarExpandButton(page).click();
+    await expect(RoomScreen.leftSidebar(page)).toBeVisible();
+
+    const messageListViewport = RoomScreen.messageListViewport(page);
     const messageItem = RoomScreen.messageItems(page).last();
 
-    const listWidth = await messageListScroll.evaluate(
-      (el) => el.getBoundingClientRect().width,
-    );
-    const itemWidth = await messageItem.evaluate(
-      (el) => el.getBoundingClientRect().width,
-    );
+    const viewportBox = await messageListViewport.boundingBox();
+    const itemBox = await messageItem.boundingBox();
 
-    // Message item should not exceed the list container width
-    // Allow small tolerance for borders/padding
-    expect(itemWidth).toBeLessThanOrEqual(listWidth + 4);
+    expect(viewportBox).not.toBeNull();
+    expect(itemBox).not.toBeNull();
+    expect(itemBox!.x).toBeGreaterThanOrEqual(viewportBox!.x - 1);
+    expect(itemBox!.x + itemBox!.width).toBeLessThanOrEqual(
+      viewportBox!.x + viewportBox!.width + 1,
+    );
   });
 
   test("message content wraps properly with break-words", async ({
@@ -66,6 +71,100 @@ test.describe("Message list layout and overflow", () => {
 
     // Content scrollWidth should not exceed container width significantly
     expect(contentWidth).toBeLessThanOrEqual(containerWidth + 4);
+  });
+
+  test("ordered list markers in rendered messages keep 20+ items clear of the left edge", async ({
+    actor,
+    page,
+  }) => {
+    const orderedListMarkdown = Array.from(
+      { length: 24 },
+      (_, index) => `${index + 1}. Ordered item ${index + 1}`,
+    ).join("\n");
+
+    await RoomScreen.sourceModeButton(page).click();
+    await RoomScreen.sourceEditor(page).fill(orderedListMarkdown);
+    await RoomScreen.sendButton(page).click();
+    await actor.attemptsTo(SaveMessages());
+
+    const messageContent = RoomScreen.messageContents(page).last();
+    const twentiethItem = messageContent.locator(".ProseMirror ol > li").nth(19);
+
+    await expect(twentiethItem).toBeVisible();
+
+    const metrics = await twentiethItem.evaluate((element) => {
+      const firstTextNode = (() => {
+        const queue: Node[] = [element];
+        while (queue.length > 0) {
+          const current = queue.shift();
+          if (!current) break;
+          if (
+            current.nodeType === Node.TEXT_NODE &&
+            current.textContent?.trim()
+          ) {
+            return current as Text;
+          }
+          queue.unshift(...Array.from(current.childNodes));
+        }
+        return null;
+      })();
+
+      const range = document.createRange();
+      if (firstTextNode) {
+        range.setStart(firstTextNode, 0);
+        range.setEnd(firstTextNode, Math.min(1, firstTextNode.length));
+      } else {
+        range.selectNodeContents(element);
+      }
+
+      const messageContentElement = element.closest(
+        '[data-testid^="message-content-"]',
+      ) as HTMLElement | null;
+      const proseMirror = element.closest(".ProseMirror") as HTMLElement | null;
+      const textRect = range.getBoundingClientRect();
+      const list = element.parentElement as HTMLOListElement | null;
+      const listRect = list?.getBoundingClientRect();
+      const listStyle = list ? getComputedStyle(list) : getComputedStyle(element);
+      const itemStyle = getComputedStyle(element);
+      const fontSize = Number.parseFloat(itemStyle.fontSize) || 14;
+
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d");
+      const markerText = "20.";
+      let markerWidth = fontSize;
+      let gapWidth = fontSize * 0.5;
+
+      if (context) {
+        context.font = itemStyle.font;
+        markerWidth = context.measureText(markerText).width;
+        gapWidth = Math.max(
+          context.measureText("  ").width,
+          fontSize * 0.5,
+        );
+      }
+
+      return {
+        estimatedMarkerLeft: textRect.left - markerWidth - gapWidth,
+        listPaddingLeft: Number.parseFloat(listStyle.paddingLeft),
+        messageContentLeft: messageContentElement?.getBoundingClientRect().left ?? 0,
+        proseMirrorLeft: proseMirror?.getBoundingClientRect().left ?? 0,
+        textOffsetLeftWithinList: listRect ? textRect.left - listRect.left : 0,
+        requiredIndent: markerWidth + gapWidth,
+      };
+    });
+
+    expect(metrics.listPaddingLeft).toBeGreaterThanOrEqual(
+      metrics.requiredIndent - 1,
+    );
+    expect(metrics.textOffsetLeftWithinList).toBeGreaterThanOrEqual(
+      metrics.requiredIndent - 1,
+    );
+    expect(metrics.estimatedMarkerLeft).toBeGreaterThanOrEqual(
+      metrics.proseMirrorLeft - 1,
+    );
+    expect(metrics.estimatedMarkerLeft).toBeGreaterThanOrEqual(
+      metrics.messageContentLeft - 1,
+    );
   });
 
   test("message meta row does not overflow the message card", async ({

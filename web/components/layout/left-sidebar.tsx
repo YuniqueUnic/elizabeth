@@ -178,12 +178,16 @@ export function LeftSidebar() {
   // Desktop layout: fixed width with collapse functionality
   if (leftSidebarCollapsed) {
     return (
-      <div className="flex w-12 flex-col items-center border-r bg-muted/30 py-4">
+      <div
+        className="flex w-12 shrink-0 flex-col items-center border-r bg-muted/30 py-4"
+        data-testid="left-sidebar-collapsed-rail"
+      >
         <Button
           variant="ghost"
           size="icon"
           onClick={toggleLeftSidebar}
           title={t("sidebar.expandSidebar")}
+          data-testid="left-sidebar-expand"
         >
           <ChevronRight className="h-4 w-4" />
         </Button>
@@ -193,7 +197,10 @@ export function LeftSidebar() {
 
   return (
     <>
-      <aside className="flex w-80 flex-col border-r bg-muted/30 h-full overflow-hidden">
+      <aside
+        className="flex h-full w-80 shrink-0 flex-col overflow-hidden border-r bg-muted/30"
+        data-testid="left-sidebar"
+      >
         {/* Header */}
         <div className="flex h-12 items-center justify-between border-b px-4">
           <h2 className="font-semibold">{t("sidebar.roomControl")}</h2>
@@ -202,6 +209,7 @@ export function LeftSidebar() {
             size="icon"
             onClick={toggleLeftSidebar}
             title={t("sidebar.collapseSidebar")}
+            data-testid="left-sidebar-collapse"
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>

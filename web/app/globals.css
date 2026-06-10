@@ -444,7 +444,18 @@
 
 .ProseMirror ol {
     list-style-type: decimal !important;
-    padding-left: 1.5em !important;
+    /*
+     * Ordered-list markers use the default outside positioning in both:
+     * 1) the composer preview/editor render path, and
+     * 2) the read-only Tiptap viewer used by saved messages.
+     *
+     * The previous 1.5em indent is enough for markers like `10.` / `19.`,
+     * but not for wider double-digit markers such as `20.` / `22.`.
+     * Because these ProseMirror surfaces also clip horizontal overflow,
+     * the leading digit gets cut off at the left edge.
+     */
+    padding-left: 2.75em !important;
+    padding-inline-start: 2.75em !important;
     margin-top: 0.5em !important;
     margin-bottom: 0.5em !important;
 }

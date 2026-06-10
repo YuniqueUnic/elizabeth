@@ -308,8 +308,8 @@ export function RightSidebar() {
   return (
     <>
       <aside
-        className={`flex flex-col bg-muted/30 h-full overflow-hidden ${
-          isMobile ? "w-full" : "w-80 border-l"
+        className={`flex h-full flex-col overflow-hidden bg-muted/30 ${
+          isMobile ? "w-full" : "w-80 shrink-0 border-l"
         }`}
       >
         {/* Header */}

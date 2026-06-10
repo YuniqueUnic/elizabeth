@@ -227,7 +227,7 @@ export function MiddleColumn() {
   };
 
   return (
-    <main className="flex flex-1 flex-col overflow-hidden">
+    <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
       <Group orientation="vertical">
         {/* 消息列表面板 */}
         <Panel defaultSize={70} minSize={30}>
