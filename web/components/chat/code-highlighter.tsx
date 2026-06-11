@@ -110,7 +110,7 @@ export function CodeHighlighter(
   return (
     <>
       <div
-        className="relative group my-4 rounded-lg border bg-muted/50"
+        className="relative group my-4 rounded-lg border bg-muted/50 w-full max-w-full overflow-hidden"
         data-language={codeLanguage}
         data-testid="shiki-code-block"
       >
