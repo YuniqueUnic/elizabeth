@@ -3,6 +3,8 @@
 .shiki-wrapper {
   border-radius: 0.5rem;
   overflow: hidden;
+  width: 100%;
+  max-width: 100%;
 }
 
 .shiki-wrapper .shiki-pre {
@@ -37,6 +39,10 @@
   width: 100%;
   position: relative;
   padding-left: 3.5rem;
+}
+
+.shiki-wrapper .line:empty::after {
+  content: "\200b";
 }
 
 .shiki-wrapper .line::before {
