@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v1.1.0.html).
 
+## [1.3.2](https://github.com/YuniqueUnic/elizabeth/compare/v1.3.1...v1.3.2) (2026-06-11)
+
+
+### Bug Fixes
+
+* **chat:** add proper width constraints to code blocks ([b0cea85](https://github.com/YuniqueUnic/elizabeth/commit/b0cea85886758e4936479093c919339483260bf3))
+* **chat:** solve codeblock horizontal overflow and layout stretching ([09581b9](https://github.com/YuniqueUnic/elizabeth/commit/09581b980a5f0c08bdf1000c7fb7a971396e5edc))
+
 ## [1.3.1](https://github.com/YuniqueUnic/elizabeth/compare/v1.3.0...v1.3.1) (2026-06-10)
 
 
