@@ -2,22 +2,24 @@
 
 .shiki-wrapper {
   border-radius: 0.5rem;
-  overflow: hidden;
-  width: 100%;
-  max-width: 100%;
+  overflow: hidden !important;
+  width: 100% !important;
+  max-width: 100% !important;
 }
 
 .shiki-wrapper .shiki-pre {
-  margin: 0;
-  padding: 1rem;
-  overflow-x: auto;
-  max-width: 100%;
-  border: 0;
-  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-  font-size: 0.875rem;
-  line-height: 1.7;
-  tab-size: 2;
-  -moz-tab-size: 2;
+  margin: 0 !important;
+  padding: 1rem !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  white-space: pre !important;
+  max-width: 100% !important;
+  border: 0 !important;
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace !important;
+  font-size: 0.875rem !important;
+  line-height: 1.7 !important;
+  tab-size: 2 !important;
+  -moz-tab-size: 2 !important;
 }
 
 .message-content .ProseMirror .shiki-wrapper .shiki-pre,
@@ -30,13 +32,14 @@
 }
 
 .shiki-wrapper .shiki-code {
-  display: block;
+  display: inline-block;
+  min-width: 100%;
   counter-reset: line;
 }
 
 .shiki-wrapper .line {
   display: inline-block;
-  width: 100%;
+  min-width: 100%;
   position: relative;
   padding-left: 3.5rem;
 }

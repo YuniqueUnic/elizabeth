@@ -273,15 +273,40 @@
     min-width: 0;
 }
 
+/* 确保 Radix ScrollArea 内部的 content 容器不会因为 display: table 而在水平方向被无限制撑开 */
+[data-slot="scroll-area-viewport"] > div {
+    display: block !important;
+}
+
 .message-content .tiptap-viewer-container {
     overflow-x: hidden;
     overflow-wrap: break-word;
     word-break: break-word;
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+}
+
+.message-content .tiptap-viewer-content {
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
 }
 
 .message-content .ProseMirror {
     overflow-wrap: break-word;
     word-break: break-word;
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+}
+
+.message-content .ProseMirror [data-node-view-wrapper],
+.tiptap-editor-content .ProseMirror [data-node-view-wrapper] {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
 }
 
 .message-content .ProseMirror pre {

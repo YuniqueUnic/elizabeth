@@ -31,7 +31,7 @@ function ShikiCodeBlockView({ node }: NodeViewProps) {
       : DEFAULT_CODE_BLOCK_LANGUAGE;
 
   return (
-    <NodeViewWrapper className="not-prose" contentEditable={false}>
+    <NodeViewWrapper className="not-prose w-full max-w-full min-w-0 overflow-hidden" contentEditable={false}>
       <CodeHighlighter code={node.textContent} language={language} />
     </NodeViewWrapper>
   );
@@ -156,10 +156,10 @@ export function MinimalTiptapViewer({ content, className, onFileClick }: Minimal
 
   return (
     <div
-        className="tiptap-viewer-container overflow-hidden"
+        className="tiptap-viewer-container w-full max-w-full min-w-0 overflow-hidden"
         style={{ fontSize: `${messageFontSize}px` }}
     >
-        <EditorContent editor={editor} className="tiptap-viewer-content" />
+        <EditorContent editor={editor} className="tiptap-viewer-content w-full max-w-full min-w-0" />
     </div>
   );
 }
