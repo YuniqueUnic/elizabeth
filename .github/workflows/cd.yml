@@ -56,7 +56,7 @@ jobs:
           NODE_ENV: production
 
       - name: Upload frontend assets
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-assets
           path: crates/board/web-out

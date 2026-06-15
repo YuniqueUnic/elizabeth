@@ -36,7 +36,7 @@ jobs:
           NODE_ENV: production
 
       - name: Upload frontend assets
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-assets
           path: crates/board/web-out
@@ -183,7 +183,7 @@ jobs:
 
       - name: Upload test report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report
           path: web/playwright-report
@@ -191,7 +191,7 @@ jobs:
 
       - name: Upload Serenity report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: serenity-report
           path: web/target/site/serenity
