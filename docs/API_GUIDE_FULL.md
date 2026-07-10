@@ -69,14 +69,24 @@ curl "http://localhost:4092/api/v1/config"
 {
   "room": {
     "expiry": {
-      "allowed_ages_seconds": [60, 1800, 7200, 43200, 86400, 604800, 2592000, 31536000],
+      "allowed_ages_seconds": [
+        60,
+        1800,
+        7200,
+        43200,
+        86400,
+        604800,
+        2592000,
+        31536000
+      ],
       "default_age_seconds": 604800
     }
   }
 }
 ```
 
-该接口只公开 UI/客户端需要的安全策略，不返回 JWT secret、数据库地址等私密部署配置。
+该接口只公开 UI/客户端需要的安全策略，不返回 JWT
+secret、数据库地址等私密部署配置。
 
 ---
 
@@ -344,7 +354,8 @@ curl -X POST "http://localhost:4092/api/v1/rooms/my-room/permissions?token=eyJhb
 
 - `max_size` (可选): 最大容量（字节），如 5GB = 5368709120
 - `max_times_entered` (可选): 最大进入次数
-- `age_seconds` (可选): 从服务端当前时间开始计算的有效期（秒），必须属于部署配置 `app.room.expiry.allowed_ages`
+- `age_seconds` (可选): 从服务端当前时间开始计算的有效期（秒），必须属于部署配置
+  `app.room.expiry.allowed_ages`
 
 **请求示例：**
 
@@ -693,7 +704,8 @@ curl -X GET "http://localhost:4092/api/v1/rooms/my-room/contents?token=eyJhbGc..
 
 ### 2. 分页读取消息历史
 
-按稳定游标分页读取房间中的文本消息。长消息房间或移动端历史回溯应优先使用这个接口，而不是一次性拉取 `/contents`。
+按稳定游标分页读取房间中的文本消息。长消息房间或移动端历史回溯应优先使用这个接口，而不是一次性拉取
+`/contents`。
 
 **端点：** `GET /api/v1/rooms/{name}/messages`
 

@@ -67,12 +67,14 @@ jobs:
 
       - name: Verify image-only startup and default expiry
         shell: bash
-        run: |
+        env:
+          JWT_SECRET: smoke-test-secret-with-at-least-32-characters # pragma: allowlist secret
+        run: | # pragma: allowlist secret
           set -euo pipefail
           docker run -d --rm \
             --name elizabeth-smoke \
             -p 127.0.0.1:4092:4092 \
-            -e JWT_SECRET=smoke-test-secret-with-at-least-32-characters \
+            -e JWT_SECRET="${JWT_SECRET}" \
             -e ROOM_DEFAULT_AGE=1m \
             elizabeth-smoke:local
           trap 'docker logs elizabeth-smoke || true; docker rm -f elizabeth-smoke >/dev/null 2>&1 || true' EXIT
