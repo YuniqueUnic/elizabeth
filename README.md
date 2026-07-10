@@ -65,82 +65,238 @@
 
 ---
 
-## 快速开始 (Docker 部署，默认使用 SQLite)
+## 部署与使用
 
-一键拉取并部署项目（默认搭载轻量级 SQLite 数据库驱动）：
+Elizabeth 的正式镜像发布在
+[Docker Hub `yunique001/elizabeth`](https://hub.docker.com/r/yunique001/elizabeth)，支持
+`linux/amd64` 与 `linux/arm64`。默认使用 SQLite；需要 PostgreSQL
+时可以直接叠加仓库提供的 Compose override。
+
+| 部署方式                        | 是否需要克隆仓库 | 是否在本机构建 | 持久化方式           | 适合场景                     |
+| :------------------------------ | :--------------- | :------------- | :------------------- | :--------------------------- |
+| Docker Hub + `docker run`       | 否               | 否             | Docker named volumes | 最快体验、单机或反向代理部署 |
+| Docker Hub + Docker Compose     | 是               | 否             | 默认使用宿主机目录   | 易维护、可配置的长期部署     |
+| Docker Compose / `docker build` | 是               | 是             | 默认使用宿主机目录   | 开发分支、定制镜像           |
+| Rust + Bun 原生构建             | 是               | 是             | 使用本机配置         | 本地开发与调试               |
+
+### 选择镜像版本
+
+生产部署推荐固定精确版本，避免 `latest` 在重建容器时发生非预期升级。下面的版本由
+release-please 在 Release PR 中自动更新。
+
+<!-- x-release-please-start-version -->
 
 ```bash
-# 克隆仓库
+export ELIZABETH_VERSION=1.4.0
+```
+
+<!-- x-release-please-end -->
+
+手动拉取镜像：
+
+```bash
+docker pull "yunique001/elizabeth:${ELIZABETH_VERSION}"
+```
+
+如果只是临时体验，也可以拉取
+`yunique001/elizabeth:latest`；长期部署仍建议使用精确版本。
+
+### 方式一：Docker Hub 一键启动（推荐最快）
+
+镜像已经包含 Rust 服务、嵌入式 Web 前端、数据库 migrations、默认 YAML
+配置和健康检查所需的 `curl`，无需克隆仓库。先生成并保存一个稳定的 JWT 密钥：
+
+```bash
+umask 077
+printf 'JWT_SECRET=%s\n' "$(openssl rand -hex 32)" > .env.elizabeth # pragma: allowlist secret
+```
+
+然后运行容器：
+
+```bash
+docker run -d \
+  --name elizabeth \
+  --restart unless-stopped \
+  --init \
+  --read-only \
+  --security-opt no-new-privileges:true \
+  --cap-drop ALL \
+  --tmpfs /tmp \
+  -p 127.0.0.1:4092:4092 \
+  --env-file .env.elizabeth \
+  -v elizabeth-data:/app/data \
+  -v elizabeth-storage:/app/storage \
+  --health-cmd='curl -fsS http://127.0.0.1:4092/api/v1/health || exit 1' \
+  --health-interval=30s \
+  --health-timeout=10s \
+  --health-retries=3 \
+  --health-start-period=10s \
+  "yunique001/elizabeth:${ELIZABETH_VERSION}"
+```
+
+> [!IMPORTANT]
+> 请安全保存 `.env.elizabeth`，并在重建或升级容器时复用同一个
+> `JWT_SECRET`。重新生成密钥会让已有 token 全部失效；不要把该文件提交到版本库。
+
+该命令默认只监听本机 `127.0.0.1:4092`，适合在前面配置 HTTPS
+反向代理。需要直接提供给局域网访问时，可改为 `-p 4092:4092`；不建议将未启用 TLS
+的 HTTP 端口直接暴露到公网。
+
+### 方式二：Docker Compose 拉取预构建镜像
+
+Compose 方式会复用仓库中的 `.env.docker`、YAML 配置、数据目录准备脚本和
+PostgreSQL override。以下命令只拉取 Docker Hub 镜像，不在本机编译：
+
+```bash
+git clone --branch "v${ELIZABETH_VERSION}" --depth 1 \
+  https://github.com/YuniqueUnic/elizabeth.git
+cd elizabeth
+
+cp .env.docker .env
+${EDITOR:-nano} .env
+
+./scripts/docker_prepare_volumes.sh
+docker compose pull backend
+docker compose up -d --no-build
+```
+
+生产环境必须修改 `.env` 中的
+`JWT_SECRET`。如果需要选择其他已发布版本，可以在当前 shell 中设置
+`ELIZABETH_IMAGE=yunique001/elizabeth:<version>` 后再执行 Compose 命令。
+
+### 方式三：从源码自行构建 Docker 镜像
+
+使用 Compose 构建当前 checkout，并用本地镜像名避免覆盖 Docker Hub 官方镜像的本地
+tag：
+
+```bash
 git clone https://github.com/YuniqueUnic/elizabeth.git
 cd elizabeth
 
-# 准备环境变量配置文件
 cp .env.docker .env
-
-# 生产环境务必修改 JWT_SECRET（推荐长度 >= 32 字符的随机安全字符串）
 ${EDITOR:-nano} .env
 
-# 一键构建并拉起服务
-docker compose up -d --build
+./scripts/docker_prepare_volumes.sh
+ELIZABETH_IMAGE=elizabeth:local docker compose up -d --build
 ```
 
-### 访问地址索引
-
-部署成功后，您可以通过以下入口访问和调试服务：
-
-- **Web 前端界面**：`http://localhost:4092`
-- **Scalar 交互式接口文档**：`http://localhost:4092/api/v1/scalar`
-- **OpenAPI 描述文件 (JSON)**：`http://localhost:4092/api/v1/openapi.json`
-- **健康检查接口**：`http://localhost:4092/api/v1/health`
-
----
-
-## 高级数据库配置 (自适应驱动切换)
-
-Elizabeth 依靠 `sqlx::AnyPool` 具备出色的数据库自适应能力，能够根据 `.env`
-中传入的 `DATABASE_URL`
-的协议头自动决策装载哪套驱动，且在迁移（Migrations）上实现了智能切换：
-
-- **轻量级 SQLite**（默认，使用 `./crates/board/migrations` / 容器内
-  `/app/migrations`）
-- **生产级 PostgreSQL**（使用 `./crates/board/migrations_pg` / 容器内
-  `/app/migrations_pg`）
-
-### 使用内置 PostgreSQL 容器部署（推荐生产环境）
-
-如果您希望配合内置的 PostgreSQL 容器一同拉起服务，只需运行：
+也可以只构建镜像，再复用“方式一”的 `docker run` 参数：
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --build
+docker build \
+  --target runtime \
+  -f Dockerfile.backend \
+  -t elizabeth:local \
+  .
 ```
 
-### 使用外部已有的 PostgreSQL
+### 方式四：Rust + Bun 原生构建
 
-如果您有独立部署的外部 PostgreSQL 数据库，请在 `.env` 中修改连接串（确保后端
-Docker 容器具有网络访问权限）：
+本地需要安装仓库指定的 Rust toolchain、Bun，以及可选的
+[`just`](https://github.com/casey/just)。推荐直接运行：
+
+```bash
+cd web
+bun install --frozen-lockfile
+bun run build:embedded
+cd ..
+
+ELIZABETH_SKIP_WEB_BUILD=1 cargo build --release -p elizabeth-board
+```
+
+构建产物位于 `target/release/board`。本地开发可使用 `just dev`；完整 release
+构建可使用 `just build`。
+
+### 使用 PostgreSQL
+
+Elizabeth 根据 `DATABASE_URL` 的协议自动选择 SQLite 或 PostgreSQL migrations。
+
+使用仓库提供的 PostgreSQL 容器时，先在 `.env` 中设置安全的
+`POSTGRES_PASSWORD`，再运行：
+
+```bash
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.postgres.yml \
+  pull
+
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.postgres.yml \
+  up -d --no-build
+```
+
+如果需要从当前源码构建，将最后一条命令的 `--no-build` 替换为 `--build`，并设置
+`ELIZABETH_IMAGE=elizabeth:local`。
+
+使用外部 PostgreSQL 时，在 `.env` 中设置连接串，并确保后端容器可以访问目标主机：
 
 ```env
 DATABASE_URL=postgresql://用户名:密码@主机名:端口/数据库名 # pragma: allowlist secret
 ```
 
----
+### 配置与持久化
 
-## 关键配置说明
+容器内关键路径：
 
-在 Docker 容器化环境下，推荐通过项目根目录的 `.env`
-环境变量配置文件覆盖核心行为：
+| 路径                       | 内容                                       | 是否必须持久化               |
+| :------------------------- | :----------------------------------------- | :--------------------------- |
+| `/app/data`                | SQLite 数据库                              | 使用 SQLite 时必须           |
+| `/app/storage`             | 房间上传文件                               | 必须                         |
+| `/app/config/backend.yaml` | 部署级默认配置、房间策略与 middleware 配置 | 可使用镜像内置版本或只读挂载 |
 
-| 环境变量             | 默认值                            | 作用说明                                           |
-| :------------------- | :-------------------------------- | :------------------------------------------------- |
-| `JWT_SECRET`         | （必填）                          | 用于生成和签名认证令牌的秘钥。生产环境请务必修改。 |
-| `DATABASE_URL`       | `sqlite:///app/data/elizabeth.db` | 数据库连接串。协议头决定了使用的驱动类型。         |
-| `DB_MAX_CONNECTIONS` | `20`                              | 数据库连接池的最大连接数上限。                     |
-| `DB_MIN_CONNECTIONS` | `5`                               | 数据库连接池保留的最小连接数常驻。                 |
+`docker run` 示例使用 named volumes；Compose 默认将它们绑定到
+`./docker/backend/data`、`./docker/backend/storage` 和
+`./docker/backend/config/backend.yaml`，也可以通过 `.env` 中的
+`ELIZABETH_DATA_DIR`、`ELIZABETH_STORAGE_DIR`、`ELIZABETH_BACKEND_CONFIG` 覆盖。
 
-> [!NOTE]
-> 项目的静态配置文件位于
-> `docker/backend/config/backend.yaml`，该文件在运行时加载（注：YAML
-> 自身不支持动态读取环境变量，密钥和高敏感配置均推荐使用 env 注入来覆盖）。
+常用环境变量：
+
+| 环境变量                            | 默认值                            | 作用说明                                          |
+| :---------------------------------- | :-------------------------------- | :------------------------------------------------ |
+| `JWT_SECRET`                        | 示例值，仅供启动                  | 签名认证令牌；生产环境必须设置稳定的 32+ 字符密钥 |
+| `DATABASE_URL`                      | `sqlite:///app/data/elizabeth.db` | 数据库连接串，协议决定驱动和 migrations           |
+| `BACKEND_PORT`                      | `4092`                            | Compose 暴露到宿主机的端口                        |
+| `ROOM_MAX_SIZE`                     | `50MiB`                           | 新房间默认容量，支持 `50M`、`100M`、`1G`、`1GiB`  |
+| `ROOM_MAX_TIMES_ENTERED`            | `100`                             | 新房间默认最大进入次数                            |
+| `ROOM_DEFAULT_AGE`                  | `2h`                              | 新房间默认过期时间，支持 `m`、`h`、`d`、`w`       |
+| `ROOM_DEFAULT_PASSWORD`             | 空                                | 新房间默认密码；空值表示无密码                    |
+| `ROOM_DEFAULT_PERMISSION_*`         | `true`                            | 新房间 read/edit/share/delete 四位默认权限        |
+| `ROOM_SHARE_DISABLED_LOCK_DURATION` | `1h`                              | 关闭分享后的锁定时长，支持 humantime 单位         |
+
+镜像内置配置位于 `/app/config/backend.yaml`，仓库模板位于
+`docker/backend/config/backend.yaml`。YAML 不执行 `${VAR}`
+插值；容器环境变量会在启动时覆盖对应 YAML 值。Compose 已显式传递 `.env.docker`
+中的数据库、JWT、房间、上传、GC、日志和 middleware 配置。
+
+### 启动验证与日常维护
+
+部署成功后可访问：
+
+- Web：`http://localhost:4092/`
+- 健康检查：`http://localhost:4092/api/v1/health`
+- Scalar API 文档：`http://localhost:4092/api/v1/scalar`
+- OpenAPI JSON：`http://localhost:4092/api/v1/openapi.json`
+
+常用 Compose 命令：
+
+```bash
+docker compose ps
+docker compose logs -f backend
+curl -fsS http://127.0.0.1:4092/api/v1/health
+docker compose down --remove-orphans
+```
+
+升级预构建镜像时，先切换到目标 release，再拉取并重建容器：
+
+```bash
+docker compose pull backend
+docker compose up -d --no-build --remove-orphans
+```
+
+直接使用 `docker run` 的部署，应先拉取新版本、删除旧容器，再使用相同的
+`.env.elizabeth`、端口和 `elizabeth-data` / `elizabeth-storage` volumes
+重新执行启动命令。升级或停止容器时不要删除数据卷。
 
 ---
 

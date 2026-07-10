@@ -1,15 +1,16 @@
 name: Docker Publish
 
-# 纯手动触发 — Docker 镜像发布由人工决策，不随每次 version bump 自动触发
-#
-# 使用方式（CLI）：
+# release-please 创建 v* tag 时自动发布 Docker Hub 镜像；也保留手动补发入口。
+# 手动使用方式（CLI）：
 #   gh workflow run docker-publish.yml \
 #     --repo YuniqueUnic/elizabeth \
 #     -f version=v0.3.1 \
 #     -f push_latest=true
 #
-# 或在 GitHub Actions UI：Actions → Docker Publish → Run workflow
 on:
+  push:
+    tags:
+      - "v*"
   workflow_dispatch:
     inputs:
       version:
@@ -26,6 +27,7 @@ permissions: {}
 
 env:
   IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/elizabeth
+  VERSION_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
 
 jobs:
   # ============================================================
@@ -43,7 +45,7 @@ jobs:
 
       - name: Verify tag exists
         run: |
-          VERSION="${{ github.event.inputs.version }}"
+          VERSION="${{ env.VERSION_TAG }}"
           if ! git tag --list | grep -qx "$VERSION"; then
             echo "❌ Tag '$VERSION' does not exist in this repository."
             echo "   Please create the tag first or check the spelling."
@@ -60,7 +62,7 @@ jobs:
       - name: Checkout at version tag
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.inputs.version }}
+          ref: ${{ env.VERSION_TAG }}
 
       - name: Build smoke image
         run: docker build -f Dockerfile.backend -t elizabeth-smoke:local .
@@ -116,7 +118,7 @@ jobs:
       - name: Checkout at version tag
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.inputs.version }}
+          ref: ${{ env.VERSION_TAG }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -177,11 +179,11 @@ jobs:
           images: ${{ env.IMAGE }}
           tags: |
             # 精确版本：v0.3.1 → 0.3.1
-            type=semver,pattern={{version}},value=${{ github.event.inputs.version }}
+            type=semver,pattern={{version}},value=${{ env.VERSION_TAG }}
             # minor 版本：0.3
-            type=semver,pattern={{major}}.{{minor}},value=${{ github.event.inputs.version }}
-            # latest（由 push_latest 控制）
-            type=raw,value=latest,enable=${{ github.event.inputs.push_latest == 'true' }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ env.VERSION_TAG }}
+            # tag 自动发布默认更新 latest；手动补发时由 push_latest 控制
+            type=raw,value=latest,enable=${{ github.event_name == 'push' || inputs.push_latest }}
 
       - name: Login to Docker Hub
         uses: docker/login-action@v4

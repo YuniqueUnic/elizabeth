@@ -44,6 +44,13 @@ repos:
   # Rust 格式化
   - repo: local
     hooks:
+      - id: release-version-sync
+        name: release version sync
+        entry: bash scripts/check-release-version-sync.sh
+        language: system
+        files: '^(README\.md|docker-compose\.yml|release-please-config\.json|version\.txt)$'
+        pass_filenames: false
+
       - id: rustfmt
         name: rustfmt
         entry: cargo fmt --all
