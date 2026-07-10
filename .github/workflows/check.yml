@@ -15,6 +15,16 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
+  docs-version-sync:
+    name: Documentation Version Sync
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Verify release version references
+        run: bash scripts/check-release-version-sync.sh
+
   build-frontend:
     name: Build Frontend
     runs-on: ubuntu-latest
