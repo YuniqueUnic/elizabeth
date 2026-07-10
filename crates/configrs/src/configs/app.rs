@@ -73,9 +73,6 @@ pub struct JwtConfig {
     #[default(7 * 24 * 60 * 60)] // 7 天（秒）
     #[merge(strategy = overwrite)]
     pub refresh_ttl_seconds: i64,
-    #[default(10)]
-    #[merge(strategy = overwrite)]
-    pub max_refresh_count: i64,
     #[default(24 * 60 * 60)] // 24 小时（秒）
     #[merge(strategy = overwrite)]
     pub cleanup_interval_seconds: i64,
@@ -318,7 +315,6 @@ mod tests {
         assert_eq!(cfg.jwt.secret, DEFAULT_JWT_SECRET);
         assert_eq!(cfg.jwt.ttl_seconds, 30 * 60);
         assert_eq!(cfg.jwt.refresh_ttl_seconds, 7 * 24 * 60 * 60);
-        assert_eq!(cfg.jwt.max_refresh_count, 10);
         assert_eq!(cfg.jwt.cleanup_interval_seconds, 24 * 60 * 60);
         assert!(cfg.jwt.enable_refresh_token_rotation);
         assert_eq!(cfg.storage.root, "storage/rooms");

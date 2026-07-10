@@ -38,6 +38,14 @@ pub enum RoomStatus {
     Close = 2,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RoomAvailability {
+    Open,
+    Expired,
+    Closed,
+    EntryLimitReached,
+}
+
 /// 数据库与 API Room 模型
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
@@ -164,17 +172,27 @@ impl Room {
     }
 
     pub fn is_expired(&self) -> bool {
-        if let Some(expire_at) = self.expire_at {
-            Utc::now().naive_utc() >= expire_at
+        self.is_expired_at(Utc::now().naive_utc())
+    }
+
+    pub fn is_expired_at(&self, now: NaiveDateTime) -> bool {
+        self.expire_at.is_some_and(|expire_at| now >= expire_at)
+    }
+
+    pub fn availability_at(&self, now: NaiveDateTime) -> RoomAvailability {
+        if self.is_expired_at(now) {
+            RoomAvailability::Expired
+        } else if self.status() == RoomStatus::Close {
+            RoomAvailability::Closed
+        } else if self.current_times_entered >= self.max_times_entered {
+            RoomAvailability::EntryLimitReached
         } else {
-            false
+            RoomAvailability::Open
         }
     }
 
     pub fn can_enter(&self) -> bool {
-        !self.is_expired()
-            && self.status() != RoomStatus::Close
-            && self.current_times_entered < self.max_times_entered
+        self.availability_at(Utc::now().naive_utc()) == RoomAvailability::Open
     }
 
     pub fn can_add_content(&self, content_size: i64) -> bool {

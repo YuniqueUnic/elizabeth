@@ -77,7 +77,7 @@ async fn room_gc_marks_full_unbounded_room_on_empty() -> anyhow::Result<()> {
 
     app_state
         .services
-        .room_gc
+        .room_lifecycle
         .on_room_became_empty(&room.slug)
         .await?;
 
@@ -111,7 +111,7 @@ async fn room_gc_clears_markers_when_room_active_again() -> anyhow::Result<()> {
 
     app_state
         .services
-        .room_gc
+        .room_lifecycle
         .on_room_became_empty(&room.slug)
         .await?;
     let (empty_since, cleanup_after) = load_gc_markers(&app_state, &room.slug).await?;
@@ -120,7 +120,7 @@ async fn room_gc_clears_markers_when_room_active_again() -> anyhow::Result<()> {
 
     app_state
         .services
-        .room_gc
+        .room_lifecycle
         .on_room_became_active(&room.slug)
         .await?;
     let (empty_since, cleanup_after) = load_gc_markers(&app_state, &room.slug).await?;
@@ -152,7 +152,7 @@ async fn room_gc_purges_when_cleanup_after_elapsed_and_no_connections() -> anyho
 
     app_state
         .services
-        .room_gc
+        .room_lifecycle
         .on_room_became_empty(&room.slug)
         .await?;
 
@@ -187,12 +187,16 @@ async fn room_gc_purges_when_cleanup_after_elapsed_and_no_connections() -> anyho
     content.file_name = Some("hello.txt".to_string());
     content_repo.create(&content).await?;
 
-    let cleaned = app_state
+    let report = app_state
         .services
-        .room_gc
-        .run_scheduled_gc(&app_state.connection_manager, 10)
+        .room_lifecycle
+        .run(
+            &app_state.connection_manager,
+            10,
+            app_state.config.room.share_disabled_lock_duration,
+        )
         .await?;
-    assert_eq!(cleaned, 1);
+    assert_eq!(report.full_rooms, 1);
 
     assert!(!file_path.exists());
     assert!(!room_dir.exists());

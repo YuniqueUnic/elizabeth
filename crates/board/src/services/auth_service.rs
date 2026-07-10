@@ -69,10 +69,6 @@ impl AuthService {
             return Err(anyhow!("room is not open"));
         }
 
-        if !room.can_enter() {
-            return Err(anyhow!("room cannot be entered"));
-        }
-
         Ok(claims)
     }
 
@@ -147,7 +143,9 @@ impl AuthService {
         let claims = self.verify_access_token(token, room).await?;
 
         let user_permission = claims.as_permission();
-        if !user_permission.contains(required_permission) {
+        if !room.permission.contains(required_permission)
+            || !user_permission.contains(required_permission)
+        {
             return Err(anyhow!("insufficient permissions"));
         }
 

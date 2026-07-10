@@ -14,15 +14,25 @@ use crate::common::{
     http::{assert_json, create_request as create_http_request},
 };
 
+fn create_room_request(room_name: &str, password: Option<&str>) -> axum::http::Request<Body> {
+    let payload = match password {
+        Some(password) => json!({ "password": password }),
+        None => json!({}),
+    };
+    create_http_request(
+        Method::POST,
+        &format!("/api/v1/rooms/{room_name}"),
+        Some(Body::from(payload.to_string())),
+    )
+}
+
 #[tokio::test]
 async fn test_concurrent_token_requests() -> Result<()> {
     let (app, _pool) = create_test_app().await?;
 
     let room_name = "concurrent_room";
 
-    // 创建房间
-    let create_request =
-        create_http_request(Method::GET, &format!("/api/v1/rooms/{}", room_name), None);
+    let create_request = create_room_request(room_name, None);
     let create_response = app.clone().oneshot(create_request).await?;
     assert_eq!(create_response.status(), StatusCode::OK);
 
@@ -63,9 +73,7 @@ async fn test_auth_error_handling() -> Result<()> {
 
     let room_name = "error_room";
 
-    // 创建房间
-    let create_request =
-        create_http_request(Method::GET, &format!("/api/v1/rooms/{}", room_name), None);
+    let create_request = create_room_request(room_name, None);
     let create_response = app.clone().oneshot(create_request).await?;
     assert_eq!(create_response.status(), StatusCode::OK);
 
@@ -112,11 +120,7 @@ async fn test_refresh_token_endpoint_basic() -> Result<()> {
     let room_name = "refresh_basic_test_room";
 
     // 创建房间
-    let create_request = create_http_request(
-        Method::POST,
-        &format!("/api/v1/rooms/{}?password=refresh123", room_name),
-        None,
-    );
+    let create_request = create_room_request(room_name, Some("refresh123"));
     let create_response = app.clone().oneshot(create_request).await?;
     assert_eq!(create_response.status(), StatusCode::OK);
 
@@ -158,11 +162,7 @@ async fn test_token_with_expired_room() -> Result<()> {
 
     // 创建立即过期的房间
     let room_name = "expired_room";
-    let create_request = create_http_request(
-        Method::POST,
-        &format!("/api/v1/rooms/{}?password=expire123", room_name),
-        None,
-    );
+    let create_request = create_room_request(room_name, Some("expire123"));
     let create_response = app.clone().oneshot(create_request).await?;
     assert_eq!(create_response.status(), StatusCode::OK);
 
@@ -204,11 +204,7 @@ async fn test_token_edge_cases() -> Result<()> {
     let room_name = "edge_cases_room";
 
     // 创建房间
-    let create_request = create_http_request(
-        Method::POST,
-        &format!("/api/v1/rooms/{}?password=edge123", room_name),
-        None,
-    );
+    let create_request = create_room_request(room_name, Some("edge123"));
     let create_response = app.clone().oneshot(create_request).await?;
     assert_eq!(create_response.status(), StatusCode::OK);
 

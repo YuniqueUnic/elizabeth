@@ -12,6 +12,8 @@
   "backendRoomPasswordLength4to100": "房间密码长度必须在 4-100 个字符之间。",
   "requestParameterError": "请求参数错误，请检查输入。",
   "roomInaccessibleViaLink": "房间无法通过该链接进入：可能已过期、达到最大进入次数，或已切换为私密地址（请使用新的分享链接）。",
+  "roomExpired": "房间已过期，无法继续访问。",
+  "roomNotFound": "房间不存在。",
   "roomNotFoundAutoCreateFailed": "房间不存在，且自动创建失败。请稍后重试。",
   "cannotAccessRoom": "无法访问房间，请稍后重试（请检查后端服务是否可用以及前端 API 代理配置）。",
   "wrongPassword": "密码错误",

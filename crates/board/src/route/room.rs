@@ -16,6 +16,7 @@ pub fn api_router(app_state: Arc<AppState>) -> OpenApiRouter {
             crate::handlers::rooms::settings::update_room_settings
         ))
         .routes(routes!(crate::handlers::rooms::tokens::issue_token))
+        .routes(routes!(crate::handlers::rooms::tokens::verify_password))
         .routes(routes!(crate::handlers::rooms::tokens::list_tokens))
         .routes(routes!(crate::handlers::rooms::tokens::validate_token))
         .routes(routes!(crate::handlers::rooms::tokens::revoke_token))

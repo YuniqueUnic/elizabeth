@@ -22,6 +22,18 @@ use common::{
 
 use board::route::room::api_router;
 
+fn create_room_request(room_name: &str, password: Option<&str>) -> Request<Body> {
+    let payload = match password {
+        Some(password) => json!({ "password": password }),
+        None => json!({}),
+    };
+    create_http_request(
+        Method::POST,
+        &format!("/api/v1/rooms/{room_name}"),
+        Some(Body::from(payload.to_string())),
+    )
+}
+
 /// 测试基本的分块上传流程
 #[tokio::test]
 async fn test_chunked_upload_complete_workflow() -> Result<()> {
@@ -30,11 +42,7 @@ async fn test_chunked_upload_complete_workflow() -> Result<()> {
     let room_name = "chunked_upload_test_room";
 
     // 1. 创建房间
-    let create_request = create_http_request(
-        Method::POST,
-        &format!("/api/v1/rooms/{}?password=chunked123", room_name),
-        None,
-    );
+    let create_request = create_room_request(room_name, Some("chunked123"));
 
     let create_response = app.clone().oneshot(create_request).await?;
     assert_eq!(create_response.status(), StatusCode::OK);
@@ -118,7 +126,7 @@ async fn test_chunked_upload_complete_workflow() -> Result<()> {
 
     let upload_request = Request::builder()
         .method(Method::POST)
-        .uri(format!("/api/v1/rooms/{}/uploads/chunks", room_name))
+        .uri(format!("/api/v1/rooms/{}/uploads/chunks?token={}", room_name, token))
         .header(
             "content-type",
             format!("multipart/form-data; boundary={}", boundary),
@@ -138,8 +146,8 @@ async fn test_chunked_upload_complete_workflow() -> Result<()> {
     let status_request = create_http_request(
         Method::GET,
         &format!(
-            "/api/v1/rooms/{}/uploads/chunks/status?upload_token={}",
-            room_name, upload_token
+            "/api/v1/rooms/{}/uploads/chunks/status?token={}&upload_token={}",
+            room_name, token, upload_token
         ),
         None,
     );
@@ -157,7 +165,7 @@ async fn test_chunked_upload_complete_workflow() -> Result<()> {
     });
     let complete_request = create_http_request(
         Method::POST,
-        &format!("/api/v1/rooms/{}/uploads/chunks/complete", room_name),
+        &format!("/api/v1/rooms/{}/uploads/chunks/complete?token={}", room_name, token),
         Some(Body::from(complete_payload.to_string())),
     );
 
@@ -171,6 +179,24 @@ async fn test_chunked_upload_complete_workflow() -> Result<()> {
         "test_file.txt"
     );
     assert_eq!(complete_json["merged_files"][0]["file_hash"], final_hash);
+    let content_id = complete_json["merged_files"][0]["content_id"]
+        .as_i64()
+        .expect("content id");
+
+    let stored_path: String =
+        sqlx::query_scalar("SELECT path FROM room_contents WHERE id = $1 AND room_id = (SELECT id FROM rooms WHERE name = $2)")
+            .bind(content_id)
+            .bind(room_name)
+            .fetch_one(_pool.as_ref())
+            .await?;
+    assert!(
+        stored_path.starts_with(std::env::temp_dir().to_string_lossy().as_ref()),
+        "stored path should honor configured storage root, got {stored_path}"
+    );
+    assert!(
+        tokio::fs::try_exists(&stored_path).await?,
+        "merged file should exist at configured storage root"
+    );
 
     Ok(())
 }
@@ -183,14 +209,21 @@ async fn test_chunked_upload_error_handling() -> Result<()> {
     let room_name = "error_test_room";
 
     // 创建房间
-    let create_request = create_http_request(
-        Method::POST,
-        &format!("/api/v1/rooms/{}?password=error123", room_name),
-        None,
-    );
+    let create_request = create_room_request(room_name, Some("error123"));
 
     let create_response = app.clone().oneshot(create_request).await?;
     assert_eq!(create_response.status(), StatusCode::OK);
+
+    let issue_request = create_http_request(
+        Method::POST,
+        &format!("/api/v1/rooms/{}/tokens", room_name),
+        Some(Body::from(json!({ "password": "error123" }).to_string())),
+    );
+    let issue_response = app.clone().oneshot(issue_request).await?;
+    assert_eq!(issue_response.status(), StatusCode::OK);
+    let issue_body = axum::body::to_bytes(issue_response.into_body(), usize::MAX).await?;
+    let issue_json: serde_json::Value = serde_json::from_slice(&issue_body)?;
+    let token = issue_json["token"].as_str().expect("token");
 
     // 测试无效的上传令牌
     let boundary = "----error-boundary";
@@ -220,7 +253,7 @@ async fn test_chunked_upload_error_handling() -> Result<()> {
 
     let upload_request = Request::builder()
         .method(Method::POST)
-        .uri(format!("/api/v1/rooms/{}/uploads/chunks", room_name))
+        .uri(format!("/api/v1/rooms/{}/uploads/chunks?token={}", room_name, token))
         .header(
             "content-type",
             format!("multipart/form-data; boundary={}", boundary),
@@ -260,11 +293,7 @@ async fn test_chunked_upload_status() -> Result<()> {
     let room_name = "status_test_room";
 
     // 创建房间
-    let create_request = create_http_request(
-        Method::POST,
-        &format!("/api/v1/rooms/{}?password=status123", room_name),
-        None,
-    );
+    let create_request = create_room_request(room_name, Some("status123"));
 
     let create_response = app.clone().oneshot(create_request).await?;
     assert_eq!(create_response.status(), StatusCode::OK);
@@ -313,8 +342,8 @@ async fn test_chunked_upload_status() -> Result<()> {
     let status_request = create_http_request(
         Method::GET,
         &format!(
-            "/api/v1/rooms/{}/uploads/chunks/status?upload_token={}",
-            room_name, upload_token
+            "/api/v1/rooms/{}/uploads/chunks/status?token={}&upload_token={}",
+            room_name, token, upload_token
         ),
         None,
     );
@@ -333,8 +362,7 @@ async fn test_chunked_upload_prepare_errors() -> Result<()> {
     let room_name = "prepare_error_room";
 
     // 创建房间
-    let create_request =
-        create_http_request(Method::GET, &format!("/api/v1/rooms/{}", room_name), None);
+    let create_request = create_room_request(room_name, None);
 
     let create_response = app.clone().oneshot(create_request).await?;
     assert_eq!(create_response.status(), StatusCode::OK);

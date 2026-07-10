@@ -15,6 +15,7 @@ pub(super) fn apply_program_env_overrides(cfg: &mut configrs::Config) {
     apply_basic_env_overrides(cfg);
     apply_jwt_env_overrides(cfg);
     apply_room_env_overrides(cfg);
+    apply_gc_env_overrides(cfg);
     apply_middleware_env_overrides(cfg);
 }
 
@@ -53,11 +54,6 @@ fn apply_jwt_env_overrides(cfg: &mut configrs::Config) {
     );
     apply_env!(
         env_i64,
-        "JWT_MAX_REFRESH_COUNT",
-        cfg.app.jwt.max_refresh_count
-    );
-    apply_env!(
-        env_i64,
         "JWT_CLEANUP_INTERVAL_SECONDS",
         cfg.app.jwt.cleanup_interval_seconds
     );
@@ -80,11 +76,31 @@ fn apply_room_env_overrides(cfg: &mut configrs::Config) {
         "ROOM_SHARE_DISABLED_LOCK_DURATION",
         cfg.app.room.share_disabled_lock_duration
     );
+    if let Some(allowed_ages) = env_list("ROOM_ALLOWED_AGES") {
+        let parsed = allowed_ages
+            .into_iter()
+            .map(|value| value.parse::<configrs::HumanDuration>().ok())
+            .collect::<Option<Vec<_>>>();
+        if let Some(parsed) = parsed {
+            cfg.app.room.expiry.allowed_ages = parsed
+                .into_iter()
+                .map(|duration| duration.into_inner().into())
+                .collect();
+        }
+    }
+    if let Some(default_age) = env_duration("ROOM_DEFAULT_AGE") {
+        cfg.app.room.expiry.default_age = default_age.into_inner().into();
+    }
     apply_env!(
         env_i64,
         "UPLOAD_RESERVATION_TTL_SECONDS",
         cfg.app.upload.reservation_ttl_seconds
     );
+}
+
+fn apply_gc_env_overrides(cfg: &mut configrs::Config) {
+    apply_env!(env_u64, "GC_INTERVAL_SECONDS", cfg.app.gc.interval_seconds);
+    apply_env!(env_u32, "GC_BATCH_LIMIT", cfg.app.gc.batch_limit);
 }
 
 fn apply_middleware_env_overrides(cfg: &mut configrs::Config) {

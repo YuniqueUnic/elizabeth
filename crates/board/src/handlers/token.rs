@@ -95,8 +95,11 @@ pub async fn verify_room_token(
     if room.is_expired() {
         return Err(AppError::authentication("Room expired"));
     }
-    if room.status() == RoomStatus::Close {
+    if room.status() != RoomStatus::Open {
         return Err(AppError::authentication("Room cannot be entered"));
+    }
+    if !room.permission.can_view() || !claims.as_permission().can_view() {
+        return Err(AppError::permission_denied("Room view permission denied"));
     }
 
     // 查找令牌记录
@@ -110,6 +113,9 @@ pub async fn verify_room_token(
     // 验证令牌状态
     if !record.is_active() {
         return Err(AppError::authentication("Token revoked or expired"));
+    }
+    if record.room_id != claims.room_id {
+        return Err(AppError::authentication("Token record room mismatch"));
     }
 
     Ok(VerifiedRoomToken {
@@ -153,8 +159,11 @@ pub async fn verify_room_token_by_id(
     if room.is_expired() {
         return Err(AppError::authentication("Room expired"));
     }
-    if room.status() == RoomStatus::Close {
+    if room.status() != RoomStatus::Open {
         return Err(AppError::authentication("Room cannot be entered"));
+    }
+    if !room.permission.can_view() || !claims.as_permission().can_view() {
+        return Err(AppError::permission_denied("Room view permission denied"));
     }
 
     // 查找令牌记录
@@ -168,6 +177,9 @@ pub async fn verify_room_token_by_id(
     // 验证令牌状态
     if !record.is_active() {
         return Err(AppError::authentication("Token revoked or expired"));
+    }
+    if record.room_id != claims.room_id {
+        return Err(AppError::authentication("Token record room mismatch"));
     }
 
     Ok(VerifiedRoomToken {

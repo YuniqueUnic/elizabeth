@@ -4,11 +4,14 @@ use axum::Json;
 use axum::extract::{Path, State};
 
 use super::shared::{HandlerResult, room_info_from_room};
-use crate::dto::rooms::UpdateRoomSettingsRequest;
+use crate::dto::rooms::{RoomView, UpdateRoomSettingsRequest};
 use crate::errors::AppError;
 use crate::handlers::{AuthToken, verify_room_token};
 use crate::models::Room;
-use crate::repository::{IRoomRepository, RoomRepository};
+use crate::repository::{
+    IRoomRefreshTokenRepository, IRoomTokenRepository, RoomRefreshTokenRepository, RoomRepository,
+    RoomTokenRepository,
+};
 use crate::state::AppState;
 use crate::validation::{PasswordValidator, RoomNameValidator};
 use crate::websocket::types::RoomUpdateReason;
@@ -23,7 +26,7 @@ use crate::websocket::types::RoomUpdateReason;
     ),
     request_body = UpdateRoomSettingsRequest,
     responses(
-        (status = 200, description = "设置更新成功", body = Room),
+        (status = 200, description = "设置更新成功", body = RoomView),
         (status = 400, description = "请求参数错误"),
         (status = 401, description = "token 无效或已撤销"),
         (status = 403, description = "无更新权限"),
@@ -36,7 +39,7 @@ pub async fn update_room_settings(
     AuthToken(token): AuthToken,
     State(app_state): State<Arc<AppState>>,
     Json(payload): Json<UpdateRoomSettingsRequest>,
-) -> HandlerResult<Room> {
+) -> HandlerResult<RoomView> {
     RoomNameValidator::validate_identifier(&name)?;
     let verified = verify_room_token(app_state.clone(), &name, &token).await?;
     let token_perm = verified.claims.as_permission();
@@ -49,24 +52,77 @@ pub async fn update_room_settings(
 
     let repo = RoomRepository::new(app_state.db_pool.clone());
     let mut room = verified.room;
-    apply_validated_settings_payload(&mut room, payload, app_state.room_expiry_policy())?;
+    validate_settings_payload(&payload, app_state.room_expiry_policy())?;
+    validate_policy_not_below_usage(&room, &payload)?;
+
+    let password_changed = payload.password.is_some() || payload.remove_password == Some(true);
+    let password = payload.password.clone();
+    let remove_password = payload.remove_password == Some(true);
+    apply_settings_payload(&mut room, payload, app_state.room_expiry_policy())?;
+    if remove_password {
+        room.password = None;
+    } else if let Some(password) = password {
+        room.password = Some(
+            app_state
+                .room_password_service()
+                .hash(password)
+                .await
+                .map_err(|e| AppError::internal(format!("Failed to protect room password: {e}")))?,
+        );
+    }
 
     let updated_room = repo
-        .update(&room)
+        .update_policy(&room)
         .await
         .map_err(|e| AppError::internal(format!("Failed to update room settings: {e}")))?;
-    broadcast_settings_update(app_state, updated_room.clone());
 
-    Ok(Json(updated_room))
+    if password_changed {
+        revoke_room_sessions(&app_state, updated_room.id.unwrap_or_default()).await?;
+    }
+    broadcast_settings_update(&app_state, &updated_room).await;
+    if password_changed {
+        app_state
+            .connection_manager
+            .disconnect_room(&updated_room.slug, "Room password changed")
+            .await;
+    }
+
+    Ok(Json(RoomView::from(&updated_room)))
+}
+
+fn validate_policy_not_below_usage(
+    room: &Room,
+    payload: &UpdateRoomSettingsRequest,
+) -> Result<(), AppError> {
+    if payload
+        .max_times_entered
+        .is_some_and(|limit| limit < room.current_times_entered)
+    {
+        return Err(AppError::validation(
+            "max_times_entered cannot be lower than current_times_entered",
+        ));
+    }
+    if payload
+        .max_size
+        .is_some_and(|limit| limit < room.current_size)
+    {
+        return Err(AppError::validation(
+            "max_size cannot be lower than current_size",
+        ));
+    }
+    Ok(())
 }
 
 fn validate_settings_payload(
     payload: &UpdateRoomSettingsRequest,
     expiry_policy: &crate::config::RoomExpiryPolicy,
 ) -> Result<(), AppError> {
-    if let Some(ref password) = payload.password
-        && !password.is_empty()
-    {
+    if payload.password.is_some() && payload.remove_password == Some(true) {
+        return Err(AppError::validation(
+            "password and remove_password cannot be set together",
+        ));
+    }
+    if let Some(ref password) = payload.password {
         PasswordValidator::validate_room_password(password)?;
     }
     if let Some(max_times) = payload.max_times_entered
@@ -105,14 +161,6 @@ fn apply_settings_payload(
     payload: UpdateRoomSettingsRequest,
     expiry_policy: &crate::config::RoomExpiryPolicy,
 ) -> Result<(), AppError> {
-    if let Some(password) = payload.password {
-        room.password = if password.is_empty() {
-            None
-        } else {
-            Some(password)
-        };
-    }
-
     if let Some(age_seconds) = payload.age_seconds {
         room.expire_at = Some(
             expiry_policy
@@ -131,16 +179,26 @@ fn apply_settings_payload(
     Ok(())
 }
 
-fn broadcast_settings_update(app_state: Arc<AppState>, updated_room: Room) {
+async fn revoke_room_sessions(app_state: &AppState, room_id: i64) -> Result<(), AppError> {
+    RoomTokenRepository::new(app_state.db_pool.clone())
+        .delete_by_room(room_id)
+        .await
+        .map_err(|e| AppError::internal(format!("Failed to revoke room access tokens: {e}")))?;
+    RoomRefreshTokenRepository::new(app_state.db_pool.clone())
+        .delete_by_room(room_id)
+        .await
+        .map_err(|e| AppError::internal(format!("Failed to revoke room refresh tokens: {e}")))?;
+    Ok(())
+}
+
+async fn broadcast_settings_update(app_state: &AppState, updated_room: &Room) {
     let broadcaster = app_state.broadcaster.clone();
-    let room_info = room_info_from_room(&updated_room);
+    let room_info = room_info_from_room(updated_room);
     let room_slug = updated_room.slug.clone();
-    tokio::spawn(async move {
-        if let Err(e) = broadcaster
-            .broadcast_room_update(&room_slug, &room_info, RoomUpdateReason::SettingsChanged)
-            .await
-        {
-            log::warn!("Failed to broadcast room update event: {}", e);
-        }
-    });
+    if let Err(e) = broadcaster
+        .broadcast_room_update(&room_slug, &room_info, RoomUpdateReason::SettingsChanged)
+        .await
+    {
+        log::warn!("Failed to broadcast room update event: {}", e);
+    }
 }

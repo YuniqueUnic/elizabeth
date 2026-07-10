@@ -8,7 +8,7 @@ export * from '../types/generated/api.types';
 import { buildContentAssetPath, buildContentPreviewPath } from "./utils/file-links";
 import type {
   ContentType as GeneratedContentType,
-  Room as GeneratedRoom,
+  RoomView as GeneratedRoomView,
   RoomContentView as GeneratedRoomContentView,
   IssueTokenResponse as GeneratedIssueTokenResponse,
   UploadPreparationResponse as GeneratedUploadPreparationResponse,
@@ -70,7 +70,7 @@ export type RoomPermission = "read" | "edit" | "share" | "delete";
 /**
  * Backend Room response
  */
-export type BackendRoom = GeneratedRoom;
+export type BackendRoom = GeneratedRoomView;
 
 /**
  * Backend RoomContent response
@@ -99,7 +99,6 @@ export type BackendTokenValidation = GeneratedValidateTokenResponse;
 export interface RoomSettings {
   expiresAt: string | null;
   passwordProtected: boolean;
-  password?: string;
   maxViews: number;
 }
 
@@ -114,7 +113,6 @@ export interface RoomDetails {
   settings: RoomSettings;
   permissions: RoomPermission[];
   createdAt: string;
-  password?: string | null; // Room password (for display in settings)
 }
 
 export interface Message {
@@ -172,6 +170,10 @@ export type TokenStorage = Record<string, TokenInfo>;
 
 export type Theme = "dark" | "light" | "system";
 
+function bigintToNumber(value: bigint | number): number {
+  return typeof value === "bigint" ? Number(value) : value;
+}
+
 // ============================================================================
 // Permission Utilities
 // ============================================================================
@@ -216,22 +218,20 @@ export function encodePermissions(perms: RoomPermission[]): number {
  */
 export function backendRoomToRoomDetails(room: BackendRoom): RoomDetails {
   return {
-    id: room.name,
+    id: String(room.id),
     name: room.name,
     slug: room.slug,
-    currentSize: room.current_size,
-    maxSize: room.max_size,
-    timesEntered: room.current_times_entered,
-    maxTimesEntered: room.max_times_entered,
+    currentSize: bigintToNumber(room.current_size),
+    maxSize: bigintToNumber(room.max_size),
+    timesEntered: bigintToNumber(room.current_times_entered),
+    maxTimesEntered: bigintToNumber(room.max_times_entered),
     settings: {
       expiresAt: room.expire_at,
-      passwordProtected: room.password !== null && room.password !== "",
-      password: room.password ?? undefined,
-      maxViews: room.max_times_entered,
+      passwordProtected: room.password_protected,
+      maxViews: bigintToNumber(room.max_times_entered),
     },
     permissions: parsePermissions(room.permission),
     createdAt: room.created_at,
-    password: room.password,
   };
 }
 

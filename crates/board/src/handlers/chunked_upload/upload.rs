@@ -17,7 +17,6 @@ use crate::{
     },
     repository::{
         room_chunk_upload_repository::{IRoomChunkUploadRepository, RoomChunkUploadRepository},
-        room_repository::{IRoomRepository, RoomRepository},
         room_upload_reservation_repository::{
             IRoomUploadReservationRepository, RoomUploadReservationRepository,
         },
@@ -25,6 +24,9 @@ use crate::{
     state::AppState,
     validation::RoomNameValidator,
 };
+
+use super::super::{AuthToken, verify_room_token};
+use super::ensure_reservation_access;
 
 type HandlerResult<T> = AppResult<Json<T>>;
 
@@ -56,6 +58,7 @@ struct ParsedChunkUpload {
 )]
 pub async fn upload_chunk(
     Path(room_name): Path<String>,
+    AuthToken(token): AuthToken,
     State(app_state): State<Arc<AppState>>,
     multipart: Multipart,
 ) -> HandlerResult<ChunkUploadResponse> {
@@ -67,7 +70,8 @@ pub async fn upload_chunk(
     let reservation_id = reservation_id_or_error(&reservation)?;
 
     validate_chunk_reservation(&reservation)?;
-    ensure_upload_room_matches(&app_state, &reservation, &room_name).await?;
+    let verified = verify_room_token(app_state.clone(), &room_name, &token).await?;
+    ensure_reservation_access(&reservation, &verified)?;
 
     let chunk_repository = RoomChunkUploadRepository::new(app_state.db_pool.clone());
     ensure_chunk_slot_empty(&chunk_repository, reservation_id, parsed.chunk_index).await?;
@@ -187,25 +191,6 @@ fn validate_chunk_reservation(reservation: &RoomUploadReservation) -> Result<(),
 
     if reservation.chunked_upload != Some(true) {
         return Err(AppError::validation("非分块上传预留记录"));
-    }
-
-    Ok(())
-}
-
-async fn ensure_upload_room_matches(
-    app_state: &Arc<AppState>,
-    reservation: &RoomUploadReservation,
-    room_name: &str,
-) -> Result<(), AppError> {
-    let room_repository = RoomRepository::new(app_state.db_pool.clone());
-    let room = room_repository
-        .find_by_id(reservation.room_id)
-        .await
-        .map_err(|e| AppError::internal(format!("查询房间失败：{}", e)))?;
-    let room = room.ok_or_else(|| AppError::not_found("房间不存在"))?;
-
-    if room.name != room_name {
-        return Err(AppError::permission_denied("房间名称不匹配"));
     }
 
     Ok(())

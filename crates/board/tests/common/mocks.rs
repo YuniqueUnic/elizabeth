@@ -204,15 +204,19 @@ pub mod http {
 
     /// 创建测试请求
     pub fn create_request(method: Method, uri: &str, body: Option<Body>) -> Request<Body> {
+        let expects_json_body = matches!(method, Method::POST | Method::PUT | Method::PATCH);
         let mut builder = Request::builder().method(method).uri(uri);
 
-        // 如果有请求体，设置 Content-Type
-        if body.is_some() {
+        if body.is_some() || expects_json_body {
             builder = builder.header("content-type", "application/json");
         }
 
         if let Some(b) = body {
             builder.body(b).expect("Failed to build request with body")
+        } else if expects_json_body {
+            builder
+                .body(Body::from("{}"))
+                .expect("Failed to build request with default json body")
         } else {
             builder
                 .body(Body::empty())

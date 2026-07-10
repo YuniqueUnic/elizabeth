@@ -54,6 +54,7 @@ utoipa-scalar = { workspace = true }
 utoipa-axum = { workspace = true }
 
 chrono = { workspace = true }
+argon2 = { workspace = true }
 jsonwebtoken = { workspace = true }
 sqlx = { workspace = true }
 async-trait = { workspace = true }

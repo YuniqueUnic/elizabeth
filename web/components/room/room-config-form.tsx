@@ -109,33 +109,6 @@ function permissionsToFlags(permissions: RoomPermission[]): number {
   return flags;
 }
 
-function canTogglePermission(
-  permission: RoomPermission,
-  currentFlags: number,
-  newValue: boolean,
-): boolean {
-  if (newValue) {
-    if (permission === "edit" || permission === "share") {
-      return (currentFlags & PERMISSIONS.VIEW_ONLY) !== 0;
-    }
-    if (permission === "delete") {
-      return (
-        (currentFlags & PERMISSIONS.VIEW_ONLY) !== 0 &&
-        (currentFlags & PERMISSIONS.EDITABLE) !== 0
-      );
-    }
-  } else {
-    if (permission === "read") {
-      return (currentFlags &
-        (PERMISSIONS.EDITABLE | PERMISSIONS.SHARE | PERMISSIONS.DELETE)) === 0;
-    }
-    if (permission === "edit") {
-      return (currentFlags & PERMISSIONS.DELETE) === 0;
-    }
-  }
-  return true;
-}
-
 export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
   const t = useTranslations("room");
   const locale = useLocale();
@@ -170,7 +143,8 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
   );
 
   const [expiryOption, setExpiryOption] = useState<number | null>(null);
-  const [password, setPassword] = useState(roomDetails.password || "");
+  const [password, setPassword] = useState("");
+  const [removePassword, setRemovePassword] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [maxViews, setMaxViews] = useState(roomDetails.settings.maxViews);
   const [permissionFlags, setPermissionFlags] = useState(() =>
@@ -179,14 +153,14 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
 
   useEffect(() => {
     setExpiryOption(baseExpiryOption);
-    setPassword(roomDetails.password || "");
+    setPassword("");
+    setRemovePassword(false);
     setMaxViews(roomDetails.settings.maxViews);
     setPermissionFlags(permissionsToFlags(roomDetails.permissions));
   }, [baseExpiryOption, roomDetails]);
 
   const canModify = can.delete;
 
-  const basePassword = roomDetails.password || "";
   const baseMaxViews = roomDetails.settings.maxViews;
   const basePermissionFlags = useMemo(
     () => permissionsToFlags(roomDetails.permissions),
@@ -196,15 +170,16 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
   const settingsChanged = useMemo(() => {
     return (
       (baseExpiryOption !== null && expiryOption !== baseExpiryOption) ||
-      password.trim() !== basePassword ||
+      removePassword ||
+      password.trim().length > 0 ||
       maxViews !== baseMaxViews
     );
-  }, [expiryOption, baseExpiryOption, password, basePassword, maxViews, baseMaxViews]);
+  }, [expiryOption, baseExpiryOption, removePassword, password, maxViews, baseMaxViews]);
 
   const permissionsChanged = permissionFlags !== basePermissionFlags;
   const hasAnyChanges = settingsChanged || permissionsChanged;
 
-  const allPermissions: RoomPermission[] = ["read", "edit", "share", "delete"];
+  const editablePermissions: RoomPermission[] = ["edit", "share", "delete"];
 
   const permissionLabels: Record<RoomPermission, string> = {
     read: t("config.permissions.labels.read"),
@@ -221,32 +196,16 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
   };
 
   const handleTogglePermission = (permission: RoomPermission, checked: boolean) => {
-    if (!canTogglePermission(permission, permissionFlags, checked)) {
-      return;
-    }
-
-    let newFlags = permissionFlags;
-    const flag = permission === "read"
-      ? PERMISSIONS.VIEW_ONLY
-      : permission === "edit"
+    const flag = permission === "edit"
       ? PERMISSIONS.EDITABLE
       : permission === "share"
       ? PERMISSIONS.SHARE
       : PERMISSIONS.DELETE;
-
-    if (checked) {
-      newFlags |= flag;
-      if (permission === "edit" || permission === "share") {
-        newFlags |= PERMISSIONS.VIEW_ONLY;
-      }
-      if (permission === "delete") {
-        newFlags |= PERMISSIONS.VIEW_ONLY | PERMISSIONS.EDITABLE;
-      }
-    } else {
-      newFlags &= ~flag;
-    }
-
-    setPermissionFlags(newFlags);
+    setPermissionFlags((current) =>
+      checked
+        ? current | flag | PERMISSIONS.VIEW_ONLY
+        : (current & ~flag) | PERMISSIONS.VIEW_ONLY
+    );
   };
 
   const copyRedirectUrl = async (slug: string) => {
@@ -271,7 +230,7 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
       const oldPermissionValue = encodePermissions(roomDetails.permissions);
 
       const newPassword = password.trim();
-      const passwordChanged = newPassword !== basePassword;
+      const passwordChanged = removePassword || newPassword.length > 0;
 
       const settingsPayload: Parameters<typeof updateRoomSettings>[1] = {};
       if (
@@ -281,7 +240,11 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
       ) {
         settingsPayload.ageSeconds = expiryOption;
       }
-      if (passwordChanged) settingsPayload.password = newPassword;
+      if (removePassword) {
+        settingsPayload.removePassword = true;
+      } else if (newPassword.length > 0) {
+        settingsPayload.password = newPassword;
+      }
       if (maxViews !== baseMaxViews) settingsPayload.maxViews = maxViews;
 
       let updated: RoomDetails | null = null;
@@ -290,8 +253,10 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
         queryClient.setQueryData(["room", oldIdentifier], updated);
 
         if (passwordChanged) {
-          // Refresh token pair so the browser keeps a consistent auth state.
-          await getAccessToken(oldIdentifier, newPassword || undefined);
+          clearRoomToken(oldIdentifier);
+          if (!removePassword) {
+            await getAccessToken(oldIdentifier, newPassword);
+          }
         }
       }
 
@@ -359,7 +324,8 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
 
   const resetAll = () => {
     setExpiryOption(baseExpiryOption);
-    setPassword(basePassword);
+    setPassword("");
+    setRemovePassword(false);
     setMaxViews(baseMaxViews);
     setPermissionFlags(basePermissionFlags);
   };
@@ -413,7 +379,12 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
               id="password"
               type={showPassword ? "text" : "password"}
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                if (removePassword) {
+                  setRemovePassword(false);
+                }
+                setPassword(e.target.value);
+              }}
               placeholder={t("config.password.placeholder")}
               disabled={!canModify}
             />
@@ -430,6 +401,25 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
                 : <Eye className="h-4 w-4" />}
             </Button>
           </div>
+          {roomDetails.settings.passwordProtected ? (
+            <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
+              <span>{t("config.password.protectedHint")}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={!canModify}
+                onClick={() => {
+                  setRemovePassword((value) => !value);
+                  setPassword("");
+                }}
+              >
+                {removePassword
+                  ? t("config.password.keepAction")
+                  : t("config.password.removeAction")}
+              </Button>
+            </div>
+          ) : null}
         </div>
 
         <div className="space-y-2 mt-2">
@@ -447,27 +437,29 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
         <div className="mt-6 space-y-3">
           <h3 className="text-sm font-semibold">{t("config.permissions.title")}</h3>
           <div className="flex flex-wrap gap-2">
-            {allPermissions.map((permission) => {
+            <button
+              type="button"
+              disabled
+              aria-pressed="true"
+              className="inline-flex cursor-not-allowed items-center justify-center rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground opacity-70"
+              title={`${permissionLabels.read}: ${permissionDescriptions.read}`}
+            >
+              {permissionLabels.read}
+            </button>
+            {editablePermissions.map((permission) => {
               const isEnabled = (permissionFlags &
-                (permission === "read"
-                  ? PERMISSIONS.VIEW_ONLY
-                  : permission === "edit"
+                (permission === "edit"
                   ? PERMISSIONS.EDITABLE
                   : permission === "share"
                   ? PERMISSIONS.SHARE
                   : PERMISSIONS.DELETE)) !== 0;
 
-              const canToggle = canTogglePermission(
-                permission,
-                permissionFlags,
-                !isEnabled,
-              );
-
               return (
                 <button
+                  type="button"
                   key={permission}
                   onClick={() => handleTogglePermission(permission, !isEnabled)}
-                  disabled={!canModify || (!canToggle && !isEnabled)}
+                  disabled={!canModify}
                   aria-pressed={isEnabled}
                   data-state={isEnabled ? "on" : "off"}
                   className={`
@@ -479,7 +471,7 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
                       : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
                   }
                     ${
-                    !canModify || (!canToggle && !isEnabled)
+                    !canModify
                       ? "opacity-50 cursor-not-allowed"
                       : "shadow-sm"
                   }

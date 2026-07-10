@@ -57,25 +57,28 @@
     },
     "password": {
       "label": "房间密码",
-      "placeholder": "设置房间密码"
+      "placeholder": "设置新密码；留空表示保持不变",
+      "protectedHint": "当前房间已启用密码保护。",
+      "removeAction": "移除密码",
+      "keepAction": "保留密码"
     },
     "maxViews": {
-      "label": "最大查看次数"
+      "label": "最大进入次数"
     },
     "permissions": {
       "title": "房间权限",
-      "hint": "提示：编辑、分享需要预览权限；删除需要预览和编辑权限",
+      "hint": "预览是房间的基础权限；编辑、分享和管理权限彼此独立。",
       "labels": {
         "read": "预览",
         "edit": "编辑",
         "share": "分享",
-        "delete": "删除"
+        "delete": "管理与删除"
       },
       "descriptions": {
         "read": "查看房间内容",
         "edit": "上传和修改内容",
         "share": "公开分享房间",
-        "delete": "删除房间内容"
+        "delete": "管理配置、会话以及删除内容或房间"
       }
     },
     "save": {

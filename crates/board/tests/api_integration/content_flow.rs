@@ -22,8 +22,8 @@ async fn test_room_token_and_content_flow() -> Result<()> {
     // 创建房间
     let create_request = create_http_request(
         Method::POST,
-        &format!("/api/v1/rooms/{}?password=secret", room_name),
-        None,
+        &format!("/api/v1/rooms/{}", room_name),
+        Some(Body::from(json!({ "password": "secret" }).to_string())),
     );
     let create_response = app.clone().oneshot(create_request).await?;
     assert_eq!(create_response.status(), StatusCode::OK);
@@ -100,6 +100,11 @@ async fn test_room_token_and_content_flow() -> Result<()> {
         .body(Body::from(file_body))?;
     let upload_response = app.clone().oneshot(upload_request).await?;
     assert_eq!(upload_response.status(), StatusCode::OK);
+    let upload_body = axum::body::to_bytes(upload_response.into_body(), usize::MAX).await?;
+    let upload_json: serde_json::Value = serde_json::from_slice(&upload_body)?;
+    let content_id = upload_json["uploaded"][0]["id"]
+        .as_i64()
+        .expect("uploaded content id");
 
     // 列出文件
     let list_request = create_http_request(
@@ -113,7 +118,12 @@ async fn test_room_token_and_content_flow() -> Result<()> {
     let list_json: serde_json::Value = serde_json::from_slice(&list_body)?;
     let items = list_json.as_array().expect("content list");
     assert!(!items.is_empty());
-    let content_id = items[0]["id"].as_i64().expect("content id");
+    assert!(
+        items
+            .iter()
+            .any(|item| item["id"].as_i64() == Some(content_id)),
+        "uploaded content should be visible in list response"
+    );
 
     // 下载文件
     let download_request = create_http_request(

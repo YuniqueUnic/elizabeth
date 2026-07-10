@@ -2,6 +2,8 @@
 //!
 //! 处理 WebSocket 消息和认证
 
+use crate::handlers::verify_room_token;
+use crate::models::room::permission::RoomPermission;
 use crate::state::AppState;
 use crate::websocket::{
     connection::ConnectionManager,
@@ -12,44 +14,50 @@ use std::sync::Arc;
 /// WebSocket 消息处理器
 pub struct MessageHandler {
     app_state: AppState,
-    manager: Arc<ConnectionManager>,
 }
 
 impl MessageHandler {
     /// 创建新的消息处理器
-    pub fn new(app_state: AppState, manager: Arc<ConnectionManager>) -> Self {
-        Self { app_state, manager }
+    pub fn new(app_state: AppState, _manager: Arc<ConnectionManager>) -> Self {
+        Self { app_state }
     }
 
     /// 处理连接请求
     pub async fn handle_connect(&self, request: ConnectRequest) -> Result<ConnectAck, WsError> {
         log::info!("Connect request from room_name: {}", request.room_name);
 
-        // 验证 token（JWT 格式）
-        let claims = self
-            .app_state
-            .token_service()
-            .decode(&request.token)
-            .map_err(|e| WsError::InvalidToken(format!("Token verification failed: {}", e)))?;
-
-        // 检查 token 是否过期
-        if claims.is_expired() {
-            return Err(WsError::InvalidToken("Token is expired".to_string()));
-        }
-
-        // 验证房间名称是否匹配
-        if claims.room_name != request.room_name {
-            return Err(WsError::InvalidToken("Room name mismatch".to_string()));
+        let verified = verify_room_token(
+            Arc::new(self.app_state.clone()),
+            &request.room_name,
+            &request.token,
+        )
+        .await
+        .map_err(|error| WsError::InvalidToken(error.to_string()))?;
+        if !verified.room.permission.contains(RoomPermission::VIEW_ONLY)
+            || !verified
+                .claims
+                .as_permission()
+                .contains(RoomPermission::VIEW_ONLY)
+        {
+            return Err(WsError::PermissionDenied);
         }
 
         log::info!(
             "Token verified successfully for room_id: {}, room_name: {}",
-            claims.room_id,
-            claims.room_name
+            verified.claims.room_id,
+            verified.claims.room_name
         );
 
-        // TODO: 获取房间信息并验证房间名称
-        let room_info = None;
+        let room = verified.room;
+        let room_info = Some(RoomInfo {
+            id: room.id.unwrap_or_default(),
+            name: room.name,
+            slug: room.slug,
+            max_size: room.max_size,
+            current_size: room.current_size,
+            max_times_entered: room.max_times_entered,
+            current_times_entered: room.current_times_entered,
+        });
 
         Ok(ConnectAck {
             success: true,

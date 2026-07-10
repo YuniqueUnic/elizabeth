@@ -5,6 +5,9 @@ use axum::{
     Json,
     extract::{Path, State},
 };
+
+use super::super::{AuthToken, verify_room_token};
+use super::ensure_reservation_access;
 use chrono::Utc;
 use sha2::{Digest, Sha256};
 use tokio::{
@@ -16,16 +19,14 @@ use crate::{
     dto::chunked_upload::{FileMergeRequest, FileMergeResponse, MergedFileInfo},
     errors::{AppError, AppResult},
     models::room::{
-        Room,
         chunk_upload::RoomChunkUpload,
         content::{ContentType, RoomContent},
         upload_reservation::{RoomUploadReservation, UploadFileDescriptor, UploadStatus},
     },
     repository::{
-        IRoomContentRepository, IRoomRepository,
+        IRoomContentRepository,
         room_chunk_upload_repository::{IRoomChunkUploadRepository, RoomChunkUploadRepository},
         room_content_repository::RoomContentRepository,
-        room_repository::RoomRepository,
         room_upload_reservation_repository::{
             IRoomUploadReservationRepository, RoomUploadReservationRepository,
         },
@@ -56,13 +57,14 @@ type HandlerResult<T> = AppResult<Json<T>>;
 )]
 pub async fn complete_file_merge(
     Path(room_name): Path<String>,
+    AuthToken(token): AuthToken,
     State(app_state): State<Arc<AppState>>,
     Json(payload): Json<FileMergeRequest>,
 ) -> HandlerResult<FileMergeResponse> {
     RoomNameValidator::validate_identifier(&room_name)?;
 
-    let room_repository = RoomRepository::new(app_state.db_pool.clone());
-    let room = load_room(&room_repository, &room_name).await?;
+    let verified = verify_room_token(app_state.clone(), &room_name, &token).await?;
+    let room = verified.room.clone();
     let room_id = room
         .id
         .ok_or_else(|| AppError::internal("房间 ID 不能为空"))?;
@@ -70,6 +72,7 @@ pub async fn complete_file_merge(
     let reservation_id = parse_reservation_id(&payload.reservation_id)?;
     let reservation = load_reservation(&reservation_repository, reservation_id).await?;
     validate_reservation_for_merge(&reservation, room_id)?;
+    ensure_reservation_access(&reservation, &verified)?;
 
     let chunk_repository = RoomChunkUploadRepository::new(app_state.db_pool.clone());
     let reservation_db_id = reservation_id_or_error(&reservation)?;
@@ -93,7 +96,7 @@ pub async fn complete_file_merge(
 
     let file_manifest = parse_file_manifest(&reservation.file_manifest)?;
     let file = first_manifest_file(&file_manifest)?;
-    let storage_dir = format!("storage/rooms/{room_id}/");
+    let storage_dir = app_state.storage_root().join(room_id.to_string());
     fs::create_dir_all(&storage_dir)
         .await
         .map_err(|e| AppError::internal(format!("创建存储目录失败：{}", e)))?;
@@ -104,26 +107,25 @@ pub async fn complete_file_merge(
         .map_err(|e| AppError::internal(format!("移动文件失败：{}", e)))?;
 
     reservation_repository
+        .consume_reservation(
+            reservation_db_id,
+            room_id,
+            &verified.claims.jti,
+            file.size,
+            &reservation.file_manifest,
+        )
+        .await
+        .map_err(|e| AppError::internal(format!("消费预留记录失败：{}", e)))?;
+    reservation_repository
         .update_upload_status(reservation_db_id, UploadStatus::Completed)
         .await
         .map_err(|e| AppError::internal(format!("更新上传状态失败：{}", e)))?;
-    reservation_repository
-        .consume_upload(reservation_db_id)
-        .await
-        .map_err(|e| AppError::internal(format!("消费预留记录失败：{}", e)))?;
 
     cleanup_temp_dir(&temp_dir).await;
 
     let content_repository = RoomContentRepository::new(app_state.db_pool.clone());
     let created_content =
         create_content_record(&content_repository, room_id, file, &final_storage_path).await?;
-    update_room_size(
-        &room_repository,
-        &room,
-        reservation.reserved_size,
-        file.size,
-    )
-    .await?;
 
     Ok(Json(FileMergeResponse {
         reservation_id: payload.reservation_id.clone(),
@@ -135,14 +137,6 @@ pub async fn complete_file_merge(
         }],
         message: "文件合并完成".to_string(),
     }))
-}
-
-async fn load_room(repository: &RoomRepository, room_name: &str) -> Result<Room, AppError> {
-    repository
-        .find_by_name(room_name)
-        .await
-        .map_err(|e| AppError::internal(format!("数据库查询错误：{}", e)))?
-        .ok_or_else(|| AppError::not_found("房间不存在"))
 }
 
 fn parse_reservation_id(raw: &str) -> Result<i64, AppError> {
@@ -281,13 +275,13 @@ fn first_manifest_file(
         .ok_or_else(|| AppError::internal("文件清单为空"))
 }
 
-fn unique_storage_path(storage_dir: &str, file_name: &str) -> Result<String, AppError> {
+fn unique_storage_path(storage_dir: &StdPath, file_name: &str) -> Result<String, AppError> {
     let safe_file_name = sanitize_filename::sanitize(file_name);
     let mut final_filename = safe_file_name.clone();
     let mut counter = 1;
-    let mut final_storage_path = format!("{storage_dir}{final_filename}");
+    let mut final_storage_path = storage_dir.join(&final_filename);
 
-    while StdPath::new(&final_storage_path).exists() {
+    while final_storage_path.exists() {
         let path = StdPath::new(&safe_file_name);
         let stem = path
             .file_stem()
@@ -300,7 +294,7 @@ fn unique_storage_path(storage_dir: &str, file_name: &str) -> Result<String, App
         } else {
             format!("{}({}).{}", stem, counter, extension)
         };
-        final_storage_path = format!("{storage_dir}{final_filename}");
+        final_storage_path = storage_dir.join(&final_filename);
         counter += 1;
 
         if counter > 1000 {
@@ -308,7 +302,7 @@ fn unique_storage_path(storage_dir: &str, file_name: &str) -> Result<String, App
         }
     }
 
-    Ok(final_storage_path)
+    Ok(final_storage_path.to_string_lossy().into_owned())
 }
 
 async fn create_content_record(
@@ -347,21 +341,6 @@ fn build_room_content(
         created_at: now,
         updated_at: now,
     }
-}
-
-async fn update_room_size(
-    repository: &RoomRepository,
-    room: &Room,
-    reserved_size: i64,
-    file_size: i64,
-) -> Result<(), AppError> {
-    let mut updated_room = room.clone();
-    updated_room.current_size = (updated_room.current_size - reserved_size + file_size).max(0);
-    repository
-        .update(&updated_room)
-        .await
-        .map_err(|e| AppError::internal(format!("更新房间大小失败：{}", e)))?;
-    Ok(())
 }
 
 async fn cleanup_temp_dir(temp_dir: &str) {

@@ -96,6 +96,7 @@ WORKDIR /app
 COPY --from=builder /app/target/release/board /app/board
 COPY --from=builder /app/crates/board/migrations /app/migrations/
 COPY --from=builder /app/crates/board/migrations_pg /app/migrations_pg/
+COPY docker/backend/config/backend.yaml /app/config/backend.yaml
 
 # Create data directories
 RUN mkdir -p /app/data /app/storage/rooms /app/config

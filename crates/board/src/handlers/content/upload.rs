@@ -1,7 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::Duration as StdDuration;
 
 use axum::Json;
 use axum::extract::{Multipart, Path as AxumPath, Query, State, multipart::Field};
@@ -9,7 +8,6 @@ use futures::StreamExt;
 use serde::Deserialize;
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
-use tokio::time::sleep;
 use utoipa::ToSchema;
 
 use crate::dto::content::{
@@ -155,6 +153,7 @@ pub async fn prepare_upload(
         .reserve_upload(
             &verified.room,
             &verified.claims.jti,
+            &verified.claims.jti,
             &manifest_json,
             total_size,
             ttl,
@@ -169,30 +168,14 @@ pub async fn prepare_upload(
             }
         })?;
 
-    let reservation_id = reservation
-        .id
-        .ok_or_else(|| AppError::internal("Reservation id missing"))?;
-
     verified.room = updated_room.clone();
-
-    let db_pool = app_state.db_pool.clone();
-    let cleanup_delay_seconds = ttl.num_seconds().max(1) as u64;
-    tokio::spawn(async move {
-        sleep(StdDuration::from_secs(cleanup_delay_seconds)).await;
-        let repo = RoomUploadReservationRepository::new(db_pool);
-        if let Err(err) = repo.release_if_pending(reservation_id).await {
-            log::warn!(
-                "Failed to release expired reservation {}: {}",
-                reservation_id,
-                err
-            );
-        }
-    });
 
     let remaining_size = (updated_room.max_size - updated_room.current_size).max(0);
 
     Ok(Json(UploadPreparationResponse {
-        reservation_id,
+        reservation_id: reservation
+            .id
+            .ok_or_else(|| AppError::internal("Reservation id missing"))?,
         reserved_size: reservation.reserved_size,
         expires_at: reservation.expires_at,
         current_size: updated_room.current_size,
@@ -250,7 +233,7 @@ pub async fn upload_contents(
     if reservation.room_id != room_id {
         return Err(AppError::permission_denied("Reservation not for this room"));
     }
-    if reservation.token_jti != verified.claims.jti {
+    if reservation.owner_token_jti != verified.claims.jti {
         return Err(AppError::permission_denied("Reservation token mismatch"));
     }
 

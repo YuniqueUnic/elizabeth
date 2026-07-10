@@ -10,16 +10,19 @@ use crate::repository::room_refresh_token_repository::{
     RoomRefreshTokenRepository, TokenBlacklistRepository,
 };
 use crate::repository::room_repository::RoomRepository;
+use crate::repository::{RoomAccessRepository, RoomTokenRepository};
 
 pub mod auth_service;
 pub mod refresh_token_service;
-pub mod room_gc_service;
+pub mod room_lifecycle;
+pub mod room_password;
 pub mod token;
 
 // 重新导出服务类型
 pub use auth_service::*;
 pub use refresh_token_service::*;
-pub use room_gc_service::*;
+pub use room_lifecycle::*;
+pub use room_password::*;
 pub use token::*;
 
 /// 服务容器，包含所有应用程序服务
@@ -29,7 +32,8 @@ pub struct Services {
     pub token_service: Arc<RoomTokenService>,
     pub refresh_token_service: Arc<RefreshTokenService>,
     pub room_repository: Arc<RoomRepository>,
-    pub room_gc: Arc<RoomGcService>,
+    pub room_lifecycle: Arc<RoomLifecycleService>,
+    pub room_password: Arc<RoomPasswordService>,
 }
 
 impl Services {
@@ -50,8 +54,15 @@ impl Services {
         let blacklist_repo = Arc::new(TokenBlacklistRepository::new(db_pool.clone()));
 
         // 创建刷新令牌服务
-        let refresh_token_service = Arc::new(RefreshTokenService::with_defaults(
+        let access_repository = RoomAccessRepository::new(db_pool.clone());
+        let access_token_repository = Arc::new(RoomTokenRepository::new(db_pool.clone()));
+        let refresh_token_service = Arc::new(RefreshTokenService::new(
             (*token_service).clone(),
+            chrono::Duration::seconds(config.auth.refresh_ttl_seconds),
+            config.auth.enable_refresh_token_rotation,
+            room_repository.clone(),
+            access_repository,
+            access_token_repository,
             refresh_repo,
             blacklist_repo.clone(),
         ));
@@ -59,17 +70,22 @@ impl Services {
         // 创建认证服务
         let auth_service = Arc::new(AuthService::new(token_service.clone(), blacklist_repo));
 
-        let room_gc = Arc::new(RoomGcService::new(
+        let room_lifecycle_repository = Arc::new(crate::repository::RoomLifecycleRepository::new(
             db_pool.clone(),
+        ));
+        let room_lifecycle = Arc::new(RoomLifecycleService::new(
+            room_lifecycle_repository,
             config.storage.root.clone(),
         ));
+        let room_password = Arc::new(RoomPasswordService);
 
         Ok(Self {
             auth: auth_service,
             token_service,
             refresh_token_service,
             room_repository,
-            room_gc,
+            room_lifecycle,
+            room_password,
         })
     }
 

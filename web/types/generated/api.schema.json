@@ -36,6 +36,9 @@
     "create_refresh_token_request": {
       "$ref": "#/$defs/CreateRefreshTokenRequest"
     },
+    "create_room_request": {
+      "$ref": "#/$defs/CreateRoomRequest"
+    },
     "create_url_content_request": {
       "$ref": "#/$defs/CreateUrlContentRequest"
     },
@@ -96,9 +99,6 @@
     "revoke_token_response": {
       "$ref": "#/$defs/RevokeTokenResponse"
     },
-    "room": {
-      "$ref": "#/$defs/Room"
-    },
     "room_chunk_upload": {
       "$ref": "#/$defs/RoomChunkUpload"
     },
@@ -122,6 +122,9 @@
     },
     "room_upload_reservation": {
       "$ref": "#/$defs/RoomUploadReservation"
+    },
+    "room_view": {
+      "$ref": "#/$defs/RoomView"
     },
     "run_room_gc_response": {
       "$ref": "#/$defs/RunRoomGcResponse"
@@ -170,10 +173,15 @@
     },
     "validate_token_response": {
       "$ref": "#/$defs/ValidateTokenResponse"
+    },
+    "verify_room_password_request": {
+      "$ref": "#/$defs/VerifyRoomPasswordRequest"
+    },
+    "verify_room_password_response": {
+      "$ref": "#/$defs/VerifyRoomPasswordResponse"
     }
   },
   "required": [
-    "room",
     "room_status",
     "room_content",
     "content_type",
@@ -189,6 +197,10 @@
     "upload_status",
     "token_type",
     "room_token_claims",
+    "create_room_request",
+    "room_view",
+    "verify_room_password_request",
+    "verify_room_password_response",
     "issue_token_request",
     "issue_token_response",
     "validate_token_request",
@@ -528,6 +540,18 @@
         "refresh_token",
         "expires_at"
       ]
+    },
+    "CreateRoomRequest": {
+      "type": "object",
+      "properties": {
+        "password": {
+          "description": "可选房间密码。密码只在请求边界出现，不会在房间响应中回显。",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
     },
     "CreateUrlContentRequest": {
       "type": "object",
@@ -978,83 +1002,6 @@
         "revoked"
       ]
     },
-    "Room": {
-      "description": "数据库与 API Room 模型",
-      "type": "object",
-      "properties": {
-        "created_at": {
-          "type": "string",
-          "format": "partial-date-time"
-        },
-        "current_size": {
-          "type": "integer",
-          "format": "int64"
-        },
-        "current_times_entered": {
-          "type": "integer",
-          "format": "int64"
-        },
-        "expire_at": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "format": "partial-date-time"
-        },
-        "id": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "int64"
-        },
-        "max_size": {
-          "type": "integer",
-          "format": "int64"
-        },
-        "max_times_entered": {
-          "type": "integer",
-          "format": "int64"
-        },
-        "name": {
-          "type": "string"
-        },
-        "password": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "permission": {
-          "type": "integer",
-          "format": "uint8",
-          "maximum": 255,
-          "minimum": 0
-        },
-        "slug": {
-          "type": "string"
-        },
-        "status": {
-          "$ref": "#/$defs/RoomStatus"
-        },
-        "updated_at": {
-          "type": "string",
-          "format": "partial-date-time"
-        }
-      },
-      "required": [
-        "name",
-        "slug",
-        "status",
-        "max_size",
-        "current_size",
-        "max_times_entered",
-        "current_times_entered",
-        "created_at",
-        "updated_at",
-        "permission"
-      ]
-    },
     "RoomChunkUpload": {
       "description": "房间分块上传记录",
       "type": "object",
@@ -1442,6 +1389,10 @@
           ],
           "format": "int64"
         },
+        "owner_token_jti": {
+          "description": "Access-token JTI that owns this reservation.",
+          "type": "string"
+        },
         "reserved_at": {
           "type": "string",
           "format": "partial-date-time"
@@ -1455,6 +1406,7 @@
           "format": "int64"
         },
         "token_jti": {
+          "description": "Opaque upload lookup token. It is not an access credential by itself.",
           "type": "string"
         },
         "total_chunks": {
@@ -1488,6 +1440,7 @@
       },
       "required": [
         "room_id",
+        "owner_token_jti",
         "token_jti",
         "file_manifest",
         "reserved_size",
@@ -1495,6 +1448,78 @@
         "expires_at",
         "created_at",
         "updated_at"
+      ]
+    },
+    "RoomView": {
+      "type": "object",
+      "properties": {
+        "created_at": {
+          "type": "string",
+          "format": "partial-date-time"
+        },
+        "current_size": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "current_times_entered": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "expire_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "partial-date-time"
+        },
+        "id": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "max_size": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "max_times_entered": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "name": {
+          "type": "string"
+        },
+        "password_protected": {
+          "type": "boolean"
+        },
+        "permission": {
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "slug": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/RoomStatus"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "partial-date-time"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "slug",
+        "status",
+        "max_size",
+        "current_size",
+        "max_times_entered",
+        "current_times_entered",
+        "created_at",
+        "updated_at",
+        "permission",
+        "password_protected"
       ]
     },
     "RunRoomGcResponse": {
@@ -1637,11 +1662,19 @@
           "format": "int64"
         },
         "password": {
-          "description": "房间密码（可选，设置为 None 表示移除密码）",
+          "description": "新房间密码。字段缺失表示保持当前密码不变。",
           "type": [
             "string",
             "null"
           ]
+        },
+        "remove_password": {
+          "description": "显式移除当前房间密码，与 password 互斥。",
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "default": null
         }
       }
     },
@@ -1882,6 +1915,28 @@
       },
       "required": [
         "claims"
+      ]
+    },
+    "VerifyRoomPasswordRequest": {
+      "type": "object",
+      "properties": {
+        "password": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "password"
+      ]
+    },
+    "VerifyRoomPasswordResponse": {
+      "type": "object",
+      "properties": {
+        "valid": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "valid"
       ]
     }
   }

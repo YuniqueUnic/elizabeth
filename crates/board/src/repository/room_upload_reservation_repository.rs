@@ -13,6 +13,7 @@ const SELECT_BASE: &str = r#"
     SELECT
         id,
         room_id,
+        owner_token_jti,
         token_jti,
         file_manifest,
         reserved_size,
@@ -45,7 +46,8 @@ pub trait IRoomUploadReservationRepository: Send + Sync {
     async fn reserve_upload(
         &self,
         room: &Room,
-        token_jti: &str,
+        upload_token: &str,
+        owner_token_jti: &str,
         file_manifest: &str,
         reserved_size: i64,
         ttl: Duration,
@@ -157,6 +159,7 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
             r#"
             INSERT INTO room_upload_reservations (
                 room_id,
+                owner_token_jti,
                 token_jti,
                 file_manifest,
                 reserved_size,
@@ -171,11 +174,12 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
                 file_hash,
                 chunk_size,
                 upload_status
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
             RETURNING id
             "#,
         )
         .bind(reservation.room_id)
+        .bind(&reservation.owner_token_jti)
         .bind(&reservation.token_jti)
         .bind(&reservation.file_manifest)
         .bind(reservation.reserved_size)
@@ -218,7 +222,8 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
     async fn reserve_upload(
         &self,
         room: &Room,
-        token_jti: &str,
+        upload_token: &str,
+        owner_token_jti: &str,
         file_manifest: &str,
         reserved_size: i64,
         ttl: Duration,
@@ -259,6 +264,7 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
             r#"
             INSERT INTO room_upload_reservations (
                 room_id,
+                owner_token_jti,
                 token_jti,
                 file_manifest,
                 reserved_size,
@@ -274,12 +280,13 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
                 chunk_size,
                 upload_status
             )
-            VALUES ($1, $2, $3, $4, $5, $6, NULL, $7, $8, FALSE, NULL, NULL, NULL, NULL, $9)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, $8, $9, FALSE, NULL, NULL, NULL, NULL, $10)
             RETURNING id
             "#,
         )
         .bind(room_id)
-        .bind(token_jti)
+        .bind(owner_token_jti)
+        .bind(upload_token)
         .bind(file_manifest)
         .bind(reserved_size)
         .bind(now_str.clone())
@@ -354,7 +361,7 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
         if reservation.room_id != room_id {
             return Err(anyhow!("reservation does not belong to room"));
         }
-        if reservation.token_jti != token_jti {
+        if reservation.owner_token_jti != token_jti {
             return Err(anyhow!("reservation token mismatch"));
         }
         if reservation.consumed_at.is_some() {
@@ -549,9 +556,9 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
             FROM (
                 SELECT room_id, COALESCE(SUM(reserved_size), 0) AS total_reserved
                 FROM room_upload_reservations
-                WHERE CAST(expires_at AS TEXT) <= $1
+                WHERE expires_at <= $1
                   AND consumed_at IS NULL
-                  AND upload_status IN ('Pending', 'Uploading')
+                  AND upload_status IN ('pending', 'uploading')
                 GROUP BY room_id
             ) AS sub
             WHERE rooms.id = sub.room_id
@@ -562,12 +569,10 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
         .await?;
 
         // 再删除过期的预留记录
-        let result = sqlx::query(
-            "DELETE FROM room_upload_reservations WHERE CAST(expires_at AS TEXT) <= $1",
-        )
-        .bind(&now_str)
-        .execute(&mut *tx)
-        .await?;
+        let result = sqlx::query("DELETE FROM room_upload_reservations WHERE expires_at <= $1")
+            .bind(&now_str)
+            .execute(&mut *tx)
+            .await?;
 
         tx.commit().await?;
         Ok(result.rows_affected())

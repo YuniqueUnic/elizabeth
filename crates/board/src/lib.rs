@@ -12,9 +12,11 @@ pub use board_protocol::models;
 pub mod permissions;
 pub mod repository;
 pub mod route;
+mod scheduler;
 pub mod services;
 pub mod state;
 pub mod storage;
+mod tasks;
 pub mod validation;
 pub mod websocket;
 
@@ -39,13 +41,19 @@ use crate::config::{AppConfig, AuthConfig, RoomConfig, ServerConfig, StorageConf
 use crate::constants::{
     storage::DEFAULT_STORAGE_ROOT, upload::DEFAULT_UPLOAD_RESERVATION_TTL_SECONDS,
 };
-use crate::db::{DbKind, DbPoolSettings, init_db, run_migrations};
+use crate::db::{
+    DbKind, DbPoolSettings, backup_sqlite_before_migrations, has_pending_sqlite_migrations,
+    init_db, run_migrations,
+};
 use crate::init::{cfg_service, const_service, log_service};
+use crate::repository::RoomUploadReservationRepository;
 use crate::repository::room_refresh_token_repository::{
     RoomRefreshTokenRepository, TokenBlacklistRepository,
 };
+use crate::scheduler::{TaskRegistration, TaskScheduler};
 use crate::services::{RoomTokenService, refresh_token_service::RefreshTokenService};
 use crate::state::AppState;
+use crate::tasks::{RoomLifecycleTask, TokenCleanupTask, UploadCleanupTask};
 use configrs::Config;
 use sqlx::sqlite::SqliteJournalMode;
 
@@ -80,6 +88,9 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
     let db_pool = init_db(&db_settings).await?;
     if matches!(DbKind::detect(&db_url), DbKind::Sqlite) {
         apply_sqlite_journal_mode(&db_pool, sqlite_journal).await?;
+        if has_pending_sqlite_migrations(&db_pool).await? {
+            backup_sqlite_before_migrations(&db_pool, &db_url).await?;
+        }
     }
     run_migrations(&db_pool, &db_url).await?;
     let db_pool = Arc::new(db_pool);
@@ -112,17 +123,30 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
         auth: AuthConfig::new(cfg.app.jwt.secret.clone())
             .map_err(|e| anyhow::anyhow!("Invalid JWT config: {}", e))?
             .with_ttl(cfg.app.jwt.ttl_seconds)
-            .with_leeway(cfg.app.jwt.leeway_seconds),
+            .with_leeway(cfg.app.jwt.leeway_seconds)
+            .with_refresh_policy(
+                cfg.app.jwt.refresh_ttl_seconds,
+                cfg.app.jwt.cleanup_interval_seconds,
+                cfg.app.jwt.enable_refresh_token_rotation,
+            ),
     };
 
     // 创建应用状态
     let app_state = Arc::new(AppState::new(app_config, db_pool)?);
+    let migrated_passwords = crate::services::migrate_legacy_room_passwords(
+        &app_state.db_pool,
+        app_state.room_password_service(),
+    )
+    .await?;
+    if migrated_passwords > 0 {
+        log::info!(
+            "Migrated {} legacy room passwords to Argon2id",
+            migrated_passwords
+        );
+    }
 
-    spawn_room_gc_task(
-        app_state.clone(),
-        cfg.app.gc.interval_seconds,
-        cfg.app.gc.batch_limit,
-    );
+    let scheduler = start_scheduler(app_state.clone(), cfg);
+    let scheduler_cancellation = scheduler.cancellation_token();
 
     let addr: SocketAddr = format!("{}:{}", cfg.app.server.addr, cfg.app.server.port).parse()?;
     let listener = tokio::net::TcpListener::bind(addr).await?;
@@ -133,12 +157,15 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
     println!("Server listening on http://{actual_addr}");
     println!("Scalar listening on http://{actual_addr}{}", &scalar_path);
 
-    axum::serve(
+    let result = axum::serve(
         listener,
         router.into_make_service_with_connect_info::<SocketAddr>(),
     )
+    .with_graceful_shutdown(shutdown_signal(scheduler_cancellation))
     .await
-    .map_err(anyhow::Error::new)
+    .map_err(anyhow::Error::new);
+    scheduler.shutdown().await;
+    result
 }
 
 fn parse_sqlite_journal_mode(value: &str) -> SqliteJournalMode {
@@ -307,46 +334,65 @@ fn serve_html_asset(name: &str) -> Response {
     }
 }
 
-fn spawn_room_gc_task(app_state: Arc<AppState>, interval_seconds: u64, batch_limit: u32) {
-    let interval_seconds = interval_seconds.max(5);
-    let batch_limit = batch_limit.clamp(1, 10_000);
+fn start_scheduler(app_state: Arc<AppState>, cfg: &Config) -> scheduler::SchedulerHandle {
+    let room_interval = std::time::Duration::from_secs(cfg.app.gc.interval_seconds.max(5));
+    let auth_interval =
+        std::time::Duration::from_secs(app_state.config.auth.cleanup_interval_seconds.max(5));
+    let timeout = std::time::Duration::from_secs(300);
+    let upload_repository = Arc::new(RoomUploadReservationRepository::new(
+        app_state.db_pool.clone(),
+    ));
 
-    tokio::spawn(async move {
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(interval_seconds));
-        loop {
-            interval.tick().await;
-            let cleaned = app_state
-                .services
-                .room_gc
-                .run_scheduled_gc(&app_state.connection_manager, batch_limit)
-                .await;
+    TaskScheduler::new(vec![
+        TaskRegistration {
+            interval: room_interval,
+            timeout,
+            task: Arc::new(RoomLifecycleTask::new(
+                app_state.services.room_lifecycle.clone(),
+                app_state.connection_manager.clone(),
+                cfg.app.gc.batch_limit.clamp(1, 10_000),
+                app_state.config.room.share_disabled_lock_duration,
+            )),
+        },
+        TaskRegistration {
+            interval: auth_interval,
+            timeout,
+            task: Arc::new(TokenCleanupTask::new(
+                app_state.services.refresh_token_service.clone(),
+            )),
+        },
+        TaskRegistration {
+            interval: room_interval,
+            timeout,
+            task: Arc::new(UploadCleanupTask::new(upload_repository)),
+        },
+    ])
+    .start()
+}
 
-            match cleaned {
-                Ok(count) if count > 0 => {
-                    log::info!("Room GC cleaned {} rooms", count);
-                }
-                Ok(_) => {}
-                Err(e) => {
-                    log::warn!("Room GC task error: {}", e);
-                }
-            }
-
-            // 定期释放到期的私密房间的原名称（解绑旧 slug）
-            let released = app_state
-                .services
-                .room_gc
-                .release_expired_private_slugs(app_state.config.room.share_disabled_lock_duration)
-                .await;
-
-            match released {
-                Ok(count) if count > 0 => {
-                    log::info!("Released name locks for {} expired private rooms", count);
-                }
-                Ok(_) => {}
-                Err(e) => {
-                    log::warn!("Expired private slug release error: {}", e);
-                }
-            }
+async fn shutdown_signal(cancellation: tokio_util::sync::CancellationToken) {
+    let ctrl_c = async {
+        if let Err(error) = tokio::signal::ctrl_c().await {
+            log::warn!("Failed to install Ctrl+C handler: {error}");
         }
-    });
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut signal) => {
+                signal.recv().await;
+            }
+            Err(error) => log::warn!("Failed to install SIGTERM handler: {error}"),
+        }
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        () = ctrl_c => {},
+        () = terminate => {},
+    }
+    cancellation.cancel();
 }

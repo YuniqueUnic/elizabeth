@@ -324,6 +324,9 @@ pub struct AuthConfig {
     pub jwt_secret: String,
     pub ttl_seconds: i64,
     pub leeway_seconds: i64,
+    pub refresh_ttl_seconds: i64,
+    pub cleanup_interval_seconds: u64,
+    pub enable_refresh_token_rotation: bool,
 }
 
 impl AuthConfig {
@@ -339,6 +342,9 @@ impl AuthConfig {
             jwt_secret,
             ttl_seconds: DEFAULT_TTL_SECONDS,
             leeway_seconds: DEFAULT_LEEWAY_SECONDS,
+            refresh_ttl_seconds: 7 * 24 * 60 * 60,
+            cleanup_interval_seconds: 24 * 60 * 60,
+            enable_refresh_token_rotation: true,
         })
     }
 
@@ -351,6 +357,18 @@ impl AuthConfig {
         self.leeway_seconds = leeway_seconds;
         self
     }
+
+    pub fn with_refresh_policy(
+        mut self,
+        refresh_ttl_seconds: i64,
+        cleanup_interval_seconds: i64,
+        enable_rotation: bool,
+    ) -> Self {
+        self.refresh_ttl_seconds = refresh_ttl_seconds.max(1);
+        self.cleanup_interval_seconds = cleanup_interval_seconds.max(1) as u64;
+        self.enable_refresh_token_rotation = enable_rotation;
+        self
+    }
 }
 
 impl Default for AuthConfig {
@@ -359,6 +377,9 @@ impl Default for AuthConfig {
             jwt_secret: DEFAULT_JWT_SERCET.into(),
             ttl_seconds: DEFAULT_TTL_SECONDS,
             leeway_seconds: DEFAULT_LEEWAY_SECONDS,
+            refresh_ttl_seconds: 7 * 24 * 60 * 60,
+            cleanup_interval_seconds: 24 * 60 * 60,
+            enable_refresh_token_rotation: true,
         }
     }
 }

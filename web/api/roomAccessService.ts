@@ -65,14 +65,16 @@ export async function checkRoomAvailability(
     const now = new Date();
     const expiresAt = room.expire_at ? new Date(room.expire_at) : null;
     const isExpired = expiresAt ? expiresAt <= now : false;
-    const isFull = room.current_times_entered >= room.max_times_entered;
+    const currentTimesEntered = Number(room.current_times_entered);
+    const maxTimesEntered = Number(room.max_times_entered);
+    const isFull = currentTimesEntered >= maxTimesEntered;
 
     return {
       exists: true,
       accessible: !isExpired && !isFull,
       expired: isExpired,
       full: isFull,
-      requiresPassword: room.password !== null && room.password !== "",
+      requiresPassword: room.password_protected,
       isShareable: (room.permission & 4) !== 0, // SHARE permission bit
     };
   } catch (error: any) {

@@ -132,6 +132,7 @@ async fn room_defaults_apply_the_configured_expiry_age() -> Result<()> {
 fn settings_request(age_seconds: i64) -> UpdateRoomSettingsRequest {
     UpdateRoomSettingsRequest {
         password: None,
+        remove_password: None,
         age_seconds: Some(age_seconds),
         max_times_entered: None,
         max_size: None,

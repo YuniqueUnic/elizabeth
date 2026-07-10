@@ -33,7 +33,6 @@ app:
     ttl_seconds: 7200
     leeway_seconds: 5
     refresh_ttl_seconds: 604800
-    max_refresh_count: 10
     cleanup_interval_seconds: 86400
     enable_refresh_token_rotation: true
 
@@ -50,8 +49,11 @@ app:
     reservation_ttl_seconds: 3600
 
   gc:
-    # 扫描并清理“满且无过期、已空房”房间的间隔（秒）
-    interval_seconds: 600
+    # 周期性 reconciliation：
+    # - 清理显式过期房间
+    # - 清理“满且无显式过期、且已空房”的房间
+    # - 释放私密房间旧名称
+    interval_seconds: 60
     # 单次最多处理的房间数量（防止一次扫太久）
     batch_limit: 200
 

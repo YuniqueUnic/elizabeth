@@ -30,6 +30,10 @@ pub enum AppError {
     #[error("Room not found: {identifier}")]
     RoomNotFound { identifier: String },
 
+    /// 房间已经到达领域过期时间
+    #[error("Room expired: {identifier}")]
+    RoomExpired { identifier: String },
+
     /// 权限不足错误
     #[error("Permission denied: {message}")]
     PermissionDenied { message: String },
@@ -88,6 +92,7 @@ impl AppError {
             AppError::Authorization { .. } => StatusCode::FORBIDDEN,
             AppError::Validation { .. } => StatusCode::BAD_REQUEST,
             AppError::RoomNotFound { .. } => StatusCode::NOT_FOUND,
+            AppError::RoomExpired { .. } => StatusCode::GONE,
             AppError::PermissionDenied { .. } => StatusCode::FORBIDDEN,
             AppError::FileUpload { .. } => StatusCode::BAD_REQUEST,
             AppError::Configuration { .. } => StatusCode::INTERNAL_SERVER_ERROR,
@@ -111,6 +116,7 @@ impl AppError {
             AppError::Authorization { .. } => "AUTHORIZATION_FAILED",
             AppError::Validation { .. } => "VALIDATION_ERROR",
             AppError::RoomNotFound { .. } => "ROOM_NOT_FOUND",
+            AppError::RoomExpired { .. } => "ROOM_EXPIRED",
             AppError::PermissionDenied { .. } => "PERMISSION_DENIED",
             AppError::FileUpload { .. } => "FILE_UPLOAD_ERROR",
             AppError::Configuration { .. } => "CONFIGURATION_ERROR",
@@ -150,6 +156,12 @@ impl AppError {
     /// 创建房间未找到错误
     pub fn room_not_found(identifier: impl Into<String>) -> Self {
         AppError::RoomNotFound {
+            identifier: identifier.into(),
+        }
+    }
+
+    pub fn room_expired(identifier: impl Into<String>) -> Self {
+        AppError::RoomExpired {
             identifier: identifier.into(),
         }
     }

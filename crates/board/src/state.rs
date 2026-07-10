@@ -81,6 +81,10 @@ impl AppState {
         &self.services.refresh_token_service
     }
 
+    pub fn room_password_service(&self) -> &crate::services::RoomPasswordService {
+        &self.services.room_password
+    }
+
     /// 便捷方法：获取存储根目录
     pub fn storage_root(&self) -> &std::path::PathBuf {
         &self.config.storage.root
