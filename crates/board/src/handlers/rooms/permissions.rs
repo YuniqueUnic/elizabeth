@@ -5,7 +5,7 @@ use axum::extract::{Path, State};
 use uuid::Uuid;
 
 use super::shared::{HandlerResult, room_info_from_room};
-use crate::dto::rooms::UpdateRoomPermissionRequest;
+use crate::dto::rooms::{RoomView, UpdateRoomPermissionRequest};
 use crate::errors::AppError;
 use crate::handlers::{AuthToken, verify_room_token};
 use crate::models::{Room, permission::RoomPermission};
@@ -24,7 +24,7 @@ use crate::websocket::types::RoomUpdateReason;
     ),
     request_body = UpdateRoomPermissionRequest,
     responses(
-        (status = 200, description = "权限更新成功", body = Room),
+        (status = 200, description = "权限更新成功", body = RoomView),
         (status = 400, description = "请求参数错误"),
         (status = 401, description = "token 无效或已撤销"),
         (status = 403, description = "无更新权限"),
@@ -37,7 +37,7 @@ pub async fn update_permissions(
     AuthToken(token): AuthToken,
     State(app_state): State<Arc<AppState>>,
     Json(payload): Json<UpdateRoomPermissionRequest>,
-) -> HandlerResult<Room> {
+) -> HandlerResult<RoomView> {
     RoomNameValidator::validate_identifier(&name)?;
 
     let verified = verify_room_token(app_state.clone(), &name, &token).await?;
@@ -54,39 +54,46 @@ pub async fn update_permissions(
     let old_slug = room.slug.clone();
     let was_shareable = room.permission.can_share();
     room.permission = build_room_permission(&payload);
-    rotate_slug_when_share_is_disabled(&repo, &mut room, &payload, was_shareable).await?;
+    update_slug_for_share_policy(&repo, &mut room, was_shareable).await?;
 
     let updated_room = repo
-        .update(&room)
+        .update_permissions_and_slug(&room)
         .await
         .map_err(|e| AppError::internal(format!("Failed to update room: {e}")))?;
-    broadcast_permission_update(app_state, old_slug, updated_room.clone());
+    broadcast_permission_update(&app_state, &old_slug, &updated_room).await;
+    app_state
+        .connection_manager
+        .disconnect_room(&old_slug, "Room permissions changed")
+        .await;
 
-    Ok(Json(updated_room))
+    Ok(Json(RoomView::from(&updated_room)))
 }
 
 fn build_room_permission(payload: &UpdateRoomPermissionRequest) -> RoomPermission {
     let mut builder = PermissionBuilder::new();
+    if payload.edit {
+        builder = builder.with_edit();
+    }
+    if payload.share {
+        builder = builder.with_share();
+    }
     if payload.delete {
-        builder = builder.with_all();
-    } else {
-        if payload.edit {
-            builder = builder.with_edit();
-        }
-        if payload.share {
-            builder = builder.with_share();
-        }
+        builder = builder.with_delete();
     }
     builder.build()
 }
 
-async fn rotate_slug_when_share_is_disabled(
+async fn update_slug_for_share_policy(
     repo: &RoomRepository,
     room: &mut Room,
-    payload: &UpdateRoomPermissionRequest,
     was_shareable: bool,
 ) -> Result<(), AppError> {
-    if payload.share || (!was_shareable && room.slug != room.name) {
+    if room.permission.can_share() {
+        room.slug = room.name.clone();
+        return Ok(());
+    }
+
+    if !was_shareable && room.slug != room.name {
         return Ok(());
     }
 
@@ -103,9 +110,9 @@ async fn rotate_slug_when_share_is_disabled(
     }
 }
 
-fn broadcast_permission_update(app_state: Arc<AppState>, old_slug: String, updated_room: Room) {
+async fn broadcast_permission_update(app_state: &AppState, old_slug: &str, updated_room: &Room) {
     let broadcaster = app_state.broadcaster.clone();
-    let room_info = room_info_from_room(&updated_room);
+    let room_info = room_info_from_room(updated_room);
     let new_slug = updated_room.slug.clone();
     let update_reason = if new_slug != old_slug {
         RoomUpdateReason::AddressChanged
@@ -113,19 +120,17 @@ fn broadcast_permission_update(app_state: Arc<AppState>, old_slug: String, updat
         RoomUpdateReason::PermissionsChanged
     };
 
-    tokio::spawn(async move {
-        if let Err(e) = broadcaster
-            .broadcast_room_update(&old_slug, &room_info, update_reason.clone())
+    if let Err(e) = broadcaster
+        .broadcast_room_update(old_slug, &room_info, update_reason.clone())
+        .await
+    {
+        log::warn!("Failed to broadcast room update event (old slug): {}", e);
+    }
+    if new_slug != old_slug
+        && let Err(e) = broadcaster
+            .broadcast_room_update(&new_slug, &room_info, update_reason)
             .await
-        {
-            log::warn!("Failed to broadcast room update event (old slug): {}", e);
-        }
-        if new_slug != old_slug
-            && let Err(e) = broadcaster
-                .broadcast_room_update(&new_slug, &room_info, update_reason)
-                .await
-        {
-            log::warn!("Failed to broadcast room update event (new slug): {}", e);
-        }
-    });
+    {
+        log::warn!("Failed to broadcast room update event (new slug): {}", e);
+    }
 }

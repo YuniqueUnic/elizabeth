@@ -4,7 +4,6 @@ use axum::{
 };
 use chrono::Utc;
 use std::sync::Arc;
-use tokio::fs;
 use uuid::Uuid;
 
 use crate::{
@@ -17,7 +16,6 @@ use crate::{
     repository::room_chunk_upload_repository::{
         IRoomChunkUploadRepository, RoomChunkUploadRepository,
     },
-    repository::room_repository::{IRoomRepository, RoomRepository},
     repository::room_upload_reservation_repository::{
         IRoomUploadReservationRepository, RoomUploadReservationRepository,
     },
@@ -25,7 +23,7 @@ use crate::{
     validation::RoomNameValidator,
 };
 
-use super::{AuthToken, verify_room_token};
+use super::{AuthToken, VerifiedRoomToken, verify_room_token};
 type HandlerResult<T> = AppResult<Json<T>>;
 
 pub mod complete;
@@ -127,6 +125,7 @@ pub async fn prepare_chunked_upload(
         .reserve_upload(
             &room,
             &upload_token,
+            &verified.claims.jti,
             &file_manifest,
             total_reserved_size,
             app_state.upload_reservation_ttl(),
@@ -161,22 +160,6 @@ pub async fn prepare_chunked_upload(
     .await
     .map_err(|e| AppError::internal(format!("更新预留记录失败：{}", e)))?;
 
-    // 开启后台自动释放任务，防止分块上传中途夭折/未完成导致空间永久泄漏
-    let db_pool = app_state.db_pool.clone();
-    let ttl = app_state.upload_reservation_ttl();
-    let cleanup_delay_seconds = ttl.num_seconds().max(1) as u64;
-    tokio::spawn(async move {
-        tokio::time::sleep(std::time::Duration::from_secs(cleanup_delay_seconds)).await;
-        let repo = RoomUploadReservationRepository::new(db_pool);
-        if let Err(err) = repo.release_if_pending(db_reservation_id).await {
-            logrs::warn!(
-                "Failed to release expired chunked reservation {}: {}",
-                db_reservation_id,
-                err
-            );
-        }
-    });
-
     // 构建响应
     let response = ChunkedUploadPreparationResponse {
         reservation_id: db_reservation_id.to_string(),
@@ -208,6 +191,7 @@ pub async fn prepare_chunked_upload(
 )]
 pub async fn get_upload_status(
     Path(room_name): Path<String>,
+    AuthToken(token): AuthToken,
     State(app_state): State<Arc<AppState>>,
     Query(query): Query<UploadStatusQuery>,
 ) -> HandlerResult<UploadStatusResponse> {
@@ -227,14 +211,7 @@ pub async fn get_upload_status(
         ));
     }
 
-    // 查找房间
-    let room_repository = RoomRepository::new(app_state.db_pool.clone());
-    let room = room_repository
-        .find_by_name(&room_name)
-        .await
-        .map_err(|e| AppError::internal(format!("数据库查询错误：{}", e)))?;
-
-    let room = room.ok_or_else(|| AppError::not_found("房间不存在"))?;
+    let verified = verify_room_token(app_state.clone(), &room_name, &token).await?;
 
     // 查找预留记录
     let reservation_repository = RoomUploadReservationRepository::new(app_state.db_pool.clone());
@@ -258,9 +235,7 @@ pub async fn get_upload_status(
     let reservation = reservation.ok_or_else(|| AppError::not_found("预留记录不存在"))?;
 
     // 验证预留记录是否属于指定房间
-    if reservation.room_id != room.id.expect("房间 ID 不能为空") {
-        return Err(AppError::permission_denied("预留记录不属于指定房间"));
-    }
+    ensure_reservation_access(&reservation, &verified)?;
 
     // 验证预留记录是否为分块上传
     if reservation.chunked_upload != Some(true) {
@@ -355,16 +330,12 @@ pub async fn get_upload_status(
 )]
 pub async fn cancel_chunked_upload(
     Path((room_name, reservation_id)): Path<(String, i64)>,
+    AuthToken(token): AuthToken,
     State(app_state): State<Arc<AppState>>,
 ) -> HandlerResult<serde_json::Value> {
     RoomNameValidator::validate_identifier(&room_name)?;
 
-    let room_repository = RoomRepository::new(app_state.db_pool.clone());
-    let room = room_repository
-        .find_by_name(&room_name)
-        .await
-        .map_err(|e| AppError::internal(format!("数据库查询错误：{}", e)))?;
-    let room = room.ok_or_else(|| AppError::not_found("房间不存在"))?;
+    let verified = verify_room_token(app_state.clone(), &room_name, &token).await?;
 
     let reservation_repository = RoomUploadReservationRepository::new(app_state.db_pool.clone());
     let reservation = reservation_repository
@@ -373,19 +344,14 @@ pub async fn cancel_chunked_upload(
         .map_err(|e| AppError::internal(format!("查询预留记录失败：{}", e)))?;
     let reservation = reservation.ok_or_else(|| AppError::not_found("预留记录不存在"))?;
 
-    if reservation.room_id != room.id.expect("房间 ID 不能为空") {
-        return Err(AppError::permission_denied("预留记录不属于指定房间"));
-    }
+    ensure_reservation_access(&reservation, &verified)?;
 
     if reservation.consumed_at.is_some() {
         return Err(AppError::conflict("上传已完成，无法取消"));
     }
 
     // 清理临时分块文件
-    let temp_dir = format!("/tmp/elizabeth/chunks/{}", reservation_id);
-    if fs::metadata(&temp_dir).await.is_ok()
-        && let Err(e) = fs::remove_dir_all(&temp_dir).await
-    {
+    if let Err(e) = crate::chunk_temp_storage::remove_reservation_dir(reservation_id).await {
         logrs::error!("清理临时分块文件失败：{}", e);
     }
 
@@ -399,4 +365,23 @@ pub async fn cancel_chunked_upload(
         "message": "上传已取消",
         "reservation_id": reservation_id,
     })))
+}
+
+pub(crate) fn ensure_reservation_access(
+    reservation: &crate::models::RoomUploadReservation,
+    verified: &VerifiedRoomToken,
+) -> Result<(), AppError> {
+    if reservation.room_id != verified.claims.room_id {
+        return Err(AppError::permission_denied("预留记录不属于指定房间"));
+    }
+    if reservation.owner_token_jti != verified.claims.jti {
+        return Err(AppError::permission_denied("预留记录不属于当前会话"));
+    }
+    if !verified.room.permission.can_edit() || !verified.claims.as_permission().can_edit() {
+        return Err(AppError::permission_denied("房间或会话无编辑权限"));
+    }
+    if reservation.expires_at <= Utc::now().naive_utc() {
+        return Err(AppError::permission_denied("预留记录已过期"));
+    }
+    Ok(())
 }

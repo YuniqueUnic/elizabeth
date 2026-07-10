@@ -7,6 +7,8 @@ use std::sync::Arc;
 use chrono::Duration;
 use serde::{Deserialize, Serialize};
 
+use crate::models::permission::RoomPermission;
+
 use crate::constants::{
     auth::{DEFAULT_JWT_SERCET, DEFAULT_LEEWAY_SECONDS, DEFAULT_TTL_SECONDS},
     room::{DEFAULT_MAX_ROOM_CONTENT_SIZE, DEFAULT_MAX_TIMES_ENTER_ROOM},
@@ -153,16 +155,215 @@ impl Default for StorageConfig {
 /// 房间配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RoomConfig {
-    pub max_content_size: i64,
-    pub max_times_entered: i64,
+    pub defaults: RoomCreationDefaults,
+    pub expiry: RoomExpiryPolicy,
     pub share_disabled_lock_duration: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RoomCreationDefaults {
+    pub password: Option<String>,
+    pub max_times_entered: i64,
+    pub max_content_size: i64,
+    pub permission: RoomPermission,
+}
+
+impl TryFrom<&configrs::RoomConfig> for RoomConfig {
+    type Error = ConfigError;
+
+    fn try_from(value: &configrs::RoomConfig) -> Result<Self, Self::Error> {
+        let max_content_size = i64::try_from(value.defaults.max_size.as_u64()).map_err(|_| {
+            ConfigError::InvalidRoomConfig(
+                "Default room max content size exceeds the supported range".to_string(),
+            )
+        })?;
+        let share_disabled_lock_duration =
+            i64::try_from(value.share_disabled_lock_duration.as_secs()).map_err(|_| {
+                ConfigError::InvalidRoomConfig(
+                    "Share-disabled lock duration exceeds the supported range".to_string(),
+                )
+            })?;
+        let password = value
+            .defaults
+            .password
+            .as_deref()
+            .map(str::trim)
+            .filter(|password| !password.is_empty())
+            .map(str::to_owned);
+        if password
+            .as_ref()
+            .is_some_and(|password| password.len() < 4 || password.len() > 100)
+        {
+            return Err(ConfigError::InvalidRoomConfig(
+                "Default room password must be empty or between 4 and 100 characters".to_string(),
+            ));
+        }
+        let mut permission = RoomPermission::empty();
+        if value.defaults.permissions.read {
+            permission |= RoomPermission::VIEW_ONLY;
+        }
+        if value.defaults.permissions.edit {
+            permission |= RoomPermission::EDITABLE;
+        }
+        if value.defaults.permissions.share {
+            permission |= RoomPermission::SHARE;
+        }
+        if value.defaults.permissions.delete {
+            permission |= RoomPermission::DELETE;
+        }
+        let expiry = RoomExpiryPolicy::try_from(&value.expiry)?;
+
+        Ok(Self {
+            defaults: RoomCreationDefaults {
+                password,
+                max_times_entered: value.defaults.max_times_entered,
+                max_content_size,
+                permission,
+            },
+            expiry,
+            share_disabled_lock_duration,
+        })
+    }
+}
+
+pub const DEFAULT_ROOM_ALLOWED_AGES_SECONDS: [i64; 8] = [
+    60,
+    30 * 60,
+    2 * 60 * 60,
+    12 * 60 * 60,
+    24 * 60 * 60,
+    7 * 24 * 60 * 60,
+    30 * 24 * 60 * 60,
+    365 * 24 * 60 * 60,
+];
+pub const DEFAULT_ROOM_AGE_SECONDS: i64 = 2 * 60 * 60;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RoomExpiryPolicy {
+    allowed_ages_seconds: Vec<i64>,
+    default_age_seconds: i64,
+}
+
+impl RoomExpiryPolicy {
+    pub fn new(
+        allowed_ages_seconds: Vec<i64>,
+        default_age_seconds: i64,
+    ) -> Result<Self, ConfigError> {
+        let policy = Self {
+            allowed_ages_seconds,
+            default_age_seconds,
+        };
+        policy.validate()?;
+        Ok(policy)
+    }
+
+    pub fn allowed_ages_seconds(&self) -> &[i64] {
+        &self.allowed_ages_seconds
+    }
+
+    pub fn default_age_seconds(&self) -> i64 {
+        self.default_age_seconds
+    }
+
+    pub fn allows(&self, age_seconds: i64) -> bool {
+        self.allowed_ages_seconds
+            .binary_search(&age_seconds)
+            .is_ok()
+    }
+
+    pub fn expire_at(
+        &self,
+        from: chrono::NaiveDateTime,
+        age_seconds: i64,
+    ) -> Option<chrono::NaiveDateTime> {
+        if !self.allows(age_seconds) {
+            return None;
+        }
+        from.checked_add_signed(Duration::seconds(age_seconds))
+    }
+
+    pub fn default_expire_at(&self, from: chrono::NaiveDateTime) -> Option<chrono::NaiveDateTime> {
+        self.expire_at(from, self.default_age_seconds)
+    }
+
+    fn validate(&self) -> Result<(), ConfigError> {
+        if self.allowed_ages_seconds.is_empty() {
+            return Err(ConfigError::InvalidRoomConfig(
+                "At least one room expiry age is required".to_string(),
+            ));
+        }
+        if self.allowed_ages_seconds.iter().any(|age| *age <= 0) {
+            return Err(ConfigError::InvalidRoomConfig(
+                "Room expiry ages must be positive".to_string(),
+            ));
+        }
+        if self
+            .allowed_ages_seconds
+            .windows(2)
+            .any(|ages| ages[0] >= ages[1])
+        {
+            return Err(ConfigError::InvalidRoomConfig(
+                "Room expiry ages must be unique and strictly increasing".to_string(),
+            ));
+        }
+        if !self.allows(self.default_age_seconds) {
+            return Err(ConfigError::InvalidRoomConfig(
+                "Default room expiry age must be included in allowed ages".to_string(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+impl TryFrom<&configrs::RoomExpiryConfig> for RoomExpiryPolicy {
+    type Error = ConfigError;
+
+    fn try_from(value: &configrs::RoomExpiryConfig) -> Result<Self, Self::Error> {
+        let allowed_ages_seconds = value
+            .allowed_ages
+            .iter()
+            .map(|age| {
+                i64::try_from(age.as_secs()).map_err(|_| {
+                    ConfigError::InvalidRoomConfig(
+                        "Room expiry age exceeds the supported range".to_string(),
+                    )
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let default_age_seconds = i64::try_from(value.default_age.as_secs()).map_err(|_| {
+            ConfigError::InvalidRoomConfig(
+                "Default room expiry age exceeds the supported range".to_string(),
+            )
+        })?;
+        Self::new(allowed_ages_seconds, default_age_seconds)
+    }
+}
+
+impl Default for RoomExpiryPolicy {
+    fn default() -> Self {
+        Self {
+            allowed_ages_seconds: DEFAULT_ROOM_ALLOWED_AGES_SECONDS.to_vec(),
+            default_age_seconds: DEFAULT_ROOM_AGE_SECONDS,
+        }
+    }
+}
+
+impl Default for RoomCreationDefaults {
+    fn default() -> Self {
+        Self {
+            password: None,
+            max_times_entered: DEFAULT_MAX_TIMES_ENTER_ROOM,
+            max_content_size: DEFAULT_MAX_ROOM_CONTENT_SIZE,
+            permission: RoomPermission::new().with_all(),
+        }
+    }
 }
 
 impl Default for RoomConfig {
     fn default() -> Self {
         Self {
-            max_content_size: DEFAULT_MAX_ROOM_CONTENT_SIZE,
-            max_times_entered: DEFAULT_MAX_TIMES_ENTER_ROOM,
+            defaults: RoomCreationDefaults::default(),
+            expiry: RoomExpiryPolicy::default(),
             share_disabled_lock_duration: 3600,
         }
     }
@@ -174,6 +375,9 @@ pub struct AuthConfig {
     pub jwt_secret: String,
     pub ttl_seconds: i64,
     pub leeway_seconds: i64,
+    pub refresh_ttl_seconds: i64,
+    pub cleanup_interval_seconds: u64,
+    pub enable_refresh_token_rotation: bool,
 }
 
 impl AuthConfig {
@@ -189,6 +393,9 @@ impl AuthConfig {
             jwt_secret,
             ttl_seconds: DEFAULT_TTL_SECONDS,
             leeway_seconds: DEFAULT_LEEWAY_SECONDS,
+            refresh_ttl_seconds: 7 * 24 * 60 * 60,
+            cleanup_interval_seconds: 24 * 60 * 60,
+            enable_refresh_token_rotation: true,
         })
     }
 
@@ -201,6 +408,18 @@ impl AuthConfig {
         self.leeway_seconds = leeway_seconds;
         self
     }
+
+    pub fn with_refresh_policy(
+        mut self,
+        refresh_ttl_seconds: i64,
+        cleanup_interval_seconds: i64,
+        enable_rotation: bool,
+    ) -> Self {
+        self.refresh_ttl_seconds = refresh_ttl_seconds.max(1);
+        self.cleanup_interval_seconds = cleanup_interval_seconds.max(1) as u64;
+        self.enable_refresh_token_rotation = enable_rotation;
+        self
+    }
 }
 
 impl Default for AuthConfig {
@@ -209,6 +428,9 @@ impl Default for AuthConfig {
             jwt_secret: DEFAULT_JWT_SERCET.into(),
             ttl_seconds: DEFAULT_TTL_SECONDS,
             leeway_seconds: DEFAULT_LEEWAY_SECONDS,
+            refresh_ttl_seconds: 7 * 24 * 60 * 60,
+            cleanup_interval_seconds: 24 * 60 * 60,
+            enable_refresh_token_rotation: true,
         }
     }
 }
@@ -241,17 +463,25 @@ impl AppConfig {
         }
 
         // 验证房间配置
-        if self.room.max_content_size <= 0 {
+        if self.room.defaults.max_content_size <= 0 {
             return Err(ConfigError::InvalidRoomConfig(
-                "Max content size must be positive".to_string(),
+                "Default room max content size must be positive".to_string(),
             ));
         }
 
-        if self.room.max_times_entered <= 0 {
+        if self.room.defaults.max_times_entered <= 0 {
             return Err(ConfigError::InvalidRoomConfig(
-                "Max times entered must be positive".to_string(),
+                "Default room max times entered must be positive".to_string(),
             ));
         }
+
+        if self.room.share_disabled_lock_duration <= 0 {
+            return Err(ConfigError::InvalidRoomConfig(
+                "Share-disabled lock duration must be positive".to_string(),
+            ));
+        }
+
+        self.room.expiry.validate()?;
 
         Ok(())
     }

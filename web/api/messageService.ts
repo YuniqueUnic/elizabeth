@@ -12,6 +12,7 @@ import type {
   BackendRoomContent,
   CreateMessageResponse,
   Message,
+  MessagePage,
   UpdateContentResponse,
 } from "../lib/types";
 import {
@@ -25,37 +26,44 @@ import {
 // ============================================================================
 
 /**
- * Get all messages for a room
- * Filters RoomContent for text-only content (content_type = 0)
+ * Get one page of messages for a room.
  *
  * @param roomName - The name of the room
  * @param token - Optional token for authentication
- * @returns Array of messages
+ * @param cursor - Opaque cursor returned by the previous page
+ * @param limit - Maximum page size
  */
-export async function getMessages(
+export async function getMessagePage(
   roomName: string,
+  cursor?: string | null,
+  limit = 50,
   token?: string,
-): Promise<Message[]> {
+): Promise<MessagePage> {
   const authToken = token || await getValidToken(roomName);
 
   if (!authToken) {
     throw new Error("Authentication required to get messages");
   }
 
-  const contents = await api.get<BackendRoomContent[]>(
-    API_ENDPOINTS.content.base(roomName),
-    undefined,
+  const response = await api.get<{
+    items: BackendRoomContent[];
+    next_cursor: string | null;
+    has_more: boolean;
+    next_sequence_number: number;
+  }>(
+    API_ENDPOINTS.content.messages(roomName),
+    cursor ? { limit, cursor } : { limit },
     { token: authToken },
   );
 
-  // Filter only ContentType.Text (content_type = 0)
-  const filteredContents = contents.filter((content) => {
-    const contentType = parseContentType(content.content_type);
-    return contentType === CT.Text;
-  });
-
-  return filteredContents
-    .map(convertMessage);
+  return {
+    items: response.items
+      .filter((content) => parseContentType(content.content_type) === CT.Text)
+      .map(convertMessage),
+    nextCursor: response.next_cursor,
+    hasMore: response.has_more,
+    nextSequenceNumber: response.next_sequence_number,
+  };
 }
 
 /**
@@ -93,12 +101,7 @@ export async function postMessage(
 
   const message = response.message;
 
-  return {
-    id: String(message.id),
-    content: contentString,
-    timestamp: message.created_at,
-    isOwn: true,
-  };
+  return { ...convertMessage(message), isOwn: true };
 }
 
 /**
@@ -186,7 +189,7 @@ export async function updateMessage(
 }
 
 const messageService = {
-  getMessages,
+  getMessagePage,
   postMessage,
   updateMessage,
   deleteMessage,

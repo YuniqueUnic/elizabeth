@@ -8,12 +8,20 @@ import type {
 process.env.NO_PROXY = "localhost,127.0.0.1,::1";
 delete process.env.http_proxy;
 delete process.env.https_proxy;
+delete process.env.NO_COLOR;
+
+const appBaseUrl = process.env.PLAYWRIGHT_BASE_URL ??
+  "http://127.0.0.1:4093";
+const serverPort = new URL(appBaseUrl).port || "4093";
+const runId = process.env.PLAYWRIGHT_RUN_ID ?? String(process.pid);
+const databaseUrl = `sqlite://target/playwright-${runId}.db?mode=rwc`;
+const storageRoot = `target/playwright-storage-${runId}`;
 
 /**
  * See https://playwright.dev/docs/test-configuration.
  *
  * 单端口架构：Rust 后端同时 serve API 和嵌入的 SPA 静态文件
- * - 所有流量经过 localhost:4092
+ * - 默认使用独立测试端口 4093，可通过 PLAYWRIGHT_BASE_URL 覆盖
  * - /api/v1/* → Axum 后端路由
  * - /* → rust-embed 嵌入的 Next.js 静态文件（SPA fallback）
  */
@@ -48,8 +56,8 @@ export default defineConfig<SerenityFixtures, SerenityWorkerFixtures>({
   ],
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
-    /* 单端口：前端和后端都在 4092 */
-    baseURL: "http://localhost:4092",
+    /* 单端口：前端和后端使用同一个隔离的测试地址 */
+    baseURL: appBaseUrl,
     defaultActorName: "Alice",
     crew: [
       ["@serenity-js/web:Photographer", {
@@ -84,13 +92,15 @@ export default defineConfig<SerenityFixtures, SerenityWorkerFixtures>({
     timeout: 30 * 1000,
   },
 
-  /* 尝试连接到现有服务器，如果不存在则启动 Rust 后端（单端口模式）*/
+  /* 每次测试使用独立 DB/storage；仅显式设置时复用外部服务器。 */
   webServer: {
     command:
-      `lsof -i :4092 -sTCP:LISTEN -n -P >/dev/null 2>&1 || ` +
+      `PORT=${serverPort} DATABASE_URL='${databaseUrl}' ` +
+      `DB_MAX_CONNECTIONS=5 DB_MIN_CONNECTIONS=1 ` +
+      `ELIZABETH__APP__STORAGE__ROOT='${storageRoot}' ` +
       `cargo run -p elizabeth-board -- run`,
-    url: "http://localhost:4092/api/v1/health",
-    reuseExistingServer: true,
+    url: `${appBaseUrl}/api/v1/health`,
+    reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === "1",
     timeout: 180 * 1000,
     cwd: "..",
   },

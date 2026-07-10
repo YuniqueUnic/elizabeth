@@ -1,12 +1,16 @@
+pub mod room_access_repository;
 pub mod room_chunk_upload_repository;
 pub mod room_content_repository;
+pub mod room_lifecycle_repository;
 pub mod room_refresh_token_repository;
 pub mod room_repository;
 pub mod room_token_repository;
 pub mod room_upload_reservation_repository;
 
+pub use room_access_repository::*;
 pub use room_chunk_upload_repository::*;
 pub use room_content_repository::*;
+pub use room_lifecycle_repository::*;
 pub use room_refresh_token_repository::*;
 pub use room_repository::*;
 pub use room_token_repository::*;

@@ -12,7 +12,7 @@ import { GlobalFilePreviewModal } from "@/components/files/global-file-preview-m
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAppStore } from "@/lib/store";
 import { RoomPasswordDialog } from "@/components/room/room-password-dialog";
-import { createRoom, getRoomDetails } from "@/api/roomService";
+import { getRoomDetails } from "@/api/roomService";
 import { getAccessToken, hasValidToken, validateToken } from "@/api/authService";
 import { clearRoomToken, getRoomTokenString } from "@/lib/utils/api";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -69,8 +69,11 @@ function RoomRealtimeSync({
   const desktopNotificationShowContent = useAppStore((state) =>
     state.desktopNotificationShowContent
   );
-  const syncMessagesFromServer = useAppStore((state) =>
-    state.syncMessagesFromServer
+  const applyMessageCreated = useAppStore((state) => state.applyMessageCreated);
+  const applyMessageUpdated = useAppStore((state) => state.applyMessageUpdated);
+  const applyMessageDeleted = useAppStore((state) => state.applyMessageDeleted);
+  const refreshLatestMessages = useAppStore((state) =>
+    state.refreshLatestMessages
   );
 
   const notifyContentChange = (
@@ -131,19 +134,27 @@ function RoomRealtimeSync({
       notifyContentChange("created", payload);
       const kind = parseContentType(payload.content_type);
       if (kind === ContentType.Text) {
-        void syncMessagesFromServer();
+        applyMessageCreated(payload);
       }
     },
     onContentUpdated: (payload) => {
       notifyContentChange("updated", payload);
       const kind = parseContentType(payload.content_type);
       if (kind === ContentType.Text) {
-        void syncMessagesFromServer();
+        applyMessageUpdated(payload);
       }
     },
     onContentDeleted: (payload) => {
       notifyContentChange("deleted", payload);
-      void syncMessagesFromServer();
+      const kind = parseContentType(payload.content_type);
+      if (kind === ContentType.Text && payload.content_id != null) {
+        applyMessageDeleted(String(payload.content_id));
+      }
+    },
+    onReconnected: () => {
+      void refreshLatestMessages().catch((error) => {
+        console.error("Failed to refresh messages after reconnect:", error);
+      });
     },
     onRoomUpdate: (payload) => {
       notifyRoomUpdate(payload);
@@ -298,42 +309,13 @@ export default function RoomPage() {
           return;
         }
 
+        if (status === 410) {
+          setError(tErrors("roomExpired"));
+          return;
+        }
+
         if (status === 404) {
-          // Fallback: some deployments may not auto-create rooms on GET.
-          // Try explicit create, then continue normal auth flow.
-          try {
-            await createRoom(roomName);
-            const room = await getRoomDetails(roomName, undefined, true);
-
-            if (room.settings.passwordProtected && !hasValidToken(roomName)) {
-              setNeedsPassword(true);
-              return;
-            }
-
-            await getAccessToken(roomName);
-            setTokenReady(true);
-            return;
-          } catch (createErr: any) {
-            const createStatus: number | undefined =
-              createErr?.code ?? createErr?.status ?? createErr?.response?.status;
-            if (createStatus === 409) {
-              // Race: room created by someone else. Retry as existing room.
-              try {
-                const room = await getRoomDetails(roomName, undefined, true);
-                if (room.settings.passwordProtected && !hasValidToken(roomName)) {
-                  setNeedsPassword(true);
-                  return;
-                }
-                await getAccessToken(roomName);
-                setTokenReady(true);
-                return;
-              } catch {
-                // Fall through to generic error
-              }
-            }
-          }
-
-          setError(tErrors("roomNotFoundAutoCreateFailed"));
+          setError(tErrors("roomNotFound"));
           return;
         }
 

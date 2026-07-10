@@ -7,9 +7,20 @@ use crate::websocket::types::RoomInfo;
 
 pub(crate) type HandlerResult<T> = Result<Json<T>, AppError>;
 
-pub(crate) fn apply_room_defaults(room: &mut Room, app_state: &AppState) {
-    room.max_size = app_state.room_max_size();
-    room.max_times_entered = app_state.room_max_times_entered();
+pub(crate) fn apply_room_defaults(room: &mut Room, app_state: &AppState) -> Result<(), AppError> {
+    let defaults = app_state.room_creation_defaults();
+    room.max_size = defaults.max_content_size;
+    room.max_times_entered = defaults.max_times_entered;
+    room.permission = defaults.permission;
+    room.expire_at = Some(
+        app_state
+            .room_expiry_policy()
+            .default_expire_at(room.created_at)
+            .ok_or_else(|| {
+                AppError::internal("Default room expiry exceeds supported date range")
+            })?,
+    );
+    Ok(())
 }
 
 pub(crate) fn room_info_from_room(room: &Room) -> RoomInfo {

@@ -70,7 +70,7 @@ pub async fn list_full_unbounded_rooms(
 
     let rooms = app_state
         .services
-        .room_gc
+        .room_lifecycle
         .list_full_unbounded_rooms(&app_state.connection_manager, limit)
         .await
         .map_err(|e| AppError::internal(format!("Failed to list rooms for gc: {e}")))?;
@@ -114,14 +114,18 @@ pub async fn run_room_gc(
     ensure_admin(&headers)?;
     let limit = clamp_limit(query.limit);
 
-    let cleaned = app_state
+    let report = app_state
         .services
-        .room_gc
-        .run_scheduled_gc(&app_state.connection_manager, limit)
+        .room_lifecycle
+        .run(
+            &app_state.connection_manager,
+            limit,
+            app_state.config.room.share_disabled_lock_duration,
+        )
         .await
         .map_err(|e| AppError::internal(format!("Failed to run room gc: {e}")))?;
 
     Ok(Json(RunRoomGcResponse {
-        cleaned: u32::try_from(cleaned).unwrap_or(u32::MAX),
+        cleaned: u32::try_from(report.expired_rooms + report.full_rooms).unwrap_or(u32::MAX),
     }))
 }

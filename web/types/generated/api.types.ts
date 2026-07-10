@@ -7,7 +7,6 @@
 //
 
 // Re-export all generated types
-export * from './Room';
 export * from './RoomStatus';
 export * from './RoomContent';
 export * from './ContentType';
@@ -23,6 +22,10 @@ export * from './UploadFileDescriptor';
 export * from './UploadStatus';
 export * from './TokenType';
 export * from './RoomTokenClaims';
+export * from './CreateRoomRequest';
+export * from './RoomView';
+export * from './VerifyRoomPasswordRequest';
+export * from './VerifyRoomPasswordResponse';
 export * from './IssueTokenRequest';
 export * from './IssueTokenResponse';
 export * from './ValidateTokenRequest';
@@ -44,6 +47,10 @@ export * from './CreateUrlContentRequest';
 export * from './CreateUrlContentResponse';
 export * from './CreateMessageRequest';
 export * from './CreateMessageResponse';
+export * from './MessagePage';
+export * from './PublicConfigResponse';
+export * from './PublicRoomConfig';
+export * from './PublicRoomExpiryConfig';
 export * from './ChunkedUploadPreparationRequest';
 export * from './ChunkedUploadPreparationResponse';
 export * from './ReservedFileInfo';

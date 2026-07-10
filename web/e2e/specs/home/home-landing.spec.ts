@@ -8,6 +8,7 @@ import {
 import { CurrentRoomName } from "../../screenplay/room/questions/Room.questions";
 import { RoomScreen } from "../../screenplay/room/screens/Room.screen";
 import { OpenRoom } from "../../screenplay/room/tasks/Room.tasks";
+import { API_BASE_URL } from "../../screenplay/support/constants";
 import { uniqueRoomName } from "../../screenplay/support/test-data";
 
 test.describe("Home landing", () => {
@@ -29,7 +30,13 @@ test.describe("Home landing", () => {
     expect(await actor.answer(CurrentRoomName())).toBe(roomName);
   });
 
-  test("opens a room directly from its URL", async ({ actor, page }) => {
+  // Product contract: keep this room unprovisioned. Opening a valid missing
+  // room URL must create it with the deployment defaults. Pre-creating the
+  // room here would silently remove coverage for the zero-step creation UX.
+  test("creates a missing room when its URL is opened directly", async ({
+    actor,
+    page,
+  }) => {
     const roomName = uniqueRoomName("screenplay-direct-room");
 
     await actor.attemptsTo(
@@ -38,6 +45,25 @@ test.describe("Home landing", () => {
 
     await expect(RoomScreen.messageInput(page)).toBeVisible();
     expect(await actor.answer(CurrentRoomName())).toBe(roomName);
+
+    const response = await page.request.get(
+      `${API_BASE_URL}/rooms/${roomName}`,
+    );
+    expect(response.status()).toBe(200);
+    const room = await response.json();
+    expect(room).toMatchObject({
+      name: roomName,
+      slug: roomName,
+      password_protected: false,
+      max_size: 50 * 1024 * 1024,
+      max_times_entered: 100,
+      permission: 15,
+    });
+    const lifetimeSeconds = Math.round(
+      (Date.parse(room.expire_at) - Date.parse(room.created_at)) / 1000,
+    );
+    expect(lifetimeSeconds).toBeGreaterThanOrEqual(7199);
+    expect(lifetimeSeconds).toBeLessThanOrEqual(7200);
   });
 
   test("returns from the join form back to the landing page", async ({ actor, page }) => {

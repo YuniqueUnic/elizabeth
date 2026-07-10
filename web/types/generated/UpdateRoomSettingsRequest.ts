@@ -2,13 +2,17 @@
 
 export type UpdateRoomSettingsRequest = { 
 /**
- * 房间密码（可选，设置为 None 表示移除密码）
+ * 新房间密码。字段缺失表示保持当前密码不变。
  */
 password?: string, 
 /**
- * 房间过期时间（可选，设置为 None 表示永不过期）
+ * 显式移除当前房间密码，与 password 互斥。
  */
-expire_at?: string, 
+remove_password?: boolean, 
+/**
+ * 房间有效期（可选，单位：秒；必须属于部署配置允许的期限）
+ */
+age_seconds?: number | null, 
 /**
  * 最大进入次数（可选）
  */

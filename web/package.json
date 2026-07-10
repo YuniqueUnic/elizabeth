@@ -11,6 +11,7 @@
     "e2e:report": "serenity-bdd run",
     "e2e:report:open": "mkdirp target/site/serenity && http-server -p 8080 target/site/serenity -s -o",
     "lint": "eslint . --max-warnings 0",
+    "test": "bun test lib/messages",
     "typecheck": "tsc --noEmit",
     "start": "next start"
   },

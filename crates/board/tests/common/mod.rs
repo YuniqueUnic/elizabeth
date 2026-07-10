@@ -7,6 +7,7 @@ pub mod mocks;
 
 use anyhow::Result;
 use std::sync::Arc;
+use uuid::Uuid;
 
 use board::config::{AppConfig, AuthConfig, RoomConfig, ServerConfig, StorageConfig};
 use board::constants::{
@@ -88,13 +89,18 @@ pub async fn create_test_app() -> Result<(axum::Router, Arc<board::db::DbPool>)>
         server: ServerConfig::default(),
         database: board::config::DatabaseConfig::default(),
         storage: StorageConfig {
-            root: std::env::temp_dir(),
+            root: std::env::temp_dir().join(format!("elizabeth-test-{}", Uuid::new_v4())),
             upload_reservation_ttl_seconds: DEFAULT_UPLOAD_RESERVATION_TTL_SECONDS,
         },
         room: RoomConfig {
-            max_content_size: DEFAULT_MAX_ROOM_CONTENT_SIZE,
-            max_times_entered: DEFAULT_MAX_TIMES_ENTER_ROOM,
+            defaults: board::config::RoomCreationDefaults {
+                password: None,
+                max_times_entered: DEFAULT_MAX_TIMES_ENTER_ROOM,
+                max_content_size: DEFAULT_MAX_ROOM_CONTENT_SIZE,
+                permission: board::models::permission::RoomPermission::new().with_all(),
+            },
             share_disabled_lock_duration: 3600,
+            expiry: board::config::RoomExpiryPolicy::default(),
         },
         auth: AuthConfig::new("test-secret-key-for-unit-testing-123456789".to_string())?,
     };

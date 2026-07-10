@@ -96,6 +96,7 @@ export interface ContentEventPayload {
   file_name?: string | null;
   created_at?: string;
   updated_at?: string;
+  sequence_number?: number;
 }
 
 export interface UserEventPayload {
@@ -135,6 +136,8 @@ export interface UseWebSocketOptions {
   onError?: (event: Event) => void;
   /** Callback when reconnection happens */
   onReconnect?: (attempt: number) => void;
+  /** Callback after a reconnection successfully opens */
+  onReconnected?: () => void;
   /** Enable automatic reconnection */
   enableReconnect?: boolean;
 }
@@ -205,6 +208,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     onClose,
     onError,
     onReconnect,
+    onReconnected,
     enableReconnect = true,
   } = options;
 
@@ -219,7 +223,12 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
 
   type CallbackRefs = Pick<
     UseWebSocketOptions,
-    "onOpen" | "onMessage" | "onClose" | "onError" | "onReconnect"
+    | "onOpen"
+    | "onMessage"
+    | "onClose"
+    | "onError"
+    | "onReconnect"
+    | "onReconnected"
   >;
   const callbacksRef = useRef<CallbackRefs>({
     onOpen,
@@ -227,6 +236,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     onClose,
     onError,
     onReconnect,
+    onReconnected,
   });
 
   useEffect(() => {
@@ -236,8 +246,9 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
       onClose,
       onError,
       onReconnect,
+      onReconnected,
     };
-  }, [onOpen, onMessage, onClose, onError, onReconnect]);
+  }, [onOpen, onMessage, onClose, onError, onReconnect, onReconnected]);
 
   // State
   const [connected, setConnected] = useState(false);
@@ -323,6 +334,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
       wsRef.current = ws;
 
       ws.onopen = (event) => {
+        const wasReconnecting = reconnectAttemptRef.current > 0;
         setConnected(true);
         connectingRef.current = false;
         setConnecting(false);
@@ -343,6 +355,9 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
         ws.send(JSON.stringify(connectMessage));
 
         callbacksRef.current.onOpen?.(event);
+        if (wasReconnecting) {
+          callbacksRef.current.onReconnected?.();
+        }
       };
 
       ws.onmessage = (event) => {

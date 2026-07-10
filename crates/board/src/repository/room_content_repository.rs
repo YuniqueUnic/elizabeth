@@ -27,6 +27,19 @@ const CONTENT_SELECT_BASE: &str = r#"
     FROM room_contents
 "#;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MessagePageCursor {
+    pub sequence_number: i32,
+    pub id: i64,
+}
+
+#[derive(Debug)]
+pub struct MessagePageResult {
+    pub items: Vec<RoomContent>,
+    pub has_more: bool,
+    pub next_sequence_number: i32,
+}
+
 #[async_trait]
 pub trait IRoomContentRepository: Send + Sync {
     async fn exists(&self, content_id: i64) -> Result<bool>;
@@ -34,6 +47,12 @@ pub trait IRoomContentRepository: Send + Sync {
     async fn find_by_id(&self, content_id: i64) -> Result<Option<RoomContent>>;
     async fn update(&self, room_content: &RoomContent) -> Result<RoomContent>;
     async fn list_by_room(&self, room_id: i64) -> Result<Vec<RoomContent>>;
+    async fn list_messages_page(
+        &self,
+        room_id: i64,
+        cursor: Option<MessagePageCursor>,
+        limit: u32,
+    ) -> Result<MessagePageResult>;
     async fn delete_by_ids(&self, room_id: i64, content_ids: &[i64]) -> Result<u64>;
     async fn delete_by_room_id(&self, room_id: i64) -> Result<u64>;
     async fn total_size_by_room(&self, room_id: i64) -> Result<i64>;
@@ -167,6 +186,66 @@ impl IRoomContentRepository for RoomContentRepository {
             .fetch_all(&*self.pool)
             .await?;
         Ok(rows)
+    }
+
+    async fn list_messages_page(
+        &self,
+        room_id: i64,
+        cursor: Option<MessagePageCursor>,
+        limit: u32,
+    ) -> Result<MessagePageResult> {
+        let fetch_limit = i64::from(limit) + 1;
+        let mut items = if let Some(cursor) = cursor {
+            let sql = format!(
+                "{CONTENT_SELECT_BASE} \
+                 WHERE room_id = $1 AND content_type = $2 \
+                   AND (sequence_number < $3 OR (sequence_number = $3 AND id < $4)) \
+                 ORDER BY sequence_number DESC, id DESC LIMIT $5"
+            );
+            sqlx::query_as::<_, RoomContent>(&sql)
+                .bind(room_id)
+                .bind(ContentType::Text)
+                .bind(cursor.sequence_number)
+                .bind(cursor.id)
+                .bind(fetch_limit)
+                .fetch_all(&*self.pool)
+                .await?
+        } else {
+            let sql = format!(
+                "{CONTENT_SELECT_BASE} \
+                 WHERE room_id = $1 AND content_type = $2 \
+                 ORDER BY sequence_number DESC, id DESC LIMIT $3"
+            );
+            sqlx::query_as::<_, RoomContent>(&sql)
+                .bind(room_id)
+                .bind(ContentType::Text)
+                .bind(fetch_limit)
+                .fetch_all(&*self.pool)
+                .await?
+        };
+
+        let has_more = items.len() > limit as usize;
+        items.truncate(limit as usize);
+        items.reverse();
+
+        let max_sequence_number: Option<i64> = sqlx::query_scalar(
+            "SELECT MAX(sequence_number) FROM room_contents WHERE room_id = $1 AND content_type = $2",
+        )
+        .bind(room_id)
+        .bind(ContentType::Text)
+        .fetch_one(&*self.pool)
+        .await?;
+        let next_sequence_number = max_sequence_number
+            .unwrap_or(-1)
+            .checked_add(1)
+            .and_then(|value| i32::try_from(value).ok())
+            .ok_or_else(|| anyhow!("message sequence number overflow for room {room_id}"))?;
+
+        Ok(MessagePageResult {
+            items,
+            has_more,
+            next_sequence_number,
+        })
     }
 
     async fn delete_by_ids(&self, room_id: i64, content_ids: &[i64]) -> Result<u64> {

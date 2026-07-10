@@ -19,36 +19,41 @@ async fn test_token_refresh_revokes_old_token() -> Result<()> {
 
     let room_name = "refresh_test_room";
 
-    // 创建房间（自动创建）
-    let create_request =
-        create_http_request(Method::GET, &format!("/api/v1/rooms/{}", room_name), None);
+    let create_request = create_http_request(
+        Method::POST,
+        &format!("/api/v1/rooms/{}", room_name),
+        Some(Body::from("{}")),
+    );
     let create_response = app.clone().oneshot(create_request).await?;
     assert_eq!(create_response.status(), StatusCode::OK);
 
-    // 获取第一个 token
+    // 获取访问令牌和刷新令牌
     let issue_request = create_http_request(
         Method::POST,
         &format!("/api/v1/rooms/{}/tokens", room_name),
-        Some(Body::from("{}")),
+        Some(Body::from(
+            json!({ "with_refresh_token": true }).to_string(),
+        )),
     );
     let issue_response = app.clone().oneshot(issue_request).await?;
     assert_eq!(issue_response.status(), StatusCode::OK);
     let issue_body = axum::body::to_bytes(issue_response.into_body(), usize::MAX).await?;
     let issue_json: serde_json::Value = serde_json::from_slice(&issue_body)?;
     let token1 = issue_json["token"].as_str().unwrap().to_string();
+    let refresh_token = issue_json["refresh_token"].as_str().unwrap().to_string();
 
-    // 使用第一个 token 获取新的 token（令牌续签）
-    let refresh_payload = json!({ "token": token1 });
+    // 使用刷新令牌获取新的访问令牌和刷新令牌
+    let refresh_payload = json!({ "refresh_token": refresh_token });
     let refresh_request = create_http_request(
         Method::POST,
-        &format!("/api/v1/rooms/{}/tokens", room_name),
+        "/api/v1/auth/refresh",
         Some(Body::from(refresh_payload.to_string())),
     );
     let refresh_response = app.clone().oneshot(refresh_request).await?;
     assert_eq!(refresh_response.status(), StatusCode::OK);
     let refresh_body = axum::body::to_bytes(refresh_response.into_body(), usize::MAX).await?;
     let refresh_json: serde_json::Value = serde_json::from_slice(&refresh_body)?;
-    let token2 = refresh_json["token"].as_str().unwrap().to_string();
+    let token2 = refresh_json["access_token"].as_str().unwrap().to_string();
     assert_ne!(token1, token2);
 
     // 验证新 token 有效

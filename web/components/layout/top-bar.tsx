@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { getRoomDetails } from "@/api/roomService";
-import { deleteMessages, getMessages } from "@/api/messageService";
 import { useAppStore } from "@/lib/store";
 import { useToast } from "@/hooks/use-toast";
 import { copyTextToClipboard } from "@/lib/utils/clipboard";
@@ -26,7 +25,6 @@ import {
   formatMessagesMarkdown,
   downloadMarkdown,
 } from "@/lib/utils/message-format";
-import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import {
@@ -63,7 +61,6 @@ function GitHubIcon({ className }: { className?: string }) {
 
 export function TopBar() {
   const t = useTranslations("common");
-  const queryClient = useQueryClient();
   const currentRoomId = useAppStore((state) => state.currentRoomId);
   const selectedMessages = useAppStore((state) => state.selectedMessages);
   const messages = useAppStore((state) => state.messages);

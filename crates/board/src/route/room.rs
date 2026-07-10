@@ -16,6 +16,7 @@ pub fn api_router(app_state: Arc<AppState>) -> OpenApiRouter {
             crate::handlers::rooms::settings::update_room_settings
         ))
         .routes(routes!(crate::handlers::rooms::tokens::issue_token))
+        .routes(routes!(crate::handlers::rooms::tokens::verify_password))
         .routes(routes!(crate::handlers::rooms::tokens::list_tokens))
         .routes(routes!(crate::handlers::rooms::tokens::validate_token))
         .routes(routes!(crate::handlers::rooms::tokens::revoke_token))
@@ -29,6 +30,7 @@ pub fn api_router(app_state: Arc<AppState>) -> OpenApiRouter {
         .routes(routes!(crate::handlers::content::update::update_content))
         .routes(routes!(crate::handlers::content::url::create_url_content))
         .routes(routes!(crate::handlers::content::message::create_message))
+        .routes(routes!(crate::handlers::content::message::list_messages))
         .routes(routes!(
             crate::handlers::chunked_upload::prepare_chunked_upload
         ))

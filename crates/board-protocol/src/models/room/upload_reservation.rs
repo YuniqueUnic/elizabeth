@@ -147,6 +147,9 @@ pub struct RoomUploadReservation {
     pub id: Option<i64>,
     #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
     pub room_id: i64,
+    /// Access-token JTI that owns this reservation.
+    pub owner_token_jti: String,
+    /// Opaque upload lookup token. It is not an access credential by itself.
     pub token_jti: String,
     pub file_manifest: String,
     #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
@@ -176,6 +179,7 @@ fn build_room_upload_reservation_sqlite(
     Ok(RoomUploadReservation {
         id: row.try_get("id")?,
         room_id: row.try_get("room_id")?,
+        owner_token_jti: row.try_get("owner_token_jti")?,
         token_jti: row.try_get("token_jti")?,
         file_manifest: row.try_get("file_manifest")?,
         reserved_size: row.try_get("reserved_size")?,
@@ -197,6 +201,7 @@ fn build_room_upload_reservation_pg(row: &PgRow) -> Result<RoomUploadReservation
     Ok(RoomUploadReservation {
         id: row.try_get("id")?,
         room_id: row.try_get("room_id")?,
+        owner_token_jti: row.try_get("owner_token_jti")?,
         token_jti: row.try_get("token_jti")?,
         file_manifest: row.try_get("file_manifest")?,
         reserved_size: row.try_get("reserved_size")?,
@@ -226,6 +231,7 @@ fn build_room_upload_reservation_any(row: &AnyRow) -> Result<RoomUploadReservati
     Ok(RoomUploadReservation {
         id: row.try_get("id")?,
         room_id: row.try_get("room_id")?,
+        owner_token_jti: row.try_get("owner_token_jti")?,
         token_jti: row.try_get("token_jti")?,
         file_manifest: row.try_get("file_manifest")?,
         reserved_size: row.try_get("reserved_size")?,

@@ -17,7 +17,6 @@ use crate::{
     },
     repository::{
         room_chunk_upload_repository::{IRoomChunkUploadRepository, RoomChunkUploadRepository},
-        room_repository::{IRoomRepository, RoomRepository},
         room_upload_reservation_repository::{
             IRoomUploadReservationRepository, RoomUploadReservationRepository,
         },
@@ -25,6 +24,9 @@ use crate::{
     state::AppState,
     validation::RoomNameValidator,
 };
+
+use super::super::{AuthToken, verify_room_token};
+use super::ensure_reservation_access;
 
 type HandlerResult<T> = AppResult<Json<T>>;
 
@@ -56,18 +58,20 @@ struct ParsedChunkUpload {
 )]
 pub async fn upload_chunk(
     Path(room_name): Path<String>,
+    AuthToken(token): AuthToken,
     State(app_state): State<Arc<AppState>>,
     multipart: Multipart,
 ) -> HandlerResult<ChunkUploadResponse> {
     RoomNameValidator::validate_identifier(&room_name)?;
 
     let parsed = parse_chunk_upload(multipart).await?;
+    let verified = verify_room_token(app_state.clone(), &room_name, &token).await?;
     let reservation_repository = RoomUploadReservationRepository::new(app_state.db_pool.clone());
     let reservation = load_chunk_reservation(&reservation_repository, &parsed.upload_token).await?;
     let reservation_id = reservation_id_or_error(&reservation)?;
 
     validate_chunk_reservation(&reservation)?;
-    ensure_upload_room_matches(&app_state, &reservation, &room_name).await?;
+    ensure_reservation_access(&reservation, &verified)?;
 
     let chunk_repository = RoomChunkUploadRepository::new(app_state.db_pool.clone());
     ensure_chunk_slot_empty(&chunk_repository, reservation_id, parsed.chunk_index).await?;
@@ -192,25 +196,6 @@ fn validate_chunk_reservation(reservation: &RoomUploadReservation) -> Result<(),
     Ok(())
 }
 
-async fn ensure_upload_room_matches(
-    app_state: &Arc<AppState>,
-    reservation: &RoomUploadReservation,
-    room_name: &str,
-) -> Result<(), AppError> {
-    let room_repository = RoomRepository::new(app_state.db_pool.clone());
-    let room = room_repository
-        .find_by_id(reservation.room_id)
-        .await
-        .map_err(|e| AppError::internal(format!("查询房间失败：{}", e)))?;
-    let room = room.ok_or_else(|| AppError::not_found("房间不存在"))?;
-
-    if room.name != room_name {
-        return Err(AppError::permission_denied("房间名称不匹配"));
-    }
-
-    Ok(())
-}
-
 async fn ensure_chunk_slot_empty(
     chunk_repository: &RoomChunkUploadRepository,
     reservation_id: i64,
@@ -247,12 +232,12 @@ async fn write_chunk_file(
     chunk_index: i32,
     chunk_data: &[u8],
 ) -> Result<(), AppError> {
-    let temp_dir = format!("/tmp/elizabeth/chunks/{reservation_id}/");
+    let temp_dir = crate::chunk_temp_storage::reservation_dir(reservation_id);
     fs::create_dir_all(&temp_dir)
         .await
         .map_err(|e| AppError::internal(format!("创建临时目录失败：{}", e)))?;
 
-    let chunk_file_path = format!("{}chunk_{}", temp_dir, chunk_index);
+    let chunk_file_path = crate::chunk_temp_storage::chunk_path(reservation_id, chunk_index.into());
     let mut file = fs::File::create(&chunk_file_path)
         .await
         .map_err(|e| AppError::internal(format!("创建分块文件失败：{}", e)))?;

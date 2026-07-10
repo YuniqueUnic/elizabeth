@@ -1,8 +1,10 @@
 use smart_default::SmartDefault;
+use std::time::Duration;
 
 const DEFAULT_JWT_SECRET: &str =
     "default-secret-change-in-productiondefault-secret-change-in-production"; // pragma: allowlist secret
 
+use crate::HumanDuration;
 use crate::merge::{Merge, overwrite, overwrite_not_empty_string};
 
 #[derive(Merge, Debug, Clone, serde::Deserialize, serde::Serialize, Default)]
@@ -71,9 +73,6 @@ pub struct JwtConfig {
     #[default(7 * 24 * 60 * 60)] // 7 天（秒）
     #[merge(strategy = overwrite)]
     pub refresh_ttl_seconds: i64,
-    #[default(10)]
-    #[merge(strategy = overwrite)]
-    pub max_refresh_count: i64,
     #[default(24 * 60 * 60)] // 24 小时（秒）
     #[merge(strategy = overwrite)]
     pub cleanup_interval_seconds: i64,
@@ -90,18 +89,112 @@ pub struct StorageConfig {
     pub root: String, // pragma: allowlist secret
 }
 
-#[derive(Merge, Debug, Clone, SmartDefault, serde::Deserialize, serde::Serialize)]
+/// 房间部署策略。
+///
+/// - `defaults`: 所有新建房间共用的初始值，无论来自完整创建流程还是直接 URL 自动创建。
+/// - `expiry`: 可选期限与默认期限，完整拥有房间过期策略。
+/// - `share_disabled_lock_duration`: 私密地址释放旧名称前的生命周期锁定时间。
+#[derive(Merge, Debug, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct RoomConfig {
-    #[default(50 * 1024 * 1024)]
+    pub defaults: DefaultRoomConfig,
+    pub expiry: RoomExpiryConfig,
     #[merge(strategy = overwrite)]
-    pub max_size: i64,
-    #[default(100)]
+    pub share_disabled_lock_duration: HumanDuration,
+}
+
+impl Default for RoomConfig {
+    fn default() -> Self {
+        Self {
+            defaults: DefaultRoomConfig::default(),
+            expiry: RoomExpiryConfig::default(),
+            share_disabled_lock_duration: Duration::from_secs(60 * 60).into(),
+        }
+    }
+}
+
+/// 所有新建房间的非时间默认值。
+///
+/// 这里不是部署上限；房间创建后仍可通过 settings 修改容量和进入次数。
+#[derive(Merge, Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
+pub struct DefaultRoomConfig {
+    #[merge(strategy = overwrite)]
+    pub password: Option<String>,
     #[merge(strategy = overwrite)]
     pub max_times_entered: i64,
-    #[default(3600)]
     #[merge(strategy = overwrite)]
-    pub share_disabled_lock_duration: i64,
+    pub max_size: bytesize::ByteSize,
+    #[merge(strategy = overwrite)]
+    pub permissions: RoomPermissionConfig,
+}
+
+impl Default for DefaultRoomConfig {
+    fn default() -> Self {
+        Self {
+            password: None,
+            max_times_entered: 100,
+            max_size: bytesize::ByteSize::mib(50),
+            permissions: RoomPermissionConfig::default(),
+        }
+    }
+}
+
+/// 新房间默认权限，与领域层 RoomPermission 的四个 bit 一一对应。
+#[derive(Merge, Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
+pub struct RoomPermissionConfig {
+    #[merge(strategy = overwrite)]
+    pub read: bool,
+    #[merge(strategy = overwrite)]
+    pub edit: bool,
+    #[merge(strategy = overwrite)]
+    pub share: bool,
+    #[merge(strategy = overwrite)]
+    pub delete: bool,
+}
+
+impl Default for RoomPermissionConfig {
+    fn default() -> Self {
+        Self {
+            read: true,
+            edit: true,
+            share: true,
+            delete: true,
+        }
+    }
+}
+
+/// 房间期限策略。`default_age` 必须包含在 `allowed_ages` 中。
+#[derive(Merge, Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
+pub struct RoomExpiryConfig {
+    #[merge(strategy = overwrite)]
+    pub allowed_ages: Vec<humantime_serde::Serde<Duration>>,
+    #[merge(strategy = overwrite)]
+    pub default_age: humantime_serde::Serde<Duration>,
+}
+
+impl Default for RoomExpiryConfig {
+    fn default() -> Self {
+        Self {
+            allowed_ages: [
+                60,
+                30 * 60,
+                2 * 60 * 60,
+                12 * 60 * 60,
+                24 * 60 * 60,
+                7 * 24 * 60 * 60,
+                30 * 24 * 60 * 60,
+                365 * 24 * 60 * 60,
+            ]
+            .into_iter()
+            .map(Duration::from_secs)
+            .map(Into::into)
+            .collect(),
+            default_age: Duration::from_secs(2 * 60 * 60).into(),
+        }
+    }
 }
 
 #[derive(Merge, Debug, Clone, SmartDefault, serde::Deserialize, serde::Serialize)]
@@ -276,13 +369,27 @@ mod tests {
         assert_eq!(cfg.jwt.secret, DEFAULT_JWT_SECRET);
         assert_eq!(cfg.jwt.ttl_seconds, 30 * 60);
         assert_eq!(cfg.jwt.refresh_ttl_seconds, 7 * 24 * 60 * 60);
-        assert_eq!(cfg.jwt.max_refresh_count, 10);
         assert_eq!(cfg.jwt.cleanup_interval_seconds, 24 * 60 * 60);
         assert!(cfg.jwt.enable_refresh_token_rotation);
         assert_eq!(cfg.storage.root, "storage/rooms");
-        assert_eq!(cfg.room.max_size, 50 * 1024 * 1024);
-        assert_eq!(cfg.room.max_times_entered, 100);
-        assert_eq!(cfg.room.share_disabled_lock_duration, 3600);
+        assert_eq!(cfg.room.defaults.max_size.as_u64(), 50 * 1024 * 1024);
+        assert_eq!(cfg.room.defaults.max_times_entered, 100);
+        assert_eq!(cfg.room.defaults.password, None);
+        assert_eq!(
+            cfg.room.defaults.permissions,
+            RoomPermissionConfig::default()
+        );
+        assert_eq!(cfg.room.share_disabled_lock_duration.as_secs(), 3600);
+        assert_eq!(
+            cfg.room
+                .expiry
+                .allowed_ages
+                .iter()
+                .map(|age| age.as_secs())
+                .collect::<Vec<_>>(),
+            vec![60, 1800, 7200, 43200, 86400, 604800, 2592000, 31536000]
+        );
+        assert_eq!(cfg.room.expiry.default_age.as_secs(), 7200);
 
         assert_eq!(cfg.upload.reservation_ttl_seconds, 3600);
         assert_eq!(cfg.gc.interval_seconds, 600);
@@ -326,9 +433,22 @@ mod tests {
                 root: "/tmp/storage".into(),
             },
             room: RoomConfig {
-                max_size: 42,
-                max_times_entered: 7,
-                share_disabled_lock_duration: 120,
+                defaults: DefaultRoomConfig {
+                    password: Some("room-pass".into()),
+                    max_times_entered: 7,
+                    max_size: bytesize::ByteSize::b(42),
+                    permissions: RoomPermissionConfig {
+                        read: true,
+                        edit: false,
+                        share: false,
+                        delete: false,
+                    },
+                },
+                share_disabled_lock_duration: Duration::from_secs(120).into(),
+                expiry: RoomExpiryConfig {
+                    allowed_ages: vec![Duration::from_secs(30).into()],
+                    default_age: Duration::from_secs(30).into(),
+                },
             },
 
             upload: UploadConfig {
@@ -354,9 +474,21 @@ mod tests {
         assert_eq!(left.jwt.ttl_seconds, 120);
         assert_eq!(left.jwt.leeway_seconds, 2);
         assert_eq!(left.storage.root, "/tmp/storage");
-        assert_eq!(left.room.max_size, 42);
-        assert_eq!(left.room.max_times_entered, 7);
-        assert_eq!(left.room.share_disabled_lock_duration, 120);
+        assert_eq!(left.room.defaults.max_size.as_u64(), 42);
+        assert_eq!(left.room.defaults.max_times_entered, 7);
+        assert_eq!(left.room.defaults.password.as_deref(), Some("room-pass"));
+        assert_eq!(
+            left.room.defaults.permissions,
+            RoomPermissionConfig {
+                read: true,
+                edit: false,
+                share: false,
+                delete: false,
+            }
+        );
+        assert_eq!(left.room.share_disabled_lock_duration.as_secs(), 120);
+        assert_eq!(left.room.expiry.allowed_ages[0].as_secs(), 30);
+        assert_eq!(left.room.expiry.default_age.as_secs(), 30);
 
         assert_eq!(left.upload.reservation_ttl_seconds, 30);
         assert_eq!(left.gc.interval_seconds, 30);

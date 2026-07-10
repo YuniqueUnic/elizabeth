@@ -14,20 +14,26 @@ use crate::common::{
     http::{assert_json, create_request as create_http_request},
 };
 
+fn create_room_request(room_name: &str) -> axum::http::Request<Body> {
+    create_http_request(
+        Method::POST,
+        &format!("/api/v1/rooms/{room_name}"),
+        Some(Body::from("{}")),
+    )
+}
+
 #[tokio::test]
 async fn test_token_refresh() -> Result<()> {
     let (app, _pool) = create_test_app().await?;
 
     let room_name = "refresh_room";
 
-    // 创建房间
-    let create_request =
-        create_http_request(Method::GET, &format!("/api/v1/rooms/{}", room_name), None);
+    let create_request = create_room_request(room_name);
     let create_response = app.clone().oneshot(create_request).await?;
     assert_eq!(create_response.status(), StatusCode::OK);
 
-    // 签发第一个令牌
-    let token_payload = json!({});
+    // 签发访问令牌和刷新令牌
+    let token_payload = json!({ "with_refresh_token": true });
     let token_request = create_http_request(
         Method::POST,
         &format!("/api/v1/rooms/{}/tokens", room_name),
@@ -40,12 +46,13 @@ async fn test_token_refresh() -> Result<()> {
     let token_body = axum::body::to_bytes(token_response.into_body(), usize::MAX).await?;
     let token_json: serde_json::Value = serde_json::from_slice(&token_body)?;
     let first_token = token_json["token"].as_str().unwrap().to_string();
+    let first_refresh_token = token_json["refresh_token"].as_str().unwrap().to_string();
 
-    // 使用第一个令牌续签新令牌
-    let refresh_payload = json!({ "token": first_token });
+    // 使用刷新令牌换取新的访问令牌
+    let refresh_payload = json!({ "refresh_token": first_refresh_token });
     let refresh_request = create_http_request(
         Method::POST,
-        &format!("/api/v1/rooms/{}/tokens", room_name),
+        "/api/v1/auth/refresh",
         Some(Body::from(refresh_payload.to_string())),
     );
 
@@ -54,7 +61,7 @@ async fn test_token_refresh() -> Result<()> {
 
     let refresh_body = axum::body::to_bytes(refresh_response.into_body(), usize::MAX).await?;
     let refresh_json: serde_json::Value = serde_json::from_slice(&refresh_body)?;
-    let second_token = refresh_json["token"].as_str().unwrap().to_string();
+    let second_token = refresh_json["access_token"].as_str().unwrap().to_string();
     assert_ne!(first_token, second_token);
 
     // 验证新令牌有效
@@ -89,9 +96,7 @@ async fn test_token_revocation() -> Result<()> {
 
     let room_name = "revoke_room";
 
-    // 创建房间
-    let create_request =
-        create_http_request(Method::GET, &format!("/api/v1/rooms/{}", room_name), None);
+    let create_request = create_room_request(room_name);
     let create_response = app.clone().oneshot(create_request).await?;
     assert_eq!(create_response.status(), StatusCode::OK);
 
@@ -159,9 +164,7 @@ async fn test_token_listing() -> Result<()> {
 
     let room_name = "list_tokens_room";
 
-    // 创建房间
-    let create_request =
-        create_http_request(Method::GET, &format!("/api/v1/rooms/{}", room_name), None);
+    let create_request = create_room_request(room_name);
     let create_response = app.clone().oneshot(create_request).await?;
     assert_eq!(create_response.status(), StatusCode::OK);
 

@@ -81,6 +81,10 @@ impl AppState {
         &self.services.refresh_token_service
     }
 
+    pub fn room_password_service(&self) -> &crate::services::RoomPasswordService {
+        &self.services.room_password
+    }
+
     /// 便捷方法：获取存储根目录
     pub fn storage_root(&self) -> &std::path::PathBuf {
         &self.config.storage.root
@@ -91,14 +95,12 @@ impl AppState {
         chrono::Duration::seconds(self.config.storage.upload_reservation_ttl_seconds)
     }
 
-    /// 便捷方法：获取房间最大内容大小
-    pub fn room_max_size(&self) -> i64 {
-        self.config.room.max_content_size
+    pub fn room_creation_defaults(&self) -> &crate::config::RoomCreationDefaults {
+        &self.config.room.defaults
     }
 
-    /// 便捷方法：获取房间最大进入次数
-    pub fn room_max_times_entered(&self) -> i64 {
-        self.config.room.max_times_entered
+    pub fn room_expiry_policy(&self) -> &crate::config::RoomExpiryPolicy {
+        &self.config.room.expiry
     }
 }
 
@@ -123,11 +125,11 @@ mod tests {
 
         // 验证创建成功
         assert_eq!(
-            app_state.room_max_size(),
+            app_state.room_creation_defaults().max_content_size,
             crate::constants::room::DEFAULT_MAX_ROOM_CONTENT_SIZE
         );
         assert_eq!(
-            app_state.room_max_times_entered(),
+            app_state.room_creation_defaults().max_times_entered,
             crate::constants::room::DEFAULT_MAX_TIMES_ENTER_ROOM
         );
 

@@ -30,13 +30,10 @@ export class CallElizabethApi extends Ability {
   }
 
   async ensureRoom(roomName: string, password?: string): Promise<void> {
-    const query = password
-      ? `?password=${encodeURIComponent(password)}`
-      : "";
     const response = await this.request.post(
-      `${this.apiBaseUrl}/rooms/${encodeURIComponent(roomName)}${query}`,
+      `${this.apiBaseUrl}/rooms/${encodeURIComponent(roomName)}`,
       {
-        data: {},
+        data: password ? { password } : {},
         timeout: 15_000,
       },
     );

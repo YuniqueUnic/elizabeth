@@ -14,15 +14,25 @@ use crate::common::{
     http::{assert_json, create_request as create_http_request},
 };
 
+fn create_room_request(room_name: &str, password: Option<&str>) -> axum::http::Request<Body> {
+    let payload = match password {
+        Some(password) => json!({ "password": password }),
+        None => json!({}),
+    };
+    create_http_request(
+        Method::POST,
+        &format!("/api/v1/rooms/{room_name}"),
+        Some(Body::from(payload.to_string())),
+    )
+}
+
 #[tokio::test]
 async fn test_room_token_issue_no_password() -> Result<()> {
     let (app, _pool) = create_test_app().await?;
 
     let room_name = "no_password_room";
 
-    // 创建房间（自动创建）
-    let create_request =
-        create_http_request(Method::GET, &format!("/api/v1/rooms/{}", room_name), None);
+    let create_request = create_room_request(room_name, None);
     let create_response = app.clone().oneshot(create_request).await?;
     assert_eq!(create_response.status(), StatusCode::OK);
 
@@ -57,11 +67,7 @@ async fn test_room_token_issue_with_password() -> Result<()> {
     let password = "secret123";
 
     // 创建带密码的房间
-    let create_request = create_http_request(
-        Method::POST,
-        &format!("/api/v1/rooms/{}?password={}", room_name, password),
-        None,
-    );
+    let create_request = create_room_request(room_name, Some(password));
     let create_response = app.clone().oneshot(create_request).await?;
     assert_eq!(create_response.status(), StatusCode::OK);
 
@@ -94,11 +100,7 @@ async fn test_room_token_issue_wrong_password() -> Result<()> {
     let password = "correct123";
 
     // 创建带密码的房间
-    let create_request = create_http_request(
-        Method::POST,
-        &format!("/api/v1/rooms/{}?password={}", room_name, password),
-        None,
-    );
+    let create_request = create_room_request(room_name, Some(password));
     let create_response = app.clone().oneshot(create_request).await?;
     assert_eq!(create_response.status(), StatusCode::OK);
 
@@ -123,9 +125,7 @@ async fn test_room_token_validation() -> Result<()> {
 
     let room_name = "validation_room";
 
-    // 创建房间
-    let create_request =
-        create_http_request(Method::GET, &format!("/api/v1/rooms/{}", room_name), None);
+    let create_request = create_room_request(room_name, None);
     let create_response = app.clone().oneshot(create_request).await?;
     assert_eq!(create_response.status(), StatusCode::OK);
 
@@ -171,9 +171,7 @@ async fn test_invalid_room_token_validation() -> Result<()> {
 
     let room_name = "invalid_token_room";
 
-    // 创建房间
-    let create_request =
-        create_http_request(Method::GET, &format!("/api/v1/rooms/{}", room_name), None);
+    let create_request = create_room_request(room_name, None);
     let create_response = app.clone().oneshot(create_request).await?;
     assert_eq!(create_response.status(), StatusCode::OK);
 

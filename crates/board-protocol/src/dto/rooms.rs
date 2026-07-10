@@ -3,7 +3,69 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use super::token::RoomTokenClaims;
-use crate::models::RoomToken;
+use crate::models::{Room, RoomStatus, RoomToken};
+
+#[derive(Debug, Default, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
+pub struct CreateRoomRequest {
+    /// 可选房间密码。密码只在请求边界出现，不会在房间响应中回显。
+    #[cfg_attr(feature = "typescript-export", ts(optional))]
+    pub password: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
+pub struct RoomView {
+    pub id: i64,
+    pub name: String,
+    pub slug: String,
+    pub status: RoomStatus,
+    pub max_size: i64,
+    pub current_size: i64,
+    pub max_times_entered: i64,
+    pub current_times_entered: i64,
+    pub expire_at: Option<NaiveDateTime>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+    pub permission: u8,
+    pub password_protected: bool,
+}
+
+impl From<&Room> for RoomView {
+    fn from(room: &Room) -> Self {
+        Self {
+            id: room.id.unwrap_or_default(),
+            name: room.name.clone(),
+            slug: room.slug.clone(),
+            status: room.status(),
+            max_size: room.max_size,
+            current_size: room.current_size,
+            max_times_entered: room.max_times_entered,
+            current_times_entered: room.current_times_entered,
+            expire_at: room.expire_at,
+            created_at: room.created_at,
+            updated_at: room.updated_at,
+            permission: room.permission.bits(),
+            password_protected: room.password.is_some(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
+pub struct VerifyRoomPasswordRequest {
+    pub password: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
+pub struct VerifyRoomPasswordResponse {
+    pub valid: bool,
+}
 
 #[derive(Debug, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
@@ -67,12 +129,17 @@ pub struct UpdateRoomPermissionRequest {
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
 #[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct UpdateRoomSettingsRequest {
-    /// 房间密码（可选，设置为 None 表示移除密码）
+    /// 新房间密码。字段缺失表示保持当前密码不变。
     #[cfg_attr(feature = "typescript-export", ts(optional))]
     pub password: Option<String>,
-    /// 房间过期时间（可选，设置为 None 表示永不过期）
+    /// 显式移除当前房间密码，与 password 互斥。
+    #[serde(default)]
     #[cfg_attr(feature = "typescript-export", ts(optional))]
-    pub expire_at: Option<NaiveDateTime>,
+    pub remove_password: Option<bool>,
+    /// 房间有效期（可选，单位：秒；必须属于部署配置允许的期限）
+    #[cfg_attr(feature = "typescript-export", ts(type = "number | null"))]
+    #[cfg_attr(feature = "typescript-export", ts(optional))]
+    pub age_seconds: Option<i64>,
     /// 最大进入次数（可选）
     #[cfg_attr(feature = "typescript-export", ts(type = "number | null"))]
     #[cfg_attr(feature = "typescript-export", ts(optional))]

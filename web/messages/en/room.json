@@ -57,25 +57,28 @@
     },
     "password": {
       "label": "Room Password",
-      "placeholder": "Set room password"
+      "placeholder": "Set a new password; leave empty to keep the current one",
+      "protectedHint": "This room is currently password protected.",
+      "removeAction": "Remove password",
+      "keepAction": "Keep password"
     },
     "maxViews": {
-      "label": "Max Views"
+      "label": "Maximum Entries"
     },
     "permissions": {
       "title": "Room Permissions",
-      "hint": "Note: Edit and Share require Preview permission; Delete requires Preview and Edit permissions",
+      "hint": "Preview is always available; Edit, Share, and Manage are independent permissions.",
       "labels": {
         "read": "Preview",
         "edit": "Edit",
         "share": "Share",
-        "delete": "Delete"
+        "delete": "Manage"
       },
       "descriptions": {
         "read": "View room content",
         "edit": "Upload and modify content",
         "share": "Publicly share the room",
-        "delete": "Delete room content"
+        "delete": "Manage settings and sessions, or delete content and the room"
       }
     },
     "save": {
@@ -243,7 +246,10 @@
   },
   "messageList": {
     "loading": "Loading messages...",
+    "loadingOlder": "Loading earlier messages...",
+    "loadOlder": "Load earlier messages",
     "selectedCount": "{count} messages selected",
+    "loadedCount": "{count} messages loaded",
     "totalCount": "{count} messages total",
     "selectAll": "Select All",
     "deselectAll": "Deselect All",

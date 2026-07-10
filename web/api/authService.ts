@@ -22,6 +22,8 @@ import type {
   RefreshTokenResponse,
   ValidateTokenResponse,
   TokenInfo,
+  VerifyRoomPasswordRequest,
+  VerifyRoomPasswordResponse,
 } from "../lib/types";
 
 // ============================================================================
@@ -98,15 +100,12 @@ export async function verifyRoomPassword(
   roomName: string,
   password: string,
 ): Promise<void> {
-  const requestBody: IssueTokenRequest = {
+  const requestBody: VerifyRoomPasswordRequest = {
     password,
-    token: undefined, // 明确不传 token，强制走密码验证路径
-    with_refresh_token: false,
   };
 
-  // 不存储返回的 token，仅作密码验证
-  await api.post<IssueTokenResponse>(
-    API_ENDPOINTS.rooms.tokens(roomName),
+  await api.post<VerifyRoomPasswordResponse>(
+    API_ENDPOINTS.rooms.verifyPassword(roomName),
     requestBody,
     { skipTokenInjection: true },
   );

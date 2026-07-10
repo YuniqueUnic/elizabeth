@@ -24,7 +24,7 @@ bitflags! {
     /// - SHARE: 可以分享
     /// - DELETE: 可以删除
     /// - VIEW_ONLY | EDITABLE | SHARE | DELETE 可以 everything
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
     #[serde(transparent)]
     pub struct RoomPermission: u8 {
         const VIEW_ONLY = 1;

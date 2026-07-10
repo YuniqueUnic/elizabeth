@@ -13,6 +13,7 @@ import { api } from "../lib/utils/api";
 import { getValidToken } from "./authService";
 import type {
   BackendRoom,
+  CreateRoomRequest,
   RoomDetails,
   RoomPermission,
   RoomTokenView,
@@ -36,15 +37,13 @@ export async function createRoom(
   name: string,
   password?: string,
 ): Promise<RoomDetails> {
-  // Build URL with password query parameter if provided
-  let url = API_ENDPOINTS.rooms.base(name);
+  const payload: CreateRoomRequest = {};
   if (password) {
-    url += `?password=${encodeURIComponent(password)}`;
+    payload.password = password;
   }
-
   const room = await api.post<BackendRoom>(
-    url,
-    null,
+    API_ENDPOINTS.rooms.base(name),
+    payload,
     { skipTokenInjection: true },
   );
 
@@ -148,7 +147,8 @@ export async function updateRoomSettings(
   roomName: string,
   settings: {
     password?: string | null;
-    expiresAt?: string | null;
+    removePassword?: boolean;
+    ageSeconds?: number;
     maxViews?: number;
     maxSize?: number;
   },
@@ -161,15 +161,21 @@ export async function updateRoomSettings(
   }
 
   // Convert frontend settings to backend format
-  const payload: UpdateRoomSettingsRequest = {};
+  const payload: UpdateRoomSettingsRequest = {
+    remove_password: false,
+  };
 
   if (settings.password !== undefined) {
-    // ✅ FIX: Send empty string to clear password, backend expects empty string not null
     payload.password = settings.password === null ? "" : settings.password;
   }
 
-  if (settings.expiresAt !== undefined) {
-    payload.expire_at = settings.expiresAt ?? undefined;
+  if (settings.removePassword) {
+    payload.remove_password = true;
+    delete payload.password;
+  }
+
+  if (settings.ageSeconds !== undefined) {
+    payload.age_seconds = settings.ageSeconds;
   }
 
   if (settings.maxViews !== undefined) {

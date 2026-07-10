@@ -69,6 +69,21 @@ impl IRoomRepository for MockRoomRepository {
         Ok(new_room)
     }
 
+    async fn create_if_absent(&self, room: &Room) -> Result<Option<Room>> {
+        let mut rooms = self.rooms.lock().unwrap();
+        if rooms
+            .values()
+            .any(|existing| existing.name == room.name || existing.slug == room.slug)
+        {
+            return Ok(None);
+        }
+        let id = rooms.len() as i64 + 1;
+        let mut new_room = room.clone();
+        new_room.id = Some(id);
+        rooms.insert(room.name.clone(), new_room.clone());
+        Ok(Some(new_room))
+    }
+
     async fn update(&self, room: &Room) -> Result<Room> {
         let mut rooms = self.rooms.lock().unwrap();
         if let Some(existing) = rooms.get_mut(&room.name) {
@@ -204,15 +219,19 @@ pub mod http {
 
     /// 创建测试请求
     pub fn create_request(method: Method, uri: &str, body: Option<Body>) -> Request<Body> {
+        let expects_json_body = matches!(method, Method::POST | Method::PUT | Method::PATCH);
         let mut builder = Request::builder().method(method).uri(uri);
 
-        // 如果有请求体，设置 Content-Type
-        if body.is_some() {
+        if body.is_some() || expects_json_body {
             builder = builder.header("content-type", "application/json");
         }
 
         if let Some(b) = body {
             builder.body(b).expect("Failed to build request with body")
+        } else if expects_json_body {
+            builder
+                .body(Body::from("{}"))
+                .expect("Failed to build request with default json body")
         } else {
             builder
                 .body(Body::empty())

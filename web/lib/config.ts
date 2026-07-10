@@ -81,6 +81,7 @@ export const API_ENDPOINTS = {
   // Health & Status
   health: "/health",
   status: "/status",
+  publicConfig: "/config",
 
   // Room Management
   rooms: {
@@ -89,6 +90,8 @@ export const API_ENDPOINTS = {
       `/rooms/${encodeURIComponent(name)}/permissions`,
     settings: (name: string) => `/rooms/${encodeURIComponent(name)}/settings`,
     tokens: (name: string) => `/rooms/${encodeURIComponent(name)}/tokens`,
+    verifyPassword: (name: string) =>
+      `/rooms/${encodeURIComponent(name)}/password/verify`,
     validateToken: (name: string) =>
       `/rooms/${encodeURIComponent(name)}/tokens/validate`,
     revokeToken: (name: string, jti: string) =>

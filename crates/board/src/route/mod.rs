@@ -1,5 +1,6 @@
 pub mod admin;
 pub mod auth;
+pub mod config;
 pub mod room;
 pub mod status;
 pub mod ws;

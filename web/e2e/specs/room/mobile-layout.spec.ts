@@ -63,4 +63,37 @@ test.describe("Room mobile layout", () => {
     );
     await expect(githubLink.locator("svg")).toBeVisible();
   });
+
+  test("keeps the chat mounted without reloading messages across mobile tabs", async ({
+    actor,
+    page,
+  }) => {
+    await actor.attemptsTo(
+      SendMessage("Persistent mobile message"),
+      SaveMessages(),
+    );
+
+    const message = RoomScreen.messageItems(page).last();
+    await message.evaluate((element) => {
+      element.setAttribute("data-mount-probe", "preserved");
+    });
+
+    let messagePageRequests = 0;
+    page.on("request", (request) => {
+      const path = new URL(request.url()).pathname;
+      if (
+        request.method() === "GET" &&
+        path.endsWith(`/rooms/${room.name}/messages`)
+      ) {
+        messagePageRequests += 1;
+      }
+    });
+
+    await RoomScreen.mobileSettingsTab(page).click();
+    await RoomScreen.mobileFilesTab(page).click();
+    await RoomScreen.mobileChatTab(page).click();
+
+    await expect(message).toHaveAttribute("data-mount-probe", "preserved");
+    expect(messagePageRequests).toBe(0);
+  });
 });

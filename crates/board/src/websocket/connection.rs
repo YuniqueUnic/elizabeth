@@ -202,6 +202,33 @@ impl ConnectionManager {
         }
     }
 
+    /// Disconnect every live socket for a room after a policy or lifecycle change.
+    pub async fn disconnect_room(&self, room_name: &str, reason: &str) -> usize {
+        let connection_ids = {
+            let subscribers = self.room_subscribers.read().await;
+            subscribers.get(room_name).cloned().unwrap_or_default()
+        };
+
+        if connection_ids.is_empty() {
+            return 0;
+        }
+
+        {
+            let connections = self.connections.read().await;
+            let message = WsMessage::error(reason);
+            for connection_id in &connection_ids {
+                if let Some((_, sender)) = connections.get(connection_id) {
+                    let _ = sender.send(message.clone());
+                }
+            }
+        }
+
+        for connection_id in &connection_ids {
+            self.disconnect(connection_id).await;
+        }
+        connection_ids.len()
+    }
+
     /// 获取连接统计信息
     pub async fn get_metrics(&self) -> ConnectionMetrics {
         self.metrics.read().await.clone()

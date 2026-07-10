@@ -7,20 +7,22 @@ use ts_rs::TS;
 use crate::dto::{
     ChunkStatusInfo, ChunkUploadRequest, ChunkUploadResponse, ChunkedUploadPreparationRequest,
     ChunkedUploadPreparationResponse, CleanupResponse, CreateMessageRequest, CreateMessageResponse,
-    CreateUrlContentRequest, CreateUrlContentResponse, DeleteContentRequest, DeleteContentResponse,
-    DeleteRoomResponse, FileMergeRequest, FileMergeResponse, FullRoomGcStatusView,
-    IssueTokenRequest, IssueTokenResponse, LogoutRequest, MergedFileInfo, ReservedFileInfo,
-    RevokeTokenResponse, RoomContentView, RoomTokenClaims, RoomTokenView, RunRoomGcResponse,
-    TokenType, UpdateContentRequest, UpdateContentResponse, UpdateRoomPermissionRequest,
-    UpdateRoomSettingsRequest, UploadContentResponse, UploadPreparationRequest,
-    UploadPreparationResponse, UploadStatusQuery, UploadStatusResponse, ValidateTokenRequest,
-    ValidateTokenResponse,
+    CreateRoomRequest, CreateUrlContentRequest, CreateUrlContentResponse, DeleteContentRequest,
+    DeleteContentResponse, DeleteRoomResponse, FileMergeRequest, FileMergeResponse,
+    FullRoomGcStatusView, IssueTokenRequest, IssueTokenResponse, LogoutRequest, MergedFileInfo,
+    MessagePage, PublicConfigResponse, PublicRoomConfig, PublicRoomExpiryConfig, ReservedFileInfo,
+    RevokeTokenResponse, RoomContentView, RoomTokenClaims, RoomTokenView, RoomView,
+    RunRoomGcResponse, TokenType, UpdateContentRequest, UpdateContentResponse,
+    UpdateRoomPermissionRequest, UpdateRoomSettingsRequest, UploadContentResponse,
+    UploadPreparationRequest, UploadPreparationResponse, UploadStatusQuery, UploadStatusResponse,
+    ValidateTokenRequest, ValidateTokenResponse, VerifyRoomPasswordRequest,
+    VerifyRoomPasswordResponse,
 };
 #[cfg(feature = "typescript-export")]
 use crate::models::content::{ContentType, RoomContent};
 #[cfg(feature = "typescript-export")]
 use crate::models::{
-    ChunkStatus, CreateRefreshTokenRequest, RefreshTokenRequest, RefreshTokenResponse, Room,
+    ChunkStatus, CreateRefreshTokenRequest, RefreshTokenRequest, RefreshTokenResponse,
     RoomChunkUpload, RoomRefreshToken, RoomStatus, RoomUploadReservation, TokenBlacklistEntry,
     UploadFileDescriptor, UploadStatus,
 };
@@ -28,7 +30,6 @@ use crate::models::{
 #[cfg(feature = "typescript-export")]
 pub fn export_ts_types_to(output_dir: &Path) -> Result<(), ts_rs::ExportError> {
     let output_dir_cfg = ts_rs::Config::new().with_out_dir(output_dir);
-    Room::export_all(&output_dir_cfg)?;
     RoomStatus::export_all(&output_dir_cfg)?;
     RoomContent::export_all(&output_dir_cfg)?;
     ContentType::export_all(&output_dir_cfg)?;
@@ -46,6 +47,10 @@ pub fn export_ts_types_to(output_dir: &Path) -> Result<(), ts_rs::ExportError> {
     TokenType::export_all(&output_dir_cfg)?;
     RoomTokenClaims::export_all(&output_dir_cfg)?;
 
+    CreateRoomRequest::export_all(&output_dir_cfg)?;
+    RoomView::export_all(&output_dir_cfg)?;
+    VerifyRoomPasswordRequest::export_all(&output_dir_cfg)?;
+    VerifyRoomPasswordResponse::export_all(&output_dir_cfg)?;
     IssueTokenRequest::export_all(&output_dir_cfg)?;
     IssueTokenResponse::export_all(&output_dir_cfg)?;
     ValidateTokenRequest::export_all(&output_dir_cfg)?;
@@ -68,6 +73,10 @@ pub fn export_ts_types_to(output_dir: &Path) -> Result<(), ts_rs::ExportError> {
     CreateUrlContentResponse::export_all(&output_dir_cfg)?;
     CreateMessageRequest::export_all(&output_dir_cfg)?;
     CreateMessageResponse::export_all(&output_dir_cfg)?;
+    MessagePage::export_all(&output_dir_cfg)?;
+    PublicConfigResponse::export_all(&output_dir_cfg)?;
+    PublicRoomConfig::export_all(&output_dir_cfg)?;
+    PublicRoomExpiryConfig::export_all(&output_dir_cfg)?;
 
     ChunkedUploadPreparationRequest::export_all(&output_dir_cfg)?;
     ChunkedUploadPreparationResponse::export_all(&output_dir_cfg)?;
@@ -91,7 +100,6 @@ pub fn export_ts_types_to(output_dir: &Path) -> Result<(), ts_rs::ExportError> {
 #[cfg(feature = "typescript-export")]
 pub fn exported_ts_type_names() -> &'static [&'static str] {
     &[
-        "Room",
         "RoomStatus",
         "RoomContent",
         "ContentType",
@@ -107,6 +115,10 @@ pub fn exported_ts_type_names() -> &'static [&'static str] {
         "UploadStatus",
         "TokenType",
         "RoomTokenClaims",
+        "CreateRoomRequest",
+        "RoomView",
+        "VerifyRoomPasswordRequest",
+        "VerifyRoomPasswordResponse",
         "IssueTokenRequest",
         "IssueTokenResponse",
         "ValidateTokenRequest",
@@ -128,6 +140,10 @@ pub fn exported_ts_type_names() -> &'static [&'static str] {
         "CreateUrlContentResponse",
         "CreateMessageRequest",
         "CreateMessageResponse",
+        "MessagePage",
+        "PublicConfigResponse",
+        "PublicRoomConfig",
+        "PublicRoomExpiryConfig",
         "ChunkedUploadPreparationRequest",
         "ChunkedUploadPreparationResponse",
         "ReservedFileInfo",
@@ -153,7 +169,6 @@ pub fn api_schema_json_pretty() -> Result<String, serde_json::Error> {
     #[derive(schemars::JsonSchema)]
     #[allow(dead_code)]
     struct ApiSchema {
-        room: Room,
         room_status: RoomStatus,
         room_content: RoomContent,
         content_type: ContentType,
@@ -169,6 +184,10 @@ pub fn api_schema_json_pretty() -> Result<String, serde_json::Error> {
         upload_status: UploadStatus,
         token_type: TokenType,
         room_token_claims: RoomTokenClaims,
+        create_room_request: CreateRoomRequest,
+        room_view: RoomView,
+        verify_room_password_request: VerifyRoomPasswordRequest,
+        verify_room_password_response: VerifyRoomPasswordResponse,
         issue_token_request: IssueTokenRequest,
         issue_token_response: IssueTokenResponse,
         validate_token_request: ValidateTokenRequest,
@@ -190,6 +209,10 @@ pub fn api_schema_json_pretty() -> Result<String, serde_json::Error> {
         create_url_content_response: CreateUrlContentResponse,
         create_message_request: CreateMessageRequest,
         create_message_response: CreateMessageResponse,
+        message_page: MessagePage,
+        public_config_response: PublicConfigResponse,
+        public_room_config: PublicRoomConfig,
+        public_room_expiry_config: PublicRoomExpiryConfig,
         chunked_upload_preparation_request: ChunkedUploadPreparationRequest,
         chunked_upload_preparation_response: ChunkedUploadPreparationResponse,
         reserved_file_info: ReservedFileInfo,

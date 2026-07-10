@@ -14,40 +14,26 @@ import { getRoomToken } from "./utils/api";
 import { hasValidToken } from "../api/authService";
 import {
   deleteMessage,
-  getMessages,
+  getMessagePage,
   postMessage,
   updateMessage,
 } from "@/api/messageService";
+import {
+  type MessageContentEvent,
+  mergeMessagePage,
+  messageFromContentEvent,
+  rebasePendingMessages,
+  removeMessage,
+  replacePendingMessage,
+  replaceSavedMessage,
+} from "./messages/message-cache";
 
-function mergeServerMessagesWithPending(
-  existing: LocalMessage[],
-  serverMessages: Message[],
-): LocalMessage[] {
-  const pending = existing.filter((m) => m.isNew || m.isDirty || m.isPendingDelete);
-  const pendingById = new Map(pending.map((m) => [m.id, m]));
-  const serverIds = new Set(serverMessages.map((m) => m.id));
+export type MessageLoadStatus = "idle" | "loading" | "ready" | "error";
 
-  const merged: LocalMessage[] = serverMessages.map((msg) => {
-    const existingPending = pendingById.get(msg.id);
-    if (existingPending) return existingPending;
-    return {
-      ...msg,
-      isNew: false,
-      isDirty: false,
-      isPendingDelete: false,
-      originalContent: undefined,
-    } satisfies LocalMessage;
-  });
-
-  // Keep local pending messages that don't exist on server yet (e.g., temp ids).
-  for (const msg of pending) {
-    if (!serverIds.has(msg.id)) {
-      merged.push(msg);
-    }
-  }
-
-  return merged;
-}
+type MessageSaveResult =
+  | { kind: "remove"; id: string }
+  | { kind: "replace"; pendingId: string; message: Message }
+  | { kind: "upsert"; message: Message };
 
 interface AppState {
   // Locale
@@ -138,7 +124,19 @@ interface AppState {
 
   // Local message management for explicit saving
   messages: LocalMessage[];
-  setMessages: (messages: Message[]) => void;
+  messageCacheRoomId: string | null;
+  messageCacheGeneration: number;
+  messageInitialStatus: MessageLoadStatus;
+  messageOlderStatus: MessageLoadStatus;
+  messageNextCursor: string | null;
+  messageHasMore: boolean;
+  messageNextSequenceNumber: number;
+  ensureMessagesLoaded: (roomId: string) => Promise<void>;
+  loadOlderMessages: () => Promise<void>;
+  refreshLatestMessages: () => Promise<void>;
+  applyMessageCreated: (payload: MessageContentEvent) => void;
+  applyMessageUpdated: (payload: MessageContentEvent) => void;
+  applyMessageDeleted: (messageId: string) => void;
   addMessage: (content: string) => void;
   updateMessageContent: (messageId: string, content: string) => void;
   markMessageForDeletion: (messageId: string) => void;
@@ -146,7 +144,6 @@ interface AppState {
   hasUnsavedChanges: () => boolean;
   isSaving: boolean;
   saveMessages: () => Promise<void>;
-  syncMessagesFromServer: () => Promise<void>;
 
   // Composer state (draft + edit mode). Not persisted.
   composerContent: string;
@@ -303,15 +300,25 @@ export const useAppStore = create<AppState>()(
       // Room
       currentRoomId: "demo-room-123",
       setCurrentRoomId: (roomId) =>
-        set({
-          currentRoomId: roomId,
-          messages: [],
-          selectedMessages: new Set(),
-          selectedFiles: new Set(),
-          composerContent: "",
-          composerEditingMessageId: null,
-          composerInsertRequest: null,
-          previewFileId: null,
+        set((state) => {
+          if (state.currentRoomId === roomId) return {};
+          return {
+            currentRoomId: roomId,
+            messages: [],
+            messageCacheRoomId: roomId,
+            messageCacheGeneration: state.messageCacheGeneration + 1,
+            messageInitialStatus: "idle",
+            messageOlderStatus: "idle",
+            messageNextCursor: null,
+            messageHasMore: false,
+            messageNextSequenceNumber: 0,
+            selectedMessages: new Set(),
+            selectedFiles: new Set(),
+            composerContent: "",
+            composerEditingMessageId: null,
+            composerInsertRequest: null,
+            previewFileId: null,
+          };
         }),
 
       // File preview
@@ -339,19 +346,192 @@ export const useAppStore = create<AppState>()(
 
       // Local message management
       messages: [],
-      setMessages: (messages) =>
-        set((state) => ({
-          messages: mergeServerMessagesWithPending(state.messages, messages),
-        })),
+      messageCacheRoomId: null,
+      messageCacheGeneration: 0,
+      messageInitialStatus: "idle",
+      messageOlderStatus: "idle",
+      messageNextCursor: null,
+      messageHasMore: false,
+      messageNextSequenceNumber: 0,
+      ensureMessagesLoaded: async (roomId) => {
+        const state = get();
+        if (!roomId) return;
+        if (
+          state.messageCacheRoomId === roomId &&
+          (state.messageInitialStatus === "loading" ||
+            state.messageInitialStatus === "ready")
+        ) return;
+
+        let generation = state.messageCacheGeneration;
+        if (state.messageCacheRoomId !== roomId) {
+          generation += 1;
+          set({
+            messages: [],
+            messageCacheRoomId: roomId,
+            messageCacheGeneration: generation,
+            messageNextCursor: null,
+            messageHasMore: false,
+            messageNextSequenceNumber: 0,
+            selectedMessages: new Set(),
+          });
+        }
+        set({ messageInitialStatus: "loading" });
+
+        try {
+          const page = await getMessagePage(roomId);
+          const latest = get();
+          if (
+            latest.messageCacheRoomId !== roomId ||
+            latest.messageCacheGeneration !== generation
+          ) return;
+
+          set((current) => {
+            const rebased = rebasePendingMessages(
+              mergeMessagePage(current.messages, page.items),
+              page.nextSequenceNumber,
+            );
+            return {
+              messages: rebased.messages,
+              messageInitialStatus: "ready",
+              messageOlderStatus: "idle",
+              messageNextCursor: page.nextCursor,
+              messageHasMore: page.hasMore,
+              messageNextSequenceNumber: rebased.nextSequenceNumber,
+            };
+          });
+        } catch (error) {
+          const latest = get();
+          if (
+            latest.messageCacheRoomId !== roomId ||
+            latest.messageCacheGeneration !== generation
+          ) return;
+          set({ messageInitialStatus: "error" });
+          throw error;
+        }
+      },
+      loadOlderMessages: async () => {
+        const state = get();
+        const roomId = state.currentRoomId;
+        if (
+          !roomId || state.messageInitialStatus !== "ready" ||
+          state.messageOlderStatus === "loading" || !state.messageHasMore ||
+          !state.messageNextCursor
+        ) return;
+
+        const generation = state.messageCacheGeneration;
+        const cursor = state.messageNextCursor;
+        set({ messageOlderStatus: "loading" });
+        try {
+          const page = await getMessagePage(roomId, cursor);
+          const latest = get();
+          if (
+            latest.messageCacheRoomId !== roomId ||
+            latest.messageCacheGeneration !== generation
+          ) return;
+
+          set((current) => ({
+            messages: mergeMessagePage(current.messages, page.items),
+            messageOlderStatus: "ready",
+            messageNextCursor: page.nextCursor,
+            messageHasMore: page.hasMore,
+          }));
+        } catch (error) {
+          const latest = get();
+          if (
+            latest.messageCacheRoomId !== roomId ||
+            latest.messageCacheGeneration !== generation
+          ) return;
+          set({ messageOlderStatus: "error" });
+          throw error;
+        }
+      },
+      refreshLatestMessages: async () => {
+        const state = get();
+        const roomId = state.currentRoomId;
+        if (!roomId || state.messageInitialStatus !== "ready") return;
+        const generation = state.messageCacheGeneration;
+        const page = await getMessagePage(roomId);
+        const latest = get();
+        if (
+          latest.messageCacheRoomId !== roomId ||
+          latest.messageCacheGeneration !== generation
+        ) return;
+
+        set((current) => {
+          const rebased = rebasePendingMessages(
+            mergeMessagePage(current.messages, page.items),
+            page.nextSequenceNumber,
+          );
+          return {
+            messages: rebased.messages,
+            messageNextSequenceNumber: rebased.nextSequenceNumber,
+          };
+        });
+      },
+      applyMessageCreated: (payload) =>
+        set((state) => {
+          if (state.messageCacheRoomId !== payload.room_name) return {};
+          const existing = payload.content_id == null
+            ? undefined
+            : state.messages.find((message) =>
+              message.id === String(payload.content_id)
+            );
+          const message = messageFromContentEvent(payload, existing);
+          if (!message) return {};
+          const rebased = rebasePendingMessages(
+            mergeMessagePage(state.messages, [message]),
+            Math.max(
+              state.messageNextSequenceNumber,
+              (message.sequence_number ?? 0) + 1,
+            ),
+          );
+          return {
+            messages: rebased.messages,
+            messageNextSequenceNumber: rebased.nextSequenceNumber,
+          };
+        }),
+      applyMessageUpdated: (payload) =>
+        set((state) => {
+          if (state.messageCacheRoomId !== payload.room_name) return {};
+          const existing = payload.content_id == null
+            ? undefined
+            : state.messages.find((message) =>
+              message.id === String(payload.content_id)
+            );
+          const message = messageFromContentEvent(payload, existing);
+          if (!message) return {};
+          return { messages: mergeMessagePage(state.messages, [message]) };
+        }),
+      applyMessageDeleted: (messageId) =>
+        set((state) => {
+          const selectedMessages = new Set(state.selectedMessages);
+          selectedMessages.delete(messageId);
+          const wasEditing = state.composerEditingMessageId === messageId;
+          return {
+            messages: removeMessage(state.messages, messageId),
+            selectedMessages,
+            composerEditingMessageId: wasEditing
+              ? null
+              : state.composerEditingMessageId,
+            composerContent: wasEditing ? "" : state.composerContent,
+          };
+        }),
       addMessage: (content) => {
-        const newMessage: LocalMessage = {
-          id: `temp-${Date.now()}`,
-          content,
-          timestamp: new Date().toISOString(),
-          isOwn: true,
-          isNew: true,
-        };
-        set((state) => ({ messages: [...state.messages, newMessage] }));
+        set((state) => {
+          const sequenceNumber = state.messageNextSequenceNumber;
+          const newMessage: LocalMessage = {
+            id: `temp-${Date.now()}-${sequenceNumber}`,
+            content,
+            timestamp: new Date().toISOString(),
+            isOwn: true,
+            isNew: true,
+            sequence_number: sequenceNumber,
+          };
+          return {
+            messages: [...state.messages, newMessage],
+            messageNextSequenceNumber: sequenceNumber + 1,
+          };
+        });
       },
       updateMessageContent: (messageId, content) => {
         set((state) => ({
@@ -413,7 +593,11 @@ export const useAppStore = create<AppState>()(
         if (get().isSaving) return;
         set({ isSaving: true });
         try {
-          const { messages, currentRoomId } = get();
+          const {
+            messages,
+            currentRoomId,
+            messageCacheGeneration,
+          } = get();
           const unsavedMessages = messages.filter(
             (m) => m.isNew || m.isDirty || m.isPendingDelete,
           );
@@ -422,51 +606,65 @@ export const useAppStore = create<AppState>()(
             return;
           }
 
-          const messagesWithIndex = messages.map((m, index) => ({ msg: m, index }));
-
-          await Promise.all(
-            unsavedMessages.map(async (msg) => {
+          const results = await Promise.allSettled(
+            unsavedMessages.map(async (msg): Promise<MessageSaveResult> => {
               if (msg.isPendingDelete) {
                 if (!msg.isNew) {
                   await deleteMessage(currentRoomId, msg.id);
                 }
+                return { kind: "remove", id: msg.id };
               } else if (msg.isNew) {
-                const msgIndex = messagesWithIndex.find((x) => x.msg.id === msg.id)?.index ?? 0;
-                await postMessage(currentRoomId, msg.content, msgIndex);
+                const saved = await postMessage(
+                  currentRoomId,
+                  msg.content,
+                  msg.sequence_number,
+                );
+                return { kind: "replace", pendingId: msg.id, message: saved };
               } else if (msg.isDirty) {
-                await updateMessage(currentRoomId, msg.id, msg.content);
+                const updated = await updateMessage(currentRoomId, msg.id, msg.content);
+                return { kind: "upsert", message: updated };
               }
+              return { kind: "upsert", message: msg };
             })
           );
 
-          const updatedMessages = await getMessages(currentRoomId);
-          set({
-            messages: updatedMessages.map((m) => ({
-              ...m,
-              isNew: false,
-              isDirty: false,
-              isPendingDelete: false,
-            })),
-          });
+          if (
+            get().currentRoomId === currentRoomId &&
+            get().messageCacheGeneration === messageCacheGeneration
+          ) {
+            set((state) => {
+              let nextMessages = state.messages;
+              for (const result of results) {
+                if (result.status !== "fulfilled") continue;
+                const saved = result.value;
+                if (saved.kind === "remove") {
+                  nextMessages = removeMessage(nextMessages, saved.id);
+                } else if (saved.kind === "replace") {
+                  nextMessages = replacePendingMessage(
+                    nextMessages,
+                    saved.pendingId,
+                    saved.message,
+                  );
+                } else {
+                  nextMessages = replaceSavedMessage(nextMessages, saved.message);
+                }
+              }
+              const rebased = rebasePendingMessages(
+                nextMessages,
+                state.messageNextSequenceNumber,
+              );
+              return {
+                messages: rebased.messages,
+                messageNextSequenceNumber: rebased.nextSequenceNumber,
+              };
+            });
+          }
+
+          const failed = results.find((result) => result.status === "rejected");
+          if (failed?.status === "rejected") throw failed.reason;
         } finally {
           set({ isSaving: false });
         }
-      },
-
-      syncMessagesFromServer: async () => {
-        const { currentRoomId } = get();
-        if (!currentRoomId) return;
-        let serverMessages: Message[];
-        try {
-          serverMessages = await getMessages(currentRoomId);
-        } catch (error) {
-          console.error("[syncMessagesFromServer] Failed to sync messages:", error);
-          return;
-        }
-
-        set((state) => ({
-          messages: mergeServerMessagesWithPending(state.messages, serverMessages),
-        }));
       },
 
       composerContent: "",

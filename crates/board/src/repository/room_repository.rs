@@ -32,6 +32,7 @@ const ROOM_SELECT_BASE: &str = r#"
 pub trait IRoomRepository: Send + Sync {
     async fn exists(&self, name: &str) -> Result<bool>;
     async fn create(&self, room: &Room) -> Result<Room>;
+    async fn create_if_absent(&self, room: &Room) -> Result<Option<Room>>;
     async fn find_by_name(&self, name: &str) -> Result<Option<Room>>;
     async fn find_by_display_name(&self, name: &str) -> Result<Option<Room>>;
     async fn find_by_id(&self, id: i64) -> Result<Option<Room>>;
@@ -113,26 +114,66 @@ impl RoomRepository {
         Ok(rooms)
     }
 
-    async fn reset_if_expired(&self, room: Room) -> Result<Option<Room>> {
-        if room.is_expired() {
-            if let Some(id) = room.id {
-                sqlx::query("DELETE FROM room_contents WHERE room_id = $1")
-                    .bind(id)
-                    .execute(&*self.pool)
-                    .await?;
+    pub async fn update_policy(&self, room: &Room) -> Result<Room> {
+        let room_id = room
+            .id
+            .ok_or_else(|| anyhow!("room id is required for policy update"))?;
+        let mut tx = self.pool.begin().await?;
+        let now = format_naive_datetime(Utc::now().naive_utc());
+        sqlx::query(
+            r#"
+            UPDATE rooms
+            SET password = $1,
+                max_size = $2,
+                max_times_entered = $3,
+                expire_at = $4,
+                updated_at = $5
+            WHERE id = $6
+            "#,
+        )
+        .bind(&room.password)
+        .bind(room.max_size)
+        .bind(room.max_times_entered)
+        .bind(format_optional_naive_datetime(room.expire_at))
+        .bind(now)
+        .bind(room_id)
+        .execute(&mut *tx)
+        .await?;
+        let updated = Self::fetch_room_by_id_or_err(&mut *tx, room_id).await?;
+        tx.commit().await?;
+        Ok(updated)
+    }
 
-                sqlx::query("DELETE FROM rooms WHERE id = $1")
-                    .bind(id)
-                    .execute(&*self.pool)
-                    .await?;
+    pub async fn update_permissions_and_slug(&self, room: &Room) -> Result<Room> {
+        let room_id = room
+            .id
+            .ok_or_else(|| anyhow!("room id is required for permission update"))?;
+        let mut tx = self.pool.begin().await?;
+        let now = format_naive_datetime(Utc::now().naive_utc());
+        sqlx::query("UPDATE rooms SET permission = $1, slug = $2, updated_at = $3 WHERE id = $4")
+            .bind(i64::from(room.permission.bits()))
+            .bind(&room.slug)
+            .bind(now)
+            .bind(room_id)
+            .execute(&mut *tx)
+            .await?;
+        let updated = Self::fetch_room_by_id_or_err(&mut *tx, room_id).await?;
+        tx.commit().await?;
+        Ok(updated)
+    }
 
-                logrs::info!("Purged expired room {}", room.slug);
-                return Ok(None);
-            }
-            Ok(None)
-        } else {
-            Ok(Some(room))
-        }
+    pub async fn release_display_name(&self, room_id: i64, new_name: &str) -> Result<Room> {
+        let mut tx = self.pool.begin().await?;
+        let now = format_naive_datetime(Utc::now().naive_utc());
+        sqlx::query("UPDATE rooms SET name = $1, updated_at = $2 WHERE id = $3")
+            .bind(new_name)
+            .bind(now)
+            .bind(room_id)
+            .execute(&mut *tx)
+            .await?;
+        let updated = Self::fetch_room_by_id_or_err(&mut *tx, room_id).await?;
+        tx.commit().await?;
+        Ok(updated)
     }
 }
 
@@ -140,7 +181,7 @@ impl RoomRepository {
 impl IRoomRepository for RoomRepository {
     async fn exists(&self, name: &str) -> Result<bool> {
         let exists: i64 = sqlx::query_scalar(
-            "SELECT CASE WHEN EXISTS(SELECT 1 FROM rooms WHERE slug = $1) THEN 1 ELSE 0 END",
+            "SELECT CASE WHEN EXISTS(SELECT 1 FROM rooms WHERE slug = $1 OR name = $1) THEN 1 ELSE 0 END",
         )
         .bind(name)
         .fetch_one(&*self.pool)
@@ -150,18 +191,28 @@ impl IRoomRepository for RoomRepository {
     }
 
     async fn create(&self, room: &Room) -> Result<Room> {
+        self.create_if_absent(room)
+            .await?
+            .ok_or_else(|| anyhow!("room already exists"))
+    }
+
+    async fn create_if_absent(&self, room: &Room) -> Result<Option<Room>> {
+        if room.is_expired() {
+            return Err(anyhow!("cannot create an already expired room"));
+        }
         let mut tx = self.pool.begin().await?;
         let now = Utc::now().naive_utc();
         let now_str = format_naive_datetime(now);
         let expire_at = format_optional_naive_datetime(room.expire_at);
 
-        let inserted_id: i64 = sqlx::query_scalar(
+        let inserted_id: Option<i64> = sqlx::query_scalar(
             r#"
             INSERT INTO rooms (
                 name, slug, password, status, max_size, current_size,
                 max_times_entered, current_times_entered, expire_at,
                 created_at, updated_at, permission
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            ON CONFLICT DO NOTHING
             RETURNING id
             "#,
         )
@@ -177,42 +228,28 @@ impl IRoomRepository for RoomRepository {
         .bind(now_str.clone())
         .bind(now_str.clone())
         .bind(i64::from(room.permission.bits()))
-        .fetch_one(&mut *tx)
+        .fetch_optional(&mut *tx)
         .await?;
 
-        let created_room = Self::fetch_room_by_id_or_err(&mut *tx, inserted_id).await?;
+        let created_room = match inserted_id {
+            Some(inserted_id) => Some(Self::fetch_room_by_id_or_err(&mut *tx, inserted_id).await?),
+            None => None,
+        };
 
         tx.commit().await?;
-        self.reset_if_expired(created_room)
-            .await?
-            .ok_or_else(|| anyhow!("created room expired immediately"))
+        Ok(created_room)
     }
 
     async fn find_by_name(&self, name: &str) -> Result<Option<Room>> {
-        let room = Self::fetch_room_optional_by_slug(&*self.pool, name).await?;
-        if let Some(room) = room {
-            self.reset_if_expired(room).await
-        } else {
-            Ok(None)
-        }
+        Self::fetch_room_optional_by_slug(&*self.pool, name).await
     }
 
     async fn find_by_display_name(&self, name: &str) -> Result<Option<Room>> {
-        let room = Self::fetch_room_optional_by_display_name(&*self.pool, name).await?;
-        if let Some(room) = room {
-            self.reset_if_expired(room).await
-        } else {
-            Ok(None)
-        }
+        Self::fetch_room_optional_by_display_name(&*self.pool, name).await
     }
 
     async fn find_by_id(&self, id: i64) -> Result<Option<Room>> {
-        let room = Self::fetch_room_optional_by_id(&*self.pool, id).await?;
-        if let Some(room) = room {
-            self.reset_if_expired(room).await
-        } else {
-            Ok(None)
-        }
+        Self::fetch_room_optional_by_id(&*self.pool, id).await
     }
 
     async fn update(&self, room: &Room) -> Result<Room> {
@@ -250,9 +287,7 @@ impl IRoomRepository for RoomRepository {
         let updated_room = Self::fetch_room_by_id_or_err(&mut *tx, room_id).await?;
 
         tx.commit().await?;
-        self.reset_if_expired(updated_room)
-            .await?
-            .ok_or_else(|| anyhow!("updated room expired unexpectedly"))
+        Ok(updated_room)
     }
 
     async fn delete(&self, name: &str) -> Result<bool> {

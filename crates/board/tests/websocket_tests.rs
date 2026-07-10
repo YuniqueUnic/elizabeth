@@ -175,7 +175,15 @@ async fn test_broadcaster_content_created() {
     assert!(received.is_some(), "should receive message");
     let msg = received.unwrap();
     assert_eq!(msg.message_type, WsMessageType::ContentCreated);
-    assert!(msg.payload.is_some(), "message should have payload");
+    let payload = msg.payload.expect("message should have payload");
+    assert_eq!(payload["content_id"].as_i64(), content.id);
+    assert_eq!(
+        payload["sequence_number"].as_i64(),
+        Some(i64::from(content.sequence_number))
+    );
+    assert_eq!(payload["text"].as_str(), content.text.as_deref());
+    assert!(payload["created_at"].is_string());
+    assert!(payload["updated_at"].is_string());
 }
 
 #[tokio::test]
@@ -207,6 +215,9 @@ async fn test_broadcaster_content_deleted_includes_content_metadata() {
     assert_eq!(payload["room_name"].as_str(), Some(room_name.as_str()));
     assert_eq!(payload["content_type"]["type"].as_str(), Some("text"));
     assert_eq!(payload["text"].as_str(), Some("test content"));
+    assert_eq!(payload["sequence_number"].as_i64(), Some(0));
+    assert!(payload["created_at"].is_string());
+    assert!(payload["updated_at"].is_string());
 }
 
 #[tokio::test]

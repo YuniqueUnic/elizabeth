@@ -43,6 +43,7 @@ tower_governor = { workspace = true }
 
 serde = { workspace = true }
 serde_json = { workspace = true }
+bytesize = { workspace = true }
 
 anyhow = { workspace = true }
 thiserror = { workspace = true }
@@ -53,6 +54,7 @@ utoipa-scalar = { workspace = true }
 utoipa-axum = { workspace = true }
 
 chrono = { workspace = true }
+argon2 = { workspace = true }
 jsonwebtoken = { workspace = true }
 sqlx = { workspace = true }
 async-trait = { workspace = true }

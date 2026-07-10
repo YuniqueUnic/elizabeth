@@ -3,8 +3,9 @@ use std::{fs::OpenOptions, path::PathBuf};
 
 use config::{FileFormat, FileSourceFile, builder::DefaultState};
 pub use configs::{
-    AppConfig, CompressionConfig, CorsConfig, DatabaseConfig, GcConfig, JwtConfig, LoggingConfig,
-    MiddlewareConfig, RateLimitConfig, RequestIdConfig, RoomConfig, SecurityConfig, ServerConfig,
+    AppConfig, CompressionConfig, CorsConfig, DatabaseConfig, DefaultRoomConfig, GcConfig,
+    HumanDuration, JwtConfig, LoggingConfig, MiddlewareConfig, RateLimitConfig, RequestIdConfig,
+    RoomConfig, RoomExpiryConfig, RoomPermissionConfig, SecurityConfig, ServerConfig,
     StorageConfig, TracingConfig, UploadConfig,
 };
 pub use error::{ConfigError, Result};
@@ -76,6 +77,8 @@ impl ConfigManager {
             .separator("__")
             .prefix_separator("__")
             .try_parsing(true)
+            .list_separator(",")
+            .with_list_parse_key("app.room.expiry.allowed_ages")
     }
 
     fn file_source(file_path: &str, required: bool) -> config::File<FileSourceFile, FileFormat> {

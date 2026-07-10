@@ -40,12 +40,11 @@
 .shiki-wrapper .line {
   display: inline-block;
   min-width: 100%;
+  min-height: 1.7em;
+  min-height: 1lh;
+  vertical-align: top;
   position: relative;
   padding-left: 3.5rem;
-}
-
-.shiki-wrapper .line:empty::after {
-  content: "\200b";
 }
 
 .shiki-wrapper .line::before {

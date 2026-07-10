@@ -61,25 +61,7 @@ impl RoomTokenService {
         }
 
         let now = Utc::now();
-        let mut exp = now + self.ttl;
-
-        if let Some(room_expire) = room.expire_at {
-            let room_expire = room_expire - chrono::Duration::seconds(self.leeway);
-            if room_expire <= now.naive_utc() {
-                return Err(anyhow!("room expires too soon to issue token"));
-            }
-            let room_expire_dt =
-                chrono::DateTime::<Utc>::from_naive_utc_and_offset(room_expire, Utc);
-            if exp > room_expire_dt {
-                exp = room_expire_dt;
-            }
-        }
-
-        if (exp - now).num_seconds() < MINIMUM_EXP_DELTA_SECONDS {
-            return Err(anyhow!(
-                "token ttl too short after applying room expiry limit"
-            ));
-        }
+        let exp = self.expiration_for(room, self.ttl)?;
 
         let claims = RoomTokenClaims::access_token_builder(
             room.id.ok_or_else(|| anyhow!("room id missing"))?,
@@ -100,6 +82,32 @@ impl RoomTokenService {
         .context("failed to sign room token")?;
 
         Ok((token, claims))
+    }
+
+    pub(crate) fn expiration_for(
+        &self,
+        room: &Room,
+        requested_ttl: Duration,
+    ) -> Result<chrono::DateTime<Utc>> {
+        let now = Utc::now();
+        let mut expiration = now + requested_ttl;
+
+        if let Some(room_expire) = room.expire_at {
+            let room_expire = room_expire - Duration::seconds(self.leeway);
+            if room_expire <= now.naive_utc() {
+                return Err(anyhow!("room expires too soon to issue token"));
+            }
+            let room_expire = chrono::DateTime::<Utc>::from_naive_utc_and_offset(room_expire, Utc);
+            expiration = expiration.min(room_expire);
+        }
+
+        if (expiration - now).num_seconds() < MINIMUM_EXP_DELTA_SECONDS {
+            return Err(anyhow!(
+                "token ttl too short after applying room expiry limit"
+            ));
+        }
+
+        Ok(expiration)
     }
 
     pub fn decode(&self, token: &str) -> Result<RoomTokenClaims> {

@@ -6,13 +6,15 @@ use axum::extract::{Path, State};
 use super::shared::HandlerResult;
 use crate::dto::rooms::{
     IssueTokenRequest, IssueTokenResponse, RevokeTokenResponse, RoomTokenView,
-    ValidateTokenRequest, ValidateTokenResponse,
+    ValidateTokenRequest, ValidateTokenResponse, VerifyRoomPasswordRequest,
+    VerifyRoomPasswordResponse,
 };
 use crate::errors::AppError;
 use crate::handlers::{AuthToken, verify_room_token};
 use crate::models::{Room, RoomStatus, RoomToken};
 use crate::repository::{
-    IRoomRepository, IRoomTokenRepository, RoomRepository, RoomTokenRepository,
+    IRoomRepository, IRoomTokenRepository, RoomAccessRepository, RoomRepository,
+    RoomTokenRepository,
 };
 use crate::state::AppState;
 use crate::validation::{RoomNameValidator, TokenValidator};
@@ -52,27 +54,54 @@ pub async fn issue_token(
     let should_increment_view_count = previous_jti.is_none();
     ensure_token_issue_allowed(&room, should_increment_view_count)?;
 
-    let repository = RoomRepository::new(app_state.db_pool.clone());
-    if should_increment_view_count {
-        increment_room_view_count(&repository, &mut room).await?;
-    } else {
-        logrs::debug!(
-            "Room {} token refresh, view count not incremented (current: {}/{})",
-            room.slug,
-            room.current_times_entered,
-            room.max_times_entered
-        );
-    }
-
     let (token, claims) = app_state
         .token_service()
         .issue(&room)
         .map_err(|e| AppError::authentication(e.to_string()))?;
-    let token_repo = RoomTokenRepository::new(app_state.db_pool.clone());
-    persist_issued_token(&token_repo, &claims, previous_jti).await?;
+    let record = RoomToken::new(claims.room_id, claims.jti.clone(), claims.expires_at());
+    let prepared_refresh = if payload.with_refresh_token {
+        Some(
+            app_state
+                .refresh_token_service()
+                .prepare_refresh_token(&room, claims.jti.clone())
+                .map_err(|e| AppError::internal(format!("Failed to issue refresh token: {e}")))?,
+        )
+    } else {
+        None
+    };
+    let access_repo = RoomAccessRepository::new(app_state.db_pool.clone());
+    let granted = if let Some(previous_jti) = previous_jti.as_deref() {
+        access_repo
+            .rotate_access_token(
+                claims.room_id,
+                previous_jti,
+                &record,
+                prepared_refresh.as_ref().map(|prepared| &prepared.record),
+                chrono::Utc::now().naive_utc(),
+            )
+            .await
+    } else {
+        access_repo
+            .grant_new_session(
+                claims.room_id,
+                &record,
+                prepared_refresh.as_ref().map(|prepared| &prepared.record),
+                chrono::Utc::now().naive_utc(),
+            )
+            .await
+    }
+    .map_err(|e| AppError::internal(format!("Failed to persist room access grant: {e}")))?;
 
-    let (refresh_token, refresh_expires_at) =
-        issue_refresh_token_if_requested(&app_state, &room, payload.with_refresh_token).await?;
+    if !granted {
+        return Err(AppError::authentication("Room cannot be entered"));
+    }
+    if should_increment_view_count {
+        room.current_times_entered += 1;
+    }
+
+    let (refresh_token, refresh_expires_at) = prepared_refresh
+        .map(|prepared| (Some(prepared.signed_token), Some(prepared.expires_at)))
+        .unwrap_or((None, None));
     broadcast_user_joined(app_state, name, claims.jti.clone());
 
     Ok(Json(IssueTokenResponse {
@@ -136,6 +165,11 @@ pub async fn list_tokens(
     RoomNameValidator::validate_identifier(&name)?;
 
     let verified = verify_room_token(app_state.clone(), &name, &token).await?;
+    if !verified.room.permission.can_delete() || !verified.claims.as_permission().can_delete() {
+        return Err(AppError::permission_denied(
+            "Session management requires room administration permission",
+        ));
+    }
     let room_id = verified
         .room
         .id
@@ -173,13 +207,36 @@ pub async fn revoke_token(
 ) -> HandlerResult<RevokeTokenResponse> {
     RoomNameValidator::validate_identifier(&name)?;
 
-    let _verified = verify_room_token(app_state.clone(), &name, &token).await?;
+    let verified = verify_room_token(app_state.clone(), &name, &token).await?;
+    if !verified.room.permission.can_delete() || !verified.claims.as_permission().can_delete() {
+        return Err(AppError::permission_denied(
+            "Session management requires room administration permission",
+        ));
+    }
+    let room_id = verified
+        .room
+        .id
+        .ok_or_else(|| AppError::internal("Room id missing"))?;
 
     let token_repo = RoomTokenRepository::new(app_state.db_pool.clone());
+    let target = token_repo
+        .find_by_jti(&target_jti)
+        .await
+        .map_err(|e| AppError::internal(format!("Failed to load token: {e}")))?
+        .ok_or_else(|| AppError::not_found("Room token"))?;
+    if target.room_id != room_id {
+        return Err(AppError::not_found("Room token"));
+    }
     let revoked = token_repo
         .revoke(&target_jti)
         .await
         .map_err(|e| AppError::internal(format!("Failed to revoke token: {e}")))?;
+    if revoked {
+        app_state
+            .connection_manager
+            .disconnect_room(&verified.room.slug, "Session revoked")
+            .await;
+    }
 
     Ok(Json(RevokeTokenResponse { revoked }))
 }
@@ -203,7 +260,10 @@ async fn resolve_token_issue_room(
             .await
             .map_err(|e| AppError::internal(format!("Database error: {}", e)))?
             .ok_or_else(|| AppError::room_not_found(name))?;
-        validate_room_password(&room, payload)?;
+        if room.is_expired() {
+            return Err(AppError::room_expired(name));
+        }
+        validate_room_password(app_state, &room, payload).await?;
         Ok(TokenIssueRoom {
             room,
             previous_jti: None,
@@ -211,84 +271,77 @@ async fn resolve_token_issue_room(
     }
 }
 
-fn validate_room_password(room: &Room, payload: &IssueTokenRequest) -> Result<(), AppError> {
-    if let Some(expected_password) = room.password.as_ref()
-        && payload.password.as_deref() != Some(expected_password.as_str())
-    {
-        return Err(AppError::authentication("Invalid room password"));
+async fn validate_room_password(
+    app_state: &AppState,
+    room: &Room,
+    payload: &IssueTokenRequest,
+) -> Result<(), AppError> {
+    if let Some(encoded_hash) = room.password.as_ref() {
+        let password = payload
+            .password
+            .clone()
+            .ok_or_else(|| AppError::authentication("Invalid room password"))?;
+        let valid = app_state
+            .room_password_service()
+            .verify(password, encoded_hash.clone())
+            .await
+            .map_err(|e| AppError::internal(format!("Failed to verify room password: {e}")))?;
+        if !valid {
+            return Err(AppError::authentication("Invalid room password"));
+        }
     }
     Ok(())
 }
 
 fn ensure_token_issue_allowed(room: &Room, increment_view_count: bool) -> Result<(), AppError> {
+    if room.is_expired() {
+        return Err(AppError::room_expired(room.slug.clone()));
+    }
     if increment_view_count {
         if !room.can_enter() {
             return Err(AppError::authentication("Room cannot be entered"));
         }
-    } else if room.is_expired() || room.status() == RoomStatus::Close {
+    } else if room.status() != RoomStatus::Open {
         return Err(AppError::authentication("Room cannot be entered"));
     }
     Ok(())
 }
 
-async fn increment_room_view_count(
-    repository: &RoomRepository,
-    room: &mut Room,
-) -> Result<(), AppError> {
-    room.current_times_entered += 1;
-    logrs::info!(
-        "Room {} view count incremented to {}/{}",
-        room.slug,
-        room.current_times_entered,
-        room.max_times_entered
-    );
-    repository
-        .update(room)
+#[utoipa::path(
+    post,
+    path = "/api/v1/rooms/{name}/password/verify",
+    params(("name" = String, Path, description = "房间名称")),
+    request_body = VerifyRoomPasswordRequest,
+    responses(
+        (status = 200, description = "密码正确", body = VerifyRoomPasswordResponse),
+        (status = 401, description = "密码错误"),
+        (status = 404, description = "房间不存在"),
+        (status = 410, description = "房间已过期")
+    ),
+    tag = "rooms"
+)]
+pub async fn verify_password(
+    Path(name): Path<String>,
+    State(app_state): State<Arc<AppState>>,
+    Json(payload): Json<VerifyRoomPasswordRequest>,
+) -> HandlerResult<VerifyRoomPasswordResponse> {
+    RoomNameValidator::validate_identifier(&name)?;
+    let room = RoomRepository::new(app_state.db_pool.clone())
+        .find_by_name(&name)
         .await
-        .map_err(|e| AppError::internal(format!("Failed to update room view count: {}", e)))?;
-    Ok(())
-}
-
-async fn persist_issued_token(
-    token_repo: &RoomTokenRepository,
-    claims: &crate::services::RoomTokenClaims,
-    previous_jti: Option<String>,
-) -> Result<(), AppError> {
-    let record = RoomToken::new(claims.room_id, claims.jti.clone(), claims.expires_at());
-    token_repo
-        .create(&record)
-        .await
-        .map_err(|e| AppError::internal(format!("Failed to persist token: {}", e)))?;
-
-    if let Some(jti) = previous_jti {
-        token_repo
-            .revoke(&jti)
-            .await
-            .map_err(|e| AppError::internal(format!("Failed to revoke old token: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("Database error: {e}")))?
+        .ok_or_else(|| AppError::room_not_found(&name))?;
+    if room.is_expired() {
+        return Err(AppError::room_expired(name));
     }
 
-    Ok(())
-}
-
-async fn issue_refresh_token_if_requested(
-    app_state: &Arc<AppState>,
-    room: &Room,
-    with_refresh_token: bool,
-) -> Result<(Option<String>, Option<chrono::NaiveDateTime>), AppError> {
-    if !with_refresh_token {
-        return Ok((None, None));
-    }
-
-    let refresh_response = app_state
-        .refresh_token_service()
-        .issue_token_pair(room)
-        .await
-        .map_err(|e| AppError::internal(format!("Failed to issue refresh token: {}", e)))?;
-
-    Ok((
-        Some(refresh_response.refresh_token),
-        Some(refresh_response.refresh_token_expires_at),
-    ))
+    let request = IssueTokenRequest {
+        password: Some(payload.password),
+        token: None,
+        with_refresh_token: false,
+    };
+    validate_room_password(&app_state, &room, &request).await?;
+    Ok(Json(VerifyRoomPasswordResponse { valid: true }))
 }
 
 fn broadcast_user_joined(app_state: Arc<AppState>, room_name: String, user_id: String) {

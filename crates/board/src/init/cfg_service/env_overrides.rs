@@ -15,6 +15,7 @@ pub(super) fn apply_program_env_overrides(cfg: &mut configrs::Config) {
     apply_basic_env_overrides(cfg);
     apply_jwt_env_overrides(cfg);
     apply_room_env_overrides(cfg);
+    apply_gc_env_overrides(cfg);
     apply_middleware_env_overrides(cfg);
 }
 
@@ -53,11 +54,6 @@ fn apply_jwt_env_overrides(cfg: &mut configrs::Config) {
     );
     apply_env!(
         env_i64,
-        "JWT_MAX_REFRESH_COUNT",
-        cfg.app.jwt.max_refresh_count
-    );
-    apply_env!(
-        env_i64,
         "JWT_CLEANUP_INTERVAL_SECONDS",
         cfg.app.jwt.cleanup_interval_seconds
     );
@@ -69,17 +65,69 @@ fn apply_jwt_env_overrides(cfg: &mut configrs::Config) {
 }
 
 fn apply_room_env_overrides(cfg: &mut configrs::Config) {
-    apply_env!(env_i64, "ROOM_MAX_SIZE", cfg.app.room.max_size);
+    apply_env!(
+        env_byte_size,
+        "ROOM_MAX_SIZE",
+        cfg.app.room.defaults.max_size
+    );
     apply_env!(
         env_i64,
         "ROOM_MAX_TIMES_ENTERED",
-        cfg.app.room.max_times_entered
+        cfg.app.room.defaults.max_times_entered
     );
+    if let Some(password) = env_optional_string("ROOM_DEFAULT_PASSWORD") {
+        cfg.app.room.defaults.password = password;
+    }
+    apply_env!(
+        env_bool,
+        "ROOM_DEFAULT_PERMISSION_READ",
+        cfg.app.room.defaults.permissions.read
+    );
+    apply_env!(
+        env_bool,
+        "ROOM_DEFAULT_PERMISSION_EDIT",
+        cfg.app.room.defaults.permissions.edit
+    );
+    apply_env!(
+        env_bool,
+        "ROOM_DEFAULT_PERMISSION_SHARE",
+        cfg.app.room.defaults.permissions.share
+    );
+    apply_env!(
+        env_bool,
+        "ROOM_DEFAULT_PERMISSION_DELETE",
+        cfg.app.room.defaults.permissions.delete
+    );
+    apply_env!(
+        env_duration,
+        "ROOM_SHARE_DISABLED_LOCK_DURATION",
+        cfg.app.room.share_disabled_lock_duration
+    );
+    if let Some(allowed_ages) = env_list("ROOM_ALLOWED_AGES") {
+        let parsed = allowed_ages
+            .into_iter()
+            .map(|value| value.parse::<configrs::HumanDuration>().ok())
+            .collect::<Option<Vec<_>>>();
+        if let Some(parsed) = parsed {
+            cfg.app.room.expiry.allowed_ages = parsed
+                .into_iter()
+                .map(|duration| duration.into_inner().into())
+                .collect();
+        }
+    }
+    if let Some(default_age) = env_duration("ROOM_DEFAULT_AGE") {
+        cfg.app.room.expiry.default_age = default_age.into_inner().into();
+    }
     apply_env!(
         env_i64,
         "UPLOAD_RESERVATION_TTL_SECONDS",
         cfg.app.upload.reservation_ttl_seconds
     );
+}
+
+fn apply_gc_env_overrides(cfg: &mut configrs::Config) {
+    apply_env!(env_u64, "GC_INTERVAL_SECONDS", cfg.app.gc.interval_seconds);
+    apply_env!(env_u32, "GC_BATCH_LIMIT", cfg.app.gc.batch_limit);
 }
 
 fn apply_middleware_env_overrides(cfg: &mut configrs::Config) {
@@ -249,6 +297,12 @@ fn env_string(key: &str) -> Option<String> {
         .filter(|v| !v.is_empty())
 }
 
+fn env_optional_string(key: &str) -> Option<Option<String>> {
+    let value = std::env::var(key).ok()?;
+    let value = value.trim().trim_matches('"').trim_matches('\'');
+    Some((!value.is_empty()).then(|| value.to_string()))
+}
+
 fn normalize_database_url_from_path(value: String) -> String {
     let trimmed = value.trim();
     let lower = trimmed.to_ascii_lowercase();
@@ -290,6 +344,14 @@ fn env_bool(key: &str) -> Option<bool> {
 
 fn env_i64(key: &str) -> Option<i64> {
     env_parse::<i64>(key)
+}
+
+fn env_byte_size(key: &str) -> Option<bytesize::ByteSize> {
+    env_parse::<bytesize::ByteSize>(key)
+}
+
+fn env_duration(key: &str) -> Option<configrs::HumanDuration> {
+    env_parse::<configrs::HumanDuration>(key)
 }
 
 fn env_u32(key: &str) -> Option<u32> {
