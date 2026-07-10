@@ -35,7 +35,9 @@ use clap::Parser;
 use shadow_rs::shadow;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::config::{AppConfig, AuthConfig, RoomConfig, ServerConfig, StorageConfig};
+use crate::config::{
+    AppConfig, AuthConfig, RoomConfig, RoomExpiryPolicy, ServerConfig, StorageConfig,
+};
 use crate::constants::{
     storage::DEFAULT_STORAGE_ROOT, upload::DEFAULT_UPLOAD_RESERVATION_TTL_SECONDS,
 };
@@ -112,6 +114,7 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
             max_content_size: cfg.app.room.max_size,
             max_times_entered: cfg.app.room.max_times_entered,
             share_disabled_lock_duration: cfg.app.room.share_disabled_lock_duration,
+            expiry: RoomExpiryPolicy::try_from(&cfg.app.room.expiry)?,
         },
         auth: AuthConfig::new(cfg.app.jwt.secret.clone())
             .map_err(|e| anyhow::anyhow!("Invalid JWT config: {}", e))?
@@ -185,14 +188,18 @@ fn build_api_router(app_state: Arc<AppState>, cfg: &configrs::Config) -> (String
     let (room_router, room_api) = route::room::api_router(app_state.clone()).split_for_parts();
     let (auth_router, auth_api) = route::auth::auth_router(app_state.clone()).split_for_parts();
     let (admin_router, admin_api) = route::admin::api_router(app_state.clone()).split_for_parts();
+    let (config_router, config_api) =
+        route::config::api_router(app_state.clone()).split_for_parts();
 
     let router = status_router
         .merge(room_router)
         .merge(auth_router)
-        .merge(admin_router);
+        .merge(admin_router)
+        .merge(config_router);
     api.merge(room_api);
     api.merge(auth_api);
     api.merge(admin_api);
+    api.merge(config_api);
 
     // Expose a machine-consumable OpenAPI document for client generation.
     // Keep it in parallel with the JSON Schema exported via build.rs.

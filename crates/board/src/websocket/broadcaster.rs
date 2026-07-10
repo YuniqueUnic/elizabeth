@@ -31,7 +31,9 @@ impl Broadcaster {
             "content_type": content.content_type,
             "text": content.text,
             "file_name": content.file_name,
+            "sequence_number": content.sequence_number,
             "created_at": content.created_at,
+            "updated_at": content.updated_at,
         });
 
         let message = WsMessage::new(WsMessageType::ContentCreated, Some(payload));
@@ -51,6 +53,8 @@ impl Broadcaster {
             "content_type": content.content_type,
             "text": content.text,
             "file_name": content.file_name,
+            "sequence_number": content.sequence_number,
+            "created_at": content.created_at,
             "updated_at": content.updated_at,
         });
 
@@ -71,6 +75,9 @@ impl Broadcaster {
             "content_type": content.content_type,
             "text": content.text,
             "file_name": content.file_name,
+            "sequence_number": content.sequence_number,
+            "created_at": content.created_at,
+            "updated_at": content.updated_at,
         });
 
         let message = WsMessage::new(WsMessageType::ContentDeleted, Some(payload));

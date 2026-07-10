@@ -155,3 +155,14 @@ pub struct CreateMessageRequest {
 pub struct CreateMessageResponse {
     pub message: RoomContentView,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
+pub struct MessagePage {
+    pub items: Vec<RoomContentView>,
+    pub next_cursor: Option<String>,
+    pub has_more: bool,
+    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
+    pub next_sequence_number: i32,
+}

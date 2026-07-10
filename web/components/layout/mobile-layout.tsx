@@ -22,7 +22,8 @@ export function MobileLayout() {
 
           <TabsContent
             value="chat"
-            className="h-full m-0 data-[state=active]:flex data-[state=active]:flex-col"
+            forceMount
+            className="h-full m-0 data-[state=active]:flex data-[state=active]:flex-col data-[state=inactive]:hidden"
           >
             <MiddleColumn />
           </TabsContent>

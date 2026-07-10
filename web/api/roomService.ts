@@ -148,7 +148,7 @@ export async function updateRoomSettings(
   roomName: string,
   settings: {
     password?: string | null;
-    expiresAt?: string | null;
+    ageSeconds?: number;
     maxViews?: number;
     maxSize?: number;
   },
@@ -161,15 +161,15 @@ export async function updateRoomSettings(
   }
 
   // Convert frontend settings to backend format
-  const payload: UpdateRoomSettingsRequest = {};
+  const payload: UpdateRoomSettingsRequest & { age_seconds?: number } = {};
 
   if (settings.password !== undefined) {
     // ✅ FIX: Send empty string to clear password, backend expects empty string not null
     payload.password = settings.password === null ? "" : settings.password;
   }
 
-  if (settings.expiresAt !== undefined) {
-    payload.expire_at = settings.expiresAt ?? undefined;
+  if (settings.ageSeconds !== undefined) {
+    payload.age_seconds = settings.ageSeconds;
   }
 
   if (settings.maxViews !== undefined) {

@@ -243,7 +243,10 @@
   },
   "messageList": {
     "loading": "Loading messages...",
+    "loadingOlder": "Loading earlier messages...",
+    "loadOlder": "Load earlier messages",
     "selectedCount": "{count} messages selected",
+    "loadedCount": "{count} messages loaded",
     "totalCount": "{count} messages total",
     "selectAll": "Select All",
     "deselectAll": "Deselect All",

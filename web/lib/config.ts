@@ -81,6 +81,7 @@ export const API_ENDPOINTS = {
   // Health & Status
   health: "/health",
   status: "/status",
+  publicConfig: "/config",
 
   // Room Management
   rooms: {

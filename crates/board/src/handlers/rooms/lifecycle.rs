@@ -138,7 +138,7 @@ async fn create_room_with_defaults(
     password: Option<String>,
 ) -> HandlerResult<Room> {
     let mut room = Room::new(name, password);
-    apply_room_defaults(&mut room, app_state);
+    apply_room_defaults(&mut room, app_state)?;
     let created_room = repository
         .create(&room)
         .await

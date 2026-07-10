@@ -121,6 +121,7 @@ export interface Message {
   id: string;
   content: string;
   timestamp: string;
+  updatedAt?: string;
   fileName?: string;
   user?: string;
   isOwn?: boolean;
@@ -132,6 +133,13 @@ export interface Message {
 }
 
 export type LocalMessage = Message;
+
+export interface MessagePage {
+  items: Message[];
+  nextCursor: string | null;
+  hasMore: boolean;
+  nextSequenceNumber: number;
+}
 
 export interface FileItem {
   id: string;
@@ -243,6 +251,7 @@ export function backendContentToMessage(content: BackendRoomContent): Message {
     id: String(content.id),
     content: messageContent,
     timestamp: content.created_at,
+    updatedAt: content.updated_at,
     fileName: content.file_name || undefined,
     sequence_number: content.sequence_number,
   };

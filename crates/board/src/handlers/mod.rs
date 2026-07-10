@@ -1,6 +1,7 @@
 pub mod admin;
 pub mod auth;
 pub mod chunked_upload;
+pub mod config;
 pub mod content;
 pub mod refresh_token;
 pub mod rooms;

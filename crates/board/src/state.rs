@@ -100,6 +100,10 @@ impl AppState {
     pub fn room_max_times_entered(&self) -> i64 {
         self.config.room.max_times_entered
     }
+
+    pub fn room_expiry_policy(&self) -> &crate::config::RoomExpiryPolicy {
+        &self.config.room.expiry
+    }
 }
 
 #[cfg(test)]

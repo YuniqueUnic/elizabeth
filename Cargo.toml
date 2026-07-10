@@ -88,6 +88,7 @@ shadow-rs = { version = "2", features = ["no_std"] }
 merge = "0.2"
 smart-default = "0.7"
 fs4 = "1"
+humantime-serde = "1"
 
 # === TypeScript Export (Optional) ===
 schemars = { version = "1", features = ["chrono04"] }

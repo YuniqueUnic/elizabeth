@@ -156,6 +156,130 @@ pub struct RoomConfig {
     pub max_content_size: i64,
     pub max_times_entered: i64,
     pub share_disabled_lock_duration: i64,
+    pub expiry: RoomExpiryPolicy,
+}
+
+pub const DEFAULT_ROOM_ALLOWED_AGES_SECONDS: [i64; 8] = [
+    60,
+    30 * 60,
+    2 * 60 * 60,
+    12 * 60 * 60,
+    24 * 60 * 60,
+    7 * 24 * 60 * 60,
+    30 * 24 * 60 * 60,
+    365 * 24 * 60 * 60,
+];
+pub const DEFAULT_ROOM_AGE_SECONDS: i64 = 7 * 24 * 60 * 60;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RoomExpiryPolicy {
+    allowed_ages_seconds: Vec<i64>,
+    default_age_seconds: i64,
+}
+
+impl RoomExpiryPolicy {
+    pub fn new(
+        allowed_ages_seconds: Vec<i64>,
+        default_age_seconds: i64,
+    ) -> Result<Self, ConfigError> {
+        let policy = Self {
+            allowed_ages_seconds,
+            default_age_seconds,
+        };
+        policy.validate()?;
+        Ok(policy)
+    }
+
+    pub fn allowed_ages_seconds(&self) -> &[i64] {
+        &self.allowed_ages_seconds
+    }
+
+    pub fn default_age_seconds(&self) -> i64 {
+        self.default_age_seconds
+    }
+
+    pub fn allows(&self, age_seconds: i64) -> bool {
+        self.allowed_ages_seconds
+            .binary_search(&age_seconds)
+            .is_ok()
+    }
+
+    pub fn expire_at(
+        &self,
+        from: chrono::NaiveDateTime,
+        age_seconds: i64,
+    ) -> Option<chrono::NaiveDateTime> {
+        if !self.allows(age_seconds) {
+            return None;
+        }
+        from.checked_add_signed(Duration::seconds(age_seconds))
+    }
+
+    pub fn default_expire_at(&self, from: chrono::NaiveDateTime) -> Option<chrono::NaiveDateTime> {
+        self.expire_at(from, self.default_age_seconds)
+    }
+
+    fn validate(&self) -> Result<(), ConfigError> {
+        if self.allowed_ages_seconds.is_empty() {
+            return Err(ConfigError::InvalidRoomConfig(
+                "At least one room expiry age is required".to_string(),
+            ));
+        }
+        if self.allowed_ages_seconds.iter().any(|age| *age <= 0) {
+            return Err(ConfigError::InvalidRoomConfig(
+                "Room expiry ages must be positive".to_string(),
+            ));
+        }
+        if self
+            .allowed_ages_seconds
+            .windows(2)
+            .any(|ages| ages[0] >= ages[1])
+        {
+            return Err(ConfigError::InvalidRoomConfig(
+                "Room expiry ages must be unique and strictly increasing".to_string(),
+            ));
+        }
+        if !self.allows(self.default_age_seconds) {
+            return Err(ConfigError::InvalidRoomConfig(
+                "Default room expiry age must be included in allowed ages".to_string(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+impl TryFrom<&configrs::RoomExpiryConfig> for RoomExpiryPolicy {
+    type Error = ConfigError;
+
+    fn try_from(value: &configrs::RoomExpiryConfig) -> Result<Self, Self::Error> {
+        let allowed_ages_seconds = value
+            .allowed_ages
+            .iter()
+            .map(|age| {
+                i64::try_from(age.as_secs()).map_err(|_| {
+                    ConfigError::InvalidRoomConfig(
+                        "Room expiry age exceeds the supported range".to_string(),
+                    )
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let default_age_seconds = i64::try_from(value.default_age.as_secs()).map_err(|_| {
+            ConfigError::InvalidRoomConfig(
+                "Default room expiry age exceeds the supported range".to_string(),
+            )
+        })?;
+
+        Self::new(allowed_ages_seconds, default_age_seconds)
+    }
+}
+
+impl Default for RoomExpiryPolicy {
+    fn default() -> Self {
+        Self {
+            allowed_ages_seconds: DEFAULT_ROOM_ALLOWED_AGES_SECONDS.to_vec(),
+            default_age_seconds: DEFAULT_ROOM_AGE_SECONDS,
+        }
+    }
 }
 
 impl Default for RoomConfig {
@@ -164,6 +288,7 @@ impl Default for RoomConfig {
             max_content_size: DEFAULT_MAX_ROOM_CONTENT_SIZE,
             max_times_entered: DEFAULT_MAX_TIMES_ENTER_ROOM,
             share_disabled_lock_duration: 3600,
+            expiry: RoomExpiryPolicy::default(),
         }
     }
 }
@@ -252,6 +377,8 @@ impl AppConfig {
                 "Max times entered must be positive".to_string(),
             ));
         }
+
+        self.room.expiry.validate()?;
 
         Ok(())
     }

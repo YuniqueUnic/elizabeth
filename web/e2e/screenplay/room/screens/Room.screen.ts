@@ -73,7 +73,7 @@ export const RoomScreen = {
     page.getByTestId(/^message-editing-badge-/),
 
   messageCountSummary: (page: Page): Locator =>
-    page.getByText(tPattern(tRoom("messageList.totalCount"), { count: /\d+/ })),
+    page.getByText(tPattern(tRoom("messageList.loadedCount"), { count: /\d+/ })),
 
   messageSelectAllButton: (page: Page): Locator =>
     page.locator("main").getByRole("button", { name: tRoom("messageList.selectAll") }).first(),
@@ -97,6 +97,15 @@ export const RoomScreen = {
 
   mobileChatTab: (page: Page): Locator =>
     page.getByRole("tab", { name: tCommon("mobileTabChat") }),
+
+  mobileSettingsTab: (page: Page): Locator =>
+    page.getByRole("tab", { name: tCommon("mobileTabSettings") }),
+
+  mobileFilesTab: (page: Page): Locator =>
+    page.getByRole("tab", { name: tCommon("mobileTabFiles") }),
+
+  loadOlderMessagesButton: (page: Page): Locator =>
+    page.getByRole("button", { name: tRoom("messageList.loadOlder") }),
 
   mobileBottomTabs: (page: Page): Locator =>
     page.getByTestId("mobile-bottom-tabs"),

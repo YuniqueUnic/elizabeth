@@ -44,6 +44,7 @@ export * from './CreateUrlContentRequest';
 export * from './CreateUrlContentResponse';
 export * from './CreateMessageRequest';
 export * from './CreateMessageResponse';
+export * from './MessagePage';
 export * from './ChunkedUploadPreparationRequest';
 export * from './ChunkedUploadPreparationResponse';
 export * from './ReservedFileInfo';

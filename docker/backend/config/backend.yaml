@@ -41,6 +41,10 @@ app:
     max_size: 52428800 # 50MB
     max_times_entered: 100
     share_disabled_lock_duration: 3600
+    expiry:
+      # 支持 humantime 格式，例如 m/min、h、d、w
+      allowed_ages: [1m, 30m, 2h, 12h, 1d, 7d, 30d, 365d]
+      default_age: 7d
 
   upload:
     reservation_ttl_seconds: 3600

@@ -2,19 +2,12 @@
 
 import { MessageList } from "@/components/chat/message-list";
 import { MessageInput } from "@/components/chat/message-input";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  deleteMessage,
-  getMessages,
-  postMessage,
-  updateMessage,
-} from "@/api/messageService";
+import { useQuery } from "@tanstack/react-query";
 import { getRoomDetails } from "@/api/roomService";
 import { useAppStore } from "@/lib/store";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useTranslations } from "next-intl";
-import type { LocalMessage, Message } from "@/lib/types";
-import { useToast } from "@/hooks/use-toast";
+import type { Message } from "@/lib/types";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import { useRoomPermissions } from "@/hooks/use-room-permissions";
 import {
@@ -28,16 +21,18 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import {
-  handleMutationError,
-  handleMutationSuccess,
-} from "@/lib/utils/mutations";
+import { useRoomMessages } from "@/lib/hooks/use-room-messages";
 
 export function MiddleColumn() {
   const t = useTranslations("room");
   const currentRoomId = useAppStore((state) => state.currentRoomId);
-  const messages = useAppStore((state) => state.messages);
-  const setMessages = useAppStore((state) => state.setMessages);
+  const {
+    messages,
+    isInitialLoading,
+    isLoadingOlder,
+    hasMore,
+    loadOlder,
+  } = useRoomMessages(currentRoomId);
   const addMessage = useAppStore((state) => state.addMessage);
   const updateMessageContent = useAppStore(
     (state) => state.updateMessageContent,
@@ -61,11 +56,9 @@ export function MiddleColumn() {
     (state) => state.setShowDeleteConfirmation,
   );
 
-  const queryClient = useQueryClient();
   const [deleteCandidateId, setDeleteCandidateId] = useState<string | null>(
     null,
   );
-  const { toast } = useToast();
   const { data: roomDetails } = useQuery({
     queryKey: ["room", currentRoomId],
     queryFn: () => getRoomDetails(currentRoomId),
@@ -73,123 +66,6 @@ export function MiddleColumn() {
     enabled: !!currentRoomId,
   });
   const { can } = useRoomPermissions(roomDetails?.permissions);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchMessages = async () => {
-      if (!currentRoomId) return;
-      setIsLoading(true);
-      try {
-        const fetchedMessages = await getMessages(currentRoomId);
-        setMessages(fetchedMessages);
-      } catch (error) {
-        handleMutationError(error, toast, {
-          description: t("chat.loadFailed"),
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchMessages();
-  }, [currentRoomId, setMessages, t, toast]);
-
-  const createOptimisticMessage = (content: string): Message => ({
-    id: `temp-${Date.now()}`,
-    content,
-    timestamp: new Date().toISOString(),
-    isOwn: true,
-  });
-
-  const postMutation = useMutation({
-    mutationFn: (content: string) => {
-      const currentMessages = queryClient.getQueryData<Message[]>(["messages", currentRoomId]) || [];
-      const sequenceNumber = currentMessages.length;
-      return postMessage(currentRoomId, content, sequenceNumber);
-    },
-    onMutate: async (content: string) => {
-      await queryClient.cancelQueries({
-        queryKey: ["messages", currentRoomId],
-      });
-
-      const previousMessages = queryClient.getQueryData([
-        "messages",
-        currentRoomId,
-      ]);
-
-      const optimisticMessage = createOptimisticMessage(content);
-      queryClient.setQueryData(
-        ["messages", currentRoomId],
-        (old: Message[] = []) => [...old, optimisticMessage],
-      );
-
-      return { previousMessages, optimisticMessage };
-    },
-    onError: (error, content, context) => {
-      if (context?.previousMessages) {
-        queryClient.setQueryData(
-          ["messages", currentRoomId],
-          context.previousMessages,
-        );
-      }
-      handleMutationError(error, toast, {
-        description: t("chat.sendFailed"),
-      });
-    },
-    onSuccess: (newMessage, content, context) => {
-      queryClient.setQueryData(
-        ["messages", currentRoomId],
-        (old: Message[] = []) => {
-          return old.map((msg) =>
-            msg.id === context?.optimisticMessage.id ? newMessage : msg
-          );
-        },
-      );
-
-      handleMutationSuccess(toast, {
-        title: t("chat.messageSent"),
-      });
-    },
-    onSettled: () => {
-      setTimeout(() => {
-        queryClient.invalidateQueries({
-          queryKey: ["messages", currentRoomId],
-        });
-      }, 500);
-    },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: (
-      { messageId, content }: { messageId: string; content: string },
-    ) => updateMessage(currentRoomId, messageId, content),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["messages", currentRoomId] });
-      cancelEditMessage();
-      toast({
-        title: t("chat.messageUpdated"),
-        description: t("chat.messageUpdatedDescription"),
-      });
-    },
-    onError: () => {
-      handleMutationError(null, toast, {
-        description: t("chat.updateFailed"),
-      });
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (messageId: string) => deleteMessage(currentRoomId, messageId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["messages", currentRoomId] });
-      handleMutationSuccess(toast, { title: t("chat.messageDeleted") });
-    },
-    onError: (error) => {
-      handleMutationError(error, toast, {
-        description: t("chat.deleteFailed"),
-      });
-    },
-  });
 
   const handleSend = useCallback(
     (content: string) => {
@@ -220,11 +96,11 @@ export function MiddleColumn() {
     cancelEditMessage();
   };
 
-  const handleDelete = (messageId: string) => {
+  const handleDelete = useCallback((messageId: string) => {
     showDeleteConfirmation
       ? setDeleteCandidateId(messageId)
       : markMessageForDeletion(messageId);
-  };
+  }, [markMessageForDeletion, showDeleteConfirmation]);
 
   return (
     <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -233,7 +109,10 @@ export function MiddleColumn() {
         <Panel defaultSize={70} minSize={30}>
           <MessageList
             messages={messages}
-            isLoading={isLoading}
+            isLoading={isInitialLoading}
+            isLoadingOlder={isLoadingOlder}
+            hasMore={hasMore}
+            onLoadOlder={loadOlder}
             onEdit={handleEdit}
             onDelete={handleDelete}
             onRevert={revertMessageChanges}
@@ -256,7 +135,7 @@ export function MiddleColumn() {
               ? messages.find((m) => m.id === composerEditingMessageId) ?? null
               : null}
             onCancelEdit={handleCancelEdit}
-            isLoading={postMutation.isPending || updateMutation.isPending}
+            isLoading={false}
           />
         </Panel>
       </Group>

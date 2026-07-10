@@ -72,6 +72,9 @@
     "merged_file_info": {
       "$ref": "#/$defs/MergedFileInfo"
     },
+    "message_page": {
+      "$ref": "#/$defs/MessagePage"
+    },
     "refresh_token_request": {
       "$ref": "#/$defs/RefreshTokenRequest"
     },
@@ -198,6 +201,7 @@
     "create_url_content_response",
     "create_message_request",
     "create_message_response",
+    "message_page",
     "chunked_upload_preparation_request",
     "chunked_upload_preparation_response",
     "reserved_file_info",
@@ -790,6 +794,35 @@
         "file_name",
         "file_size",
         "file_hash"
+      ]
+    },
+    "MessagePage": {
+      "type": "object",
+      "properties": {
+        "has_more": {
+          "type": "boolean"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RoomContentView"
+          }
+        },
+        "next_cursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "next_sequence_number": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "required": [
+        "items",
+        "has_more",
+        "next_sequence_number"
       ]
     },
     "RefreshTokenRequest": {

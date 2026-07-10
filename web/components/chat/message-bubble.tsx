@@ -7,7 +7,7 @@ import type { Message } from "@/lib/types";
 import { copyTextToClipboard } from "@/lib/utils/clipboard";
 import { formatDate } from "@/lib/utils/format";
 import { formatSingleMessageMarkdown } from "@/lib/utils/message-format";
-import { useState } from "react";
+import { memo, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/lib/store";
 import { MinimalTiptapViewer } from "./minimal-tiptap-viewer";
@@ -28,7 +28,7 @@ interface MessageBubbleProps {
   canDelete: boolean;
 }
 
-export function MessageBubble(
+export const MessageBubble = memo(function MessageBubble(
   {
     message,
     messageNumber,
@@ -47,7 +47,9 @@ export function MessageBubble(
   const [copied, setCopied] = useState(false);
   const [manualCopyValue, setManualCopyValue] = useState("");
   const { toast } = useToast();
-  const selectedMessages = useAppStore((state) => state.selectedMessages);
+  const isSelected = useAppStore((state) =>
+    state.selectedMessages.has(message.id)
+  );
   const toggleMessageSelection = useAppStore((state) =>
     state.toggleMessageSelection
   );
@@ -55,8 +57,6 @@ export function MessageBubble(
     (state) => state.includeMetadataInCopy,
   );
   const useHeti = useAppStore((state) => state.useHeti);
-
-  const isSelected = selectedMessages.has(message.id);
 
   const handleCopy = async () => {
     const textToCopy = formatSingleMessageMarkdown(message, messageNumber, {
@@ -259,4 +259,4 @@ export function MessageBubble(
       />
     </>
   );
-}
+});

@@ -182,3 +182,73 @@ fn cli_env_file_priority_respected() {
     let cfg = cfg_service::init(&args).expect("config loaded");
     assert_eq!(cfg.app.logging.level, "debug");
 }
+
+#[test]
+#[serial]
+fn room_expiry_durations_load_from_yaml() {
+    let temp = tempdir().expect("tempdir");
+    let config_path = temp.path().join("custom.yaml");
+    fs::write(
+        &config_path,
+        "app:\n  room:\n    expiry:\n      allowed_ages: [1m, 2h, 365d]\n      default_age: 2h\n",
+    )
+    .expect("write config");
+
+    let args = cmd::CliArgs {
+        config_file: Some(config_path.to_string_lossy().into_owned()),
+        ..Default::default()
+    };
+    let cfg = cfg_service::init(&args).expect("config loaded");
+
+    assert_eq!(
+        cfg.app
+            .room
+            .expiry
+            .allowed_ages
+            .iter()
+            .map(|age| age.as_secs())
+            .collect::<Vec<_>>(),
+        vec![60, 7200, 31_536_000]
+    );
+    assert_eq!(cfg.app.room.expiry.default_age.as_secs(), 7200);
+}
+
+#[test]
+#[serial]
+fn nested_env_overrides_room_expiry_age_list() {
+    let temp = tempdir().expect("tempdir");
+    let config_path = temp.path().join("custom.yaml");
+    fs::write(
+        &config_path,
+        "app:\n  room:\n    expiry:\n      allowed_ages: [1m, 2h]\n      default_age: 2h\n",
+    )
+    .expect("write config");
+    let _env_guard = EnvGuard::set(vec![
+        (
+            "ELIZABETH__APP__ROOM__EXPIRY__ALLOWED_AGES",
+            Some("30m,12h".into()),
+        ),
+        (
+            "ELIZABETH__APP__ROOM__EXPIRY__DEFAULT_AGE",
+            Some("12h".into()),
+        ),
+    ]);
+
+    let args = cmd::CliArgs {
+        config_file: Some(config_path.to_string_lossy().into_owned()),
+        ..Default::default()
+    };
+    let cfg = cfg_service::init(&args).expect("config loaded");
+
+    assert_eq!(
+        cfg.app
+            .room
+            .expiry
+            .allowed_ages
+            .iter()
+            .map(|age| age.as_secs())
+            .collect::<Vec<_>>(),
+        vec![1800, 43_200]
+    );
+    assert_eq!(cfg.app.room.expiry.default_age.as_secs(), 43_200);
+}

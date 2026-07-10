@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eye, EyeOff } from "lucide-react";
 
 import type { RoomDetails, RoomPermission } from "@/lib/types";
@@ -12,6 +12,7 @@ import { useRoomPermissions } from "@/hooks/use-room-permissions";
 import { clearRoomToken } from "@/lib/utils/api";
 import { getAccessToken } from "@/api/authService";
 import { updateRoomPermissions, updateRoomSettings } from "@/api/roomService";
+import { getPublicConfig } from "@/api/publicConfigService";
 import { copyTextToClipboard } from "@/lib/utils/clipboard";
 import { isPermissionDeniedError } from "@/lib/utils/mutations";
 import { ManualCopyDialog } from "@/components/manual-copy-dialog";
@@ -35,46 +36,60 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 interface RoomConfigFormProps {
   roomDetails: RoomDetails;
 }
 
-const EXPIRY_OPTIONS_KEYS = [
-  { key: "config.expiry.options.oneMinute", value: "1min", ms: 60 * 1000 },
-  { key: "config.expiry.options.tenMinutes", value: "10min", ms: 10 * 60 * 1000 },
-  { key: "config.expiry.options.oneHour", value: "1hr", ms: 60 * 60 * 1000 },
-  { key: "config.expiry.options.twelveHours", value: "12hr", ms: 12 * 60 * 60 * 1000 },
-  { key: "config.expiry.options.oneDay", value: "1day", ms: 24 * 60 * 60 * 1000 },
-  { key: "config.expiry.options.oneWeek", value: "1week", ms: 7 * 24 * 60 * 60 * 1000 },
-];
+const EXPIRY_UNITS = [
+  { seconds: 365 * 24 * 60 * 60, unit: "year" },
+  { seconds: 24 * 60 * 60, unit: "day" },
+  { seconds: 60 * 60, unit: "hour" },
+  { seconds: 60, unit: "minute" },
+  { seconds: 1, unit: "second" },
+] as const;
 
-function getExpiryOptionFromDate(expiresAt: string | null | undefined): string {
-  // 如果没有过期时间，默认设置为 1 周（因为已移除"永不过期"选项）
-  if (!expiresAt) return "1week";
+function getExpiryOptionFromDate(
+  expiresAt: string | null | undefined,
+  allowedAges: number[],
+  defaultAge: number,
+): number {
+  if (!expiresAt || allowedAges.length === 0) return defaultAge;
 
   const expiresAtUTC = expiresAt.endsWith("Z") ? expiresAt : `${expiresAt}Z`;
   const expireTime = new Date(expiresAtUTC).getTime();
   const now = Date.now();
-  const diff = expireTime - now;
+  const diffSeconds = Math.max(0, Math.round((expireTime - now) / 1000));
 
   // 如果已过期或即将过期，默认 1 分钟
-  if (diff <= 0) return "1min";
+  if (diffSeconds <= 0) return allowedAges[0] ?? defaultAge;
 
-  let closestOption = EXPIRY_OPTIONS_KEYS[0];
-  let minDiff = Math.abs(diff - closestOption.ms);
+  let closestOption = allowedAges[0] ?? defaultAge;
+  let minDiff = Math.abs(diffSeconds - closestOption);
 
-  for (const option of EXPIRY_OPTIONS_KEYS) {
-    if (option.ms === 0) continue; // 跳过永不过期选项（如果未来启用）
-    const currentDiff = Math.abs(diff - option.ms);
+  for (const option of allowedAges) {
+    const currentDiff = Math.abs(diffSeconds - option);
     if (currentDiff < minDiff) {
       minDiff = currentDiff;
       closestOption = option;
     }
   }
 
-  return closestOption.value;
+  return closestOption;
+}
+
+function formatExpiryAge(ageSeconds: number, locale: string): string {
+  const selectedUnit = EXPIRY_UNITS.find(
+    ({ seconds }) => ageSeconds >= seconds && ageSeconds % seconds === 0,
+  ) ?? EXPIRY_UNITS[EXPIRY_UNITS.length - 1];
+  const value = ageSeconds / selectedUnit.seconds;
+
+  return new Intl.NumberFormat(locale, {
+    style: "unit",
+    unit: selectedUnit.unit,
+    unitDisplay: "long",
+  }).format(value);
 }
 
 // 权限位定义
@@ -123,6 +138,7 @@ function canTogglePermission(
 
 export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
   const t = useTranslations("room");
+  const locale = useLocale();
   const currentRoomId = useAppStore((state) => state.currentRoomId);
   const setRoomRedirectTarget = useAppStore((state) =>
     state.setRoomRedirectTarget
@@ -131,10 +147,29 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
   const { toast } = useToast();
   const { can } = useRoomPermissions(roomDetails.permissions);
   const [manualCopyValue, setManualCopyValue] = useState("");
-
-  const [expiryOption, setExpiryOption] = useState(() =>
-    getExpiryOptionFromDate(roomDetails.settings.expiresAt)
+  const publicConfigQuery = useQuery({
+    queryKey: ["public-config"],
+    queryFn: getPublicConfig,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+  const expiryPolicy = publicConfigQuery.data?.room.expiry;
+  const allowedAges = useMemo(
+    () => expiryPolicy?.allowed_ages_seconds ?? [],
+    [expiryPolicy],
   );
+  const defaultAge = expiryPolicy?.default_age_seconds ?? 0;
+  const baseExpiryOption = useMemo(
+    () => expiryPolicy
+      ? getExpiryOptionFromDate(
+        roomDetails.settings.expiresAt,
+        allowedAges,
+        defaultAge,
+      )
+      : null,
+    [allowedAges, defaultAge, expiryPolicy, roomDetails.settings.expiresAt],
+  );
+
+  const [expiryOption, setExpiryOption] = useState<number | null>(null);
   const [password, setPassword] = useState(roomDetails.password || "");
   const [showPassword, setShowPassword] = useState(false);
   const [maxViews, setMaxViews] = useState(roomDetails.settings.maxViews);
@@ -143,18 +178,14 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
   );
 
   useEffect(() => {
-    setExpiryOption(getExpiryOptionFromDate(roomDetails.settings.expiresAt));
+    setExpiryOption(baseExpiryOption);
     setPassword(roomDetails.password || "");
     setMaxViews(roomDetails.settings.maxViews);
     setPermissionFlags(permissionsToFlags(roomDetails.permissions));
-  }, [roomDetails]);
+  }, [baseExpiryOption, roomDetails]);
 
   const canModify = can.delete;
 
-  const baseExpiryOption = useMemo(
-    () => getExpiryOptionFromDate(roomDetails.settings.expiresAt),
-    [roomDetails.settings.expiresAt],
-  );
   const basePassword = roomDetails.password || "";
   const baseMaxViews = roomDetails.settings.maxViews;
   const basePermissionFlags = useMemo(
@@ -164,7 +195,7 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
 
   const settingsChanged = useMemo(() => {
     return (
-      expiryOption !== baseExpiryOption ||
+      (baseExpiryOption !== null && expiryOption !== baseExpiryOption) ||
       password.trim() !== basePassword ||
       maxViews !== baseMaxViews
     );
@@ -239,25 +270,17 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
       const oldIdentifier = currentRoomId;
       const oldPermissionValue = encodePermissions(roomDetails.permissions);
 
-      // 1) settings patch（仅在发生变化时发字段）
-      const option = EXPIRY_OPTIONS_KEYS.find((opt) => opt.value === expiryOption);
-      let expiresAt: string | null | undefined = undefined;
-      if (expiryOption !== baseExpiryOption) {
-        if (option && option.ms > 0) {
-          const now = new Date();
-          const expireDate = new Date(now.getTime() + option.ms);
-          expiresAt = expireDate.toISOString().replace("Z", "");
-        } else {
-          // NOTE: backend 当前无法区分"字段缺失"和"null"，此处保守不主动清空 expire_at
-          expiresAt = undefined;
-        }
-      }
-
       const newPassword = password.trim();
       const passwordChanged = newPassword !== basePassword;
 
       const settingsPayload: Parameters<typeof updateRoomSettings>[1] = {};
-      if (expiresAt !== undefined) settingsPayload.expiresAt = expiresAt;
+      if (
+        expiryOption !== null &&
+        baseExpiryOption !== null &&
+        expiryOption !== baseExpiryOption
+      ) {
+        settingsPayload.ageSeconds = expiryOption;
+      }
       if (passwordChanged) settingsPayload.password = newPassword;
       if (maxViews !== baseMaxViews) settingsPayload.maxViews = maxViews;
 
@@ -356,21 +379,31 @@ export function RoomConfigForm({ roomDetails }: RoomConfigFormProps) {
         <div className="space-y-2 mt-2">
           <Label htmlFor="expires-at">{t("config.expiry.label")}</Label>
           <Select
-            value={expiryOption}
-            onValueChange={setExpiryOption}
-            disabled={!canModify}
+            value={expiryOption?.toString()}
+            onValueChange={(value) => setExpiryOption(Number(value))}
+            disabled={
+              !canModify ||
+              publicConfigQuery.isPending ||
+              publicConfigQuery.isError ||
+              allowedAges.length === 0
+            }
           >
-            <SelectTrigger className="w-full">
+            <SelectTrigger className="w-full" aria-busy={publicConfigQuery.isPending}>
               <SelectValue placeholder={t("config.expiry.placeholder")} />
             </SelectTrigger>
             <SelectContent>
-              {EXPIRY_OPTIONS_KEYS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {t(option.key)}
+              {allowedAges.map((ageSeconds) => (
+                <SelectItem key={ageSeconds} value={ageSeconds.toString()}>
+                  {formatExpiryAge(ageSeconds, locale)}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+          {publicConfigQuery.isError && (
+            <p role="alert" className="text-xs text-destructive">
+              {t("config.save.failDescription")}
+            </p>
+          )}
         </div>
 
         <div className="space-y-2 mt-2">

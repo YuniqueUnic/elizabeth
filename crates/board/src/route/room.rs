@@ -29,6 +29,7 @@ pub fn api_router(app_state: Arc<AppState>) -> OpenApiRouter {
         .routes(routes!(crate::handlers::content::update::update_content))
         .routes(routes!(crate::handlers::content::url::create_url_content))
         .routes(routes!(crate::handlers::content::message::create_message))
+        .routes(routes!(crate::handlers::content::message::list_messages))
         .routes(routes!(
             crate::handlers::chunked_upload::prepare_chunked_upload
         ))

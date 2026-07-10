@@ -47,11 +47,9 @@ pub async fn update_room_settings(
         ));
     }
 
-    validate_settings_payload(&payload)?;
-
     let repo = RoomRepository::new(app_state.db_pool.clone());
     let mut room = verified.room;
-    apply_settings_payload(&mut room, payload);
+    apply_validated_settings_payload(&mut room, payload, app_state.room_expiry_policy())?;
 
     let updated_room = repo
         .update(&room)
@@ -62,7 +60,10 @@ pub async fn update_room_settings(
     Ok(Json(updated_room))
 }
 
-fn validate_settings_payload(payload: &UpdateRoomSettingsRequest) -> Result<(), AppError> {
+fn validate_settings_payload(
+    payload: &UpdateRoomSettingsRequest,
+    expiry_policy: &crate::config::RoomExpiryPolicy,
+) -> Result<(), AppError> {
     if let Some(ref password) = payload.password
         && !password.is_empty()
     {
@@ -80,10 +81,30 @@ fn validate_settings_payload(payload: &UpdateRoomSettingsRequest) -> Result<(), 
     {
         return Err(AppError::validation("max_size must be greater than 0"));
     }
+    if let Some(age_seconds) = payload.age_seconds
+        && !expiry_policy.allows(age_seconds)
+    {
+        return Err(AppError::validation(
+            "age_seconds must be one of the configured room expiry ages",
+        ));
+    }
     Ok(())
 }
 
-fn apply_settings_payload(room: &mut Room, payload: UpdateRoomSettingsRequest) {
+pub(crate) fn apply_validated_settings_payload(
+    room: &mut Room,
+    payload: UpdateRoomSettingsRequest,
+    expiry_policy: &crate::config::RoomExpiryPolicy,
+) -> Result<(), AppError> {
+    validate_settings_payload(&payload, expiry_policy)?;
+    apply_settings_payload(room, payload, expiry_policy)
+}
+
+fn apply_settings_payload(
+    room: &mut Room,
+    payload: UpdateRoomSettingsRequest,
+    expiry_policy: &crate::config::RoomExpiryPolicy,
+) -> Result<(), AppError> {
     if let Some(password) = payload.password {
         room.password = if password.is_empty() {
             None
@@ -92,8 +113,12 @@ fn apply_settings_payload(room: &mut Room, payload: UpdateRoomSettingsRequest) {
         };
     }
 
-    if payload.expire_at.is_some() {
-        room.expire_at = payload.expire_at;
+    if let Some(age_seconds) = payload.age_seconds {
+        room.expire_at = Some(
+            expiry_policy
+                .expire_at(chrono::Utc::now().naive_utc(), age_seconds)
+                .ok_or_else(|| AppError::validation("Invalid room expiry age"))?,
+        );
     }
 
     if let Some(max_times) = payload.max_times_entered {
@@ -103,6 +128,7 @@ fn apply_settings_payload(room: &mut Room, payload: UpdateRoomSettingsRequest) {
     if let Some(max_size) = payload.max_size {
         room.max_size = max_size;
     }
+    Ok(())
 }
 
 fn broadcast_settings_update(app_state: Arc<AppState>, updated_room: Room) {

@@ -15,6 +15,9 @@ const SCROLL_THRESHOLD = 100;
 interface MessageListProps {
   messages: LocalMessage[];
   isLoading: boolean;
+  isLoadingOlder: boolean;
+  hasMore: boolean;
+  onLoadOlder: () => Promise<void>;
   onEdit: (message: Message) => void;
   onDelete: (messageId: string) => void;
   onRevert: (messageId: string) => void;
@@ -24,7 +27,19 @@ interface MessageListProps {
 }
 
 export function MessageList(
-  { messages, isLoading, onEdit, onDelete, onRevert, editingMessageId, canEdit, canDelete }:
+  {
+    messages,
+    isLoading,
+    isLoadingOlder,
+    hasMore,
+    onLoadOlder,
+    onEdit,
+    onDelete,
+    onRevert,
+    editingMessageId,
+    canEdit,
+    canDelete,
+  }:
     MessageListProps,
 ) {
   const t = useTranslations("room");
@@ -41,6 +56,32 @@ export function MessageList(
   const autoScroll = useAppStore((state) => state.autoScroll);
   const [isNearBottom, setIsNearBottom] = useState(true);
   const [showJumpButton, setShowJumpButton] = useState(false);
+  const loadingOlderRef = useRef(false);
+
+  const loadOlderWithAnchor = useCallback(async () => {
+    const viewport = viewportRef.current;
+    if (
+      !viewport || loadingOlderRef.current || isLoadingOlder || !hasMore ||
+      messages.length === 0
+    ) return;
+
+    loadingOlderRef.current = true;
+    const previousHeight = viewport.scrollHeight;
+    const previousTop = viewport.scrollTop;
+    try {
+      await onLoadOlder();
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const currentViewport = viewportRef.current;
+          if (!currentViewport) return;
+          currentViewport.scrollTop = previousTop +
+            (currentViewport.scrollHeight - previousHeight);
+        });
+      });
+    } finally {
+      loadingOlderRef.current = false;
+    }
+  }, [hasMore, isLoadingOlder, messages.length, onLoadOlder]);
 
   const checkNearBottom = useCallback((el: HTMLDivElement | null) => {
     if (!el) return true;
@@ -61,7 +102,12 @@ export function MessageList(
     if (!viewport) return;
     viewportRef.current = viewport;
 
-    const onScroll = () => checkNearBottom(viewport);
+    const onScroll = () => {
+      checkNearBottom(viewport);
+      if (viewport.scrollTop <= SCROLL_THRESHOLD) {
+        void loadOlderWithAnchor();
+      }
+    };
     viewport.addEventListener("scroll", onScroll, { passive: true });
 
     // Initial check
@@ -71,7 +117,7 @@ export function MessageList(
       viewport.removeEventListener("scroll", onScroll);
       viewportRef.current = null;
     };
-  }, [checkNearBottom]);
+  }, [checkNearBottom, loadOlderWithAnchor]);
 
   // Auto-scroll when new messages arrive
   useEffect(() => {
@@ -129,7 +175,7 @@ export function MessageList(
         <div className="text-sm text-muted-foreground">
           {hasSelection
             ? t("messageList.selectedCount", { count: selectedMessages.size })
-            : t("messageList.totalCount", { count: messages.length })}
+            : t("messageList.loadedCount", { count: messages.length })}
         </div>
         <div className="flex gap-1">
           <Button
@@ -167,6 +213,30 @@ export function MessageList(
           ref={scrollRef}
         >
           <div className="mx-2 mt-2 min-w-0 space-y-2">
+            {(hasMore || isLoadingOlder) && (
+              <div className="flex min-h-8 items-center justify-center py-1">
+                {isLoadingOlder
+                  ? (
+                    <p
+                      className="text-xs text-muted-foreground"
+                      role="status"
+                      aria-live="polite"
+                    >
+                      {t("messageList.loadingOlder")}
+                    </p>
+                  )
+                  : (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => void loadOlderWithAnchor()}
+                    >
+                      {t("messageList.loadOlder")}
+                    </Button>
+                  )}
+              </div>
+            )}
             {messages.length === 0
               ? (
                 <div className="flex h-full items-center justify-center">

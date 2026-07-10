@@ -1,5 +1,8 @@
 import { expect, test } from "../../screenplay/fixtures/screenplay.fixture";
-import type { ProvisionedRoom } from "../../screenplay/support/constants";
+import {
+  API_BASE_URL,
+  type ProvisionedRoom,
+} from "../../screenplay/support/constants";
 import { uniqueRoomName } from "../../screenplay/support/test-data";
 import {
   MessageCount,
@@ -183,5 +186,39 @@ test.describe("Room message ordering", () => {
       "Item C (Edited)",
       "Item D",
     ]);
+  });
+
+  test("loads the latest message page first and prepends older messages", async ({
+    actor,
+    page,
+  }) => {
+    const token = room.tokenInfo?.token;
+    expect(token).toBeTruthy();
+
+    for (let sequence = 0; sequence < 55; sequence += 1) {
+      const response = await page.request.post(
+        `${API_BASE_URL}/rooms/${room.name}/messages`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          data: {
+            text: `paged-message-${sequence}`,
+            sequence_number: sequence,
+          },
+        },
+      );
+      expect(response.ok()).toBeTruthy();
+    }
+
+    await page.reload();
+    await page.waitForSelector(".tiptap-editor-content [contenteditable='true']");
+    await expect.poll(async () => actor.answer(MessageCount())).toBe(50);
+
+    await RoomScreen.loadOlderMessagesButton(page).click();
+    await expect.poll(async () => actor.answer(MessageCount())).toBe(55);
+
+    const texts = await actor.answer(MessageTexts());
+    expect(texts[0]).toContain("paged-message-0");
+    expect(texts.at(-1)).toContain("paged-message-54");
+    expect(new Set(texts).size).toBe(55);
   });
 });

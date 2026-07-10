@@ -70,9 +70,10 @@ pub struct UpdateRoomSettingsRequest {
     /// 房间密码（可选，设置为 None 表示移除密码）
     #[cfg_attr(feature = "typescript-export", ts(optional))]
     pub password: Option<String>,
-    /// 房间过期时间（可选，设置为 None 表示永不过期）
+    /// 房间有效期（可选，单位：秒；必须属于部署配置允许的期限）
+    #[cfg_attr(feature = "typescript-export", ts(type = "number | null"))]
     #[cfg_attr(feature = "typescript-export", ts(optional))]
-    pub expire_at: Option<NaiveDateTime>,
+    pub age_seconds: Option<i64>,
     /// 最大进入次数（可选）
     #[cfg_attr(feature = "typescript-export", ts(type = "number | null"))]
     #[cfg_attr(feature = "typescript-export", ts(optional))]

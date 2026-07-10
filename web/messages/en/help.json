@@ -33,7 +33,7 @@
       "title": "Room Settings",
       "expiry": {
         "title": "Expiry Time",
-        "description": "Set the room's expiry time. Room content will be cleared and reset upon expiry. Options include: 1 minute, 10 minutes, 1 hour, 12 hours, 1 day, 1 week, or never expire."
+        "description": "Set the room's expiry time. Room content will be cleared and reset upon expiry. Available durations are defined by the server deployment configuration."
       },
       "password": {
         "title": "Room Password",

@@ -1,4 +1,5 @@
 use smart_default::SmartDefault;
+use std::time::Duration;
 
 const DEFAULT_JWT_SECRET: &str =
     "default-secret-change-in-productiondefault-secret-change-in-production"; // pragma: allowlist secret
@@ -102,6 +103,38 @@ pub struct RoomConfig {
     #[default(3600)]
     #[merge(strategy = overwrite)]
     pub share_disabled_lock_duration: i64,
+    pub expiry: RoomExpiryConfig,
+}
+
+#[derive(Merge, Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
+pub struct RoomExpiryConfig {
+    #[merge(strategy = overwrite)]
+    pub allowed_ages: Vec<humantime_serde::Serde<Duration>>,
+    #[merge(strategy = overwrite)]
+    pub default_age: humantime_serde::Serde<Duration>,
+}
+
+impl Default for RoomExpiryConfig {
+    fn default() -> Self {
+        Self {
+            allowed_ages: [
+                60,
+                30 * 60,
+                2 * 60 * 60,
+                12 * 60 * 60,
+                24 * 60 * 60,
+                7 * 24 * 60 * 60,
+                30 * 24 * 60 * 60,
+                365 * 24 * 60 * 60,
+            ]
+            .into_iter()
+            .map(Duration::from_secs)
+            .map(Into::into)
+            .collect(),
+            default_age: Duration::from_secs(7 * 24 * 60 * 60).into(),
+        }
+    }
 }
 
 #[derive(Merge, Debug, Clone, SmartDefault, serde::Deserialize, serde::Serialize)]
@@ -283,6 +316,16 @@ mod tests {
         assert_eq!(cfg.room.max_size, 50 * 1024 * 1024);
         assert_eq!(cfg.room.max_times_entered, 100);
         assert_eq!(cfg.room.share_disabled_lock_duration, 3600);
+        assert_eq!(
+            cfg.room
+                .expiry
+                .allowed_ages
+                .iter()
+                .map(|age| age.as_secs())
+                .collect::<Vec<_>>(),
+            vec![60, 1800, 7200, 43200, 86400, 604800, 2592000, 31536000]
+        );
+        assert_eq!(cfg.room.expiry.default_age.as_secs(), 604800);
 
         assert_eq!(cfg.upload.reservation_ttl_seconds, 3600);
         assert_eq!(cfg.gc.interval_seconds, 600);
@@ -329,6 +372,10 @@ mod tests {
                 max_size: 42,
                 max_times_entered: 7,
                 share_disabled_lock_duration: 120,
+                expiry: RoomExpiryConfig {
+                    allowed_ages: vec![Duration::from_secs(30).into()],
+                    default_age: Duration::from_secs(30).into(),
+                },
             },
 
             upload: UploadConfig {
@@ -357,6 +404,8 @@ mod tests {
         assert_eq!(left.room.max_size, 42);
         assert_eq!(left.room.max_times_entered, 7);
         assert_eq!(left.room.share_disabled_lock_duration, 120);
+        assert_eq!(left.room.expiry.allowed_ages[0].as_secs(), 30);
+        assert_eq!(left.room.expiry.default_age.as_secs(), 30);
 
         assert_eq!(left.upload.reservation_ttl_seconds, 30);
         assert_eq!(left.gc.interval_seconds, 30);

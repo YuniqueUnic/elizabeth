@@ -9,12 +9,13 @@ use crate::dto::{
     ChunkedUploadPreparationResponse, CleanupResponse, CreateMessageRequest, CreateMessageResponse,
     CreateUrlContentRequest, CreateUrlContentResponse, DeleteContentRequest, DeleteContentResponse,
     DeleteRoomResponse, FileMergeRequest, FileMergeResponse, FullRoomGcStatusView,
-    IssueTokenRequest, IssueTokenResponse, LogoutRequest, MergedFileInfo, ReservedFileInfo,
+    IssueTokenRequest, IssueTokenResponse, LogoutRequest, MergedFileInfo, MessagePage,
+    PublicConfigResponse, PublicRoomConfig, PublicRoomExpiryConfig, ReservedFileInfo,
     RevokeTokenResponse, RoomContentView, RoomTokenClaims, RoomTokenView, RunRoomGcResponse,
-    TokenType, UpdateContentRequest, UpdateContentResponse, UpdateRoomPermissionRequest,
-    UpdateRoomSettingsRequest, UploadContentResponse, UploadPreparationRequest,
-    UploadPreparationResponse, UploadStatusQuery, UploadStatusResponse, ValidateTokenRequest,
-    ValidateTokenResponse,
+    TokenType, UpdateContentRequest, UpdateContentResponse,
+    UpdateRoomPermissionRequest, UpdateRoomSettingsRequest, UploadContentResponse,
+    UploadPreparationRequest, UploadPreparationResponse, UploadStatusQuery, UploadStatusResponse,
+    ValidateTokenRequest, ValidateTokenResponse,
 };
 #[cfg(feature = "typescript-export")]
 use crate::models::content::{ContentType, RoomContent};
@@ -68,6 +69,10 @@ pub fn export_ts_types_to(output_dir: &Path) -> Result<(), ts_rs::ExportError> {
     CreateUrlContentResponse::export_all(&output_dir_cfg)?;
     CreateMessageRequest::export_all(&output_dir_cfg)?;
     CreateMessageResponse::export_all(&output_dir_cfg)?;
+    MessagePage::export_all(&output_dir_cfg)?;
+    PublicConfigResponse::export_all(&output_dir_cfg)?;
+    PublicRoomConfig::export_all(&output_dir_cfg)?;
+    PublicRoomExpiryConfig::export_all(&output_dir_cfg)?;
 
     ChunkedUploadPreparationRequest::export_all(&output_dir_cfg)?;
     ChunkedUploadPreparationResponse::export_all(&output_dir_cfg)?;
@@ -128,6 +133,10 @@ pub fn exported_ts_type_names() -> &'static [&'static str] {
         "CreateUrlContentResponse",
         "CreateMessageRequest",
         "CreateMessageResponse",
+        "MessagePage",
+        "PublicConfigResponse",
+        "PublicRoomConfig",
+        "PublicRoomExpiryConfig",
         "ChunkedUploadPreparationRequest",
         "ChunkedUploadPreparationResponse",
         "ReservedFileInfo",
@@ -190,6 +199,10 @@ pub fn api_schema_json_pretty() -> Result<String, serde_json::Error> {
         create_url_content_response: CreateUrlContentResponse,
         create_message_request: CreateMessageRequest,
         create_message_response: CreateMessageResponse,
+        message_page: MessagePage,
+        public_config_response: PublicConfigResponse,
+        public_room_config: PublicRoomConfig,
+        public_room_expiry_config: PublicRoomExpiryConfig,
         chunked_upload_preparation_request: ChunkedUploadPreparationRequest,
         chunked_upload_preparation_response: ChunkedUploadPreparationResponse,
         reserved_file_info: ReservedFileInfo,

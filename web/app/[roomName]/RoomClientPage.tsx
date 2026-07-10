@@ -69,8 +69,11 @@ function RoomRealtimeSync({
   const desktopNotificationShowContent = useAppStore((state) =>
     state.desktopNotificationShowContent
   );
-  const syncMessagesFromServer = useAppStore((state) =>
-    state.syncMessagesFromServer
+  const applyMessageCreated = useAppStore((state) => state.applyMessageCreated);
+  const applyMessageUpdated = useAppStore((state) => state.applyMessageUpdated);
+  const applyMessageDeleted = useAppStore((state) => state.applyMessageDeleted);
+  const refreshLatestMessages = useAppStore((state) =>
+    state.refreshLatestMessages
   );
 
   const notifyContentChange = (
@@ -131,19 +134,27 @@ function RoomRealtimeSync({
       notifyContentChange("created", payload);
       const kind = parseContentType(payload.content_type);
       if (kind === ContentType.Text) {
-        void syncMessagesFromServer();
+        applyMessageCreated(payload);
       }
     },
     onContentUpdated: (payload) => {
       notifyContentChange("updated", payload);
       const kind = parseContentType(payload.content_type);
       if (kind === ContentType.Text) {
-        void syncMessagesFromServer();
+        applyMessageUpdated(payload);
       }
     },
     onContentDeleted: (payload) => {
       notifyContentChange("deleted", payload);
-      void syncMessagesFromServer();
+      const kind = parseContentType(payload.content_type);
+      if (kind === ContentType.Text && payload.content_id != null) {
+        applyMessageDeleted(String(payload.content_id));
+      }
+    },
+    onReconnected: () => {
+      void refreshLatestMessages().catch((error) => {
+        console.error("Failed to refresh messages after reconnect:", error);
+      });
     },
     onRoomUpdate: (payload) => {
       notifyRoomUpdate(payload);

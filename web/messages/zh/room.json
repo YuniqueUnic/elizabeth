@@ -243,7 +243,10 @@
   },
   "messageList": {
     "loading": "加载消息中...",
+    "loadingOlder": "正在加载更早的消息...",
+    "loadOlder": "加载更早的消息",
     "selectedCount": "已选择 {count} 条消息",
+    "loadedCount": "已加载 {count} 条消息",
     "totalCount": "共 {count} 条消息",
     "selectAll": "全选",
     "deselectAll": "取消全选",

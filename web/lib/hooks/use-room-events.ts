@@ -20,6 +20,7 @@ import type {
   RoomUpdatePayload,
   UserEventPayload,
 } from "./use-websocket";
+import { ContentType, parseContentType } from "../types";
 
 // ============================================================================
 // Query Key Factories
@@ -73,6 +74,8 @@ export interface UseRoomEventsOptions {
   onUserLeft?: (payload: UserEventPayload) => void;
   /** Callback when room is updated */
   onRoomUpdate?: (payload: RoomUpdatePayload) => void;
+  /** Callback after the websocket reconnects successfully */
+  onReconnected?: () => void;
   /** Enable automatic cache invalidation */
   enableCacheInvalidation?: boolean;
 }
@@ -103,6 +106,7 @@ export function useRoomEvents(options: UseRoomEventsOptions) {
     onUserJoined,
     onUserLeft,
     onRoomUpdate,
+    onReconnected,
     enableCacheInvalidation = true,
   } = options;
 
@@ -111,16 +115,14 @@ export function useRoomEvents(options: UseRoomEventsOptions) {
   /**
    * Invalidate relevant queries when content changes
    */
-  const invalidateContentQueries = useCallback(() => {
+  const invalidateContentQueries = useCallback((payload: ContentEventPayload) => {
     if (!enableCacheInvalidation) return;
 
-    // Invalidate files and messages queries
-    queryClient.invalidateQueries({
-      queryKey: queryKeys.roomFiles(roomName),
-    });
-    queryClient.invalidateQueries({
-      queryKey: queryKeys.roomMessages(roomName),
-    });
+    if (parseContentType(payload.content_type) !== ContentType.Text) {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.roomFiles(roomName),
+      });
+    }
   }, [roomName, queryClient, enableCacheInvalidation]);
 
   /**
@@ -145,21 +147,21 @@ export function useRoomEvents(options: UseRoomEventsOptions) {
       case WsMessageType.ContentCreated: {
         const payload = message.payload as ContentEventPayload;
         onContentCreated?.(payload);
-        invalidateContentQueries();
+        invalidateContentQueries(payload);
         break;
       }
 
       case WsMessageType.ContentUpdated: {
         const payload = message.payload as ContentEventPayload;
         onContentUpdated?.(payload);
-        invalidateContentQueries();
+        invalidateContentQueries(payload);
         break;
       }
 
       case WsMessageType.ContentDeleted: {
         const payload = message.payload as ContentEventPayload;
         onContentDeleted?.(payload);
-        invalidateContentQueries();
+        invalidateContentQueries(payload);
         break;
       }
 
@@ -205,6 +207,7 @@ export function useRoomEvents(options: UseRoomEventsOptions) {
     token,
     roomName,
     onMessage: handleMessage,
+    onReconnected,
     enableReconnect: true,
   });
 
@@ -226,7 +229,9 @@ export function useRoomEvents(options: UseRoomEventsOptions) {
      * Manually trigger a refresh of all room-related queries
      */
     refreshQueries: () => {
-      invalidateContentQueries();
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.roomFiles(roomName),
+      });
       invalidateRoomQueries();
     },
   };
