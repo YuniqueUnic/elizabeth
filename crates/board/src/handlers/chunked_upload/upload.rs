@@ -65,12 +65,12 @@ pub async fn upload_chunk(
     RoomNameValidator::validate_identifier(&room_name)?;
 
     let parsed = parse_chunk_upload(multipart).await?;
+    let verified = verify_room_token(app_state.clone(), &room_name, &token).await?;
     let reservation_repository = RoomUploadReservationRepository::new(app_state.db_pool.clone());
     let reservation = load_chunk_reservation(&reservation_repository, &parsed.upload_token).await?;
     let reservation_id = reservation_id_or_error(&reservation)?;
 
     validate_chunk_reservation(&reservation)?;
-    let verified = verify_room_token(app_state.clone(), &room_name, &token).await?;
     ensure_reservation_access(&reservation, &verified)?;
 
     let chunk_repository = RoomChunkUploadRepository::new(app_state.db_pool.clone());
@@ -232,12 +232,12 @@ async fn write_chunk_file(
     chunk_index: i32,
     chunk_data: &[u8],
 ) -> Result<(), AppError> {
-    let temp_dir = format!("/tmp/elizabeth/chunks/{reservation_id}/");
+    let temp_dir = crate::chunk_temp_storage::reservation_dir(reservation_id);
     fs::create_dir_all(&temp_dir)
         .await
         .map_err(|e| AppError::internal(format!("创建临时目录失败：{}", e)))?;
 
-    let chunk_file_path = format!("{}chunk_{}", temp_dir, chunk_index);
+    let chunk_file_path = crate::chunk_temp_storage::chunk_path(reservation_id, chunk_index.into());
     let mut file = fs::File::create(&chunk_file_path)
         .await
         .map_err(|e| AppError::internal(format!("创建分块文件失败：{}", e)))?;

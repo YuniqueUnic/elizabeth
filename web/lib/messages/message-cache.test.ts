@@ -9,6 +9,7 @@ import {
   rebasePendingMessages,
   removeMessage,
   replacePendingMessage,
+  replaceSavedMessage,
 } from "./message-cache";
 
 const serverMessage = (
@@ -83,6 +84,22 @@ describe("message cache", () => {
     assert.equal(messages.length, 1);
     assert.equal(messages[0]?.id, "42");
     assert.equal(messages[0]?.isNew, false);
+  });
+
+  test("accepts an authoritative save response and clears local edit state", () => {
+    const dirty: LocalMessage = {
+      ...serverMessage("7", 7, "local edit"),
+      isDirty: true,
+      originalContent: "server value",
+    };
+    const saved = serverMessage("7", 7, "local edit", "2026-07-10T01:00:00Z");
+
+    const messages = replaceSavedMessage([dirty], saved);
+
+    assert.equal(messages.length, 1);
+    assert.equal(messages[0]?.content, "local edit");
+    assert.equal(messages[0]?.isDirty, false);
+    assert.equal(messages[0]?.originalContent, undefined);
   });
 
   test("keeps local temporary messages after ordered server messages", () => {

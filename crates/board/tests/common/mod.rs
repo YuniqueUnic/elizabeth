@@ -7,6 +7,7 @@ pub mod mocks;
 
 use anyhow::Result;
 use std::sync::Arc;
+use uuid::Uuid;
 
 use board::config::{AppConfig, AuthConfig, RoomConfig, ServerConfig, StorageConfig};
 use board::constants::{
@@ -88,7 +89,7 @@ pub async fn create_test_app() -> Result<(axum::Router, Arc<board::db::DbPool>)>
         server: ServerConfig::default(),
         database: board::config::DatabaseConfig::default(),
         storage: StorageConfig {
-            root: std::env::temp_dir(),
+            root: std::env::temp_dir().join(format!("elizabeth-test-{}", Uuid::new_v4())),
             upload_reservation_ttl_seconds: DEFAULT_UPLOAD_RESERVATION_TTL_SECONDS,
         },
         room: RoomConfig {

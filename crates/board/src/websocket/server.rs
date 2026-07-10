@@ -100,7 +100,7 @@ impl WsServer {
         let manager_recv = manager.clone();
         let connection_id_recv = connection_id.clone();
         let room_name_recv = room_name.clone();
-        let recv_task = tokio::spawn(async move {
+        let mut recv_task = tokio::spawn(async move {
             while let Some(Ok(msg)) = receiver.next().await {
                 if let Err(e) = Self::handle_client_message(
                     msg,
@@ -120,7 +120,7 @@ impl WsServer {
 
         // 创建发送广播消息的任务
         let connection_id_send = connection_id.clone();
-        let send_task = tokio::spawn(async move {
+        let mut send_task = tokio::spawn(async move {
             while let Some(msg) = rx.recv().await {
                 let json = match serde_json::to_string(&msg) {
                     Ok(s) => s,
@@ -147,11 +147,15 @@ impl WsServer {
 
         // 等待任一任务完成
         tokio::select! {
-            _ = recv_task => {
+            _ = &mut recv_task => {
                 log::info!("Receive task completed for connection {}", connection_id);
+                send_task.abort();
+                let _ = send_task.await;
             }
-            _ = send_task => {
+            _ = &mut send_task => {
                 log::info!("Send task completed for connection {}", connection_id);
+                recv_task.abort();
+                let _ = recv_task.await;
             }
         }
 

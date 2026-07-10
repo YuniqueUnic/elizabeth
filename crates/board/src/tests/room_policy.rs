@@ -20,8 +20,10 @@ use crate::repository::{
     RoomRefreshTokenRepository, RoomRepository, RoomTokenRepository,
     RoomUploadReservationRepository,
 };
+use crate::scheduler::ScheduledTask;
 use crate::services::{RoomPasswordService, migrate_legacy_room_passwords};
 use crate::state::AppState;
+use crate::tasks::UploadCleanupTask;
 use crate::websocket::handler::MessageHandler;
 use crate::websocket::types::ConnectRequest;
 
@@ -431,5 +433,51 @@ async fn legacy_expiry_migration_backfills_one_week_and_adds_upload_owner() -> a
         })
         .count() as i64;
     assert_eq!(column_count, 1);
+    Ok(())
+}
+
+#[tokio::test]
+async fn upload_cleanup_removes_expired_chunk_files_before_database_rows() -> anyhow::Result<()> {
+    let state = setup_state(std::env::temp_dir().as_path()).await?;
+    let room = state
+        .services
+        .room_repository
+        .create(&future_room("expired-chunk-cleanup-room"))
+        .await?;
+    let repository = Arc::new(RoomUploadReservationRepository::new(state.db_pool.clone()));
+    let (reservation, _) = repository
+        .reserve_upload(
+            &room,
+            "expired-upload-token",
+            "owner-jti",
+            "[]",
+            8,
+            Duration::hours(1),
+        )
+        .await?;
+    let reservation_id = reservation.id.expect("reservation id");
+    sqlx::query(
+        r#"
+        UPDATE room_upload_reservations
+        SET chunked_upload = true,
+            total_chunks = 1,
+            chunk_size = 8,
+            reserved_at = datetime('now', '-2 hours'),
+            expires_at = datetime('now', '-1 hour')
+        WHERE id = $1
+        "#,
+    )
+    .bind(reservation_id)
+    .execute(&*state.db_pool)
+    .await?;
+
+    let chunk_dir = crate::chunk_temp_storage::reservation_dir(reservation_id);
+    tokio::fs::create_dir_all(&chunk_dir).await?;
+    tokio::fs::write(chunk_dir.join("chunk_0"), b"orphaned").await?;
+
+    let report = UploadCleanupTask::new(repository.clone()).run().await?;
+    assert_eq!(report.changed, 1);
+    assert!(!tokio::fs::try_exists(&chunk_dir).await?);
+    assert!(repository.fetch_by_id(reservation_id).await?.is_none());
     Ok(())
 }

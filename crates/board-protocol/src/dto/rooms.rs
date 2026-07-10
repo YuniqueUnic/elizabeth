@@ -49,7 +49,7 @@ impl From<&Room> for RoomView {
             expire_at: room.expire_at,
             created_at: room.created_at,
             updated_at: room.updated_at,
-            permission: room.permission.clone(),
+            permission: room.permission,
             password_protected: room.password.is_some(),
         }
     }

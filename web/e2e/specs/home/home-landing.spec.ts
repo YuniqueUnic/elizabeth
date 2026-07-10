@@ -29,15 +29,23 @@ test.describe("Home landing", () => {
     expect(await actor.answer(CurrentRoomName())).toBe(roomName);
   });
 
-  test("opens a room directly from its URL", async ({ actor, page }) => {
-    const roomName = uniqueRoomName("screenplay-direct-room");
+  test("opens an existing public room directly from its URL", async ({
+    actor,
+    page,
+    provisionRoom,
+  }) => {
+    const room = await provisionRoom({
+      actor,
+      roomName: uniqueRoomName("screenplay-direct-room"),
+      injectToken: false,
+    });
 
     await actor.attemptsTo(
-      OpenRoom(`/${roomName}`),
+      OpenRoom(room.url),
     );
 
     await expect(RoomScreen.messageInput(page)).toBeVisible();
-    expect(await actor.answer(CurrentRoomName())).toBe(roomName);
+    expect(await actor.answer(CurrentRoomName())).toBe(room.name);
   });
 
   test("returns from the join form back to the landing page", async ({ actor, page }) => {

@@ -1,4 +1,5 @@
 #![allow(unused_imports, unused_variables, dead_code)]
+mod chunk_temp_storage;
 pub mod cmd;
 pub mod config;
 pub mod constants;
@@ -46,11 +47,12 @@ use crate::db::{
     init_db, run_migrations,
 };
 use crate::init::{cfg_service, const_service, log_service};
+use crate::middleware::MiddlewareScheduledTask;
 use crate::repository::RoomUploadReservationRepository;
 use crate::repository::room_refresh_token_repository::{
     RoomRefreshTokenRepository, TokenBlacklistRepository,
 };
-use crate::scheduler::{TaskRegistration, TaskScheduler};
+use crate::scheduler::{SchedulerHandle, TaskRegistration, TaskScheduler};
 use crate::services::{RoomTokenService, refresh_token_service::RefreshTokenService};
 use crate::state::AppState;
 use crate::tasks::{RoomLifecycleTask, TokenCleanupTask, UploadCleanupTask};
@@ -145,14 +147,13 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
         );
     }
 
-    let scheduler = start_scheduler(app_state.clone(), cfg);
-    let scheduler_cancellation = scheduler.cancellation_token();
-
     let addr: SocketAddr = format!("{}:{}", cfg.app.server.addr, cfg.app.server.port).parse()?;
     let listener = tokio::net::TcpListener::bind(addr).await?;
     let actual_addr = listener.local_addr()?;
 
-    let (scalar_path, router) = build_api_router(app_state, cfg);
+    let (scalar_path, router, middleware_tasks) = build_api_router(app_state.clone(), cfg)?;
+    let scheduler = start_scheduler(app_state, cfg, middleware_tasks)?;
+    let scheduler_cancellation = scheduler.cancellation_token();
 
     println!("Server listening on http://{actual_addr}");
     println!("Scalar listening on http://{actual_addr}{}", &scalar_path);
@@ -203,7 +204,10 @@ async fn apply_sqlite_journal_mode(
     Ok(())
 }
 
-fn build_api_router(app_state: Arc<AppState>, cfg: &configrs::Config) -> (String, axum::Router) {
+fn build_api_router(
+    app_state: Arc<AppState>,
+    cfg: &configrs::Config,
+) -> anyhow::Result<(String, axum::Router, Vec<MiddlewareScheduledTask>)> {
     let (status_router, mut api) = route::status::api_router().split_for_parts();
     let (room_router, room_api) = route::room::api_router(app_state.clone()).split_for_parts();
     let (auth_router, auth_api) = route::auth::auth_router(app_state.clone()).split_for_parts();
@@ -250,15 +254,15 @@ fn build_api_router(app_state: Arc<AppState>, cfg: &configrs::Config) -> (String
 
     // Apply middleware configuration
     let middleware_config = crate::middleware::from_app_config(cfg);
-    let router = crate::middleware::apply(&middleware_config, router);
+    let middleware = crate::middleware::apply(&middleware_config, router)?;
 
     // SPA fallback：把嵌入的前端静态资源挂到最低优先级
     // - 精确匹配静态文件（_next/*, favicon.ico 等）→ 直接返回
     // - /api/* 路径 → JSON 404（防止穿透到 SPA）
     // - 所有其他路径 → 返回 index.html（由客户端 React Router 接管）
-    let router = router.fallback(spa_fallback);
+    let router = middleware.router.fallback(spa_fallback);
 
-    (scalar_path, router)
+    Ok((scalar_path, router, middleware.scheduled_tasks))
 }
 
 /// Next.js `output: 'export'` 产物目录，由 rust-embed 在编译期打包进二进制
@@ -334,16 +338,20 @@ fn serve_html_asset(name: &str) -> Response {
     }
 }
 
-fn start_scheduler(app_state: Arc<AppState>, cfg: &Config) -> scheduler::SchedulerHandle {
-    let room_interval = std::time::Duration::from_secs(cfg.app.gc.interval_seconds.max(5));
+fn start_scheduler(
+    app_state: Arc<AppState>,
+    cfg: &Config,
+    middleware_tasks: Vec<MiddlewareScheduledTask>,
+) -> anyhow::Result<SchedulerHandle> {
+    let room_interval = std::time::Duration::from_secs(cfg.app.gc.interval_seconds);
     let auth_interval =
-        std::time::Duration::from_secs(app_state.config.auth.cleanup_interval_seconds.max(5));
+        std::time::Duration::from_secs(app_state.config.auth.cleanup_interval_seconds);
     let timeout = std::time::Duration::from_secs(300);
     let upload_repository = Arc::new(RoomUploadReservationRepository::new(
         app_state.db_pool.clone(),
     ));
 
-    TaskScheduler::new(vec![
+    let mut registrations = vec![
         TaskRegistration {
             interval: room_interval,
             timeout,
@@ -366,8 +374,17 @@ fn start_scheduler(app_state: Arc<AppState>, cfg: &Config) -> scheduler::Schedul
             timeout,
             task: Arc::new(UploadCleanupTask::new(upload_repository)),
         },
-    ])
-    .start()
+    ];
+    registrations.extend(
+        middleware_tasks
+            .into_iter()
+            .map(|scheduled| TaskRegistration {
+                interval: scheduled.interval,
+                timeout: std::time::Duration::from_secs(5),
+                task: scheduled.task,
+            }),
+    );
+    Ok(TaskScheduler::new(registrations)?.start())
 }
 
 async fn shutdown_signal(cancellation: tokio_util::sync::CancellationToken) {

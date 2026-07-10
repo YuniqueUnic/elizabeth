@@ -91,10 +91,20 @@ export function replacePendingMessage(
   pendingId: string,
   saved: Message,
 ): LocalMessage[] {
-  const withoutPendingOrDuplicate = messages.filter((message) =>
-    message.id !== pendingId && message.id !== saved.id
+  return replaceSavedMessage(
+    messages.filter((message) => message.id !== pendingId),
+    saved,
   );
-  return mergeMessagePage(withoutPendingOrDuplicate, [saved]);
+}
+
+export function replaceSavedMessage(
+  messages: LocalMessage[],
+  saved: Message,
+): LocalMessage[] {
+  const withoutSavedVersion = messages.filter((message) =>
+    message.id !== saved.id
+  );
+  return mergeMessagePage(withoutSavedVersion, [saved]);
 }
 
 export function rebasePendingMessages(

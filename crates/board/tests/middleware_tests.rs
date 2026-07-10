@@ -163,7 +163,8 @@ async fn test_rate_limiting_middleware() -> Result<()> {
         );
 
         let result = app.clone().oneshot(request).await;
-        if matches!(result, Ok(ref resp) if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND) {
+        if matches!(result, Ok(ref resp) if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND)
+        {
             successful_requests += 1;
         }
     }

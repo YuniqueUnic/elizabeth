@@ -215,7 +215,7 @@ async fn test_list_expired_rooms() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_expired_room_is_purged_on_access() -> Result<()> {
+async fn test_expired_room_remains_queryable_until_lifecycle_cleanup() -> Result<()> {
     let pool = create_test_pool().await?;
     let repository = RoomRepository::new(pool.clone());
 
@@ -232,16 +232,17 @@ async fn test_expired_room_is_purged_on_access() -> Result<()> {
         .execute(pool.as_ref())
         .await?;
 
-    // 第一次访问应触发清理
+    // Repository 层仍可查询到实体；访问拒绝与物理清理由更高层负责。
     let result = repository.find_by_name("purge_test").await?;
-    assert!(
-        result.is_none(),
-        "Expired room should be purged and inaccessible"
-    );
+    let room = result.expect("expired room should still be queryable before cleanup");
+    assert!(room.is_expired(), "room should be marked expired");
 
-    // 确认数据库中已删除
+    // 数据仍存在，等待 lifecycle 任务幂等清理。
     let exists = repository.exists("purge_test").await?;
-    assert!(!exists, "Expired room should be deleted from storage");
+    assert!(
+        exists,
+        "expired room should remain until lifecycle cleanup runs"
+    );
 
     Ok(())
 }

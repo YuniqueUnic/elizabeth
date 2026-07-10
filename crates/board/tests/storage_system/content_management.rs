@@ -1,5 +1,3 @@
-#![allow(unused_variables, unused_imports, dead_code)]
-
 use anyhow::Result;
 use axum::{
     body::Body,
@@ -8,288 +6,180 @@ use axum::{
 use serde_json::json;
 use tower::ServiceExt;
 
-use crate::common::{
-    create_test_app,
-    http::{assert_json, create_request as create_http_request},
-};
+use crate::common::{create_test_app, http::create_request};
+
+use super::{create_room_and_issue_session, response_json};
 
 #[tokio::test]
 async fn test_content_management_text() -> Result<()> {
     let (app, _pool) = create_test_app().await?;
-
     let room_name = "text_content_test_room";
-    let password = "text123";
+    let session = create_room_and_issue_session(&app, room_name, Some("text123")).await?;
 
-    // 创建带密码的房间
-    let create_request = create_http_request(
-        Method::POST,
-        &format!("/api/v1/rooms/{}?password={}", room_name, password),
-        None,
-    );
-    let create_response = app.clone().oneshot(create_request).await?;
-    assert_eq!(create_response.status(), StatusCode::OK);
+    let create = app
+        .clone()
+        .oneshot(create_request(
+            Method::POST,
+            &format!("/api/v1/rooms/{room_name}/messages?token={}", session.token),
+            Some(Body::from(
+                json!({ "text": "Hello, this is test content!" }).to_string(),
+            )),
+        ))
+        .await?;
+    assert_eq!(create.status(), StatusCode::OK);
+    let created = response_json(create).await?;
+    assert_eq!(created["message"]["text"], "Hello, this is test content!");
 
-    // 签发令牌
-    let token_payload = json!({ "password": password });
-    let token_request = create_http_request(
-        Method::POST,
-        &format!("/api/v1/rooms/{}/tokens", room_name),
-        Some(Body::from(token_payload.to_string())),
-    );
-    let token_response = app.clone().oneshot(token_request).await?;
-    assert_eq!(token_response.status(), StatusCode::OK);
-
-    let token_body = axum::body::to_bytes(token_response.into_body(), usize::MAX).await?;
-    let token_json: serde_json::Value = serde_json::from_slice(&token_body)?;
-    let token = token_json["token"].as_str().unwrap().to_string();
-
-    // 更新房间内容 - 文本
-    let content_payload = json!({
-        "text": "Hello, this is test content!",
-        "urls": []
-    });
-    let content_request = create_http_request(
-        Method::PUT,
-        &format!("/api/v1/rooms/{}/content?token={}", room_name, token),
-        Some(Body::from(content_payload.to_string())),
-    );
-    let content_response = app.clone().oneshot(content_request).await?;
-
-    // 内容更新端点可能实现或未实现
-    let content_status = content_response.status();
-    println!("Content update status: {}", content_status);
-
-    if content_status == StatusCode::OK {
-        // 如果端点实现，继续测试内容获取
-    } else {
-        // 如果端点未实现，跳过验证
-        println!("Content update endpoint not implemented, skipping verification");
-        return Ok(());
-    }
-
-    // 获取房间内容
-    let get_request = create_http_request(
-        Method::GET,
-        &format!("/api/v1/rooms/{}?include_content=true", room_name),
-        None,
-    );
-    let get_response = app.clone().oneshot(get_request).await?;
-    assert_eq!(get_response.status(), StatusCode::OK);
-
-    let get_body = axum::body::to_bytes(get_response.into_body(), usize::MAX).await?;
-    let get_json: serde_json::Value = serde_json::from_slice(&get_body)?;
-
-    // 验证内容存在
-    assert!(get_json["content"].is_object());
-    assert_eq!(get_json["content"]["text"], "Hello, this is test content!");
-
+    let list = app
+        .oneshot(create_request(
+            Method::GET,
+            &format!("/api/v1/rooms/{room_name}/messages?token={}", session.token),
+            None,
+        ))
+        .await?;
+    assert_eq!(list.status(), StatusCode::OK);
+    let page = response_json(list).await?;
+    assert_eq!(page["items"].as_array().expect("message items").len(), 1);
+    assert_eq!(page["items"][0]["text"], "Hello, this is test content!");
     Ok(())
 }
 
-/// 测试内容管理 - URL 内容
 #[tokio::test]
 async fn test_content_management_urls() -> Result<()> {
     let (app, _pool) = create_test_app().await?;
-
     let room_name = "url_content_test_room";
+    let session = create_room_and_issue_session(&app, room_name, None).await?;
 
-    // 创建房间
-    let create_request =
-        create_http_request(Method::GET, &format!("/api/v1/rooms/{}", room_name), None);
-    let create_response = app.clone().oneshot(create_request).await?;
-    assert_eq!(create_response.status(), StatusCode::OK);
+    let create = app
+        .clone()
+        .oneshot(create_request(
+            Method::POST,
+            &format!(
+                "/api/v1/rooms/{room_name}/contents/url?token={}",
+                session.token
+            ),
+            Some(Body::from(
+                json!({
+                    "url": "https://example.com/image.png",
+                    "name": "Example image",
+                    "description": "remote asset"
+                })
+                .to_string(),
+            )),
+        ))
+        .await?;
+    assert_eq!(create.status(), StatusCode::OK);
+    let created = response_json(create).await?;
+    assert_eq!(created["created"]["url"], "https://example.com/image.png");
+    assert_eq!(created["created"]["file_name"], "Example image");
 
-    // 签发令牌
-    let token_payload = json!({});
-    let token_request = create_http_request(
-        Method::POST,
-        &format!("/api/v1/rooms/{}/tokens", room_name),
-        Some(Body::from(token_payload.to_string())),
-    );
-    let token_response = app.clone().oneshot(token_request).await?;
-    assert_eq!(token_response.status(), StatusCode::OK);
-
-    let token_body = axum::body::to_bytes(token_response.into_body(), usize::MAX).await?;
-    let token_json: serde_json::Value = serde_json::from_slice(&token_body)?;
-    let token = token_json["token"].as_str().unwrap().to_string();
-
-    // 更新房间内容 - URLs
-    let content_payload = json!({
-        "text": "",
-        "urls": [
-            "https://example.com/image1.jpg",
-            "https://example.com/image2.png"
-        ]
-    });
-    let content_request = create_http_request(
-        Method::PUT,
-        &format!("/api/v1/rooms/{}/content?token={}", room_name, token),
-        Some(Body::from(content_payload.to_string())),
-    );
-    let content_response = app.clone().oneshot(content_request).await?;
-
-    // 内容更新端点可能实现或未实现
-    let content_status = content_response.status();
-    println!("URL content update status: {}", content_status);
-
-    if content_status == StatusCode::OK {
-        // 如果端点实现，继续测试内容获取
-    } else {
-        println!("Content update endpoint not implemented, skipping verification");
-        return Ok(());
-    }
-
-    // 获取房间内容
-    let get_request = create_http_request(
-        Method::GET,
-        &format!("/api/v1/rooms/{}?include_content=true", room_name),
-        None,
-    );
-    let get_response = app.oneshot(get_request).await?;
-    assert_eq!(get_response.status(), StatusCode::OK);
-
-    let get_body = axum::body::to_bytes(get_response.into_body(), usize::MAX).await?;
-    let get_json: serde_json::Value = serde_json::from_slice(&get_body)?;
-
-    // 验证 URLs 存在
-    assert!(get_json["content"].is_object());
-    assert_eq!(get_json["content"]["text"], "");
-    let urls = get_json["content"]["urls"].as_array().unwrap();
-    assert_eq!(urls.len(), 2);
-    assert_eq!(urls[0], "https://example.com/image1.jpg");
-    assert_eq!(urls[1], "https://example.com/image2.png");
-
+    let list = app
+        .oneshot(create_request(
+            Method::GET,
+            &format!("/api/v1/rooms/{room_name}/contents?token={}", session.token),
+            None,
+        ))
+        .await?;
+    assert_eq!(list.status(), StatusCode::OK);
+    let contents = response_json(list).await?;
+    assert_eq!(contents.as_array().expect("room contents").len(), 1);
+    assert_eq!(contents[0]["url"], "https://example.com/image.png");
     Ok(())
 }
 
-/// 测试内容管理 - 混合内容
 #[tokio::test]
 async fn test_content_management_mixed() -> Result<()> {
     let (app, _pool) = create_test_app().await?;
-
     let room_name = "mixed_content_test_room";
+    let session = create_room_and_issue_session(&app, room_name, None).await?;
 
-    // 创建房间
-    let create_request =
-        create_http_request(Method::GET, &format!("/api/v1/rooms/{}", room_name), None);
-    let create_response = app.clone().oneshot(create_request).await?;
-    assert_eq!(create_response.status(), StatusCode::OK);
-
-    // 签发令牌
-    let token_payload = json!({});
-    let token_request = create_http_request(
-        Method::POST,
-        &format!("/api/v1/rooms/{}/tokens", room_name),
-        Some(Body::from(token_payload.to_string())),
-    );
-    let token_response = app.clone().oneshot(token_request).await?;
-    assert_eq!(token_response.status(), StatusCode::OK);
-
-    let token_body = axum::body::to_bytes(token_response.into_body(), usize::MAX).await?;
-    let token_json: serde_json::Value = serde_json::from_slice(&token_body)?;
-    let token = token_json["token"].as_str().unwrap().to_string();
-
-    // 更新房间内容 - 混合内容
-    let content_payload = json!({
-        "text": "This is mixed content with images:",
-        "urls": [
-            "https://example.com/image1.jpg",
-            "https://example.com/image2.png"
-        ]
-    });
-    let content_request = create_http_request(
-        Method::PUT,
-        &format!("/api/v1/rooms/{}/content?token={}", room_name, token),
-        Some(Body::from(content_payload.to_string())),
-    );
-    let content_response = app.clone().oneshot(content_request).await?;
-
-    // 内容更新端点可能实现或未实现
-    let content_status = content_response.status();
-    println!("Mixed content update status: {}", content_status);
-
-    if content_status == StatusCode::OK {
-        // 如果端点实现，继续测试内容获取
-    } else {
-        println!("Content update endpoint not implemented, skipping verification");
-        return Ok(());
+    for (path, payload) in [
+        (
+            "messages",
+            json!({ "text": "A message in the mixed room", "sequence_number": 1 }),
+        ),
+        (
+            "contents/url",
+            json!({
+                "url": "https://example.com/docs",
+                "name": "Documentation",
+                "description": "A link in the mixed room"
+            }),
+        ),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(create_request(
+                Method::POST,
+                &format!("/api/v1/rooms/{room_name}/{path}?token={}", session.token),
+                Some(Body::from(payload.to_string())),
+            ))
+            .await?;
+        assert_eq!(response.status(), StatusCode::OK);
     }
 
-    // 验证内容存储大小和 UTF-8 字节计算
-    let get_request = create_http_request(
-        Method::GET,
-        &format!("/api/v1/rooms/{}?include_content=true", room_name),
-        None,
+    let list = app
+        .oneshot(create_request(
+            Method::GET,
+            &format!("/api/v1/rooms/{room_name}/contents?token={}", session.token),
+            None,
+        ))
+        .await?;
+    assert_eq!(list.status(), StatusCode::OK);
+    let contents = response_json(list).await?;
+    let contents = contents.as_array().expect("mixed room contents");
+    assert_eq!(contents.len(), 2);
+    assert!(
+        contents
+            .iter()
+            .any(|item| item["text"] == "A message in the mixed room")
     );
-    let get_response = app.oneshot(get_request).await?;
-    assert_eq!(get_response.status(), StatusCode::OK);
-
-    let get_body = axum::body::to_bytes(get_response.into_body(), usize::MAX).await?;
-    let get_json: serde_json::Value = serde_json::from_slice(&get_body)?;
-
-    // 验证混合内容存在
-    assert!(get_json["content"].is_object());
-    assert_eq!(
-        get_json["content"]["text"],
-        "This is mixed content with images:"
+    assert!(
+        contents
+            .iter()
+            .any(|item| item["url"] == "https://example.com/docs")
     );
-    let urls = get_json["content"]["urls"].as_array().unwrap();
-    assert_eq!(urls.len(), 2);
-
     Ok(())
 }
 
-/// 测试内容管理错误处理
 #[tokio::test]
 async fn test_content_management_errors() -> Result<()> {
     let (app, _pool) = create_test_app().await?;
-
     let room_name = "error_content_test_room";
+    let session = create_room_and_issue_session(&app, room_name, None).await?;
 
-    // 创建房间
-    let create_request =
-        create_http_request(Method::GET, &format!("/api/v1/rooms/{}", room_name), None);
-    let create_response = app.clone().oneshot(create_request).await?;
-    assert_eq!(create_response.status(), StatusCode::OK);
+    let missing_token = app
+        .clone()
+        .oneshot(create_request(
+            Method::POST,
+            &format!("/api/v1/rooms/{room_name}/messages"),
+            Some(Body::from(json!({ "text": "must fail" }).to_string())),
+        ))
+        .await?;
+    assert_eq!(missing_token.status(), StatusCode::UNAUTHORIZED);
 
-    // 测试无令牌更新内容
-    let content_payload = json!({
-        "text": "This should fail",
-        "urls": []
-    });
-    let content_request = create_http_request(
-        Method::PUT,
-        &format!("/api/v1/rooms/{}/content", room_name),
-        Some(Body::from(content_payload.to_string())),
-    );
-    let content_response = app.clone().oneshot(content_request).await?;
+    let invalid_token = app
+        .clone()
+        .oneshot(create_request(
+            Method::POST,
+            &format!("/api/v1/rooms/{room_name}/messages?token=invalid_token"),
+            Some(Body::from(json!({ "text": "must fail" }).to_string())),
+        ))
+        .await?;
+    assert_eq!(invalid_token.status(), StatusCode::UNAUTHORIZED);
 
-    // 内容更新端点可能未实现，所以可能是 404 或 401
-    let content_status = content_response.status();
-    assert!(content_status == StatusCode::UNAUTHORIZED || content_status == StatusCode::NOT_FOUND);
-
-    // 测试无效令牌更新内容
-    let invalid_content_request = create_http_request(
-        Method::PUT,
-        &format!("/api/v1/rooms/{}/content?token=invalid_token", room_name),
-        Some(Body::from(content_payload.to_string())),
-    );
-    let invalid_content_response = app.clone().oneshot(invalid_content_request).await?;
-
-    // 内容更新端点可能未实现，所以可能是 404 或 401
-    let invalid_status = invalid_content_response.status();
-    assert!(invalid_status == StatusCode::UNAUTHORIZED || invalid_status == StatusCode::NOT_FOUND);
-
-    // 测试不存在的房间
-    let nonexistent_room_request = create_http_request(
-        Method::PUT,
-        "/api/v1/rooms/nonexistent_room/content?token=dummy_token",
-        Some(Body::from(content_payload.to_string())),
-    );
-    let nonexistent_room_response = app.clone().oneshot(nonexistent_room_request).await?;
-
-    // 不存在房间的请求应该返回 404（无论端点是否实现）
-    assert_eq!(nonexistent_room_response.status(), StatusCode::NOT_FOUND);
-
+    let invalid_url = app
+        .oneshot(create_request(
+            Method::POST,
+            &format!(
+                "/api/v1/rooms/{room_name}/contents/url?token={}",
+                session.token
+            ),
+            Some(Body::from(
+                json!({ "url": "not-a-url", "name": "invalid" }).to_string(),
+            )),
+        ))
+        .await?;
+    assert_eq!(invalid_url.status(), StatusCode::BAD_REQUEST);
     Ok(())
 }

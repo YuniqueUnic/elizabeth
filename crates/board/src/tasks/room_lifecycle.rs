@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use async_trait::async_trait;
 
-use crate::scheduler::{ScheduledTask, TaskRunReport};
+use crate::scheduler::{ScheduledTask, ScheduledTaskId, TaskRunReport};
 use crate::services::RoomLifecycleService;
 use crate::websocket::connection::ConnectionManager;
 
@@ -32,8 +32,8 @@ impl RoomLifecycleTask {
 
 #[async_trait]
 impl ScheduledTask for RoomLifecycleTask {
-    fn name(&self) -> &'static str {
-        "room_lifecycle"
+    fn id(&self) -> ScheduledTaskId {
+        ScheduledTaskId::RoomLifecycle
     }
 
     async fn run(&self) -> Result<TaskRunReport> {

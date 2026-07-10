@@ -34,6 +34,46 @@ fn create_room_request(room_name: &str, password: Option<&str>) -> Request<Body>
     )
 }
 
+fn single_chunk_request(
+    room_name: &str,
+    token: &str,
+    upload_token: &str,
+    file_data: &str,
+) -> Result<Request<Body>> {
+    let boundary = "----chunked-upload-boundary";
+    let chunk_body = format!(
+        "--{boundary}\r\n\
+         Content-Disposition: form-data; name=\"upload_token\"\r\n\
+         \r\n\
+         {upload_token}\r\n\
+         --{boundary}\r\n\
+         Content-Disposition: form-data; name=\"chunk_index\"\r\n\
+         \r\n\
+         0\r\n\
+         --{boundary}\r\n\
+         Content-Disposition: form-data; name=\"chunk_size\"\r\n\
+         \r\n\
+         {}\r\n\
+         --{boundary}\r\n\
+         Content-Disposition: form-data; name=\"chunk_data\"; filename=\"test_file.txt\"\r\n\
+         Content-Type: text/plain\r\n\
+         \r\n\
+         {file_data}\r\n\
+         --{boundary}--\r\n",
+        file_data.len(),
+    );
+    Ok(Request::builder()
+        .method(Method::POST)
+        .uri(format!(
+            "/api/v1/rooms/{room_name}/uploads/chunks?token={token}"
+        ))
+        .header(
+            "content-type",
+            format!("multipart/form-data; boundary={boundary}"),
+        )
+        .body(Body::from(chunk_body))?)
+}
+
 /// 测试基本的分块上传流程
 #[tokio::test]
 async fn test_chunked_upload_complete_workflow() -> Result<()> {
@@ -99,39 +139,7 @@ async fn test_chunked_upload_complete_workflow() -> Result<()> {
         .to_string();
 
     // 4. 分块上传 - 使用 multipart/form-data 和正确的字段
-    let boundary = "----chunked-upload-boundary";
-    let chunk_body = format!(
-        "--{boundary}\r\n\
-         Content-Disposition: form-data; name=\"upload_token\"\r\n\
-         \r\n\
-         {}\r\n\
-         --{boundary}\r\n\
-         Content-Disposition: form-data; name=\"chunk_index\"\r\n\
-         \r\n\
-         0\r\n\
-         --{boundary}\r\n\
-         Content-Disposition: form-data; name=\"chunk_size\"\r\n\
-         \r\n\
-         {}\r\n\
-         --{boundary}\r\n\
-         Content-Disposition: form-data; name=\"chunk_data\"; filename=\"test_file.txt\"\r\n\
-         Content-Type: text/plain\r\n\
-         \r\n\
-         {}\r\n\
-         --{boundary}--\r\n",
-        upload_token,
-        file_data.len(),
-        file_data
-    );
-
-    let upload_request = Request::builder()
-        .method(Method::POST)
-        .uri(format!("/api/v1/rooms/{}/uploads/chunks?token={}", room_name, token))
-        .header(
-            "content-type",
-            format!("multipart/form-data; boundary={}", boundary),
-        )
-        .body(Body::from(chunk_body))?;
+    let upload_request = single_chunk_request(room_name, &token, &upload_token, file_data)?;
 
     let upload_response = app.clone().oneshot(upload_request).await?;
     assert_eq!(upload_response.status(), StatusCode::OK);
@@ -165,7 +173,10 @@ async fn test_chunked_upload_complete_workflow() -> Result<()> {
     });
     let complete_request = create_http_request(
         Method::POST,
-        &format!("/api/v1/rooms/{}/uploads/chunks/complete?token={}", room_name, token),
+        &format!(
+            "/api/v1/rooms/{}/uploads/chunks/complete?token={}",
+            room_name, token
+        ),
         Some(Body::from(complete_payload.to_string())),
     );
 
@@ -253,7 +264,10 @@ async fn test_chunked_upload_error_handling() -> Result<()> {
 
     let upload_request = Request::builder()
         .method(Method::POST)
-        .uri(format!("/api/v1/rooms/{}/uploads/chunks?token={}", room_name, token))
+        .uri(format!(
+            "/api/v1/rooms/{}/uploads/chunks?token={}",
+            room_name, token
+        ))
         .header(
             "content-type",
             format!("multipart/form-data; boundary={}", boundary),

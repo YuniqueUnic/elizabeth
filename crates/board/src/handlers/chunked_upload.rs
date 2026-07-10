@@ -4,7 +4,6 @@ use axum::{
 };
 use chrono::Utc;
 use std::sync::Arc;
-use tokio::fs;
 use uuid::Uuid;
 
 use crate::{
@@ -352,10 +351,7 @@ pub async fn cancel_chunked_upload(
     }
 
     // 清理临时分块文件
-    let temp_dir = format!("/tmp/elizabeth/chunks/{}", reservation_id);
-    if fs::metadata(&temp_dir).await.is_ok()
-        && let Err(e) = fs::remove_dir_all(&temp_dir).await
-    {
+    if let Err(e) = crate::chunk_temp_storage::remove_reservation_dir(reservation_id).await {
         logrs::error!("清理临时分块文件失败：{}", e);
     }
 

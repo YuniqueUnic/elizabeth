@@ -93,7 +93,7 @@ pub async fn verify_room_token(
         return Err(AppError::authentication("Token room mismatch"));
     }
     if room.is_expired() {
-        return Err(AppError::authentication("Room expired"));
+        return Err(AppError::room_expired(room_name));
     }
     if room.status() != RoomStatus::Open {
         return Err(AppError::authentication("Room cannot be entered"));
@@ -157,7 +157,7 @@ pub async fn verify_room_token_by_id(
         return Err(AppError::authentication("Token room ID mismatch"));
     }
     if room.is_expired() {
-        return Err(AppError::authentication("Room expired"));
+        return Err(AppError::room_expired(room.slug.clone()));
     }
     if room.status() != RoomStatus::Open {
         return Err(AppError::authentication("Room cannot be entered"));

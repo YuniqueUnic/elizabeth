@@ -260,6 +260,9 @@ async fn resolve_token_issue_room(
             .await
             .map_err(|e| AppError::internal(format!("Database error: {}", e)))?
             .ok_or_else(|| AppError::room_not_found(name))?;
+        if room.is_expired() {
+            return Err(AppError::room_expired(name));
+        }
         validate_room_password(app_state, &room, payload).await?;
         Ok(TokenIssueRoom {
             room,
@@ -291,11 +294,14 @@ async fn validate_room_password(
 }
 
 fn ensure_token_issue_allowed(room: &Room, increment_view_count: bool) -> Result<(), AppError> {
+    if room.is_expired() {
+        return Err(AppError::room_expired(room.slug.clone()));
+    }
     if increment_view_count {
         if !room.can_enter() {
             return Err(AppError::authentication("Room cannot be entered"));
         }
-    } else if room.is_expired() || room.status() != RoomStatus::Open {
+    } else if room.status() != RoomStatus::Open {
         return Err(AppError::authentication("Room cannot be entered"));
     }
     Ok(())

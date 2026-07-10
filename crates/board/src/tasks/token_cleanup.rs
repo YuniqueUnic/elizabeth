@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use async_trait::async_trait;
 
-use crate::scheduler::{ScheduledTask, TaskRunReport};
+use crate::scheduler::{ScheduledTask, ScheduledTaskId, TaskRunReport};
 use crate::services::RefreshTokenService;
 
 pub struct TokenCleanupTask {
@@ -18,8 +18,8 @@ impl TokenCleanupTask {
 
 #[async_trait]
 impl ScheduledTask for TokenCleanupTask {
-    fn name(&self) -> &'static str {
-        "auth_token_cleanup"
+    fn id(&self) -> ScheduledTaskId {
+        ScheduledTaskId::AuthTokenCleanup
     }
 
     async fn run(&self) -> Result<TaskRunReport> {

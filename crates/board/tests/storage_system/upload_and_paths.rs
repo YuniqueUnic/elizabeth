@@ -1,5 +1,3 @@
-#![allow(unused_variables, unused_imports, dead_code)]
-
 use anyhow::Result;
 use axum::{
     body::Body,
@@ -8,176 +6,133 @@ use axum::{
 use serde_json::json;
 use tower::ServiceExt;
 
-use crate::common::{
-    create_test_app,
-    http::{assert_json, create_request as create_http_request},
-};
+use crate::common::{create_test_app, http::create_request};
+
+use super::{create_room_and_issue_session, issue_session, response_json, upload_file};
 
 #[tokio::test]
 async fn test_upload_reservation() -> Result<()> {
-    let (app, _pool) = create_test_app().await?;
-
+    let (app, pool) = create_test_app().await?;
     let room_name = "upload_reservation_test_room";
+    let session = create_room_and_issue_session(&app, room_name, None).await?;
 
-    // 创建房间
-    let create_request =
-        create_http_request(Method::GET, &format!("/api/v1/rooms/{}", room_name), None);
-    let create_response = app.clone().oneshot(create_request).await?;
-    assert_eq!(create_response.status(), StatusCode::OK);
-
-    // 签发令牌
-    let token_payload = json!({});
-    let token_request = create_http_request(
-        Method::POST,
-        &format!("/api/v1/rooms/{}/tokens", room_name),
-        Some(Body::from(token_payload.to_string())),
-    );
-    let token_response = app.clone().oneshot(token_request).await?;
-    assert_eq!(token_response.status(), StatusCode::OK);
-
-    let token_body = axum::body::to_bytes(token_response.into_body(), usize::MAX).await?;
-    let token_json: serde_json::Value = serde_json::from_slice(&token_body)?;
-    let token = token_json["token"].as_str().unwrap().to_string();
-
-    // 预留上传
-    let reserve_payload = json!({
-        "files": [
-            {
-                "name": "test_file.txt",
-                "size": 1024,
-                "content_type": "text/plain"
-            },
-            {
-                "name": "test_image.jpg",
-                "size": 2048,
-                "content_type": "image/jpeg"
-            }
-        ]
-    });
-    let reserve_request = create_http_request(
-        Method::POST,
-        &format!(
-            "/api/v1/rooms/{}/uploads/reserve?token={}",
-            room_name, token
-        ),
-        Some(Body::from(reserve_payload.to_string())),
-    );
-    let reserve_response = app.clone().oneshot(reserve_request).await?;
-
-    // 上传预留可能成功或失败，取决于 API 实现
-    let status = reserve_response.status();
-    println!("Upload reservation status: {}", status);
-
-    // 验证端点可访问且返回合理的响应
-    assert!(
-        status == StatusCode::OK
-            || status == StatusCode::NOT_IMPLEMENTED
-            || status == StatusCode::BAD_REQUEST
-            || status == StatusCode::NOT_FOUND
-    );
-
+    let reserve = app
+        .oneshot(create_request(
+            Method::POST,
+            &format!(
+                "/api/v1/rooms/{room_name}/contents/prepare?token={}",
+                session.token
+            ),
+            Some(Body::from(
+                json!({
+                    "files": [{
+                        "name": "test_file.txt",
+                        "size": 1024,
+                        "mime": "text/plain"
+                    }]
+                })
+                .to_string(),
+            )),
+        ))
+        .await?;
+    assert_eq!(reserve.status(), StatusCode::OK);
+    let reservation_id = response_json(reserve).await?["reservation_id"]
+        .as_i64()
+        .expect("reservation id");
+    let (owner_jti, reserved_size): (String, i64) = sqlx::query_as(
+        "SELECT owner_token_jti, reserved_size FROM room_upload_reservations WHERE id = $1",
+    )
+    .bind(reservation_id)
+    .fetch_one(pool.as_ref())
+    .await?;
+    assert_eq!(owner_jti, session.jti);
+    assert_eq!(reserved_size, 1024);
     Ok(())
 }
 
-/// 测试分块合并功能
 #[tokio::test]
 async fn test_chunk_merge() -> Result<()> {
     let (app, _pool) = create_test_app().await?;
+    let room_name = "chunk_owner_test_room";
+    let owner = create_room_and_issue_session(&app, room_name, None).await?;
+    let other = issue_session(&app, room_name, None).await?;
 
-    let room_name = "chunk_merge_test_room";
+    let prepare = app
+        .clone()
+        .oneshot(create_request(
+            Method::POST,
+            &format!(
+                "/api/v1/rooms/{room_name}/uploads/chunks/prepare?token={}",
+                owner.token
+            ),
+            Some(Body::from(
+                json!({
+                    "files": [{
+                        "name": "owned.txt",
+                        "size": 5,
+                        "mime": "text/plain",
+                        "chunk_size": 5
+                    }]
+                })
+                .to_string(),
+            )),
+        ))
+        .await?;
+    assert_eq!(prepare.status(), StatusCode::OK);
+    let upload_token = response_json(prepare).await?["upload_token"]
+        .as_str()
+        .expect("upload token")
+        .to_string();
 
-    // 创建房间
-    let create_request =
-        create_http_request(Method::GET, &format!("/api/v1/rooms/{}", room_name), None);
-    let create_response = app.clone().oneshot(create_request).await?;
-    assert_eq!(create_response.status(), StatusCode::OK);
+    let wrong_owner = app
+        .clone()
+        .oneshot(create_request(
+            Method::GET,
+            &format!(
+                "/api/v1/rooms/{room_name}/uploads/chunks/status?token={}&upload_token={upload_token}",
+                other.token
+            ),
+            None,
+        ))
+        .await?;
+    assert_eq!(wrong_owner.status(), StatusCode::FORBIDDEN);
 
-    // 签发令牌
-    let token_payload = json!({});
-    let token_request = create_http_request(
-        Method::POST,
-        &format!("/api/v1/rooms/{}/tokens", room_name),
-        Some(Body::from(token_payload.to_string())),
-    );
-    let token_response = app.clone().oneshot(token_request).await?;
-    assert_eq!(token_response.status(), StatusCode::OK);
-
-    let token_body = axum::body::to_bytes(token_response.into_body(), usize::MAX).await?;
-    let token_json: serde_json::Value = serde_json::from_slice(&token_body)?;
-    let token = token_json["token"].as_str().unwrap().to_string();
-
-    // 测试分块合并（使用预留 ID 或上传令牌）
-    let merge_payload = json!({
-        "reservation_id": "test_reservation_id",
-        "final_hash": "dummy_hash_value"
-    });
-    let merge_request = create_http_request(
-        Method::POST,
-        &format!("/api/v1/rooms/{}/uploads/merge?token={}", room_name, token),
-        Some(Body::from(merge_payload.to_string())),
-    );
-    let merge_response = app.clone().oneshot(merge_request).await?;
-
-    // 分块合并可能成功或失败，取决于 API 实现
-    let status = merge_response.status();
-    println!("Chunk merge status: {}", status);
-
-    // 验证端点可访问且返回合理的响应
-    assert!(
-        status == StatusCode::OK
-            || status == StatusCode::NOT_FOUND
-            || status == StatusCode::BAD_REQUEST
-            || status == StatusCode::NOT_IMPLEMENTED
-    );
-
+    let owner_status = app
+        .oneshot(create_request(
+            Method::GET,
+            &format!(
+                "/api/v1/rooms/{room_name}/uploads/chunks/status?token={}&upload_token={upload_token}",
+                owner.token
+            ),
+            None,
+        ))
+        .await?;
+    assert_eq!(owner_status.status(), StatusCode::OK);
     Ok(())
 }
 
-/// 测试存储路径管理
 #[tokio::test]
 async fn test_storage_paths() -> Result<()> {
-    let (app, _pool) = create_test_app().await?;
-
+    let (app, pool) = create_test_app().await?;
     let room_name = "storage_path_test_room";
-
-    // 创建房间
-    let create_request =
-        create_http_request(Method::GET, &format!("/api/v1/rooms/{}", room_name), None);
-    let create_response = app.clone().oneshot(create_request).await?;
-    assert_eq!(create_response.status(), StatusCode::OK);
-
-    // 签发令牌
-    let token_payload = json!({});
-    let token_request = create_http_request(
-        Method::POST,
-        &format!("/api/v1/rooms/{}/tokens", room_name),
-        Some(Body::from(token_payload.to_string())),
-    );
-    let token_response = app.clone().oneshot(token_request).await?;
-    assert_eq!(token_response.status(), StatusCode::OK);
-
-    let token_body = axum::body::to_bytes(token_response.into_body(), usize::MAX).await?;
-    let token_json: serde_json::Value = serde_json::from_slice(&token_body)?;
-    let token = token_json["token"].as_str().unwrap().to_string();
-
-    // 测试获取存储路径信息
-    let paths_request = create_http_request(
-        Method::GET,
-        &format!("/api/v1/rooms/{}/storage/paths?token={}", room_name, token),
-        None,
-    );
-    let paths_response = app.clone().oneshot(paths_request).await?;
-
-    // 存储路径端点可能实现或未实现
-    let status = paths_response.status();
-    println!("Storage paths status: {}", status);
-
-    // 验证端点行为合理
-    assert!(
-        status == StatusCode::OK
-            || status == StatusCode::NOT_FOUND
-            || status == StatusCode::NOT_IMPLEMENTED
-    );
-
+    let session = create_room_and_issue_session(&app, room_name, None).await?;
+    let uploaded = upload_file(
+        &app,
+        room_name,
+        &session.token,
+        "../unsafe.txt",
+        "text/plain",
+        b"safe",
+    )
+    .await?;
+    let content_id = uploaded["uploaded"][0]["id"].as_i64().expect("content id");
+    let path: String = sqlx::query_scalar("SELECT path FROM room_contents WHERE id = $1")
+        .bind(content_id)
+        .fetch_one(pool.as_ref())
+        .await?;
+    let storage_root = std::env::temp_dir();
+    assert!(path.starts_with(storage_root.to_string_lossy().as_ref()));
+    assert!(!path.ends_with("../unsafe.txt"));
+    assert!(tokio::fs::try_exists(path).await?);
     Ok(())
 }

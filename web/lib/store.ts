@@ -25,6 +25,7 @@ import {
   rebasePendingMessages,
   removeMessage,
   replacePendingMessage,
+  replaceSavedMessage,
 } from "./messages/message-cache";
 
 export type MessageLoadStatus = "idle" | "loading" | "ready" | "error";
@@ -645,7 +646,7 @@ export const useAppStore = create<AppState>()(
                     saved.message,
                   );
                 } else {
-                  nextMessages = mergeMessagePage(nextMessages, [saved.message]);
+                  nextMessages = replaceSavedMessage(nextMessages, saved.message);
                 }
               }
               const rebased = rebasePendingMessages(

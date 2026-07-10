@@ -75,6 +75,7 @@ pub trait IRoomUploadReservationRepository: Send + Sync {
     async fn consume_upload(&self, reservation_id: i64) -> Result<RoomUploadReservation>;
     async fn mark_uploaded(&self, reservation_id: i64) -> Result<RoomUploadReservation>;
     async fn delete(&self, reservation_id: i64) -> Result<bool>;
+    async fn list_expired_chunked_ids(&self) -> Result<Vec<i64>>;
     async fn purge_expired(&self) -> Result<u64>;
 }
 
@@ -538,6 +539,23 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
             .await?;
 
         Ok(result.rows_affected() > 0)
+    }
+
+    async fn list_expired_chunked_ids(&self) -> Result<Vec<i64>> {
+        let now = format_naive_datetime(Utc::now().naive_utc());
+        let ids = sqlx::query_scalar(
+            r#"
+            SELECT id
+            FROM room_upload_reservations
+            WHERE expires_at <= $1
+              AND chunked_upload = true
+            ORDER BY id
+            "#,
+        )
+        .bind(now)
+        .fetch_all(&*self.pool)
+        .await?;
+        Ok(ids)
     }
 
     async fn purge_expired(&self) -> Result<u64> {
