@@ -226,6 +226,43 @@ fn room_expiry_durations_load_from_yaml() {
 
 #[test]
 #[serial]
+fn room_creation_defaults_load_as_one_typed_yaml_policy() {
+    let temp = tempdir().expect("tempdir");
+    let config_path = temp.path().join("custom.yaml");
+    fs::write(
+        &config_path,
+        "app:\n  room:\n    defaults:\n      password: null\n      max_times_entered: 100\n      max_size: 50MiB\n      permissions:\n        read: true\n        edit: true\n        share: true\n        delete: true\n    expiry:\n      allowed_ages: [1m, 2h]\n      default_age: 2h\n",
+    )
+    .expect("write config");
+
+    let cfg = load_custom_config(&config_path).expect("config loaded");
+    let runtime = RuntimeRoomConfig::try_from(&cfg.app.room).expect("runtime room config");
+
+    assert_eq!(runtime.defaults.password, None);
+    assert_eq!(runtime.defaults.max_times_entered, 100);
+    assert_eq!(runtime.defaults.max_content_size, 50 * 1024 * 1024);
+    assert_eq!(runtime.defaults.permission.bits(), 15);
+    assert_eq!(runtime.expiry.default_age_seconds(), 7200);
+}
+
+#[test]
+#[serial]
+fn room_creation_permissions_preserve_four_independent_bits() {
+    let temp = tempdir().expect("tempdir");
+    let config_path = temp.path().join("custom.yaml");
+    fs::write(
+        &config_path,
+        "app:\n  room:\n    defaults:\n      permissions:\n        read: true\n        edit: false\n        share: true\n        delete: false\n",
+    )
+    .expect("write config");
+
+    let cfg = load_custom_config(&config_path).expect("typed config loaded");
+    let runtime = RuntimeRoomConfig::try_from(&cfg.app.room).expect("runtime room config");
+    assert_eq!(runtime.defaults.permission.bits(), 1 | 4);
+}
+
+#[test]
+#[serial]
 fn nested_env_overrides_room_expiry_age_list() {
     let temp = tempdir().expect("tempdir");
     let config_path = temp.path().join("custom.yaml");
@@ -271,13 +308,13 @@ fn human_readable_room_limits_load_from_yaml() {
     let config_path = temp.path().join("custom.yaml");
     fs::write(
         &config_path,
-        "app:\n  room:\n    max_size: 50M\n    share_disabled_lock_duration: 30m\n",
+        "app:\n  room:\n    defaults:\n      max_size: 50M\n    share_disabled_lock_duration: 30m\n",
     )
     .expect("write config");
 
     let cfg = load_custom_config(&config_path).expect("config loaded");
 
-    assert_eq!(cfg.app.room.max_size.as_u64(), 50_000_000);
+    assert_eq!(cfg.app.room.defaults.max_size.as_u64(), 50_000_000);
     assert_eq!(cfg.app.room.share_disabled_lock_duration.as_secs(), 30 * 60);
 }
 
@@ -288,13 +325,13 @@ fn integer_room_limits_remain_supported() {
     let config_path = temp.path().join("custom.yaml");
     fs::write(
         &config_path,
-        "app:\n  room:\n    max_size: 52428800\n    share_disabled_lock_duration: 3600\n",
+        "app:\n  room:\n    defaults:\n      max_size: 52428800\n    share_disabled_lock_duration: 3600\n",
     )
     .expect("write config");
 
     let cfg = load_custom_config(&config_path).expect("config loaded");
 
-    assert_eq!(cfg.app.room.max_size.as_u64(), 52_428_800);
+    assert_eq!(cfg.app.room.defaults.max_size.as_u64(), 52_428_800);
     assert_eq!(cfg.app.room.share_disabled_lock_duration.as_secs(), 3600);
 }
 
@@ -325,7 +362,10 @@ fn nested_env_overrides_human_readable_room_limits() {
     let config_path = temp.path().join("custom.yaml");
     fs::write(&config_path, "app: {}\n").expect("write config");
     let _env_guard = EnvGuard::set(vec![
-        ("ELIZABETH__APP__ROOM__MAX_SIZE", Some("100MiB".into())),
+        (
+            "ELIZABETH__APP__ROOM__DEFAULTS__MAX_SIZE",
+            Some("100MiB".into()),
+        ),
         (
             "ELIZABETH__APP__ROOM__SHARE_DISABLED_LOCK_DURATION",
             Some("1h".into()),
@@ -334,7 +374,7 @@ fn nested_env_overrides_human_readable_room_limits() {
 
     let cfg = load_custom_config(&config_path).expect("config loaded");
 
-    assert_eq!(cfg.app.room.max_size.as_u64(), 100 * 1024 * 1024);
+    assert_eq!(cfg.app.room.defaults.max_size.as_u64(), 100 * 1024 * 1024);
     assert_eq!(cfg.app.room.share_disabled_lock_duration.as_secs(), 3600);
 }
 
@@ -349,7 +389,7 @@ fn program_env_aliases_use_human_readable_room_limit_types() {
 
     let cfg = cfg_service::init(&cmd::CliArgs::default()).expect("config loaded");
 
-    assert_eq!(cfg.app.room.max_size.as_u64(), 1_000_000_000);
+    assert_eq!(cfg.app.room.defaults.max_size.as_u64(), 1_000_000_000);
     assert_eq!(cfg.app.room.share_disabled_lock_duration.as_secs(), 1800);
 }
 
@@ -362,13 +402,16 @@ fn room_limits_save_and_load_roundtrip() {
     let manager =
         configrs::ConfigManager::new_with_file(config_path.to_str().expect("UTF-8 config path"));
     let mut expected = configrs::Config::default();
-    expected.app.room.max_size = bytesize::ByteSize::gib(1);
+    expected.app.room.defaults.max_size = bytesize::ByteSize::gib(1);
     expected.app.room.share_disabled_lock_duration = std::time::Duration::from_secs(30 * 60).into();
 
     manager.save(&expected).expect("save config");
     let loaded: configrs::Config = manager.load().expect("load config");
 
-    assert_eq!(loaded.app.room.max_size.as_u64(), 1024 * 1024 * 1024);
+    assert_eq!(
+        loaded.app.room.defaults.max_size.as_u64(),
+        1024 * 1024 * 1024
+    );
     assert_eq!(loaded.app.room.share_disabled_lock_duration.as_secs(), 1800);
     let persisted = read_config_file(&config_path);
     assert!(persisted.contains("1.0 GiB"));
@@ -382,7 +425,7 @@ fn invalid_human_readable_room_limit_units_are_rejected() {
     let config_path = temp.path().join("custom.yaml");
     fs::write(
         &config_path,
-        "app:\n  room:\n    max_size: 50XB\n    share_disabled_lock_duration: tomorrow\n",
+        "app:\n  room:\n    defaults:\n      max_size: 50XB\n    share_disabled_lock_duration: tomorrow\n",
     )
     .expect("write config");
 
@@ -401,7 +444,7 @@ fn nested_env_rejects_invalid_human_readable_room_limit_unit() {
     let config_path = temp.path().join("custom.yaml");
     fs::write(&config_path, "app: {}\n").expect("write config");
     let _env_guard = EnvGuard::set(vec![(
-        "ELIZABETH__APP__ROOM__MAX_SIZE",
+        "ELIZABETH__APP__ROOM__DEFAULTS__MAX_SIZE",
         Some("50XB".into()),
     )]);
 
@@ -440,18 +483,18 @@ fn room_limit_conversion_preserves_units_and_rejects_zero() {
     let config_path = temp.path().join("custom.yaml");
     fs::write(
         &config_path,
-        "app:\n  room:\n    max_size: 50MiB\n    share_disabled_lock_duration: 1h\n",
+        "app:\n  room:\n    defaults:\n      max_size: 50MiB\n    share_disabled_lock_duration: 1h\n",
     )
     .expect("write config");
     let cfg = load_custom_config(&config_path).expect("config loaded");
 
     let runtime_room = RuntimeRoomConfig::try_from(&cfg.app.room).expect("convert room config");
-    assert_eq!(runtime_room.max_content_size, 52_428_800);
+    assert_eq!(runtime_room.defaults.max_content_size, 52_428_800);
     assert_eq!(runtime_room.share_disabled_lock_duration, 3600);
 
     fs::write(
         &config_path,
-        "app:\n  room:\n    max_size: 0B\n    share_disabled_lock_duration: 0s\n",
+        "app:\n  room:\n    defaults:\n      max_size: 0B\n    share_disabled_lock_duration: 0s\n",
     )
     .expect("write zero config");
     let zero_cfg = load_custom_config(&config_path).expect("typed config accepts zero values");
@@ -462,7 +505,7 @@ fn room_limit_conversion_preserves_units_and_rejects_zero() {
         ..Default::default()
     };
     assert!(runtime.validate().is_err());
-    runtime.room.max_content_size = 1;
+    runtime.room.defaults.max_content_size = 1;
     assert!(runtime.validate().is_err());
     runtime.room.share_disabled_lock_duration = -1;
     assert!(runtime.validate().is_err());
@@ -475,7 +518,7 @@ fn room_limit_conversion_rejects_i64_overflow() {
     let config_path = temp.path().join("custom.yaml");
     fs::write(
         &config_path,
-        "app:\n  room:\n    max_size: 9223372036854775808B\n    share_disabled_lock_duration: 1s\n",
+        "app:\n  room:\n    defaults:\n      max_size: 9223372036854775808B\n    share_disabled_lock_duration: 1s\n",
     )
     .expect("write config");
     let cfg = load_custom_config(&config_path).expect("typed config accepts u64 range");
@@ -486,7 +529,7 @@ fn room_limit_conversion_rejects_i64_overflow() {
 
     fs::write(
         &config_path,
-        "app:\n  room:\n    max_size: 1B\n    share_disabled_lock_duration: 9223372036854775808s\n",
+        "app:\n  room:\n    defaults:\n      max_size: 1B\n    share_disabled_lock_duration: 9223372036854775808s\n",
     )
     .expect("write duration overflow config");
     let cfg = load_custom_config(&config_path).expect("typed config accepts u64 duration range");

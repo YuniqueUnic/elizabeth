@@ -95,14 +95,8 @@ impl AppState {
         chrono::Duration::seconds(self.config.storage.upload_reservation_ttl_seconds)
     }
 
-    /// 便捷方法：获取房间最大内容大小
-    pub fn room_max_size(&self) -> i64 {
-        self.config.room.max_content_size
-    }
-
-    /// 便捷方法：获取房间最大进入次数
-    pub fn room_max_times_entered(&self) -> i64 {
-        self.config.room.max_times_entered
+    pub fn room_creation_defaults(&self) -> &crate::config::RoomCreationDefaults {
+        &self.config.room.defaults
     }
 
     pub fn room_expiry_policy(&self) -> &crate::config::RoomExpiryPolicy {
@@ -131,11 +125,11 @@ mod tests {
 
         // 验证创建成功
         assert_eq!(
-            app_state.room_max_size(),
+            app_state.room_creation_defaults().max_content_size,
             crate::constants::room::DEFAULT_MAX_ROOM_CONTENT_SIZE
         );
         assert_eq!(
-            app_state.room_max_times_entered(),
+            app_state.room_creation_defaults().max_times_entered,
             crate::constants::room::DEFAULT_MAX_TIMES_ENTER_ROOM
         );
 

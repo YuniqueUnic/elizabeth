@@ -79,7 +79,7 @@ curl "http://localhost:4092/api/v1/config"
         2592000,
         31536000
       ],
-      "default_age_seconds": 604800
+      "default_age_seconds": 7200
     }
   }
 }
@@ -148,7 +148,7 @@ curl -X POST "http://localhost:4092/api/v1/rooms/secure-room?password=mypassword
 - `max_times_entered`: 最大进入次数
 - `current_times_entered`: 当前已进入次数
 - `expire_at`: 房间过期时间
-- `permission.bits`: 权限位掩码 (1=查看，2=编辑，4=删除，8=分享)
+- `permission.bits`: 权限位掩码 (1=查看，2=编辑，4=分享，8=删除)
 
 **错误响应：**
 
@@ -298,8 +298,8 @@ curl -X DELETE "http://localhost:4092/api/v1/rooms/my-room?token=eyJhbGc..."
 
 - `1` (0b0001): View - 查看权限
 - `2` (0b0010): Edit - 编辑权限
-- `4` (0b0100): Delete - 删除权限
-- `8` (0b1000): Share - 分享权限
+- `4` (0b0100): Share - 分享权限
+- `8` (0b1000): Delete - 删除权限
 - `15` (0b1111): All - 所有权限
 
 **请求示例：**
@@ -1477,8 +1477,8 @@ curl -X DELETE "http://localhost:4092/api/v1/rooms/my-room/contents?token=eyJhbG
 const Permission = {
   VIEW: 1, // 0b0001
   EDIT: 2, // 0b0010
-  DELETE: 4, // 0b0100
-  SHARE: 8, // 0b1000
+  SHARE: 4, // 0b0100
+  DELETE: 8, // 0b1000
 };
 
 // 组合权限

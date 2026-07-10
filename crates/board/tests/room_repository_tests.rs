@@ -82,6 +82,34 @@ async fn test_create_room() -> Result<()> {
 }
 
 #[tokio::test]
+async fn test_create_if_absent_is_idempotent_for_room_identity() -> Result<()> {
+    let pool = create_test_pool().await?;
+    let repository = RoomRepository::new(pool.clone());
+    let room = create_test_room("atomic-room");
+
+    let first = repository
+        .create_if_absent(&room)
+        .await?
+        .expect("first insert must create the room");
+    let second = repository.create_if_absent(&room).await?;
+
+    assert!(
+        second.is_none(),
+        "a conflicting identity must not be inserted"
+    );
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM rooms WHERE name = $1")
+        .bind("atomic-room")
+        .fetch_one(pool.as_ref())
+        .await?;
+    assert_eq!(count, 1);
+    assert_eq!(
+        repository.find_by_name("atomic-room").await?.unwrap().id,
+        first.id
+    );
+    Ok(())
+}
+
+#[tokio::test]
 async fn test_find_by_name() -> Result<()> {
     let pool = create_test_pool().await?;
     let repository = RoomRepository::new(pool.clone());

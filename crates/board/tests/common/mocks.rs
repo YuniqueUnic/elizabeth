@@ -69,6 +69,21 @@ impl IRoomRepository for MockRoomRepository {
         Ok(new_room)
     }
 
+    async fn create_if_absent(&self, room: &Room) -> Result<Option<Room>> {
+        let mut rooms = self.rooms.lock().unwrap();
+        if rooms
+            .values()
+            .any(|existing| existing.name == room.name || existing.slug == room.slug)
+        {
+            return Ok(None);
+        }
+        let id = rooms.len() as i64 + 1;
+        let mut new_room = room.clone();
+        new_room.id = Some(id);
+        rooms.insert(room.name.clone(), new_room.clone());
+        Ok(Some(new_room))
+    }
+
     async fn update(&self, room: &Room) -> Result<Room> {
         let mut rooms = self.rooms.lock().unwrap();
         if let Some(existing) = rooms.get_mut(&room.name) {

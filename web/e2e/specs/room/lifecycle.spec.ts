@@ -33,6 +33,8 @@ test.describe("Room lifecycle and limits", () => {
     );
   });
 
+  // A 410 room is expired, not missing. Direct-URL provisioning must never
+  // replace it; only a genuine repository miss may create a new room.
   test("blocks access after the room expires through the settings API without recreating it", async ({
     actor,
     createActor,

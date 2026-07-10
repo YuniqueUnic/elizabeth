@@ -134,8 +134,10 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --buil
 - 数据库：`DATABASE_URL`（SQLite/PostgreSQL）
 - 连接池：`DB_MAX_CONNECTIONS` / `DB_MIN_CONNECTIONS`
 - 日志：`LOG_LEVEL` / `RUST_LOG`
-- 房间/上传：`ROOM_MAX_SIZE` / `ROOM_MAX_TIMES_ENTERED` /
-  `ROOM_SHARE_DISABLED_LOCK_DURATION` / `UPLOAD_RESERVATION_TTL_SECONDS`
+- 新房间默认值：`ROOM_MAX_SIZE` / `ROOM_MAX_TIMES_ENTERED` / `ROOM_DEFAULT_AGE`
+  / `ROOM_DEFAULT_PASSWORD` / `ROOM_DEFAULT_PERMISSION_*`
+- 房间生命周期/上传：`ROOM_SHARE_DISABLED_LOCK_DURATION` /
+  `UPLOAD_RESERVATION_TTL_SECONDS`
 - 中间件：`MIDDLEWARE_*`（详见 `.env.docker`）
 
 2. `docker/backend/config/backend.yaml`（应用配置文件）
@@ -145,8 +147,8 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --buil
 - `app.database.journal_mode`（SQLite
   在不同宿主/文件系统下建议不同，详见该文件注释）
 - `app.storage.root`
-- `app.room.max_size` / `app.room.share_disabled_lock_duration` /
-  `app.room.expiry`
+- `app.room.defaults` / `app.room.expiry` /
+  `app.room.share_disabled_lock_duration`
 
 注意：
 
@@ -162,15 +164,22 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --buil
 ```yaml
 app:
   room:
-    # SI 单位：50M、100MB、1G；IEC 单位：50MiB、1GiB
-    # 50MiB = 52,428,800 bytes，与旧默认值完全一致
-    max_size: 50MiB
-    max_times_entered: 100
-    # humantime：支持 s/sec、m/min、h、d、w 等单位
-    share_disabled_lock_duration: 1h
+    # 所有新建房间共享同一套默认值：完整创建与直接 URL 自动创建一致。
+    defaults:
+      password: null
+      max_times_entered: 100
+      # SI 单位：50M、100MB、1G；IEC 单位：50MiB、1GiB
+      max_size: 50MiB
+      permissions:
+        read: true
+        edit: true
+        share: true
+        delete: true
     expiry:
       allowed_ages: [1m, 30m, 2h, 12h, 1d, 7d, 30d, 365d]
-      default_age: 7d
+      default_age: 2h
+    # humantime：支持 s/sec、m/min、h、d、w 等单位
+    share_disabled_lock_duration: 1h
 ```
 
 `M/MB/G/GB` 按十进制计算，例如 `50M = 50,000,000 bytes`； `MiB/GiB`
@@ -185,7 +194,7 @@ ROOM_MAX_SIZE=1G
 ROOM_SHARE_DISABLED_LOCK_DURATION=30m
 
 # configrs 嵌套字段覆盖
-ELIZABETH__APP__ROOM__MAX_SIZE=100MiB
+ELIZABETH__APP__ROOM__DEFAULTS__MAX_SIZE=100MiB
 ELIZABETH__APP__ROOM__SHARE_DISABLED_LOCK_DURATION=1h
 ```
 

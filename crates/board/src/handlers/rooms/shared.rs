@@ -8,8 +8,10 @@ use crate::websocket::types::RoomInfo;
 pub(crate) type HandlerResult<T> = Result<Json<T>, AppError>;
 
 pub(crate) fn apply_room_defaults(room: &mut Room, app_state: &AppState) -> Result<(), AppError> {
-    room.max_size = app_state.room_max_size();
-    room.max_times_entered = app_state.room_max_times_entered();
+    let defaults = app_state.room_creation_defaults();
+    room.max_size = defaults.max_content_size;
+    room.max_times_entered = defaults.max_times_entered;
+    room.permission = defaults.permission;
     room.expire_at = Some(
         app_state
             .room_expiry_policy()

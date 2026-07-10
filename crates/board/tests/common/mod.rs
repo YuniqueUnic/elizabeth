@@ -93,8 +93,12 @@ pub async fn create_test_app() -> Result<(axum::Router, Arc<board::db::DbPool>)>
             upload_reservation_ttl_seconds: DEFAULT_UPLOAD_RESERVATION_TTL_SECONDS,
         },
         room: RoomConfig {
-            max_content_size: DEFAULT_MAX_ROOM_CONTENT_SIZE,
-            max_times_entered: DEFAULT_MAX_TIMES_ENTER_ROOM,
+            defaults: board::config::RoomCreationDefaults {
+                password: None,
+                max_times_entered: DEFAULT_MAX_TIMES_ENTER_ROOM,
+                max_content_size: DEFAULT_MAX_ROOM_CONTENT_SIZE,
+                permission: board::models::permission::RoomPermission::new().with_all(),
+            },
             share_disabled_lock_duration: 3600,
             expiry: board::config::RoomExpiryPolicy::default(),
         },

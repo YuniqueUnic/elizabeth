@@ -210,7 +210,9 @@ async fn test_private_slug_stays_stable_when_delete_permission_changes() -> Resu
         None,
     );
     let private_response = app.clone().oneshot(private_request).await?;
-    assert_eq!(private_response.status(), StatusCode::NOT_FOUND);
+    // The abandoned private slug remains a valid lookup identifier but is longer
+    // than a creatable room name, so direct-URL provisioning must not recreate it.
+    assert_eq!(private_response.status(), StatusCode::BAD_REQUEST);
 
     Ok(())
 }

@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use super::token::RoomTokenClaims;
-use crate::models::{Room, RoomStatus, RoomToken, permission::RoomPermission};
+use crate::models::{Room, RoomStatus, RoomToken};
 
 #[derive(Debug, Default, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
@@ -29,9 +29,7 @@ pub struct RoomView {
     pub expire_at: Option<NaiveDateTime>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
-    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
-    #[cfg_attr(feature = "typescript-export", schemars(with = "u8"))]
-    pub permission: RoomPermission,
+    pub permission: u8,
     pub password_protected: bool,
 }
 
@@ -49,7 +47,7 @@ impl From<&Room> for RoomView {
             expire_at: room.expire_at,
             created_at: room.created_at,
             updated_at: room.updated_at,
-            permission: room.permission,
+            permission: room.permission.bits(),
             password_protected: room.password.is_some(),
         }
     }

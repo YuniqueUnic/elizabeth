@@ -7,6 +7,8 @@ use std::sync::Arc;
 use chrono::Duration;
 use serde::{Deserialize, Serialize};
 
+use crate::models::permission::RoomPermission;
+
 use crate::constants::{
     auth::{DEFAULT_JWT_SERCET, DEFAULT_LEEWAY_SECONDS, DEFAULT_TTL_SECONDS},
     room::{DEFAULT_MAX_ROOM_CONTENT_SIZE, DEFAULT_MAX_TIMES_ENTER_ROOM},
@@ -153,19 +155,26 @@ impl Default for StorageConfig {
 /// 房间配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RoomConfig {
-    pub max_content_size: i64,
-    pub max_times_entered: i64,
-    pub share_disabled_lock_duration: i64,
+    pub defaults: RoomCreationDefaults,
     pub expiry: RoomExpiryPolicy,
+    pub share_disabled_lock_duration: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RoomCreationDefaults {
+    pub password: Option<String>,
+    pub max_times_entered: i64,
+    pub max_content_size: i64,
+    pub permission: RoomPermission,
 }
 
 impl TryFrom<&configrs::RoomConfig> for RoomConfig {
     type Error = ConfigError;
 
     fn try_from(value: &configrs::RoomConfig) -> Result<Self, Self::Error> {
-        let max_content_size = i64::try_from(value.max_size.as_u64()).map_err(|_| {
+        let max_content_size = i64::try_from(value.defaults.max_size.as_u64()).map_err(|_| {
             ConfigError::InvalidRoomConfig(
-                "Max content size exceeds the supported range".to_string(),
+                "Default room max content size exceeds the supported range".to_string(),
             )
         })?;
         let share_disabled_lock_duration =
@@ -174,12 +183,45 @@ impl TryFrom<&configrs::RoomConfig> for RoomConfig {
                     "Share-disabled lock duration exceeds the supported range".to_string(),
                 )
             })?;
+        let password = value
+            .defaults
+            .password
+            .as_deref()
+            .map(str::trim)
+            .filter(|password| !password.is_empty())
+            .map(str::to_owned);
+        if password
+            .as_ref()
+            .is_some_and(|password| password.len() < 4 || password.len() > 100)
+        {
+            return Err(ConfigError::InvalidRoomConfig(
+                "Default room password must be empty or between 4 and 100 characters".to_string(),
+            ));
+        }
+        let mut permission = RoomPermission::empty();
+        if value.defaults.permissions.read {
+            permission |= RoomPermission::VIEW_ONLY;
+        }
+        if value.defaults.permissions.edit {
+            permission |= RoomPermission::EDITABLE;
+        }
+        if value.defaults.permissions.share {
+            permission |= RoomPermission::SHARE;
+        }
+        if value.defaults.permissions.delete {
+            permission |= RoomPermission::DELETE;
+        }
+        let expiry = RoomExpiryPolicy::try_from(&value.expiry)?;
 
         Ok(Self {
-            max_content_size,
-            max_times_entered: value.max_times_entered,
+            defaults: RoomCreationDefaults {
+                password,
+                max_times_entered: value.defaults.max_times_entered,
+                max_content_size,
+                permission,
+            },
+            expiry,
             share_disabled_lock_duration,
-            expiry: RoomExpiryPolicy::try_from(&value.expiry)?,
         })
     }
 }
@@ -194,7 +236,7 @@ pub const DEFAULT_ROOM_ALLOWED_AGES_SECONDS: [i64; 8] = [
     30 * 24 * 60 * 60,
     365 * 24 * 60 * 60,
 ];
-pub const DEFAULT_ROOM_AGE_SECONDS: i64 = 7 * 24 * 60 * 60;
+pub const DEFAULT_ROOM_AGE_SECONDS: i64 = 2 * 60 * 60;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RoomExpiryPolicy {
@@ -293,7 +335,6 @@ impl TryFrom<&configrs::RoomExpiryConfig> for RoomExpiryPolicy {
                 "Default room expiry age exceeds the supported range".to_string(),
             )
         })?;
-
         Self::new(allowed_ages_seconds, default_age_seconds)
     }
 }
@@ -307,13 +348,23 @@ impl Default for RoomExpiryPolicy {
     }
 }
 
+impl Default for RoomCreationDefaults {
+    fn default() -> Self {
+        Self {
+            password: None,
+            max_times_entered: DEFAULT_MAX_TIMES_ENTER_ROOM,
+            max_content_size: DEFAULT_MAX_ROOM_CONTENT_SIZE,
+            permission: RoomPermission::new().with_all(),
+        }
+    }
+}
+
 impl Default for RoomConfig {
     fn default() -> Self {
         Self {
-            max_content_size: DEFAULT_MAX_ROOM_CONTENT_SIZE,
-            max_times_entered: DEFAULT_MAX_TIMES_ENTER_ROOM,
-            share_disabled_lock_duration: 3600,
+            defaults: RoomCreationDefaults::default(),
             expiry: RoomExpiryPolicy::default(),
+            share_disabled_lock_duration: 3600,
         }
     }
 }
@@ -412,15 +463,15 @@ impl AppConfig {
         }
 
         // 验证房间配置
-        if self.room.max_content_size <= 0 {
+        if self.room.defaults.max_content_size <= 0 {
             return Err(ConfigError::InvalidRoomConfig(
-                "Max content size must be positive".to_string(),
+                "Default room max content size must be positive".to_string(),
             ));
         }
 
-        if self.room.max_times_entered <= 0 {
+        if self.room.defaults.max_times_entered <= 0 {
             return Err(ConfigError::InvalidRoomConfig(
-                "Max times entered must be positive".to_string(),
+                "Default room max times entered must be positive".to_string(),
             ));
         }
 

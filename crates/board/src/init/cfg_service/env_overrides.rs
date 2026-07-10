@@ -65,11 +65,38 @@ fn apply_jwt_env_overrides(cfg: &mut configrs::Config) {
 }
 
 fn apply_room_env_overrides(cfg: &mut configrs::Config) {
-    apply_env!(env_byte_size, "ROOM_MAX_SIZE", cfg.app.room.max_size);
+    apply_env!(
+        env_byte_size,
+        "ROOM_MAX_SIZE",
+        cfg.app.room.defaults.max_size
+    );
     apply_env!(
         env_i64,
         "ROOM_MAX_TIMES_ENTERED",
-        cfg.app.room.max_times_entered
+        cfg.app.room.defaults.max_times_entered
+    );
+    if let Some(password) = env_optional_string("ROOM_DEFAULT_PASSWORD") {
+        cfg.app.room.defaults.password = password;
+    }
+    apply_env!(
+        env_bool,
+        "ROOM_DEFAULT_PERMISSION_READ",
+        cfg.app.room.defaults.permissions.read
+    );
+    apply_env!(
+        env_bool,
+        "ROOM_DEFAULT_PERMISSION_EDIT",
+        cfg.app.room.defaults.permissions.edit
+    );
+    apply_env!(
+        env_bool,
+        "ROOM_DEFAULT_PERMISSION_SHARE",
+        cfg.app.room.defaults.permissions.share
+    );
+    apply_env!(
+        env_bool,
+        "ROOM_DEFAULT_PERMISSION_DELETE",
+        cfg.app.room.defaults.permissions.delete
     );
     apply_env!(
         env_duration,
@@ -268,6 +295,12 @@ fn env_string(key: &str) -> Option<String> {
             trimmed.trim_matches('"').trim_matches('\'').to_string()
         })
         .filter(|v| !v.is_empty())
+}
+
+fn env_optional_string(key: &str) -> Option<Option<String>> {
+    let value = std::env::var(key).ok()?;
+    let value = value.trim().trim_matches('"').trim_matches('\'');
+    Some((!value.is_empty()).then(|| value.to_string()))
 }
 
 fn normalize_database_url_from_path(value: String) -> String {

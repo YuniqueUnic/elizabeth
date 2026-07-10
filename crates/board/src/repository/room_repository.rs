@@ -32,6 +32,7 @@ const ROOM_SELECT_BASE: &str = r#"
 pub trait IRoomRepository: Send + Sync {
     async fn exists(&self, name: &str) -> Result<bool>;
     async fn create(&self, room: &Room) -> Result<Room>;
+    async fn create_if_absent(&self, room: &Room) -> Result<Option<Room>>;
     async fn find_by_name(&self, name: &str) -> Result<Option<Room>>;
     async fn find_by_display_name(&self, name: &str) -> Result<Option<Room>>;
     async fn find_by_id(&self, id: i64) -> Result<Option<Room>>;
@@ -190,6 +191,12 @@ impl IRoomRepository for RoomRepository {
     }
 
     async fn create(&self, room: &Room) -> Result<Room> {
+        self.create_if_absent(room)
+            .await?
+            .ok_or_else(|| anyhow!("room already exists"))
+    }
+
+    async fn create_if_absent(&self, room: &Room) -> Result<Option<Room>> {
         if room.is_expired() {
             return Err(anyhow!("cannot create an already expired room"));
         }
@@ -198,13 +205,14 @@ impl IRoomRepository for RoomRepository {
         let now_str = format_naive_datetime(now);
         let expire_at = format_optional_naive_datetime(room.expire_at);
 
-        let inserted_id: i64 = sqlx::query_scalar(
+        let inserted_id: Option<i64> = sqlx::query_scalar(
             r#"
             INSERT INTO rooms (
                 name, slug, password, status, max_size, current_size,
                 max_times_entered, current_times_entered, expire_at,
                 created_at, updated_at, permission
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            ON CONFLICT DO NOTHING
             RETURNING id
             "#,
         )
@@ -220,10 +228,13 @@ impl IRoomRepository for RoomRepository {
         .bind(now_str.clone())
         .bind(now_str.clone())
         .bind(i64::from(room.permission.bits()))
-        .fetch_one(&mut *tx)
+        .fetch_optional(&mut *tx)
         .await?;
 
-        let created_room = Self::fetch_room_by_id_or_err(&mut *tx, inserted_id).await?;
+        let created_room = match inserted_id {
+            Some(inserted_id) => Some(Self::fetch_room_by_id_or_err(&mut *tx, inserted_id).await?),
+            None => None,
+        };
 
         tx.commit().await?;
         Ok(created_room)

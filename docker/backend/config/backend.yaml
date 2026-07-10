@@ -37,13 +37,21 @@ app:
     enable_refresh_token_rotation: true
 
   room:
-    max_size: 50MiB
-    max_times_entered: 100
-    share_disabled_lock_duration: 1h
+    # 所有新建房间统一使用这里的默认值：包括完整创建流程和直接 URL 自动创建。
+    defaults:
+      password: null
+      max_times_entered: 100
+      max_size: 50MiB
+      permissions:
+        read: true
+        edit: true
+        share: true
+        delete: true
     expiry:
       # 支持 humantime 格式，例如 m/min、h、d、w
       allowed_ages: [1m, 30m, 2h, 12h, 1d, 7d, 30d, 365d]
-      default_age: 7d
+      default_age: 2h
+    share_disabled_lock_duration: 1h
 
   upload:
     reservation_ttl_seconds: 3600

@@ -38,11 +38,13 @@ pub async fn create(
     }
 
     let repository = RoomRepository::new(app_state.db_pool.clone());
-    if repository.exists(&name).await? {
-        return Err(AppError::conflict("Room already exists"));
-    }
-
-    create_room_with_defaults(&repository, &app_state, name, payload.password).await
+    let room = new_room_with_defaults(&app_state, name, payload.password).await?;
+    let created_room = repository
+        .create_if_absent(&room)
+        .await
+        .map_err(|e| AppError::internal(format!("Failed to create room: {e}")))?
+        .ok_or_else(|| AppError::conflict("Room already exists"))?;
+    Ok(Json(RoomView::from(&created_room)))
 }
 
 /// 查找房间
@@ -53,8 +55,7 @@ pub async fn create(
         ("name" = String, Path, description = "房间名称")
     ),
     responses(
-        (status = 200, description = "房间信息", body = RoomView),
-        (status = 404, description = "房间不存在"),
+        (status = 200, description = "房间信息；合法名称不存在时按部署默认配置创建", body = RoomView),
         (status = 410, description = "房间已过期"),
         (status = 403, description = "房间无法进入"),
         (status = 500, description = "服务器内部错误")
@@ -68,15 +69,25 @@ pub async fn find(
     RoomNameValidator::validate_identifier(&name)?;
 
     let repository = RoomRepository::new(app_state.db_pool.clone());
-    if let Some(room) = repository.find_by_name(&name).await? {
-        return ensure_room_enterable(room);
+    if let Some(room) = resolve_existing_room(&repository, &name).await? {
+        return Ok(room);
     }
 
-    if let Some(room) = repository.find_by_display_name(&name).await? {
-        return handle_display_name_match(name, room);
+    // Product contract: opening a valid room URL is a zero-step provisioning flow.
+    // Only a true miss reaches this command path; expired, closed, entry-limited, or
+    // reserved display names are resolved above and must never be silently replaced.
+    RoomNameValidator::validate(&name)?;
+    let room = new_room_with_defaults(&app_state, name.clone(), None).await?;
+    match repository
+        .create_if_absent(&room)
+        .await
+        .map_err(|e| AppError::internal(format!("Failed to auto-create room: {e}")))?
+    {
+        Some(created_room) => Ok(Json(RoomView::from(&created_room))),
+        None => resolve_existing_room(&repository, &name)
+            .await?
+            .ok_or_else(|| AppError::internal("Concurrent room creation could not be resolved")),
     }
-
-    Err(AppError::room_not_found(name))
 }
 
 /// 删除房间
@@ -137,12 +148,16 @@ pub async fn delete(
     }))
 }
 
-async fn create_room_with_defaults(
-    repository: &RoomRepository,
+async fn new_room_with_defaults(
     app_state: &AppState,
     name: String,
-    password: Option<String>,
-) -> HandlerResult<RoomView> {
+    requested_password: Option<String>,
+) -> Result<Room, AppError> {
+    let password = match requested_password {
+        Some(password) if password.trim().is_empty() => None,
+        Some(password) => Some(password),
+        None => app_state.room_creation_defaults().password.clone(),
+    };
     let password = match password {
         Some(password) => Some(
             app_state
@@ -155,11 +170,20 @@ async fn create_room_with_defaults(
     };
     let mut room = Room::new(name, password);
     apply_room_defaults(&mut room, app_state)?;
-    let created_room = repository
-        .create(&room)
-        .await
-        .map_err(|e| AppError::internal(format!("Failed to create room: {}", e)))?;
-    Ok(Json(RoomView::from(&created_room)))
+    Ok(room)
+}
+
+async fn resolve_existing_room(
+    repository: &RoomRepository,
+    name: &str,
+) -> Result<Option<Json<RoomView>>, AppError> {
+    if let Some(room) = repository.find_by_name(name).await? {
+        return ensure_room_enterable(room).map(Some);
+    }
+    if let Some(room) = repository.find_by_display_name(name).await? {
+        return handle_display_name_match(name.to_string(), room).map(Some);
+    }
+    Ok(None)
 }
 
 fn ensure_room_enterable(room: Room) -> HandlerResult<RoomView> {
