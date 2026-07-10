@@ -156,7 +156,7 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
     let scheduler_cancellation = scheduler.cancellation_token();
 
     println!("Server listening on http://{actual_addr}");
-    println!("Scalar listening on http://{actual_addr}{}", &scalar_path);
+    println!("Scalar listening on http://{actual_addr}{}", scalar_path);
 
     let result = axum::serve(
         listener,

@@ -313,11 +313,8 @@ fn generate_frontend_bindings() -> anyhow::Result<()> {
 
     println!("cargo:rerun-if-env-changed=ELIZABETH_CODEGEN_VERBOSE");
     if env::var("ELIZABETH_CODEGEN_VERBOSE").is_ok() {
-        eprintln!(
-            "[codegen] generated TypeScript types into {:?}",
-            &output_dir
-        );
-        eprintln!("[codegen] generated JSON schema into {:?}", &schema_path);
+        eprintln!("[codegen] generated TypeScript types into {:?}", output_dir);
+        eprintln!("[codegen] generated JSON schema into {:?}", schema_path);
     }
 
     // 通知 cargo 在以下文件变化时重新运行
@@ -390,7 +387,7 @@ fn write_ts_index(output_dir: &std::path::Path) -> anyhow::Result<()> {
     fs::write(&index_file, content)?;
     println!("cargo:rerun-if-env-changed=ELIZABETH_CODEGEN_VERBOSE");
     if env::var("ELIZABETH_CODEGEN_VERBOSE").is_ok() {
-        eprintln!("[codegen] generated TS index {:?}", &index_file);
+        eprintln!("[codegen] generated TS index {:?}", index_file);
     }
     Ok(())
 }
