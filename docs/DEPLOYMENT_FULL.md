@@ -135,7 +135,7 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --buil
 - 连接池：`DB_MAX_CONNECTIONS` / `DB_MIN_CONNECTIONS`
 - 日志：`LOG_LEVEL` / `RUST_LOG`
 - 房间/上传：`ROOM_MAX_SIZE` / `ROOM_MAX_TIMES_ENTERED` /
-  `UPLOAD_RESERVATION_TTL_SECONDS`
+  `ROOM_SHARE_DISABLED_LOCK_DURATION` / `UPLOAD_RESERVATION_TTL_SECONDS`
 - 中间件：`MIDDLEWARE_*`（详见 `.env.docker`）
 
 2. `docker/backend/config/backend.yaml`（应用配置文件）
@@ -145,6 +145,8 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --buil
 - `app.database.journal_mode`（SQLite
   在不同宿主/文件系统下建议不同，详见该文件注释）
 - `app.storage.root`
+- `app.room.max_size` / `app.room.share_disabled_lock_duration` /
+  `app.room.expiry`
 
 注意：
 
@@ -152,6 +154,40 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --buil
   不会自动从环境变量插值；生产密钥等通过环境变量注入（实现：`crates/board/src/init/cfg_service.rs`）。
 - 如需用环境变量覆盖任意配置字段，可使用 configrs
   前缀：`ELIZABETH__APP__...`（实现：`crates/configrs/src/lib.rs`）。
+
+### 房间容量、锁定时间与过期策略
+
+房间部署配置支持直接写人类可读单位：
+
+```yaml
+app:
+  room:
+    # SI 单位：50M、100MB、1G；IEC 单位：50MiB、1GiB
+    # 50MiB = 52,428,800 bytes，与旧默认值完全一致
+    max_size: 50MiB
+    max_times_entered: 100
+    # humantime：支持 s/sec、m/min、h、d、w 等单位
+    share_disabled_lock_duration: 1h
+    expiry:
+      allowed_ages: [1m, 30m, 2h, 12h, 1d, 7d, 30d, 365d]
+      default_age: 7d
+```
+
+`M/MB/G/GB` 按十进制计算，例如 `50M = 50,000,000 bytes`；
+`MiB/GiB` 按二进制计算，例如 `50MiB = 52,428,800 bytes`。旧的纯整数
+字节数和纯整数秒数仍可读取，但新部署建议始终带单位。
+
+两种环境变量入口都支持相同的人类可读格式：
+
+```bash
+# 程序级简写
+ROOM_MAX_SIZE=1G
+ROOM_SHARE_DISABLED_LOCK_DURATION=30m
+
+# configrs 嵌套字段覆盖
+ELIZABETH__APP__ROOM__MAX_SIZE=100MiB
+ELIZABETH__APP__ROOM__SHARE_DISABLED_LOCK_DURATION=1h
+```
 
 示例（SQLite 默认）：
 

@@ -75,6 +75,15 @@
     "message_page": {
       "$ref": "#/$defs/MessagePage"
     },
+    "public_config_response": {
+      "$ref": "#/$defs/PublicConfigResponse"
+    },
+    "public_room_config": {
+      "$ref": "#/$defs/PublicRoomConfig"
+    },
+    "public_room_expiry_config": {
+      "$ref": "#/$defs/PublicRoomExpiryConfig"
+    },
     "refresh_token_request": {
       "$ref": "#/$defs/RefreshTokenRequest"
     },
@@ -202,6 +211,9 @@
     "create_message_request",
     "create_message_response",
     "message_page",
+    "public_config_response",
+    "public_room_config",
+    "public_room_expiry_config",
     "chunked_upload_preparation_request",
     "chunked_upload_preparation_response",
     "reserved_file_info",
@@ -823,6 +835,48 @@
         "items",
         "has_more",
         "next_sequence_number"
+      ]
+    },
+    "PublicConfigResponse": {
+      "type": "object",
+      "properties": {
+        "room": {
+          "$ref": "#/$defs/PublicRoomConfig"
+        }
+      },
+      "required": [
+        "room"
+      ]
+    },
+    "PublicRoomConfig": {
+      "type": "object",
+      "properties": {
+        "expiry": {
+          "$ref": "#/$defs/PublicRoomExpiryConfig"
+        }
+      },
+      "required": [
+        "expiry"
+      ]
+    },
+    "PublicRoomExpiryConfig": {
+      "type": "object",
+      "properties": {
+        "allowed_ages_seconds": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "default_age_seconds": {
+          "type": "integer",
+          "format": "int64"
+        }
+      },
+      "required": [
+        "allowed_ages_seconds",
+        "default_age_seconds"
       ]
     },
     "RefreshTokenRequest": {
@@ -1558,13 +1612,13 @@
     "UpdateRoomSettingsRequest": {
       "type": "object",
       "properties": {
-        "expire_at": {
-          "description": "房间过期时间（可选，设置为 None 表示永不过期）",
+        "age_seconds": {
+          "description": "房间有效期（可选，单位：秒；必须属于部署配置允许的期限）",
           "type": [
-            "string",
+            "integer",
             "null"
           ],
-          "format": "partial-date-time"
+          "format": "int64"
         },
         "max_size": {
           "description": "最大容量限制（可选，单位：字节）",

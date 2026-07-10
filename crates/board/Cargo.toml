@@ -43,6 +43,7 @@ tower_governor = { workspace = true }
 
 serde = { workspace = true }
 serde_json = { workspace = true }
+bytesize = { workspace = true }
 
 anyhow = { workspace = true }
 thiserror = { workspace = true }

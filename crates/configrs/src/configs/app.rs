@@ -4,6 +4,7 @@ use std::time::Duration;
 const DEFAULT_JWT_SECRET: &str =
     "default-secret-change-in-productiondefault-secret-change-in-production"; // pragma: allowlist secret
 
+use crate::HumanDuration;
 use crate::merge::{Merge, overwrite, overwrite_not_empty_string};
 
 #[derive(Merge, Debug, Clone, serde::Deserialize, serde::Serialize, Default)]
@@ -91,19 +92,27 @@ pub struct StorageConfig {
     pub root: String, // pragma: allowlist secret
 }
 
-#[derive(Merge, Debug, Clone, SmartDefault, serde::Deserialize, serde::Serialize)]
+#[derive(Merge, Debug, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct RoomConfig {
-    #[default(50 * 1024 * 1024)]
     #[merge(strategy = overwrite)]
-    pub max_size: i64,
-    #[default(100)]
+    pub max_size: bytesize::ByteSize,
     #[merge(strategy = overwrite)]
     pub max_times_entered: i64,
-    #[default(3600)]
     #[merge(strategy = overwrite)]
-    pub share_disabled_lock_duration: i64,
+    pub share_disabled_lock_duration: HumanDuration,
     pub expiry: RoomExpiryConfig,
+}
+
+impl Default for RoomConfig {
+    fn default() -> Self {
+        Self {
+            max_size: bytesize::ByteSize::mib(50),
+            max_times_entered: 100,
+            share_disabled_lock_duration: Duration::from_secs(60 * 60).into(),
+            expiry: RoomExpiryConfig::default(),
+        }
+    }
 }
 
 #[derive(Merge, Debug, Clone, serde::Deserialize, serde::Serialize)]
@@ -313,9 +322,9 @@ mod tests {
         assert_eq!(cfg.jwt.cleanup_interval_seconds, 24 * 60 * 60);
         assert!(cfg.jwt.enable_refresh_token_rotation);
         assert_eq!(cfg.storage.root, "storage/rooms");
-        assert_eq!(cfg.room.max_size, 50 * 1024 * 1024);
+        assert_eq!(cfg.room.max_size.as_u64(), 50 * 1024 * 1024);
         assert_eq!(cfg.room.max_times_entered, 100);
-        assert_eq!(cfg.room.share_disabled_lock_duration, 3600);
+        assert_eq!(cfg.room.share_disabled_lock_duration.as_secs(), 3600);
         assert_eq!(
             cfg.room
                 .expiry
@@ -369,9 +378,9 @@ mod tests {
                 root: "/tmp/storage".into(),
             },
             room: RoomConfig {
-                max_size: 42,
+                max_size: bytesize::ByteSize::b(42),
                 max_times_entered: 7,
-                share_disabled_lock_duration: 120,
+                share_disabled_lock_duration: Duration::from_secs(120).into(),
                 expiry: RoomExpiryConfig {
                     allowed_ages: vec![Duration::from_secs(30).into()],
                     default_age: Duration::from_secs(30).into(),
@@ -401,9 +410,9 @@ mod tests {
         assert_eq!(left.jwt.ttl_seconds, 120);
         assert_eq!(left.jwt.leeway_seconds, 2);
         assert_eq!(left.storage.root, "/tmp/storage");
-        assert_eq!(left.room.max_size, 42);
+        assert_eq!(left.room.max_size.as_u64(), 42);
         assert_eq!(left.room.max_times_entered, 7);
-        assert_eq!(left.room.share_disabled_lock_duration, 120);
+        assert_eq!(left.room.share_disabled_lock_duration.as_secs(), 120);
         assert_eq!(left.room.expiry.allowed_ages[0].as_secs(), 30);
         assert_eq!(left.room.expiry.default_age.as_secs(), 30);
 

@@ -159,6 +159,31 @@ pub struct RoomConfig {
     pub expiry: RoomExpiryPolicy,
 }
 
+impl TryFrom<&configrs::RoomConfig> for RoomConfig {
+    type Error = ConfigError;
+
+    fn try_from(value: &configrs::RoomConfig) -> Result<Self, Self::Error> {
+        let max_content_size = i64::try_from(value.max_size.as_u64()).map_err(|_| {
+            ConfigError::InvalidRoomConfig(
+                "Max content size exceeds the supported range".to_string(),
+            )
+        })?;
+        let share_disabled_lock_duration =
+            i64::try_from(value.share_disabled_lock_duration.as_secs()).map_err(|_| {
+                ConfigError::InvalidRoomConfig(
+                    "Share-disabled lock duration exceeds the supported range".to_string(),
+                )
+            })?;
+
+        Ok(Self {
+            max_content_size,
+            max_times_entered: value.max_times_entered,
+            share_disabled_lock_duration,
+            expiry: RoomExpiryPolicy::try_from(&value.expiry)?,
+        })
+    }
+}
+
 pub const DEFAULT_ROOM_ALLOWED_AGES_SECONDS: [i64; 8] = [
     60,
     30 * 60,
@@ -375,6 +400,12 @@ impl AppConfig {
         if self.room.max_times_entered <= 0 {
             return Err(ConfigError::InvalidRoomConfig(
                 "Max times entered must be positive".to_string(),
+            ));
+        }
+
+        if self.room.share_disabled_lock_duration <= 0 {
+            return Err(ConfigError::InvalidRoomConfig(
+                "Share-disabled lock duration must be positive".to_string(),
             ));
         }
 

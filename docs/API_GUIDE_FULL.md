@@ -51,6 +51,33 @@ Elizabeth 使用 JWT (JSON Web Token) 进行认证。大部分 API
 
 所有请求和响应使用 `application/json` 格式。
 
+### 读取公开部署策略
+
+前端或 API 客户端可在不携带 Token 的情况下读取服务端允许的房间有效期选项。
+
+**端点：** `GET /api/v1/config`
+
+**请求示例：**
+
+```bash
+curl "http://localhost:4092/api/v1/config"
+```
+
+**响应示例 (200 OK)：**
+
+```json
+{
+  "room": {
+    "expiry": {
+      "allowed_ages_seconds": [60, 1800, 7200, 43200, 86400, 604800, 2592000, 31536000],
+      "default_age_seconds": 604800
+    }
+  }
+}
+```
+
+该接口只公开 UI/客户端需要的安全策略，不返回 JWT secret、数据库地址等私密部署配置。
+
 ---
 
 ## 房间管理 API
@@ -293,7 +320,7 @@ curl -X POST "http://localhost:4092/api/v1/rooms/my-room/permissions?token=eyJhb
 
 更新房间的容量限制、进入次数限制和过期时间。
 
-**端点：** `POST /api/v1/rooms/{name}/settings`
+**端点：** `PUT /api/v1/rooms/{name}/settings`
 
 **路径参数：**
 
@@ -309,7 +336,7 @@ curl -X POST "http://localhost:4092/api/v1/rooms/my-room/permissions?token=eyJhb
 {
   "max_size": 5368709120,
   "max_times_entered": 100,
-  "expire_at": "2026-02-01T00:00:00"
+  "age_seconds": 604800
 }
 ```
 
@@ -317,17 +344,17 @@ curl -X POST "http://localhost:4092/api/v1/rooms/my-room/permissions?token=eyJhb
 
 - `max_size` (可选): 最大容量（字节），如 5GB = 5368709120
 - `max_times_entered` (可选): 最大进入次数
-- `expire_at` (可选): 过期时间 (ISO 8601 格式)
+- `age_seconds` (可选): 从服务端当前时间开始计算的有效期（秒），必须属于部署配置 `app.room.expiry.allowed_ages`
 
 **请求示例：**
 
 ```bash
-curl -X POST "http://localhost:4092/api/v1/rooms/my-room/settings?token=eyJhbGc..." \
+curl -X PUT "http://localhost:4092/api/v1/rooms/my-room/settings?token=eyJhbGc..." \
   -H "Content-Type: application/json" \
   -d '{
     "max_size": 5368709120,
     "max_times_entered": 100,
-    "expire_at": "2026-02-01T00:00:00"
+    "age_seconds": 604800
   }'
 ```
 
@@ -664,7 +691,76 @@ curl -X GET "http://localhost:4092/api/v1/rooms/my-room/contents?token=eyJhbGc..
 
 ---
 
-### 2. 准备上传
+### 2. 分页读取消息历史
+
+按稳定游标分页读取房间中的文本消息。长消息房间或移动端历史回溯应优先使用这个接口，而不是一次性拉取 `/contents`。
+
+**端点：** `GET /api/v1/rooms/{name}/messages`
+
+**路径参数：**
+
+- `name` (string, 必需): 房间名称或 slug
+
+**查询参数：**
+
+- `token` (string, 必需): 有效的房间访问 Token
+- `limit` (integer, 可选): 单页消息数，默认 `50`，最大 `100`
+- `cursor` (string, 可选): 不透明稳定游标，格式由服务端返回，例如 `123:456`
+
+**请求示例：**
+
+```bash
+# 首屏读取最近 50 条消息
+curl -X GET "http://localhost:4092/api/v1/rooms/my-room/messages?token=eyJhbGc..."
+
+# 继续读取更早消息
+curl -X GET "http://localhost:4092/api/v1/rooms/my-room/messages?token=eyJhbGc...&limit=50&cursor=120:998"
+```
+
+**响应示例 (200 OK):**
+
+```json
+{
+  "items": [
+    {
+      "id": 998,
+      "content_type": "text",
+      "text": "较新的消息",
+      "file_name": null,
+      "url": null,
+      "size": null,
+      "mime_type": null,
+      "sequence_number": 120,
+      "created_at": "2026-01-20T10:45:00",
+      "updated_at": "2026-01-20T10:45:00"
+    }
+  ],
+  "next_cursor": "71:947",
+  "has_more": true,
+  "next_sequence_number": 121
+}
+```
+
+**字段说明：**
+
+- `items`: 当前页消息列表，按 `sequence_number` 稳定排序
+- `next_cursor`: 继续读取更早消息时使用的游标；当 `has_more = false` 时为 `null`
+- `has_more`: 是否还有更早消息
+- `next_sequence_number`: 当前房间下一条新消息建议使用的序号
+
+**错误响应：**
+
+```json
+// 400 - 分页参数无效
+{
+  "error": "limit must be between 1 and 100",
+  "status": 400
+}
+```
+
+---
+
+### 3. 准备上传
 
 在实际上传文件前预留空间并获取上传许可。
 
@@ -747,7 +843,7 @@ curl -X POST "http://localhost:4092/api/v1/rooms/my-room/contents/prepare?token=
 
 ---
 
-### 3. 上传文件
+### 4. 上传文件
 
 上传文件到房间。
 
@@ -808,7 +904,7 @@ curl -X POST "http://localhost:4092/api/v1/rooms/my-room/contents?token=eyJhbGc.
 
 ---
 
-### 4. 下载文件
+### 5. 下载文件
 
 下载房间中的文件。
 
@@ -842,7 +938,7 @@ Content-Length: 2048576
 
 ---
 
-### 5. 删除内容
+### 6. 删除内容
 
 删除房间中的文件或消息。
 
@@ -1289,12 +1385,12 @@ curl -X POST "http://localhost:4092/api/v1/rooms/team-space/permissions?token=ey
 # bits = 3 = 0b0011 = View(1) + Edit(2)
 
 # 4. 更新房间设置（限制容量和过期时间）
-curl -X POST "http://localhost:4092/api/v1/rooms/team-space/settings?token=eyJhbGc..." \
+curl -X PUT "http://localhost:4092/api/v1/rooms/team-space/settings?token=eyJhbGc..." \
   -H "Content-Type: application/json" \
   -d '{
     "max_size": 1073741824,
     "max_times_entered": 50,
-    "expire_at": "2026-02-01T00:00:00"
+    "age_seconds": 604800
   }'
 ```
 

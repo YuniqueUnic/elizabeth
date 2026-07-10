@@ -6,9 +6,9 @@ export type UpdateRoomSettingsRequest = {
  */
 password?: string, 
 /**
- * 房间过期时间（可选，设置为 None 表示永不过期）
+ * 房间有效期（可选，单位：秒；必须属于部署配置允许的期限）
  */
-expire_at?: string, 
+age_seconds?: number | null, 
 /**
  * 最大进入次数（可选）
  */

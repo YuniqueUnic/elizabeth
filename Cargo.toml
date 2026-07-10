@@ -88,6 +88,8 @@ shadow-rs = { version = "2", features = ["no_std"] }
 merge = "0.2"
 smart-default = "0.7"
 fs4 = "1"
+bytesize = { version = "2", features = ["serde"] }
+humantime = "2"
 humantime-serde = "1"
 
 # === TypeScript Export (Optional) ===

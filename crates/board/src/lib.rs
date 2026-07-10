@@ -35,9 +35,7 @@ use clap::Parser;
 use shadow_rs::shadow;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::config::{
-    AppConfig, AuthConfig, RoomConfig, RoomExpiryPolicy, ServerConfig, StorageConfig,
-};
+use crate::config::{AppConfig, AuthConfig, RoomConfig, ServerConfig, StorageConfig};
 use crate::constants::{
     storage::DEFAULT_STORAGE_ROOT, upload::DEFAULT_UPLOAD_RESERVATION_TTL_SECONDS,
 };
@@ -110,12 +108,7 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
                 cfg.app.upload.reservation_ttl_seconds
             },
         },
-        room: RoomConfig {
-            max_content_size: cfg.app.room.max_size,
-            max_times_entered: cfg.app.room.max_times_entered,
-            share_disabled_lock_duration: cfg.app.room.share_disabled_lock_duration,
-            expiry: RoomExpiryPolicy::try_from(&cfg.app.room.expiry)?,
-        },
+        room: RoomConfig::try_from(&cfg.app.room)?,
         auth: AuthConfig::new(cfg.app.jwt.secret.clone())
             .map_err(|e| anyhow::anyhow!("Invalid JWT config: {}", e))?
             .with_ttl(cfg.app.jwt.ttl_seconds)
