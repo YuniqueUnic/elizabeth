@@ -157,6 +157,10 @@ jobs:
           rm -rf "${test_root}"
           mkdir -p "${test_root}"
           cp -R "dist/1panel-appstore/apps/elizabeth/${version}/." "${test_root}/"
+          # 1Panel installs app directories as root. GitHub checkout files belong to the
+          # runner UID, which cannot be written by a container after cap_drop: ALL.
+          sudo chown -R 0:0 "${test_root}/data"
+          sudo chmod -R u+rwX,go+rX "${test_root}/data"
 
           created_network=0
           if ! docker network inspect 1panel-network >/dev/null 2>&1; then
@@ -179,6 +183,7 @@ jobs:
             if [[ "${created_network}" -eq 1 ]]; then
               docker network rm 1panel-network >/dev/null 2>&1 || true
             fi
+            sudo rm -rf "${test_root}"
           }
           trap cleanup EXIT
 
