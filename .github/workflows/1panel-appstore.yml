@@ -1,0 +1,295 @@
+name: 1Panel AppStore
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "已存在的 Elizabeth 版本 tag（例如 v1.4.0）"
+        required: true
+        type: string
+      submit_pr:
+        description: "生成并验证后向 1Panel-dev/appstore 提交 PR"
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: 1panel-appstore-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE: yunique001/elizabeth
+  VERSION_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
+  APPSTORE_FORK: ${{ vars.APPSTORE_FORK || 'YuniqueUnic/appstore' }}
+  SMOKE_JWT_SECRET: ElizabethJwtSecretKey2026_abc123 # pragma: allowlist secret
+
+jobs:
+  package:
+    name: Package, verify, and submit
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout Elizabeth
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${VERSION_TAG}"
+          if [[ ! "${tag}" =~ ^v[0-9][0-9A-Za-z._+-]*$ ]]; then
+            echo "Invalid version tag: ${tag}" >&2
+            exit 1
+          fi
+          if ! git rev-parse --verify --quiet "refs/tags/${tag}" >/dev/null; then
+            echo "Tag does not exist in this repository: ${tag}" >&2
+            exit 1
+          fi
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+          echo "version=${tag#v}" >> "${GITHUB_OUTPUT}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.0.0
+
+      - name: Wait for the released Docker image
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${IMAGE}:${{ steps.version.outputs.version }}"
+          for attempt in $(seq 1 40); do
+            if docker buildx imagetools inspect "${image}" >/dev/null 2>&1; then
+              echo "Found ${image}"
+              exit 0
+            fi
+            if [[ "${attempt}" -eq 40 ]]; then
+              echo "Docker image was not published within the wait window: ${image}" >&2
+              exit 1
+            fi
+            sleep 15
+          done
+
+      - name: Verify image platforms
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${IMAGE}:${{ steps.version.outputs.version }}"
+          manifest="$(docker buildx imagetools inspect --raw "${image}")"
+          jq -e 'any(.manifests[]?; .platform.os == "linux" and .platform.architecture == "amd64")' <<< "${manifest}" >/dev/null
+          jq -e 'any(.manifests[]?; .platform.os == "linux" and .platform.architecture == "arm64")' <<< "${manifest}" >/dev/null
+
+      - name: Test release preparation script
+        run: python3 -m unittest discover -s 1panel/tests -p 'test_*.py'
+
+      - name: Prepare versioned package
+        run: |
+          python3 1panel/scripts/prepare_appstore_release.py \
+            --version "${{ steps.version.outputs.version }}" \
+            --output dist/1panel-appstore/apps
+
+      - name: Checkout official 1Panel AppStore skills
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          repository: 1Panel-dev/1Panel-appstore-skills
+          ref: d1ff3daca7c9e3167bc61664a431a3ec6b77f587 # pragma: allowlist secret
+          path: .tools/1panel-appstore-skills
+          persist-credentials: false
+
+      - name: Validate 1Panel package
+        run: |
+          python3 .tools/1panel-appstore-skills/scripts/validate_app_package.py \
+            dist/1panel-appstore/apps/elizabeth
+
+      - name: Verify app metadata and logo
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import struct
+          from pathlib import Path
+
+          logo = Path("dist/1panel-appstore/apps/elizabeth/logo.png")
+          payload = logo.read_bytes()
+          if payload[:8] != b"\x89PNG\r\n\x1a\n":
+              raise SystemExit("logo.png is not a PNG file")
+          width, height = struct.unpack(">II", payload[16:24])
+          if (width, height) != (180, 180):
+              raise SystemExit(f"logo.png must be 180x180, got {width}x{height}")
+          if len(payload) > 10 * 1024:
+              raise SystemExit(f"logo.png must be <= 10 KiB, got {len(payload)} bytes")
+          print(f"logo.png: {width}x{height}, {len(payload)} bytes")
+          PY
+          test "$(find dist/1panel-appstore/apps/elizabeth -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" -eq 1
+
+      - name: Render Docker Compose
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ steps.version.outputs.version }}"
+          CONTAINER_NAME=elizabeth-1panel-config-test \
+          PANEL_APP_PORT_HTTP=49192 \
+          JWT_SECRET="${SMOKE_JWT_SECRET}" \
+          DATABASE_URL=sqlite:///app/data/elizabeth.db \
+          ROOM_MAX_SIZE=50MiB \
+          ROOM_MAX_TIMES_ENTERED=100 \
+          ROOM_ALLOWED_AGES=1m,30m,2h,12h,1d,7d,30d,365d \
+          ROOM_DEFAULT_AGE=2h \
+          ROOM_SHARE_DISABLED_LOCK_DURATION=1h \
+          docker compose \
+            -f "dist/1panel-appstore/apps/elizabeth/${version}/docker-compose.yml" \
+            config --quiet
+
+      - name: Smoke test package
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ steps.version.outputs.version }}"
+          test_root="${RUNNER_TEMP}/elizabeth-1panel-smoke"
+          rm -rf "${test_root}"
+          mkdir -p "${test_root}"
+          cp -R "dist/1panel-appstore/apps/elizabeth/${version}/." "${test_root}/"
+
+          created_network=0
+          if ! docker network inspect 1panel-network >/dev/null 2>&1; then
+            docker network create 1panel-network >/dev/null
+            created_network=1
+          fi
+
+          cleanup() {
+            CONTAINER_NAME=elizabeth-1panel-smoke \
+            PANEL_APP_PORT_HTTP=49192 \
+            JWT_SECRET="${SMOKE_JWT_SECRET}" \
+            DATABASE_URL=sqlite:///app/data/elizabeth.db \
+            ROOM_MAX_SIZE=50MiB \
+            ROOM_MAX_TIMES_ENTERED=100 \
+            ROOM_ALLOWED_AGES=1m,30m,2h,12h,1d,7d,30d,365d \
+            ROOM_DEFAULT_AGE=2h \
+            ROOM_SHARE_DISABLED_LOCK_DURATION=1h \
+            docker compose -p elizabeth-1panel-smoke -f "${test_root}/docker-compose.yml" \
+              down -v --remove-orphans >/dev/null 2>&1 || true
+            if [[ "${created_network}" -eq 1 ]]; then
+              docker network rm 1panel-network >/dev/null 2>&1 || true
+            fi
+          }
+          trap cleanup EXIT
+
+          CONTAINER_NAME=elizabeth-1panel-smoke \
+          PANEL_APP_PORT_HTTP=49192 \
+          JWT_SECRET="${SMOKE_JWT_SECRET}" \
+          DATABASE_URL=sqlite:///app/data/elizabeth.db \
+          ROOM_MAX_SIZE=50MiB \
+          ROOM_MAX_TIMES_ENTERED=100 \
+          ROOM_ALLOWED_AGES=1m,30m,2h,12h,1d,7d,30d,365d \
+          ROOM_DEFAULT_AGE=2h \
+          ROOM_SHARE_DISABLED_LOCK_DURATION=1h \
+          docker compose -p elizabeth-1panel-smoke -f "${test_root}/docker-compose.yml" up -d
+
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:49192/api/v1/health >/dev/null; then
+              break
+            fi
+            if [[ "${attempt}" -eq 60 ]]; then
+              docker logs elizabeth-1panel-smoke
+              exit 1
+            fi
+            sleep 1
+          done
+          test "$(docker inspect elizabeth-1panel-smoke --format '{{.HostConfig.ReadonlyRootfs}}')" = true
+          test -f "${test_root}/data/elizabeth.db"
+
+      - name: Upload 1Panel package
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: elizabeth-1panel-${{ steps.version.outputs.version }}
+          path: dist/1panel-appstore/apps/elizabeth
+          if-no-files-found: error
+
+      - name: Checkout upstream App Store
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          repository: 1Panel-dev/appstore
+          ref: dev
+          path: dist/upstream-appstore
+          persist-credentials: false
+
+      - name: Merge Elizabeth package into upstream tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist/upstream-appstore/apps/elizabeth
+          cp -R dist/1panel-appstore/apps/elizabeth/. dist/upstream-appstore/apps/elizabeth/
+
+      - name: Check upstream submission configuration
+        id: submission
+        shell: bash
+        env:
+          TOKEN: ${{ secrets.APPSTORE_GITHUB_TOKEN }}
+        run: |
+          if [[ -n "${TOKEN}" ]]; then
+            echo "enabled=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "enabled=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Create or update the upstream pull request
+        id: appstore-pr
+        if: ${{ steps.submission.outputs.enabled == 'true' && (github.event_name == 'push' || inputs.submit_pr) }}
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          path: dist/upstream-appstore
+          token: ${{ secrets.APPSTORE_GITHUB_TOKEN }}
+          push-to-fork: ${{ env.APPSTORE_FORK }}
+          base: dev
+          branch: app/elizabeth
+          delete-branch: true
+          add-paths: apps/elizabeth
+          commit-message: "feat: add Elizabeth ${{ steps.version.outputs.version }}"
+          title: "feat: add Elizabeth ${{ steps.version.outputs.version }}"
+          body: |
+            ## Application
+
+            - Name: Elizabeth
+            - Version: `${{ steps.version.outputs.version }}`
+            - Image: `${{ env.IMAGE }}:${{ steps.version.outputs.version }}`
+            - Architectures: `amd64`, `arm64`
+
+            ## Verification
+
+            - Official 1Panel package validation
+            - Docker Compose rendering
+            - Image manifest platform verification
+            - Container startup and `/api/v1/health` smoke test
+            - Persistent SQLite data creation
+            - Read-only root filesystem assertion
+
+            Source release: https://github.com/YuniqueUnic/elizabeth/releases/tag/${{ steps.version.outputs.tag }}
+            Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          maintainer-can-modify: true
+
+      - name: Write workflow summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Elizabeth 1Panel AppStore"
+            echo
+            echo "- Version: \`${{ steps.version.outputs.version }}\`"
+            echo "- Artifact: \`elizabeth-1panel-${{ steps.version.outputs.version }}\`"
+            if [[ -n "${{ steps.appstore-pr.outputs.pull-request-url }}" ]]; then
+              echo "- Pull request: ${{ steps.appstore-pr.outputs.pull-request-url }}"
+            elif [[ "${{ steps.submission.outputs.enabled }}" != "true" ]]; then
+              echo "- Pull request: skipped because \`APPSTORE_GITHUB_TOKEN\` is not configured"
+              echo "- Required fork: \`${APPSTORE_FORK}\`"
+            else
+              echo "- Pull request: skipped by workflow input or no package diff was detected"
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"
