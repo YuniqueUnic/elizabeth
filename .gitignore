@@ -3,6 +3,8 @@
 .context
 skills
 storage
+!1panel/apps/**/storage/
+!1panel/apps/**/storage/.gitkeep
 test-results
 TODO.md
 
@@ -22,6 +24,8 @@ CLAUDE.md
 
 # prek 缓存（如果使用 PREK_HOME 本地缓存）
 .prek/
+__pycache__/
+*.py[cod]
 
 *.db
 *.db-shm
