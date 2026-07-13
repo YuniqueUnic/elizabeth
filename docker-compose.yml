@@ -16,7 +16,7 @@ services:
   # - /*              -> SPA HTML fallback (index.html / _.html)
   backend:
     # x-release-please-start-version
-    image: ${ELIZABETH_IMAGE:-yunique001/elizabeth:1.5.0}
+    image: ${ELIZABETH_IMAGE:-yunique001/elizabeth:1.5.1}
     # x-release-please-end
     build:
       context: .

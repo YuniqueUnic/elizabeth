@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v1.1.0.html).
 
+## [1.5.1](https://github.com/YuniqueUnic/elizabeth/compare/v1.5.0...v1.5.1) (2026-07-13)
+
+
+### Bug Fixes
+
+* wait longer for Docker image in 1Panel AppStore flow ([5d1d697](https://github.com/YuniqueUnic/elizabeth/commit/5d1d6970db600071a76b2954040ddaa799322d23))
+
 ## [1.5.0](https://github.com/YuniqueUnic/elizabeth/compare/v1.4.0...v1.5.0) (2026-07-13)
 
 
