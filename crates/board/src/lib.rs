@@ -65,6 +65,7 @@ pub async fn run() -> anyhow::Result<()> {
     const_service::init();
 
     let cli = cmd::Cli::parse();
+    // Secrets (jwt_secret / db credentials) are redacted by custom Debug impls.
     println!("Parsed CLI arguments: {cli:?}");
     match cli {
         cmd::Cli::Start(args) => {
@@ -78,8 +79,10 @@ pub async fn run() -> anyhow::Result<()> {
 }
 
 async fn start_server(cfg: &Config) -> anyhow::Result<()> {
-    println!("Starting server with args: {cfg:#?}");
+    // Initialize logging first so startup diagnostics respect log level.
+    // Config Debug redacts jwt.secret, room passwords, and DB credentials.
     log_service::init(cfg);
+    log::info!("Starting server with config: {cfg:#?}");
 
     // 初始化数据库
     let db_url = cfg.app.database.url.clone();

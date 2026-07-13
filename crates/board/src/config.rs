@@ -1,6 +1,7 @@
 /// 应用程序配置模块
 ///
 /// 将配置相关的设置集中管理，与 AppState 分离
+use std::fmt;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -28,7 +29,7 @@ pub struct AppConfig {
 }
 
 /// 数据库配置
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct DatabaseConfig {
     /// 数据库连接 URL
     /// 支持：
@@ -58,6 +59,17 @@ impl Default for DatabaseConfig {
             min_connections: Self::default_min_connections(),
             journal_mode: Self::default_journal_mode(),
         }
+    }
+}
+
+impl fmt::Debug for DatabaseConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DatabaseConfig")
+            .field("url", &configrs::database_url_for_debug(&self.url))
+            .field("max_connections", &self.max_connections)
+            .field("min_connections", &self.min_connections)
+            .field("journal_mode", &self.journal_mode)
+            .finish()
     }
 }
 
@@ -160,7 +172,7 @@ pub struct RoomConfig {
     pub share_disabled_lock_duration: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct RoomCreationDefaults {
     pub password: Option<String>,
     pub max_times_entered: i64,
@@ -359,6 +371,20 @@ impl Default for RoomCreationDefaults {
     }
 }
 
+impl fmt::Debug for RoomCreationDefaults {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RoomCreationDefaults")
+            .field(
+                "password",
+                &configrs::optional_secret_for_debug(self.password.as_deref()),
+            )
+            .field("max_times_entered", &self.max_times_entered)
+            .field("max_content_size", &self.max_content_size)
+            .field("permission", &self.permission)
+            .finish()
+    }
+}
+
 impl Default for RoomConfig {
     fn default() -> Self {
         Self {
@@ -370,7 +396,7 @@ impl Default for RoomConfig {
 }
 
 /// 认证配置
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct AuthConfig {
     pub jwt_secret: String,
     pub ttl_seconds: i64,
@@ -432,6 +458,22 @@ impl Default for AuthConfig {
             cleanup_interval_seconds: 24 * 60 * 60,
             enable_refresh_token_rotation: true,
         }
+    }
+}
+
+impl fmt::Debug for AuthConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AuthConfig")
+            .field("jwt_secret", &configrs::secret_for_debug(&self.jwt_secret))
+            .field("ttl_seconds", &self.ttl_seconds)
+            .field("leeway_seconds", &self.leeway_seconds)
+            .field("refresh_ttl_seconds", &self.refresh_ttl_seconds)
+            .field("cleanup_interval_seconds", &self.cleanup_interval_seconds)
+            .field(
+                "enable_refresh_token_rotation",
+                &self.enable_refresh_token_rotation,
+            )
+            .finish()
     }
 }
 
