@@ -12,9 +12,11 @@ Elizabeth 的 1Panel 商店应用位于：
 - Docker 镜像：`yunique001/elizabeth:1.4.0`
 - 支持架构：`linux/amd64`、`linux/arm64`
 - 1Panel 本地应用测试目录：`/opt/1panel/resource/apps/local/elizabeth`
-- 推荐提交目标：第三方应用商店 [`okxlin/appstore`](https://github.com/okxlin/appstore)（`localApps` 分支）
+- 推荐提交目标：第三方应用商店
+  [`okxlin/appstore`](https://github.com/okxlin/appstore)（`localApps` 分支）
 
-> 官方 `1Panel-dev/appstore` 目前主要维护超 1 万 Star 的项目；社区第三方仓库由用户维护，适合 Elizabeth 这类应用。
+> 官方 `1Panel-dev/appstore` 目前主要维护超 1 万 Star
+> 的项目；社区第三方仓库由用户维护，适合 Elizabeth 这类应用。
 
 ## 生成来源
 
@@ -43,7 +45,8 @@ python3 1panel/skills/appstore/scripts/generate_app_package.py \
 - 文件目录：`${APP_STORAGE_DIR}:/app/storage`
 - 溯源文件：`source-evidence.json`
 
-根 `data.yml` 可保留 `batchInstallSupport: true`（官方商店字段，第三方商店可忽略）。
+根 `data.yml` 可保留
+`batchInstallSupport: true`（官方商店字段，第三方商店可忽略）。
 
 商店 Logo 由根目录透明品牌图生成，满足官方 Wiki 建议的 `180×180`、小于 `10 KB`：
 
@@ -88,11 +91,11 @@ docker compose \
 
 可选仓库变量：
 
-| 变量 | 默认 | 说明 |
-| --- | --- | --- |
-| `APPSTORE_UPSTREAM` | `okxlin/appstore` | PR 目标仓库 |
-| `APPSTORE_BASE` | `localApps` | 目标分支 |
-| `APPSTORE_FORK` | `YuniqueUnic/thirdparty-appstore` | 推送用 fork |
+| 变量                | 默认                              | 说明        |
+| ------------------- | --------------------------------- | ----------- |
+| `APPSTORE_UPSTREAM` | `okxlin/appstore`                 | PR 目标仓库 |
+| `APPSTORE_BASE`     | `localApps`                       | 目标分支    |
+| `APPSTORE_FORK`     | `YuniqueUnic/thirdparty-appstore` | 推送用 fork |
 
 未配置 Secret 时，workflow 仍会完成生成、校验、smoke 与 artifact
 上传，只跳过上游 PR。
