@@ -79,11 +79,11 @@ docker compose \
 3. 运行版本准备脚本、官方 1Panel package validator、Compose 展开和真实容器 smoke
    test。
 4. 上传可直接安装的 1Panel package artifact。
-5. 配置发布令牌后，自动从 `YuniqueUnic/okxlin-appstore` fork 向
+5. 配置发布令牌后，自动从 `YuniqueUnic/thirdparty-appstore` fork 向
    `okxlin/appstore:localApps` 创建或更新 PR。
 
 仓库需要配置 Secret `APPSTORE_GITHUB_TOKEN`。建议使用专用于
-`YuniqueUnic/okxlin-appstore` fork 的令牌；它必须能向 fork
+`YuniqueUnic/thirdparty-appstore` fork 的令牌；它必须能向 fork
 写入内容并代表该用户向公开上游创建 Pull Request。
 
 可选仓库变量：
@@ -92,7 +92,7 @@ docker compose \
 | --- | --- | --- |
 | `APPSTORE_UPSTREAM` | `okxlin/appstore` | PR 目标仓库 |
 | `APPSTORE_BASE` | `localApps` | 目标分支 |
-| `APPSTORE_FORK` | `YuniqueUnic/okxlin-appstore` | 推送用 fork |
+| `APPSTORE_FORK` | `YuniqueUnic/thirdparty-appstore` | 推送用 fork |
 
 未配置 Secret 时，workflow 仍会完成生成、校验、smoke 与 artifact
 上传，只跳过上游 PR。

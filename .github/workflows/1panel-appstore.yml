@@ -28,7 +28,7 @@ env:
   VERSION_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
   APPSTORE_UPSTREAM: ${{ vars.APPSTORE_UPSTREAM || 'okxlin/appstore' }}
   APPSTORE_BASE: ${{ vars.APPSTORE_BASE || 'localApps' }}
-  APPSTORE_FORK: ${{ vars.APPSTORE_FORK || 'YuniqueUnic/okxlin-appstore' }}
+  APPSTORE_FORK: ${{ vars.APPSTORE_FORK || 'YuniqueUnic/thirdparty-appstore' }}
   SMOKE_JWT_SECRET: ElizabethJwtSecretKey2026_abc123 # pragma: allowlist secret
 
 jobs:
