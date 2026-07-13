@@ -11,7 +11,7 @@ on:
         required: true
         type: string
       submit_pr:
-        description: "生成并验证后向 1Panel-dev/appstore 提交 PR"
+        description: "生成并验证后向 okxlin/appstore（第三方商店）提交 PR"
         required: false
         type: boolean
         default: true
@@ -26,7 +26,9 @@ concurrency:
 env:
   IMAGE: yunique001/elizabeth
   VERSION_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
-  APPSTORE_FORK: ${{ vars.APPSTORE_FORK || 'YuniqueUnic/appstore' }}
+  APPSTORE_UPSTREAM: ${{ vars.APPSTORE_UPSTREAM || 'okxlin/appstore' }}
+  APPSTORE_BASE: ${{ vars.APPSTORE_BASE || 'localApps' }}
+  APPSTORE_FORK: ${{ vars.APPSTORE_FORK || 'YuniqueUnic/thirdparty-appstore' }}
   SMOKE_JWT_SECRET: ElizabethJwtSecretKey2026_abc123 # pragma: allowlist secret
 
 jobs:
@@ -144,6 +146,9 @@ jobs:
           ROOM_ALLOWED_AGES=1m,30m,2h,12h,1d,7d,30d,365d \
           ROOM_DEFAULT_AGE=2h \
           ROOM_SHARE_DISABLED_LOCK_DURATION=1h \
+          APP_DATA_DIR=./data \
+          APP_STORAGE_DIR=./storage \
+          TZ=Asia/Shanghai \
           docker compose \
             -f "dist/1panel-appstore/apps/elizabeth/${version}/docker-compose.yml" \
             config --quiet
@@ -159,8 +164,8 @@ jobs:
           cp -R "dist/1panel-appstore/apps/elizabeth/${version}/." "${test_root}/"
           # 1Panel installs app directories as root. GitHub checkout files belong to the
           # runner UID, which cannot be written by a container after cap_drop: ALL.
-          sudo chown -R 0:0 "${test_root}/data"
-          sudo chmod -R u+rwX,go+rX "${test_root}/data"
+          sudo chown -R 0:0 "${test_root}/data" "${test_root}/storage"
+          sudo chmod -R u+rwX,go+rX "${test_root}/data" "${test_root}/storage"
 
           created_network=0
           if ! docker network inspect 1panel-network >/dev/null 2>&1; then
@@ -178,6 +183,9 @@ jobs:
             ROOM_ALLOWED_AGES=1m,30m,2h,12h,1d,7d,30d,365d \
             ROOM_DEFAULT_AGE=2h \
             ROOM_SHARE_DISABLED_LOCK_DURATION=1h \
+            APP_DATA_DIR=./data \
+            APP_STORAGE_DIR=./storage \
+            TZ=Asia/Shanghai \
             docker compose -p elizabeth-1panel-smoke -f "${test_root}/docker-compose.yml" \
               down -v --remove-orphans >/dev/null 2>&1 || true
             if [[ "${created_network}" -eq 1 ]]; then
@@ -196,6 +204,9 @@ jobs:
           ROOM_ALLOWED_AGES=1m,30m,2h,12h,1d,7d,30d,365d \
           ROOM_DEFAULT_AGE=2h \
           ROOM_SHARE_DISABLED_LOCK_DURATION=1h \
+          APP_DATA_DIR=./data \
+          APP_STORAGE_DIR=./storage \
+          TZ=Asia/Shanghai \
           docker compose -p elizabeth-1panel-smoke -f "${test_root}/docker-compose.yml" up -d
 
           for attempt in $(seq 1 60); do
@@ -221,8 +232,8 @@ jobs:
       - name: Checkout upstream App Store
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          repository: 1Panel-dev/appstore
-          ref: dev
+          repository: ${{ env.APPSTORE_UPSTREAM }}
+          ref: ${{ env.APPSTORE_BASE }}
           path: dist/upstream-appstore
           persist-credentials: false
 
@@ -253,7 +264,7 @@ jobs:
           path: dist/upstream-appstore
           token: ${{ secrets.APPSTORE_GITHUB_TOKEN }}
           push-to-fork: ${{ env.APPSTORE_FORK }}
-          base: dev
+          base: ${{ env.APPSTORE_BASE }}
           branch: app/elizabeth
           delete-branch: true
           add-paths: apps/elizabeth
@@ -275,6 +286,9 @@ jobs:
             - Container startup and `/api/v1/health` smoke test
             - Persistent SQLite data creation
             - Read-only root filesystem assertion
+
+            Target store: third-party `okxlin/appstore` (`localApps`)
+            Official store note: `1Panel-dev/appstore` currently only accepts apps for projects with 10k+ stars.
 
             Source release: https://github.com/YuniqueUnic/elizabeth/releases/tag/${{ steps.version.outputs.tag }}
             Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}

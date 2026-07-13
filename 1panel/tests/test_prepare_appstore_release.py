@@ -22,6 +22,13 @@ class PrepareAppstoreReleaseTests(unittest.TestCase):
             encoding="utf-8",
         )
         (app / "README.md").write_text("Elizabeth\n", encoding="utf-8")
+        (app / "source-evidence.json").write_text(
+            "{\n"
+            '  "dockerDocs": "https://github.com/YuniqueUnic/elizabeth/blob/v1.4.0/docs/DOCKER_QUICK_START.md",\n'
+            '  "release": "https://github.com/YuniqueUnic/elizabeth/releases/tag/v1.4.0"\n'
+            "}\n",
+            encoding="utf-8",
+        )
         for version in versions:
             version_dir = app / version
             version_dir.mkdir()
@@ -52,6 +59,9 @@ class PrepareAppstoreReleaseTests(unittest.TestCase):
             metadata = (prepared / "data.yml").read_text(encoding="utf-8")
             self.assertIn("image: yunique001/elizabeth:1.5.0", compose)
             self.assertIn("/blob/v1.5.0/docs/DOCKER_QUICK_START.md", metadata)
+            evidence = (prepared / "source-evidence.json").read_text(encoding="utf-8")
+            self.assertIn("/blob/v1.5.0/docs/DOCKER_QUICK_START.md", evidence)
+            self.assertIn("/releases/tag/v1.5.0", evidence)
 
     def test_rejects_ambiguous_source_versions(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

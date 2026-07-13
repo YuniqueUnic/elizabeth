@@ -77,6 +77,22 @@ def prepare_release(source: Path, output_root: Path, raw_version: str) -> Path:
         DOCUMENT_RE,
         f"https://github.com/YuniqueUnic/elizabeth/blob/v{version}/docs/DOCKER_QUICK_START.md",
     )
+
+    evidence_path = output_app / "source-evidence.json"
+    if evidence_path.is_file():
+        evidence = evidence_path.read_text(encoding="utf-8")
+        evidence = re.sub(
+            r"https://github\.com/YuniqueUnic/elizabeth/blob/v[0-9][0-9A-Za-z._+-]*/",
+            f"https://github.com/YuniqueUnic/elizabeth/blob/v{version}/",
+            evidence,
+        )
+        evidence = re.sub(
+            r"https://github\.com/YuniqueUnic/elizabeth/releases/tag/v[0-9][0-9A-Za-z._+-]*",
+            f"https://github.com/YuniqueUnic/elizabeth/releases/tag/v{version}",
+            evidence,
+        )
+        evidence_path.write_text(evidence, encoding="utf-8")
+
     return output_app
 
 
