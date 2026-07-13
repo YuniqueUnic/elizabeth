@@ -68,12 +68,12 @@ jobs:
         run: |
           set -euo pipefail
           image="${IMAGE}:${{ steps.version.outputs.version }}"
-          for attempt in $(seq 1 40); do
+          for attempt in $(seq 1 120); do
             if docker buildx imagetools inspect "${image}" >/dev/null 2>&1; then
               echo "Found ${image}"
               exit 0
             fi
-            if [[ "${attempt}" -eq 40 ]]; then
+            if [[ "${attempt}" -eq 120 ]]; then
               echo "Docker image was not published within the wait window: ${image}" >&2
               exit 1
             fi
