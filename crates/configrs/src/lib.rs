@@ -10,10 +10,12 @@ pub use configs::{
 };
 pub use error::{ConfigError, Result};
 use merge::Merge;
+pub use redact::{REDACTED, database_url_for_debug, optional_secret_for_debug, secret_for_debug};
 
 mod configs;
 mod error;
 mod merge;
+mod redact;
 
 /// Main configuration structure that holds all application settings.
 ///

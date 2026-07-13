@@ -2,7 +2,7 @@ use clap::Parser;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-#[derive(Debug, Clone, Default, Parser)]
+#[derive(Clone, Default, Parser)]
 pub struct CliArgs {
     /// The path to the configuration file, defaults = ~/.config/elife/config.yaml
     #[clap(short = 'c', long, env = "CONFIG_FILE")]
@@ -27,6 +27,38 @@ pub struct CliArgs {
     /// The log level to use, -v for info, -vv for debug, -vvv/v for trace, default_value = "off"
     #[clap(short = 'v', long, action = clap::ArgAction::Count)]
     pub verbose: Option<u8>,
+}
+
+impl std::fmt::Debug for CliArgs {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Keep this free of crate deps: build.rs includes this file for completions.
+        f.debug_struct("CliArgs")
+            .field("config_file", &self.config_file)
+            .field("port", &self.port)
+            .field("listen_addr", &self.listen_addr)
+            .field(
+                "jwt_secret",
+                &self.jwt_secret.as_ref().map(|_| "[REDACTED]"),
+            )
+            .field(
+                "db_url",
+                &self.db_url.as_deref().map(redact_db_url_for_debug),
+            )
+            .field("verbose", &self.verbose)
+            .finish()
+    }
+}
+
+fn redact_db_url_for_debug(url: &str) -> String {
+    let Some(scheme_sep) = url.find("://") else {
+        return url.to_string();
+    };
+    let scheme = &url[..scheme_sep];
+    let rest = &url[scheme_sep + 3..];
+    let Some(at) = rest.find('@') else {
+        return url.to_string();
+    };
+    format!("{scheme}://[REDACTED]@{}", &rest[at + 1..])
 }
 
 #[derive(Debug, Parser)]

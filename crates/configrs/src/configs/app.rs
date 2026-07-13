@@ -1,5 +1,8 @@
 use smart_default::SmartDefault;
+use std::fmt;
 use std::time::Duration;
+
+use crate::redact::{database_url_for_debug, optional_secret_for_debug, secret_for_debug};
 
 const DEFAULT_JWT_SECRET: &str =
     "default-secret-change-in-productiondefault-secret-change-in-production"; // pragma: allowlist secret
@@ -40,7 +43,7 @@ pub struct LoggingConfig {
     pub level: String,
 }
 
-#[derive(Merge, Debug, Clone, SmartDefault, serde::Deserialize, serde::Serialize)]
+#[derive(Merge, Clone, SmartDefault, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct DatabaseConfig {
     #[default("sqlite://app.db?mode=rwc")]
@@ -57,7 +60,18 @@ pub struct DatabaseConfig {
     pub journal_mode: String,
 }
 
-#[derive(Merge, Debug, Clone, SmartDefault, serde::Deserialize, serde::Serialize)]
+impl fmt::Debug for DatabaseConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DatabaseConfig")
+            .field("url", &database_url_for_debug(&self.url))
+            .field("max_connections", &self.max_connections)
+            .field("min_connections", &self.min_connections)
+            .field("journal_mode", &self.journal_mode)
+            .finish()
+    }
+}
+
+#[derive(Merge, Clone, SmartDefault, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct JwtConfig {
     #[default(DEFAULT_JWT_SECRET.to_string())] // pragma: allowlist secret
@@ -79,6 +93,22 @@ pub struct JwtConfig {
     #[default(true)]
     #[merge(strategy = overwrite)]
     pub enable_refresh_token_rotation: bool,
+}
+
+impl fmt::Debug for JwtConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("JwtConfig")
+            .field("secret", &secret_for_debug(&self.secret))
+            .field("ttl_seconds", &self.ttl_seconds)
+            .field("leeway_seconds", &self.leeway_seconds)
+            .field("refresh_ttl_seconds", &self.refresh_ttl_seconds)
+            .field("cleanup_interval_seconds", &self.cleanup_interval_seconds)
+            .field(
+                "enable_refresh_token_rotation",
+                &self.enable_refresh_token_rotation,
+            )
+            .finish()
+    }
 }
 
 #[derive(Merge, Debug, Clone, SmartDefault, serde::Deserialize, serde::Serialize)]
@@ -116,7 +146,7 @@ impl Default for RoomConfig {
 /// 所有新建房间的非时间默认值。
 ///
 /// 这里不是部署上限；房间创建后仍可通过 settings 修改容量和进入次数。
-#[derive(Merge, Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Merge, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct DefaultRoomConfig {
     #[merge(strategy = overwrite)]
@@ -127,6 +157,20 @@ pub struct DefaultRoomConfig {
     pub max_size: bytesize::ByteSize,
     #[merge(strategy = overwrite)]
     pub permissions: RoomPermissionConfig,
+}
+
+impl fmt::Debug for DefaultRoomConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DefaultRoomConfig")
+            .field(
+                "password",
+                &optional_secret_for_debug(self.password.as_deref()),
+            )
+            .field("max_times_entered", &self.max_times_entered)
+            .field("max_size", &self.max_size)
+            .field("permissions", &self.permissions)
+            .finish()
+    }
 }
 
 impl Default for DefaultRoomConfig {
@@ -434,7 +478,7 @@ mod tests {
             },
             room: RoomConfig {
                 defaults: DefaultRoomConfig {
-                    password: Some("room-pass".into()),
+                    password: Some("room-pass".into()), // pragma: allowlist secret
                     max_times_entered: 7,
                     max_size: bytesize::ByteSize::b(42),
                     permissions: RoomPermissionConfig {
@@ -476,7 +520,7 @@ mod tests {
         assert_eq!(left.storage.root, "/tmp/storage");
         assert_eq!(left.room.defaults.max_size.as_u64(), 42);
         assert_eq!(left.room.defaults.max_times_entered, 7);
-        assert_eq!(left.room.defaults.password.as_deref(), Some("room-pass"));
+        assert_eq!(left.room.defaults.password.as_deref(), Some("room-pass")); // pragma: allowlist secret
         assert_eq!(
             left.room.defaults.permissions,
             RoomPermissionConfig {
@@ -512,5 +556,49 @@ mod tests {
         assert_eq!(left.server.addr, "127.0.0.1");
         assert_eq!(left.logging.level, "info");
         assert_eq!(left.server.port, 1234);
+    }
+
+    #[test]
+    fn debug_redacts_jwt_secret_and_room_password() {
+        let cfg = AppConfig {
+            jwt: JwtConfig {
+                secret: "super-secret-jwt-value-should-not-leak".into(), // pragma: allowlist secret
+                ..Default::default()
+            },
+            room: RoomConfig {
+                defaults: DefaultRoomConfig {
+                    password: Some("room-pass".into()), // pragma: allowlist secret
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            database: DatabaseConfig {
+                url: "postgresql://user:db-pass@localhost:5432/elizabeth".into(), // pragma: allowlist secret
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let debug = format!("{cfg:?}");
+        assert!(!debug.contains("super-secret-jwt-value-should-not-leak")); // pragma: allowlist secret
+        assert!(!debug.contains("room-pass")); // pragma: allowlist secret
+        assert!(!debug.contains("db-pass")); // pragma: allowlist secret
+        assert!(debug.contains("[REDACTED]"));
+    }
+
+    #[test]
+    fn debug_redacts_nested_config_pretty_print() {
+        let cfg = crate::Config {
+            app: AppConfig {
+                jwt: JwtConfig {
+                    secret: "nested-secret-must-stay-hidden".into(), // pragma: allowlist secret
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        };
+        let debug = format!("{cfg:#?}");
+        assert!(!debug.contains("nested-secret-must-stay-hidden")); // pragma: allowlist secret
+        assert!(debug.contains("[REDACTED]"));
     }
 }
