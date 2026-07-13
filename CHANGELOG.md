@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v1.1.0.html).
 
+## [1.5.0](https://github.com/YuniqueUnic/elizabeth/compare/v1.4.0...v1.5.0) (2026-07-13)
+
+
+### Features
+
+* add 1Panel App Store release flow ([7465d58](https://github.com/YuniqueUnic/elizabeth/commit/7465d58d085c87a80ce1490566942e7e3db8d8a6))
+
+
+### Bug Fixes
+
+* align 1Panel smoke data ownership ([2f642ec](https://github.com/YuniqueUnic/elizabeth/commit/2f642eccabb5dd00d48085d9290b43c3c9ea2414))
+* retarget 1Panel package to third-party appstore ([#151](https://github.com/YuniqueUnic/elizabeth/issues/151)) ([82401f0](https://github.com/YuniqueUnic/elizabeth/commit/82401f0e335ee88885d8883da672c527477d2bcc))
+
 ## [1.4.0](https://github.com/YuniqueUnic/elizabeth/compare/v1.3.2...v1.4.0) (2026-07-10)
 
 
