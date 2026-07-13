@@ -875,7 +875,7 @@ dependencies = [
 
 [[package]]
 name = "elizabeth-board"
-version = "1.5.1"
+version = "1.5.2"
 dependencies = [
  "anyhow",
  "argon2",
@@ -919,7 +919,7 @@ dependencies = [
 
 [[package]]
 name = "elizabeth-board-protocol"
-version = "1.5.1"
+version = "1.5.2"
 dependencies = [
  "bitflags",
  "bon",
@@ -936,7 +936,7 @@ dependencies = [
 
 [[package]]
 name = "elizabeth-configrs"
-version = "1.5.1"
+version = "1.5.2"
 dependencies = [
  "bytesize",
  "config",
@@ -954,7 +954,7 @@ dependencies = [
 
 [[package]]
 name = "elizabeth-logrs"
-version = "1.5.1"
+version = "1.5.2"
 dependencies = [
  "log",
  "tracing",

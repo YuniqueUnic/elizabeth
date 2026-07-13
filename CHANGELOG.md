@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v1.1.0.html).
 
+## [1.5.2](https://github.com/YuniqueUnic/elizabeth/compare/v1.5.1...v1.5.2) (2026-07-13)
+
+
+### Bug Fixes
+
+* redact secrets from startup config debug logs ([#154](https://github.com/YuniqueUnic/elizabeth/issues/154)) ([949c783](https://github.com/YuniqueUnic/elizabeth/commit/949c78339740fb296f33ae413601a55d046d0f04))
+
 ## [1.5.1](https://github.com/YuniqueUnic/elizabeth/compare/v1.5.0...v1.5.1) (2026-07-13)
 
 
