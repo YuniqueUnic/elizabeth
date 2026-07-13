@@ -12,6 +12,9 @@ Elizabeth 的 1Panel 商店应用位于：
 - Docker 镜像：`yunique001/elizabeth:1.4.0`
 - 支持架构：`linux/amd64`、`linux/arm64`
 - 1Panel 本地应用测试目录：`/opt/1panel/resource/apps/local/elizabeth`
+- 推荐提交目标：第三方应用商店 [`okxlin/appstore`](https://github.com/okxlin/appstore)（`localApps` 分支）
+
+> 官方 `1Panel-dev/appstore` 目前主要维护超 1 万 Star 的项目；社区第三方仓库由用户维护，适合 Elizabeth 这类应用。
 
 ## 生成来源
 
@@ -34,7 +37,13 @@ python3 1panel/skills/appstore/scripts/generate_app_package.py \
 - `read_only: true`
 - `tmpfs: [/tmp]`
 
-根 `data.yml` 还应保留 1Panel 官方商店使用的 `batchInstallSupport: true`。
+并确认：
+
+- 数据目录：`${APP_DATA_DIR}:/app/data`
+- 文件目录：`${APP_STORAGE_DIR}:/app/storage`
+- 溯源文件：`source-evidence.json`
+
+根 `data.yml` 可保留 `batchInstallSupport: true`（官方商店字段，第三方商店可忽略）。
 
 商店 Logo 由根目录透明品牌图生成，满足官方 Wiki 建议的 `180×180`、小于 `10 KB`：
 
@@ -50,12 +59,16 @@ python3 1panel/skills/appstore/scripts/validate_app_package.py \
 
 docker compose \
   -f 1panel/apps/elizabeth/1.4.0/docker-compose.yml \
-  --env-file /path/to/test.env \
+  --env-file 1panel/apps/elizabeth/1.4.0/.env.sample \
   config
 ```
 
 本地安装测试时，将整个 `elizabeth` 目录复制到 1Panel
 的本地应用目录，然后在应用商店更新本地应用列表。
+
+也可参考第三方适配器：
+
+- <https://github.com/okxlin/1panel-app-adapter>
 
 ## 自动发布 Workflow
 
@@ -66,13 +79,20 @@ docker compose \
 3. 运行版本准备脚本、官方 1Panel package validator、Compose 展开和真实容器 smoke
    test。
 4. 上传可直接安装的 1Panel package artifact。
-5. 配置发布令牌后，自动从 `YuniqueUnic/appstore` fork 向
-   `1Panel-dev/appstore:dev` 创建或更新 PR。
+5. 配置发布令牌后，自动从 `YuniqueUnic/okxlin-appstore` fork 向
+   `okxlin/appstore:localApps` 创建或更新 PR。
 
 仓库需要配置 Secret `APPSTORE_GITHUB_TOKEN`。建议使用专用于
-`YuniqueUnic/appstore` fork 的令牌；它必须能向 fork
-写入内容并代表该用户向公开上游创建 Pull Request。可选仓库变量 `APPSTORE_FORK`
-可覆盖默认值 `YuniqueUnic/appstore`。
+`YuniqueUnic/okxlin-appstore` fork 的令牌；它必须能向 fork
+写入内容并代表该用户向公开上游创建 Pull Request。
+
+可选仓库变量：
+
+| 变量 | 默认 | 说明 |
+| --- | --- | --- |
+| `APPSTORE_UPSTREAM` | `okxlin/appstore` | PR 目标仓库 |
+| `APPSTORE_BASE` | `localApps` | 目标分支 |
+| `APPSTORE_FORK` | `YuniqueUnic/okxlin-appstore` | 推送用 fork |
 
 未配置 Secret 时，workflow 仍会完成生成、校验、smoke 与 artifact
 上传，只跳过上游 PR。
@@ -85,3 +105,4 @@ docker compose \
 - [Docker 快速开始](https://github.com/YuniqueUnic/elizabeth/blob/v1.4.0/docs/DOCKER_QUICK_START.md)
 - [Docker 发布工作流](https://github.com/YuniqueUnic/elizabeth/blob/v1.4.0/.github/workflows/docker-publish.yml)
 - [1Panel 应用提交说明](https://github.com/1Panel-dev/appstore/wiki/How-to-submit-your-own-application)
+- [第三方应用商店](https://github.com/okxlin/appstore)

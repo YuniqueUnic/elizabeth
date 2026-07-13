@@ -2,7 +2,7 @@ services:
   elizabeth:
     image: yunique001/elizabeth:1.4.0
     container_name: "${CONTAINER_NAME}"
-    restart: always
+    restart: unless-stopped
     init: true
     security_opt:
       - no-new-privileges:true
@@ -23,9 +23,10 @@ services:
       ROOM_ALLOWED_AGES: "${ROOM_ALLOWED_AGES}"
       ROOM_DEFAULT_AGE: "${ROOM_DEFAULT_AGE}"
       ROOM_SHARE_DISABLED_LOCK_DURATION: "${ROOM_SHARE_DISABLED_LOCK_DURATION}"
+      TZ: "${TZ}"
     volumes:
-      - ./data:/app/data
-      - ./data/storage:/app/storage
+      - "${APP_DATA_DIR}:/app/data"
+      - "${APP_STORAGE_DIR}:/app/storage"
     healthcheck:
       test:
         - CMD

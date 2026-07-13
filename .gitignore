@@ -18,6 +18,8 @@ CLAUDE.md
 .env.*
 !.env.example
 !.env.template
+!.env.sample
+!**/.env.sample
 
 # secrets baseline（可选择是否提交）
 # .secrets.baseline

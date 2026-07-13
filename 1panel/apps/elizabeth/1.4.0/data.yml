@@ -40,9 +40,9 @@ additionalProperties:
         zh: "JWT 密钥"
         tr: "JWT Gizli Anahtarı"
       description:
-        en: "Secret used to sign sessions. 1Panel generates a value of at least 32 characters; replace it with a stronger secret for an Internet-facing deployment."
-        zh-Hant: "用於簽署工作階段的密鑰。1Panel 會產生至少 32 個字元的值；公開部署時建議替換為更強的密鑰。"
-        zh: "用于签名会话的密钥。1Panel 会生成至少 32 个字符的值；公网部署时建议替换为更强的密钥。"
+        en: "Secret used to sign sessions. 1Panel generates a value of at least 32 characters; do not change it after install unless you accept invalidating existing sessions."
+        zh-Hant: "用於簽署工作階段的密鑰。1Panel 會產生至少 32 個字元的值；安裝後勿隨意更換，否則既有工作階段會失效。"
+        zh: "用于签名会话的密钥。1Panel 会生成至少 32 个字符的值；安装后勿随意更换，否则既有会话会失效。"
       random: true
       required: true
       rule: paramComplexity
@@ -67,6 +67,72 @@ additionalProperties:
         en: "Uses SQLite in the persistent data directory by default. An external PostgreSQL URL is also supported."
         zh-Hant: "預設使用持久化資料目錄中的 SQLite，也支援外部 PostgreSQL 連線字串。"
         zh: "默认使用持久化数据目录中的 SQLite，也支持外部 PostgreSQL 连接串。"
+      required: true
+      type: text
+    - default: ./data
+      edit: true
+      envKey: APP_DATA_DIR
+      labelEn: "Data Directory"
+      labelZh: "数据目录"
+      label:
+        en: "Data Directory"
+        es-es: "Directorio de datos"
+        ja: "データディレクトリ"
+        ms: "Direktori data"
+        pt-br: "Diretório de dados"
+        ru: "Каталог данных"
+        ko: "데이터 디렉터리"
+        zh-Hant: "資料目錄"
+        zh: "数据目录"
+        tr: "Veri Dizini"
+      description:
+        en: "Host path mounted to /app/data for SQLite and other local state."
+        zh-Hant: "掛載到 /app/data 的主機路徑，用於 SQLite 與其他本地狀態。"
+        zh: "挂载到 /app/data 的主机路径，用于 SQLite 与其他本地状态。"
+      required: true
+      type: text
+    - default: ./storage
+      edit: true
+      envKey: APP_STORAGE_DIR
+      labelEn: "Storage Directory"
+      labelZh: "文件存储目录"
+      label:
+        en: "Storage Directory"
+        es-es: "Directorio de almacenamiento"
+        ja: "ストレージディレクトリ"
+        ms: "Direktori storan"
+        pt-br: "Diretório de armazenamento"
+        ru: "Каталог хранилища"
+        ko: "스토리지 디렉터리"
+        zh-Hant: "檔案儲存目錄"
+        zh: "文件存储目录"
+        tr: "Depolama Dizini"
+      description:
+        en: "Host path mounted to /app/storage for room file uploads."
+        zh-Hant: "掛載到 /app/storage 的主機路徑，用於房間上傳檔案。"
+        zh: "挂载到 /app/storage 的主机路径，用于房间上传文件。"
+      required: true
+      type: text
+    - default: Asia/Shanghai
+      edit: true
+      envKey: TZ
+      labelEn: "Timezone"
+      labelZh: "时区"
+      label:
+        en: "Timezone"
+        es-es: "Zona horaria"
+        ja: "タイムゾーン"
+        ms: "Zon waktu"
+        pt-br: "Fuso horário"
+        ru: "Часовой пояс"
+        ko: "시간대"
+        zh-Hant: "時區"
+        zh: "时区"
+        tr: "Saat Dilimi"
+      description:
+        en: "Container timezone used for log timestamps."
+        zh-Hant: "容器時區，影響日誌時間戳。"
+        zh: "容器时区，影响日志时间戳。"
       required: true
       type: text
     - default: 50MiB
@@ -98,15 +164,15 @@ additionalProperties:
       labelZh: "房间进入次数上限"
       label:
         en: "Room Entry Limit"
-        es-es: "Room Entry Limit"
-        ja: "Room Entry Limit"
-        ms: "Room Entry Limit"
-        pt-br: "Room Entry Limit"
-        ru: "Room Entry Limit"
-        ko: "Room Entry Limit"
+        es-es: "Límite de entradas a la sala"
+        ja: "ルーム入場回数上限"
+        ms: "Had kemasukan bilik"
+        pt-br: "Limite de entradas na sala"
+        ru: "Лимит входов в комнату"
+        ko: "방 입장 횟수 한도"
         zh-Hant: "房間進入次數上限"
         zh: "房间进入次数上限"
-        tr: "Room Entry Limit"
+        tr: "Oda giriş limiti"
       description:
         en: "Maximum number of successful entries allowed for a newly created room."
         zh-Hant: "新建房間允許成功進入的最大次數。"
@@ -120,15 +186,15 @@ additionalProperties:
       labelZh: "允许的房间有效期"
       label:
         en: "Allowed Room Ages"
-        es-es: "Allowed Room Ages"
-        ja: "Allowed Room Ages"
-        ms: "Allowed Room Ages"
-        pt-br: "Allowed Room Ages"
-        ru: "Allowed Room Ages"
-        ko: "Allowed Room Ages"
+        es-es: "Vigencias de sala permitidas"
+        ja: "許可するルーム有効期限"
+        ms: "Tempoh bilik dibenarkan"
+        pt-br: "Validades de sala permitidas"
+        ru: "Допустимые сроки комнаты"
+        ko: "허용되는 방 유효기간"
         zh-Hant: "允許的房間有效期"
         zh: "允许的房间有效期"
-        tr: "Allowed Room Ages"
+        tr: "İzin verilen oda süreleri"
       description:
         en: "Comma-separated humantime values exposed to the UI and accepted by the backend."
         zh-Hant: "以逗號分隔的 humantime 時長；前端會展示這些選項，後端也只接受這些值。"
@@ -142,15 +208,15 @@ additionalProperties:
       labelZh: "默认房间有效期"
       label:
         en: "Default Room Age"
-        es-es: "Default Room Age"
-        ja: "Default Room Age"
-        ms: "Default Room Age"
-        pt-br: "Default Room Age"
-        ru: "Default Room Age"
-        ko: "Default Room Age"
+        es-es: "Vigencia de sala predeterminada"
+        ja: "既定のルーム有効期限"
+        ms: "Tempoh bilik lalai"
+        pt-br: "Validade padrão da sala"
+        ru: "Срок комнаты по умолчанию"
+        ko: "기본 방 유효기간"
         zh-Hant: "預設房間有效期"
         zh: "默认房间有效期"
-        tr: "Default Room Age"
+        tr: "Varsayılan oda süresi"
       description:
         en: "Default lifetime for newly created rooms. It must also appear in Allowed Room Ages."
         zh-Hant: "新建房間的預設有效期，且必須包含在「允許的房間有效期」中。"
@@ -164,15 +230,15 @@ additionalProperties:
       labelZh: "禁用分享后的锁定时长"
       label:
         en: "Share-disabled Lock Duration"
-        es-es: "Share-disabled Lock Duration"
-        ja: "Share-disabled Lock Duration"
-        ms: "Share-disabled Lock Duration"
-        pt-br: "Share-disabled Lock Duration"
-        ru: "Share-disabled Lock Duration"
-        ko: "Share-disabled Lock Duration"
+        es-es: "Duración de bloqueo sin compartir"
+        ja: "共有無効後のロック期間"
+        ms: "Tempoh kunci selepas kongsi dilumpuhkan"
+        pt-br: "Duração do bloqueio sem compartilhamento"
+        ru: "Срок блокировки после отключения шаринга"
+        ko: "공유 비활성화 후 잠금 기간"
         zh-Hant: "停用分享後的鎖定時長"
         zh: "禁用分享后的锁定时长"
-        tr: "Share-disabled Lock Duration"
+        tr: "Paylaşım kapalı kilit süresi"
       description:
         en: "How long a private room name remains reserved after sharing is disabled. Supports humantime values such as 30m and 1h."
         zh-Hant: "停用分享後，私密房間名稱繼續保留的時長；支援 30m、1h 等 humantime 格式。"
