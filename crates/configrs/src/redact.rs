@@ -20,7 +20,7 @@ pub fn optional_secret_for_debug(value: Option<&str>) -> Option<&'static str> {
 /// Redact credentials embedded in a database URL userinfo section.
 ///
 /// Examples:
-/// - `postgresql://user:pass@host/db` -> `postgresql://[REDACTED]@host/db`
+/// - `postgresql://user:pass@host/db` -> `postgresql://[REDACTED]@host/db` // pragma: allowlist secret
 /// - `sqlite://app.db?mode=rwc` stays unchanged (no userinfo)
 pub fn database_url_for_debug(url: &str) -> String {
     let Some(scheme_sep) = url.find("://") else {
@@ -40,20 +40,20 @@ mod tests {
 
     #[test]
     fn secret_for_debug_hides_non_empty_values() {
-        assert_eq!(secret_for_debug("super-secret-value"), REDACTED);
+        assert_eq!(secret_for_debug("super-secret-value"), REDACTED); // pragma: allowlist secret
         assert_eq!(secret_for_debug(""), "<empty>");
     }
 
     #[test]
     fn optional_secret_for_debug_preserves_none() {
         assert_eq!(optional_secret_for_debug(None), None);
-        assert_eq!(optional_secret_for_debug(Some("room-pass")), Some(REDACTED));
+        assert_eq!(optional_secret_for_debug(Some("room-pass")), Some(REDACTED)); // pragma: allowlist secret
     }
 
     #[test]
     fn database_url_for_debug_redacts_userinfo() {
         assert_eq!(
-            database_url_for_debug("postgresql://alice:s3cret@db.example:5432/app"),
+            database_url_for_debug("postgresql://alice:s3cret@db.example:5432/app"), // pragma: allowlist secret
             format!("postgresql://{REDACTED}@db.example:5432/app")
         );
         assert_eq!(

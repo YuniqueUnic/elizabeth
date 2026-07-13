@@ -478,7 +478,7 @@ mod tests {
             },
             room: RoomConfig {
                 defaults: DefaultRoomConfig {
-                    password: Some("room-pass".into()),
+                    password: Some("room-pass".into()), // pragma: allowlist secret
                     max_times_entered: 7,
                     max_size: bytesize::ByteSize::b(42),
                     permissions: RoomPermissionConfig {
@@ -520,7 +520,7 @@ mod tests {
         assert_eq!(left.storage.root, "/tmp/storage");
         assert_eq!(left.room.defaults.max_size.as_u64(), 42);
         assert_eq!(left.room.defaults.max_times_entered, 7);
-        assert_eq!(left.room.defaults.password.as_deref(), Some("room-pass"));
+        assert_eq!(left.room.defaults.password.as_deref(), Some("room-pass")); // pragma: allowlist secret
         assert_eq!(
             left.room.defaults.permissions,
             RoomPermissionConfig {
@@ -562,27 +562,27 @@ mod tests {
     fn debug_redacts_jwt_secret_and_room_password() {
         let cfg = AppConfig {
             jwt: JwtConfig {
-                secret: "super-secret-jwt-value-should-not-leak".into(),
+                secret: "super-secret-jwt-value-should-not-leak".into(), // pragma: allowlist secret
                 ..Default::default()
             },
             room: RoomConfig {
                 defaults: DefaultRoomConfig {
-                    password: Some("room-pass".into()),
+                    password: Some("room-pass".into()), // pragma: allowlist secret
                     ..Default::default()
                 },
                 ..Default::default()
             },
             database: DatabaseConfig {
-                url: "postgresql://user:db-pass@localhost:5432/elizabeth".into(),
+                url: "postgresql://user:db-pass@localhost:5432/elizabeth".into(), // pragma: allowlist secret
                 ..Default::default()
             },
             ..Default::default()
         };
 
         let debug = format!("{cfg:?}");
-        assert!(!debug.contains("super-secret-jwt-value-should-not-leak"));
-        assert!(!debug.contains("room-pass"));
-        assert!(!debug.contains("db-pass"));
+        assert!(!debug.contains("super-secret-jwt-value-should-not-leak")); // pragma: allowlist secret
+        assert!(!debug.contains("room-pass")); // pragma: allowlist secret
+        assert!(!debug.contains("db-pass")); // pragma: allowlist secret
         assert!(debug.contains("[REDACTED]"));
     }
 
@@ -591,14 +591,14 @@ mod tests {
         let cfg = crate::Config {
             app: AppConfig {
                 jwt: JwtConfig {
-                    secret: "nested-secret-must-stay-hidden".into(),
+                    secret: "nested-secret-must-stay-hidden".into(), // pragma: allowlist secret
                     ..Default::default()
                 },
                 ..Default::default()
             },
         };
         let debug = format!("{cfg:#?}");
-        assert!(!debug.contains("nested-secret-must-stay-hidden"));
+        assert!(!debug.contains("nested-secret-must-stay-hidden")); // pragma: allowlist secret
         assert!(debug.contains("[REDACTED]"));
     }
 }
