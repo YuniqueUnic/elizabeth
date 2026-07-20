@@ -176,7 +176,7 @@ jobs:
           exit 1
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
 
       - name: Install Playwright
         run: bunx playwright install --with-deps chromium
