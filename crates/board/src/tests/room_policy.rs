@@ -471,11 +471,14 @@ async fn upload_cleanup_removes_expired_chunk_files_before_database_rows() -> an
     .execute(&*state.db_pool)
     .await?;
 
-    let chunk_dir = crate::chunk_temp_storage::reservation_dir(reservation_id);
+    let chunk_dir =
+        crate::chunk_temp_storage::reservation_dir(state.storage_root(), reservation_id);
     tokio::fs::create_dir_all(&chunk_dir).await?;
     tokio::fs::write(chunk_dir.join("chunk_0"), b"orphaned").await?;
 
-    let report = UploadCleanupTask::new(repository.clone()).run().await?;
+    let report = UploadCleanupTask::new(repository.clone(), state.storage_root().clone())
+        .run()
+        .await?;
     assert_eq!(report.changed, 1);
     assert!(!tokio::fs::try_exists(&chunk_dir).await?);
     assert!(repository.fetch_by_id(reservation_id).await?.is_none());

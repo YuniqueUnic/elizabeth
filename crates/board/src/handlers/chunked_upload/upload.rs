@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{path::Path as StdPath, sync::Arc};
 
 use axum::{
     Json,
@@ -77,7 +77,13 @@ pub async fn upload_chunk(
     ensure_chunk_slot_empty(&chunk_repository, reservation_id, parsed.chunk_index).await?;
 
     let calculated_hash = validate_chunk_hash(&parsed)?;
-    write_chunk_file(reservation_id, parsed.chunk_index, &parsed.chunk_data).await?;
+    write_chunk_file(
+        app_state.storage_root(),
+        reservation_id,
+        parsed.chunk_index,
+        &parsed.chunk_data,
+    )
+    .await?;
     persist_chunk_record(
         &chunk_repository,
         &reservation_repository,
@@ -228,16 +234,18 @@ fn validate_chunk_hash(parsed: &ParsedChunkUpload) -> Result<String, AppError> {
 }
 
 async fn write_chunk_file(
+    storage_root: &StdPath,
     reservation_id: i64,
     chunk_index: i32,
     chunk_data: &[u8],
 ) -> Result<(), AppError> {
-    let temp_dir = crate::chunk_temp_storage::reservation_dir(reservation_id);
+    let temp_dir = crate::chunk_temp_storage::reservation_dir(storage_root, reservation_id);
     fs::create_dir_all(&temp_dir)
         .await
         .map_err(|e| AppError::internal(format!("创建临时目录失败：{}", e)))?;
 
-    let chunk_file_path = crate::chunk_temp_storage::chunk_path(reservation_id, chunk_index.into());
+    let chunk_file_path =
+        crate::chunk_temp_storage::chunk_path(storage_root, reservation_id, chunk_index.into());
     let mut file = fs::File::create(&chunk_file_path)
         .await
         .map_err(|e| AppError::internal(format!("创建分块文件失败：{}", e)))?;
