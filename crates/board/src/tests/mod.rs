@@ -1,4 +1,5 @@
 mod cfg_service;
+mod chunk_temp_storage;
 mod db;
 mod room_expiry;
 mod room_gc_service;

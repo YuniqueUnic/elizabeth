@@ -77,7 +77,7 @@ fn single_chunk_request(
 /// 测试基本的分块上传流程
 #[tokio::test]
 async fn test_chunked_upload_complete_workflow() -> Result<()> {
-    let (app, _pool) = create_test_app().await?;
+    let (app, pool) = create_test_app().await?;
 
     let room_name = "chunked_upload_test_room";
 
@@ -198,8 +198,12 @@ async fn test_chunked_upload_complete_workflow() -> Result<()> {
         sqlx::query_scalar("SELECT path FROM room_contents WHERE id = $1 AND room_id = (SELECT id FROM rooms WHERE name = $2)")
             .bind(content_id)
             .bind(room_name)
-            .fetch_one(_pool.as_ref())
+            .fetch_one(pool.as_ref())
             .await?;
+    let storage_root = std::path::Path::new(&stored_path)
+        .parent()
+        .and_then(|room_storage_dir| room_storage_dir.parent())
+        .expect("final path should be nested below the storage root");
     assert!(
         stored_path.starts_with(std::env::temp_dir().to_string_lossy().as_ref()),
         "stored path should honor configured storage root, got {stored_path}"
@@ -207,6 +211,11 @@ async fn test_chunked_upload_complete_workflow() -> Result<()> {
     assert!(
         tokio::fs::try_exists(&stored_path).await?,
         "merged file should exist at configured storage root"
+    );
+    assert_eq!(tokio::fs::read(&stored_path).await?, file_data.as_bytes());
+    assert!(
+        !tokio::fs::try_exists(storage_root.join(".chunks").join(&reservation_id)).await?,
+        "completed uploads should remove their durable staging directory"
     );
 
     Ok(())

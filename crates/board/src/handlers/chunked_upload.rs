@@ -351,7 +351,10 @@ pub async fn cancel_chunked_upload(
     }
 
     // 清理临时分块文件
-    if let Err(e) = crate::chunk_temp_storage::remove_reservation_dir(reservation_id).await {
+    if let Err(e) =
+        crate::chunk_temp_storage::remove_reservation_dir(app_state.storage_root(), reservation_id)
+            .await
+    {
         logrs::error!("清理临时分块文件失败：{}", e);
     }
 

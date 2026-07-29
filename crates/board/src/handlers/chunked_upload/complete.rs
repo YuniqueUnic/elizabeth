@@ -82,10 +82,13 @@ pub async fn complete_file_merge(
         reservation.total_chunks,
     )
     .await?;
-    let final_file_path = crate::chunk_temp_storage::merged_file_path(reservation_db_id);
+    let storage_root = app_state.storage_root();
+    let final_file_path =
+        crate::chunk_temp_storage::merged_file_path(storage_root, reservation_db_id);
 
     merge_and_verify_chunks(
         &sorted_chunks,
+        storage_root,
         &final_file_path,
         &payload.final_hash,
         &reservation_repository,
@@ -95,7 +98,7 @@ pub async fn complete_file_merge(
 
     let file_manifest = parse_file_manifest(&reservation.file_manifest)?;
     let file = first_manifest_file(&file_manifest)?;
-    let storage_dir = app_state.storage_root().join(room_id.to_string());
+    let storage_dir = storage_root.join(room_id.to_string());
     fs::create_dir_all(&storage_dir)
         .await
         .map_err(|e| AppError::internal(format!("创建存储目录失败：{}", e)))?;
@@ -120,7 +123,7 @@ pub async fn complete_file_merge(
         .await
         .map_err(|e| AppError::internal(format!("更新上传状态失败：{}", e)))?;
 
-    cleanup_temp_dir(reservation_db_id).await;
+    cleanup_temp_dir(storage_root, reservation_db_id).await;
 
     let content_repository = RoomContentRepository::new(app_state.db_pool.clone());
     let created_content =
@@ -223,12 +226,13 @@ fn validate_uploaded_chunks(chunks: &[RoomChunkUpload], total_chunks: i64) -> Re
 
 async fn merge_and_verify_chunks(
     chunks: &[RoomChunkUpload],
+    storage_root: &StdPath,
     final_file_path: &StdPath,
     final_hash: &str,
     repository: &RoomUploadReservationRepository,
     reservation_id: i64,
 ) -> Result<(), AppError> {
-    if let Err(e) = merge_chunks(chunks, final_file_path).await {
+    if let Err(e) = merge_chunks(chunks, storage_root, final_file_path).await {
         mark_upload_failed(repository, reservation_id).await;
         return Err(AppError::internal(format!("文件合并失败：{}", e)));
     }
@@ -342,21 +346,27 @@ fn build_room_content(
     }
 }
 
-async fn cleanup_temp_dir(reservation_id: i64) {
-    if let Err(e) = crate::chunk_temp_storage::remove_reservation_dir(reservation_id).await {
+async fn cleanup_temp_dir(storage_root: &StdPath, reservation_id: i64) {
+    if let Err(e) =
+        crate::chunk_temp_storage::remove_reservation_dir(storage_root, reservation_id).await
+    {
         logrs::error!("清理临时文件失败：{}", e);
     }
 }
 
 async fn merge_chunks(
     chunks: &[RoomChunkUpload],
+    storage_root: &StdPath,
     output_path: &StdPath,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut output_file = fs::File::create(output_path).await?;
 
     for chunk in chunks {
-        let chunk_path =
-            crate::chunk_temp_storage::chunk_path(chunk.reservation_id, chunk.chunk_index);
+        let chunk_path = crate::chunk_temp_storage::chunk_path(
+            storage_root,
+            chunk.reservation_id,
+            chunk.chunk_index,
+        );
         let mut chunk_file = fs::File::open(&chunk_path).await?;
 
         let mut buffer = vec![0u8; chunk.chunk_size as usize];
