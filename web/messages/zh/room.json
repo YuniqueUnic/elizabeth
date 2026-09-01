@@ -458,6 +458,7 @@
     "validCodesCount": "有效访问码数量: {count} / {max}",
     "autoDownloadTimesHint": "有效下载次数将自动设为 {count} 次",
     "previewProtectedMessage": "该文件受到下载策略与访问码保护",
-    "previewProtectedHint": "请点击下方“下载”按钮并输入访问码获取文件"
+    "previewProtectedHint": "请输入访问码以解锁在线预览与下载",
+    "redeemButton": "输入访问码解锁"
   }
 }

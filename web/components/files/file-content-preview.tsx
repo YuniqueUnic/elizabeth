@@ -34,6 +34,7 @@ interface FileContentPreviewProps {
   fileName: string;
   mimeType?: string;
   roomName: string;
+  ticket?: string;
 }
 
 // Detect file type from extension
@@ -159,7 +160,7 @@ function getLanguage(fileName: string): string {
 }
 
 export function FileContentPreview(
-  { fileUrl, fileName, roomName }: FileContentPreviewProps,
+  { fileUrl, fileName, roomName, ticket }: FileContentPreviewProps,
 ) {
   const t = useTranslations("room");
   const { toast } = useToast();
@@ -228,9 +229,13 @@ export function FileContentPreview(
         const token = await getValidToken(roomName);
 
         // Fetch securely using Authorization header
-        const response = await api.getRaw(fileUrl, undefined, {
-          token: token ?? undefined,
-        });
+        const response = await api.getRaw(
+          fileUrl,
+          ticket ? { ticket } : undefined,
+          {
+            token: token ?? undefined,
+          },
+        );
 
         if (!response.ok) {
           throw new Error(`Failed to fetch file: ${response.statusText}`);
@@ -253,7 +258,7 @@ export function FileContentPreview(
     } else {
       setLoading(false);
     }
-  }, [fileType, fileUrl, roomName]);
+  }, [fileType, fileUrl, roomName, ticket]);
 
   // Handle copy to clipboard
   const handleCopy = async () => {

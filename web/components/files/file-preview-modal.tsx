@@ -26,6 +26,7 @@ import { useRoomPermissions } from "@/hooks/use-room-permissions";
 import { copyTextToClipboard } from "@/lib/utils/clipboard";
 import { ManualCopyDialog } from "@/components/manual-copy-dialog";
 import {
+  appendAuthAndTicket,
   appendToken,
   buildMarkdownReference,
   buildPreviewMarkdownReference,
@@ -110,7 +111,7 @@ export function FilePreviewModal(
   const authenticatedAssetPath = assetPath
     ? (isLink
         ? assetPath
-        : (currentTicket ? `${assetPath}?ticket=${encodeURIComponent(currentTicket)}` : appendToken(assetPath, roomToken)))
+        : appendAuthAndTicket(assetPath, roomToken, currentTicket))
     : undefined;
 
   // Build a token-free shareable URL for clipboard
@@ -257,11 +258,22 @@ export function FilePreviewModal(
               icon={<Lock className="h-10 w-10 text-muted-foreground opacity-40" />}
               message={tp("previewProtectedMessage")}
               hint={tp("previewProtectedHint")}
+              action={
+                <Button size="sm" onClick={() => setRedeemDialogOpen(true)} className="mt-2">
+                  <Lock className="h-3.5 w-3.5 mr-1.5" />
+                  {tp("redeemButton")}
+                </Button>
+              }
             />
           ) : (
             <>
               {isImage && assetPath && (
-                <ImageViewer src={assetPath} alt={file.name} roomName={roomName} />
+                <ImageViewer
+                  src={assetPath}
+                  alt={file.name}
+                  roomName={roomName}
+                  ticket={currentTicket}
+                />
               )}
               {isImage && !assetPath && (
                 <EmptyState message={t("filePreviewModal.imageLoadError")} />
@@ -280,7 +292,11 @@ export function FilePreviewModal(
               )}
 
               {isPdf && assetPath && (
-                <PDFViewer url={assetPath} roomName={roomName} />
+                <PDFViewer
+                  url={assetPath}
+                  roomName={roomName}
+                  ticket={currentTicket}
+                />
               )}
 
               {isLink && file.url && (
@@ -297,6 +313,7 @@ export function FilePreviewModal(
                   fileName={file.name}
                   mimeType={file.mimeType}
                   roomName={roomName}
+                  ticket={currentTicket}
                 />
               )}
 
@@ -391,7 +408,6 @@ export function FilePreviewModal(
             contentId={file.id}
             onSuccess={(unlockedTicket) => {
               setCurrentTicket(unlockedTicket);
-              performDownload(unlockedTicket);
             }}
           />
         )}
@@ -404,16 +420,19 @@ function EmptyState({
   icon,
   message,
   hint,
+  action,
 }: {
   icon?: React.ReactNode;
   message: string;
   hint?: string;
+  action?: React.ReactNode;
 }) {
   return (
     <div className="flex flex-col items-center justify-center h-full gap-3 p-8 text-muted-foreground">
       {icon}
       <p className="text-sm text-center">{message}</p>
       {hint && <p className="text-xs text-center opacity-70">{hint}</p>}
+      {action}
     </div>
   );
 }

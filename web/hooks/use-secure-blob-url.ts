@@ -24,6 +24,7 @@ interface SecureBlobUrlResult {
 export function useSecureBlobUrl(
   src: string | undefined,
   roomName: string | undefined,
+  ticket?: string,
 ): SecureBlobUrlResult {
   const [blobUrlState, setBlobUrlState] = useState<{
     src: string;
@@ -40,8 +41,9 @@ export function useSecureBlobUrl(
       (src.includes("/contents/") || src.includes("/api/v1/contents/")),
   );
   const canAuthenticate = requiresAuth && Boolean(roomName);
-  const blobUrl = blobUrlState && blobUrlState.src === src ? blobUrlState.url : null;
-  const error = errorState && errorState.src === src ? errorState.error : null;
+  const cacheKey = `${src ?? ""}::${ticket ?? ""}`;
+  const blobUrl = blobUrlState && blobUrlState.src === cacheKey ? blobUrlState.url : null;
+  const error = errorState && errorState.src === cacheKey ? errorState.error : null;
   const resolvedSrc = requiresAuth ? blobUrl : src ?? null;
   const loading = requiresAuth && !blobUrl && !error;
 
@@ -72,12 +74,13 @@ export function useSecureBlobUrl(
       setErrorState(null);
 
       try {
-        // Extract the content ID
-        const match = src.match(/contents\/(\d+)/);
+        // Extract the content ID and query parameters
+        const urlObj = new URL(src, "http://elizabeth.local");
+        const match = urlObj.pathname.match(/contents\/(\d+)/);
         if (!match) {
           if (!isCancelled) {
             setErrorState({
-              src,
+              src: cacheKey,
               error: new Error(`Could not extract content id from secure src: ${src}`),
             });
           }
@@ -86,6 +89,8 @@ export function useSecureBlobUrl(
 
         const contentId = match[1];
         const path = `/api/v1/contents/${contentId}`;
+        const activeTicket = ticket || urlObj.searchParams.get("ticket") || undefined;
+        const params = activeTicket ? { ticket: activeTicket } : undefined;
 
         // Get a valid room token (automatically handles refreshes)
         const token = await getValidToken(roomName);
@@ -96,7 +101,7 @@ export function useSecureBlobUrl(
         // Fetch the file securely using Authorization header
         const responseBlob = await api.get<Blob>(
           path,
-          undefined,
+          params,
           {
             token,
             responseType: "blob",
@@ -108,12 +113,12 @@ export function useSecureBlobUrl(
         }
 
         createdUrl = URL.createObjectURL(responseBlob);
-        setBlobUrlState({ src, url: createdUrl });
+        setBlobUrlState({ src: cacheKey, url: createdUrl });
       } catch (err) {
         console.error(`[useSecureBlobUrl] Failed to load secure content for ${src}:`, err);
         if (!isCancelled) {
           setErrorState({
-            src,
+            src: cacheKey,
             error: err instanceof Error ? err : new Error(String(err)),
           });
         }
@@ -128,7 +133,7 @@ export function useSecureBlobUrl(
         URL.revokeObjectURL(createdUrl);
       }
     };
-  }, [canAuthenticate, requiresAuth, roomName, src]);
+  }, [canAuthenticate, requiresAuth, roomName, src, ticket, cacheKey]);
 
   return { blobUrl, resolvedSrc, loading, error, requiresAuth };
 }

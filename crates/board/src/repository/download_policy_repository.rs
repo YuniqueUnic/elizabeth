@@ -159,8 +159,9 @@ impl IDownloadPolicyRepository for DownloadPolicyRepository {
             None => return Ok(false), // No policy, cannot redeem
         };
 
-        // 2. Check max downloads limit
-        if let Some(max_dl) = policy.max_downloads
+        // 2. Check max downloads limit (for reusable mode)
+        if policy.mode == DownloadPolicyMode::Reusable
+            && let Some(max_dl) = policy.max_downloads
             && policy.download_count >= max_dl
         {
             return Ok(false);

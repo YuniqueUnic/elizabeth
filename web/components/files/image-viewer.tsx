@@ -17,9 +17,10 @@ interface ImageViewerProps {
   src: string;
   alt: string;
   roomName?: string;
+  ticket?: string;
 }
 
-export function ImageViewer({ src, alt, roomName }: ImageViewerProps) {
+export function ImageViewer({ src, alt, roomName, ticket }: ImageViewerProps) {
   const t = useTranslations("room.image");
   const [rotation, setRotation] = useState(0);
   const [flipH, setFlipH] = useState(false);
@@ -34,7 +35,7 @@ export function ImageViewer({ src, alt, roomName }: ImageViewerProps) {
   const dragStart = useRef({ x: 0, y: 0 });
   const offsetAtDragStart = useRef({ x: 0, y: 0 });
 
-  const { resolvedSrc, loading, error, requiresAuth } = useSecureBlobUrl(src, roomName);
+  const { resolvedSrc, loading, error, requiresAuth } = useSecureBlobUrl(src, roomName, ticket);
 
   const clampScale = (v: number) => Math.min(Math.max(v, 0.25), 5);
 

@@ -458,6 +458,7 @@
     "validCodesCount": "Valid codes: {count} / {max}",
     "autoDownloadTimesHint": "Effective download times will automatically be set to {count}",
     "previewProtectedMessage": "This file is protected by a download policy & access code",
-    "previewProtectedHint": "Please click the 'Download' button below and enter your access code"
+    "previewProtectedHint": "Please enter access code to unlock online preview & download",
+    "redeemButton": "Unlock with Access Code"
   }
 }

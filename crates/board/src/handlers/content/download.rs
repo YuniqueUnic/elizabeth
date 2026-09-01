@@ -77,7 +77,8 @@ pub async fn download_content_global(
 
     if let Some(p) = policy {
         if p.mode != DownloadPolicyMode::Off {
-            if let Some(max_dl) = p.max_downloads
+            if p.mode == DownloadPolicyMode::Reusable
+                && let Some(max_dl) = p.max_downloads
                 && p.download_count >= max_dl
             {
                 return Err(AppError::authorization("Max download limit reached"));

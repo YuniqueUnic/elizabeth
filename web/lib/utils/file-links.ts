@@ -31,6 +31,26 @@ export function appendToken(url: string, token?: string): string {
   return `${urlObject.pathname}${urlObject.search}${urlObject.hash}`;
 }
 
+export function appendAuthAndTicket(url: string, token?: string, ticket?: string): string {
+  if (!token && !ticket) {
+    return url;
+  }
+
+  const urlObject = new URL(url, "http://elizabeth.local");
+  if (token) {
+    urlObject.searchParams.set("token", token);
+  }
+  if (ticket) {
+    urlObject.searchParams.set("ticket", ticket);
+  }
+
+  if (isAbsoluteUrl(url)) {
+    return urlObject.toString();
+  }
+
+  return `${urlObject.pathname}${urlObject.search}${urlObject.hash}`;
+}
+
 export function toAbsoluteUrl(url: string, origin: string): string {
   if (isAbsoluteUrl(url)) {
     return url;

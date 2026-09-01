@@ -247,7 +247,7 @@ pub async fn set_policy(
                     });
                 }
 
-                final_max_downloads = Some(unique_codes.len() as i64);
+                final_max_downloads = None;
                 new_codes = Some(to_insert);
             }
         }
