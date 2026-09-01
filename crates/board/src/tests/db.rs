@@ -80,3 +80,34 @@ async fn sqlite_migration_backups_keep_the_latest_three_iterations() -> anyhow::
     }
     Ok(())
 }
+
+#[tokio::test]
+#[serial_test::serial]
+async fn sqlite_migration_backups_handles_relative_path_and_existing_files() -> anyhow::Result<()> {
+    let directory = tempfile::tempdir()?;
+    let original_dir = std::env::current_dir()?;
+    std::env::set_current_dir(directory.path())?;
+
+    let url = "sqlite://app.db?mode=rwc";
+    let pool = init_db(
+        &DbPoolSettings::new(url)
+            .with_max_connections(1)
+            .with_min_connections(1),
+    )
+    .await?;
+    sqlx::query("CREATE TABLE data (id INTEGER PRIMARY KEY, value TEXT NOT NULL)")
+        .execute(&pool)
+        .await?;
+
+    // Create a pre-existing app.db.bkp1
+    std::fs::write(directory.path().join("app.db.bkp1"), b"stale")?;
+
+    let backup = backup_sqlite_before_migrations(&pool, url).await?;
+    assert!(backup.is_some());
+    let backup_path = backup.unwrap();
+    assert_eq!(backup_path, std::path::PathBuf::from("./app.db.bkp2"));
+    assert!(directory.path().join("app.db.bkp2").exists());
+
+    std::env::set_current_dir(original_dir)?;
+    Ok(())
+}
