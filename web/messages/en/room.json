@@ -242,6 +242,7 @@
     "uploadFailedSizeExceeded": "File is too large, exceeds room capacity limit, upload failed",
     "permissionDeniedTitle": "Permissions changed",
     "uploadPermissionDenied": "Room permissions changed, and you no longer have edit access to upload and insert files.",
+    "dropToUpload": "Drop files to upload",
     "markdownEditorSubtitle": "Supports full Markdown syntax and hotkeys"
   },
   "messageList": {
@@ -378,7 +379,8 @@
     "linkAddedDescription": "URL has been added to the room",
     "linkAddFailed": "Failed to add link. Please try again.",
     "downloadStart": "Download started",
-    "downloadStartDescription": "Preparing to download {count} files"
+    "downloadStartDescription": "Preparing to download {count} files",
+    "protectedBatchDownloadNotSupported": "Batch download of protected files is not supported. Please download individually."
   },
   "image": {
     "loading": "Loading...",
@@ -399,5 +401,38 @@
     "loading": "Loading...",
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out"
+  },
+  "downloadPolicy": {
+    "title": "Download Policy",
+    "description": "Configure download access restrictions for this file",
+    "mode": "Protection Mode",
+    "modeOff": "No Restrictions (Off)",
+    "modeReusable": "Reusable Code",
+    "modeOneTime": "One-Time Codes",
+    "maxDownloads": "Max Downloads",
+    "maxDownloadsPlaceholder": "0",
+    "maxDownloadsHint": "0 means unlimited",
+    "codeCount": "Number of Codes",
+    "generateCodes": "Manage Codes",
+    "generateBtn": "Generate",
+    "poolSize": "Remaining downloads in pool: {size}",
+    "generateWarning": "Copy and save these codes now (they will only be shown once)",
+    "copied": "Copied to clipboard",
+    "copyFailed": "Failed to copy",
+    "cancel": "Cancel",
+    "save": "Save Policy",
+    "loading": "Loading...",
+    "saveSuccess": "Policy saved successfully",
+    "saveFailed": "Failed to save policy",
+    "generateSuccess": "Codes generated",
+    "generateFailed": "Failed to generate codes",
+    "protectedBadge": "Protected",
+    "settingsTitle": "Policy Settings",
+    "redeemTitle": "Enter Access Code",
+    "redeemDescription": "This file is protected. Please enter an access code to download.",
+    "accessCode": "Access Code",
+    "accessCodePlaceholder": "Enter code...",
+    "redeemSubmit": "Redeem",
+    "redeemFailed": "Redemption failed. Code invalid or exhausted."
   }
 }

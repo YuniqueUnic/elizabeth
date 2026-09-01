@@ -242,6 +242,7 @@
     "uploadFailedSizeExceeded": "文件过大，超出房间容量上限，上传失败",
     "permissionDeniedTitle": "权限已变更",
     "uploadPermissionDenied": "房间权限已变更，现在没有编辑权限，无法上传并插入文件。",
+    "dropToUpload": "松开鼠标上传文件",
     "markdownEditorSubtitle": "支持完整的 Markdown 标记和快捷键"
   },
   "messageList": {
@@ -378,7 +379,8 @@
     "linkAddedDescription": "URL 已成功添加到房间",
     "linkAddFailed": "添加链接失败，请重试",
     "downloadStart": "开始下载",
-    "downloadStartDescription": "正在准备下载 {count} 个文件"
+    "downloadStartDescription": "正在准备下载 {count} 个文件",
+    "protectedBatchDownloadNotSupported": "暂不支持批量下载受保护的文件，请单独下载"
   },
   "image": {
     "loading": "加载中...",
@@ -399,5 +401,38 @@
     "loading": "加载中...",
     "zoomIn": "放大",
     "zoomOut": "缩小"
+  },
+  "downloadPolicy": {
+    "title": "下载策略设置",
+    "description": "配置此文件的下载访问限制",
+    "mode": "保护模式",
+    "modeOff": "无限制 (Off)",
+    "modeReusable": "固定访问码 (Reusable)",
+    "modeOneTime": "一次性访问码 (One Time)",
+    "maxDownloads": "最大下载次数",
+    "maxDownloadsPlaceholder": "0",
+    "maxDownloadsHint": "输入0表示不限制次数",
+    "codeCount": "生成数量",
+    "generateCodes": "访问码管理",
+    "generateBtn": "生成访问码",
+    "poolSize": "当前剩余可兑换次数: {size}",
+    "generateWarning": "请立即复制并保存以下访问码（仅显示一次）",
+    "copied": "已复制到剪贴板",
+    "copyFailed": "复制失败",
+    "cancel": "取消",
+    "save": "保存设置",
+    "loading": "加载中...",
+    "saveSuccess": "策略已保存",
+    "saveFailed": "保存策略失败",
+    "generateSuccess": "访问码已生成",
+    "generateFailed": "生成失败",
+    "protectedBadge": "受保护",
+    "settingsTitle": "设置下载策略",
+    "redeemTitle": "输入访问码",
+    "redeemDescription": "此文件受到保护，请在此输入访问码以继续下载。",
+    "accessCode": "访问码",
+    "accessCodePlaceholder": "请输入访问码...",
+    "redeemSubmit": "确认兑换",
+    "redeemFailed": "兑换失败，访问码无效或已用尽"
   }
 }

@@ -14,6 +14,7 @@ pub mod refresh_token;
 pub mod row_utils;
 pub mod token;
 pub mod upload_reservation;
+pub mod download_policy;
 
 pub use chunk_upload::{ChunkStatus, RoomChunkUpload};
 pub use refresh_token::{
@@ -22,6 +23,7 @@ pub use refresh_token::{
 };
 pub use token::RoomToken;
 pub use upload_reservation::{RoomUploadReservation, UploadFileDescriptor, UploadStatus};
+pub use download_policy::{FileDownloadPolicy, FileAccessCode, DownloadPolicyMode};
 
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema, Default, sqlx::Type,

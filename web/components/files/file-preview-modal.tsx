@@ -41,6 +41,8 @@ import { getRoomTokenString } from "@/lib/utils/api";
 import { insertMarkdownIntoComposer } from "@/lib/composer-editor";
 import { useTranslations } from "next-intl";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { getPolicy } from "@/api/policyService";
+import { RedeemDialog } from "./redeem-dialog";
 
 // Dynamic import to avoid SSR issues with DOMMatrix
 const PDFViewer = dynamic(
@@ -72,6 +74,7 @@ export function FilePreviewModal(
   const requestInsertMarkdown = useAppStore((state) => state.requestInsertMarkdown);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [manualCopyValue, setManualCopyValue] = useState("");
+  const [redeemDialogOpen, setRedeemDialogOpen] = useState(false);
   const { can } = useRoomPermissions();
   const deleteAllowed = canDelete ?? can.delete;
   const isMobile = useIsMobile();
@@ -97,12 +100,28 @@ export function FilePreviewModal(
     return toAbsoluteUrl(previewPath, window.location.origin);
   }
 
-  const handleDownload = async () => {
+  const performDownload = async (ticket?: string) => {
     try {
       toast({ title: t("filePreviewModal.downloadStart"), description: t("filePreviewModal.downloading", { fileName: file.name }) });
-      await downloadFile(roomName, file.id, file.name);
+      await downloadFile(roomName, file.id, file.name, ticket);
       toast({ title: t("filePreviewModal.downloadComplete"), description: t("filePreviewModal.downloadCompleteDescription", { fileName: file.name }) });
     } catch {
+      toast({ title: t("filePreviewModal.downloadFailed"), description: t("filePreviewModal.downloadFailedDescription"), variant: "destructive" });
+    }
+  };
+
+  const handleDownload = async () => {
+    if (deleteAllowed) {
+      return performDownload();
+    }
+    try {
+      const policy = await getPolicy(roomName, file.id);
+      if (policy.mode === "off") {
+        performDownload();
+      } else {
+        setRedeemDialogOpen(true);
+      }
+    } catch (e) {
       toast({ title: t("filePreviewModal.downloadFailed"), description: t("filePreviewModal.downloadFailedDescription"), variant: "destructive" });
     }
   };
@@ -335,16 +354,25 @@ export function FilePreviewModal(
         </div>
       </DialogContent>
       </Dialog>
-      <ManualCopyDialog
-        open={manualCopyValue.length > 0}
-        value={manualCopyValue}
-        onOpenChange={(nextOpen) => {
-          if (!nextOpen) setManualCopyValue("");
-        }}
-      />
-    </>
-  );
-}
+        <ManualCopyDialog
+          open={manualCopyValue.length > 0}
+          value={manualCopyValue}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) setManualCopyValue("");
+          }}
+        />
+        {redeemDialogOpen && (
+          <RedeemDialog
+            open={redeemDialogOpen}
+            onOpenChange={setRedeemDialogOpen}
+            roomName={roomName}
+            contentId={file.id}
+            onSuccess={performDownload}
+          />
+        )}
+      </>
+    );
+  }
 
 // ── Shared empty/error state ──────────────────────────────────────────────────
 function EmptyState({

@@ -39,6 +39,7 @@ import {
   uploadFile,
   uploadUrl,
 } from "@/api/fileService";
+import { getPolicy } from "@/api/policyService";
 import { useAppStore } from "@/lib/store";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -273,6 +274,22 @@ export function RightSidebar() {
     clearFileSelection();
 
     for (const file of filesToDownload) {
+      if (!can.delete) {
+        try {
+          const policy = await getPolicy(roomName, file.id);
+          if (policy.mode !== "off") {
+            toast({ 
+              title: t("toast.downloadFailed"), 
+              description: t("toast.protectedBatchDownloadNotSupported") || "Protected files must be downloaded individually", 
+              variant: "destructive" 
+            });
+            continue;
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+
       const transfer = createTransfer(file.name, file.size || 0, "download");
       addTransfer(transfer);
       downloadFile(roomName, file.id, file.name, undefined, {

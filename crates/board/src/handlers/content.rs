@@ -1,5 +1,6 @@
 pub mod delete;
 pub mod download;
+pub mod policy;
 pub mod message;
 pub(crate) mod shared;
 pub mod update;

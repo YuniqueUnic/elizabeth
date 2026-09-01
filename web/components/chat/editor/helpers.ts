@@ -153,3 +153,53 @@ export function buildMarkdownForFile(
   }
   return `\n\n[${name}](${href})\n`;
 }
+
+/**
+ * 从 DataTransfer 对象中提取文件列表。
+ * 优先读取 `dataTransfer.files`；若为空则回退到 `dataTransfer.items`
+ * 以支持剪贴板截图（macOS Cmd+Shift+4 等）场景——此时 `files` 为空
+ * 但 `items` 中存在 kind==='file' 的 DataTransferItem。
+ */
+export function extractFilesFromDataTransfer(
+  dataTransfer: DataTransfer | null,
+): File[] {
+  if (!dataTransfer) return [];
+
+  // 1. 优先提取 .files（拖拽/文件粘贴）
+  if (dataTransfer.files && dataTransfer.files.length > 0) {
+    const files: File[] = [];
+    for (let i = 0; i < dataTransfer.files.length; i++) {
+      const file = dataTransfer.files[i];
+      if (file) files.push(file);
+    }
+    if (files.length > 0) return files;
+  }
+
+  // 2. 回退到 .items（截图粘贴：clipboardData.files 可能为空）
+  if (dataTransfer.items && dataTransfer.items.length > 0) {
+    const files: File[] = [];
+    for (let i = 0; i < dataTransfer.items.length; i++) {
+      const item = dataTransfer.items[i];
+      if (item.kind === "file") {
+        const file = item.getAsFile();
+        if (file) {
+          // 截图通常没有有意义的文件名（空字符串或 "image.png"），补全时间戳文件名
+          if (!file.name || file.name === "image.png") {
+            const ext = file.type.split("/")[1] || "png";
+            files.push(
+              new File([file], `screenshot-${Date.now()}.${ext}`, {
+                type: file.type,
+              }),
+            );
+          } else {
+            files.push(file);
+          }
+        }
+      }
+    }
+    return files;
+  }
+
+  return [];
+}
+
