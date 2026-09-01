@@ -6,21 +6,24 @@ use axum::extract::{Path as AxumPath, Query, State};
 use axum::http::HeaderValue;
 use axum::http::header::{CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_TYPE};
 use axum::response::Response;
+use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
 use serde::Deserialize;
 use tokio::fs;
 use tokio_util::io::ReaderStream;
-use jsonwebtoken::{Validation, decode, DecodingKey, Algorithm};
 
 use crate::errors::AppError;
 use crate::handlers::{AuthToken, verify_room_token_by_id};
 use crate::models::content::RoomContent;
-use crate::repository::{IRoomContentRepository, RoomContentRepository, IDownloadPolicyRepository, DownloadPolicyRepository};
+use crate::repository::{
+    DownloadPolicyRepository, IDownloadPolicyRepository, IRoomContentRepository,
+    RoomContentRepository,
+};
 use crate::state::AppState;
 use crate::validation::TokenValidator;
 use board_protocol::models::room::DownloadPolicyMode;
 
-use super::{ContentPermission, ensure_permission};
 use super::policy::DownloadTicketClaims;
+use super::{ContentPermission, ensure_permission};
 
 #[derive(Deserialize)]
 pub struct DownloadQuery {
@@ -67,28 +70,44 @@ pub async fn download_content_global(
 
     // Check policy
     let policy_repo = DownloadPolicyRepository::new(app_state.db_pool.clone());
-    let policy = policy_repo.get_policy_by_content_id(content_id).await
+    let policy = policy_repo
+        .get_policy_by_content_id(content_id)
+        .await
         .map_err(|e| AppError::internal(format!("Failed to query policy: {e}")))?;
 
-    if let Some(p) = policy
-        && p.mode != DownloadPolicyMode::Off
-    {
-        let ticket = query.ticket.ok_or_else(|| AppError::authorization("Download ticket required"))?;
-        let mut validation = Validation::new(Algorithm::HS256);
-        validation.validate_exp = true;
-        
-        let token_data = decode::<DownloadTicketClaims>(
-            &ticket,
-            &DecodingKey::from_secret(app_state.config.auth.jwt_secret.as_bytes()),
-            &validation,
-        ).map_err(|_| AppError::authorization("Invalid or expired download ticket"))?;
-        
-        if token_data.claims.content_id != content_id {
-            return Err(AppError::authorization("Ticket is not for this content"));
-        }
+    if let Some(p) = policy {
+        if p.mode != DownloadPolicyMode::Off {
+            if let Some(max_dl) = p.max_downloads
+                && p.download_count >= max_dl
+            {
+                return Err(AppError::authorization("Max download limit reached"));
+            }
 
-        // Increment download count
-        let _ = policy_repo.increment_download_count(content_id).await;
+            let ticket = query
+                .ticket
+                .ok_or_else(|| AppError::authorization("Download ticket required"))?;
+            let mut validation = Validation::new(Algorithm::HS256);
+            validation.validate_exp = true;
+
+            let token_data = decode::<DownloadTicketClaims>(
+                &ticket,
+                &DecodingKey::from_secret(app_state.config.auth.jwt_secret.as_bytes()),
+                &validation,
+            )
+            .map_err(|_| AppError::authorization("Invalid or expired download ticket"))?;
+
+            if token_data.claims.content_id != content_id {
+                return Err(AppError::authorization("Ticket is not for this content"));
+            }
+
+            // Increment download count
+            let _ = policy_repo.increment_download_count(content_id).await;
+        } else if let Some(max_dl) = p.max_downloads {
+            if p.download_count >= max_dl {
+                return Err(AppError::authorization("Max download limit reached"));
+            }
+            let _ = policy_repo.increment_download_count(content_id).await;
+        }
     }
 
     serve_content_stream(content).await

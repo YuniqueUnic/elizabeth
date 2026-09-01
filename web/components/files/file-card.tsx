@@ -16,6 +16,8 @@ import { getPolicy } from "@/api/policyService";
 import { DownloadPolicyDialog } from "./download-policy-dialog";
 
 
+import { RedeemDialog } from "./redeem-dialog";
+
 // Helper function to get file extension
 function getFileExtension(filename: string): string {
   const parts = filename.split(".");
@@ -47,7 +49,7 @@ function getFileIconProps(filename: string) {
 interface FileCardProps {
   file: FileItem;
   onDelete: (fileId: string) => void;
-  onClick: (file: FileItem) => void;
+  onClick: (file: FileItem, ticket?: string) => void;
   showCheckbox: boolean;
   canDelete: boolean;
 }
@@ -64,6 +66,7 @@ export function FileCard(
   const roomName = pathname.split("/").filter(Boolean)[0] || currentRoomId;
 
   const [policyDialogOpen, setPolicyDialogOpen] = useState(false);
+  const [redeemDialogOpen, setRedeemDialogOpen] = useState(false);
 
   const { data: policy } = useQuery({
     queryKey: ["policy", roomName, file.id],
@@ -73,6 +76,14 @@ export function FileCard(
   });
 
   const isProtected = policy && policy.mode !== "off";
+
+  const handleCardClick = () => {
+    if (isProtected) {
+      setRedeemDialogOpen(true);
+    } else {
+      onClick(file);
+    }
+  };
 
   return (
     <>
@@ -95,7 +106,7 @@ export function FileCard(
 
         <div
           className="flex min-w-0 flex-1 items-center gap-3 cursor-pointer"
-          onClick={() => onClick(file)}
+          onClick={handleCardClick}
         >
           {/* File Type Icon */}
           <div className="flex h-8 w-8 shrink-0 items-center justify-center">
@@ -163,6 +174,18 @@ export function FileCard(
           onOpenChange={setPolicyDialogOpen}
           roomName={roomName}
           contentId={file.id}
+        />
+      )}
+
+      {redeemDialogOpen && (
+        <RedeemDialog
+          open={redeemDialogOpen}
+          onOpenChange={setRedeemDialogOpen}
+          roomName={roomName}
+          contentId={file.id}
+          onSuccess={(ticket) => {
+            onClick(file, ticket);
+          }}
         />
       )}
     </>

@@ -81,6 +81,10 @@ pub enum AppError {
     /// 不支持的媒体类型错误
     #[error("Unsupported media type: {media_type}")]
     UnsupportedMediaType { media_type: String },
+
+    /// 请求过多错误（速率限制/防爆破）
+    #[error("Too many requests: {message}")]
+    TooManyRequests { message: String },
 }
 
 impl AppError {
@@ -105,6 +109,7 @@ impl AppError {
             AppError::Timeout { .. } => StatusCode::REQUEST_TIMEOUT,
             AppError::PayloadTooLarge { .. } => StatusCode::PAYLOAD_TOO_LARGE,
             AppError::UnsupportedMediaType { .. } => StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            AppError::TooManyRequests { .. } => StatusCode::TOO_MANY_REQUESTS,
         }
     }
 
@@ -129,6 +134,7 @@ impl AppError {
             AppError::Timeout { .. } => "TIMEOUT",
             AppError::PayloadTooLarge { .. } => "PAYLOAD_TOO_LARGE",
             AppError::UnsupportedMediaType { .. } => "UNSUPPORTED_MEDIA_TYPE",
+            AppError::TooManyRequests { .. } => "TOO_MANY_REQUESTS",
         }
     }
 
@@ -233,6 +239,13 @@ impl AppError {
     pub fn unsupported_media_type(media_type: impl Into<String>) -> Self {
         AppError::UnsupportedMediaType {
             media_type: media_type.into(),
+        }
+    }
+
+    /// 创建过多请求错误
+    pub fn too_many_requests(message: impl Into<String>) -> Self {
+        AppError::TooManyRequests {
+            message: message.into(),
         }
     }
 }

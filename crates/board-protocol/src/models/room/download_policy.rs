@@ -3,12 +3,17 @@ use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, Row, any::AnyRow, postgres::PgRow, sqlite::SqliteRow};
 use utoipa::ToSchema;
 
-use crate::models::room::row_utils::{read_datetime_from_any, read_optional_datetime_from_any};
+use crate::models::room::row_utils::{
+    parse_any_timestamp, read_bool_from_any, read_datetime_from_any,
+    read_optional_datetime_from_any,
+};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema, Default, sqlx::Type)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema, Default, sqlx::Type,
+)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "TEXT")]
+#[sqlx(type_name = "TEXT", rename_all = "snake_case")]
 #[cfg_attr(feature = "typescript-export", ts(export))]
 pub enum DownloadPolicyMode {
     #[default]
@@ -19,7 +24,7 @@ pub enum DownloadPolicyMode {
 
 impl From<String> for DownloadPolicyMode {
     fn from(s: String) -> Self {
-        match s.as_str() {
+        match s.to_lowercase().as_str() {
             "reusable" => DownloadPolicyMode::Reusable,
             "one_time" => DownloadPolicyMode::OneTime,
             _ => DownloadPolicyMode::Off,
@@ -45,14 +50,24 @@ pub struct FileDownloadPolicy {
 }
 
 fn build_policy_from_sqlite(row: &SqliteRow) -> Result<FileDownloadPolicy, sqlx::Error> {
+    let mode_str: String = row.try_get("mode")?;
+    let created_at = row.try_get("created_at").or_else(|_| {
+        let s: String = row.try_get("created_at")?;
+        parse_any_timestamp(&s).map_err(|e| sqlx::Error::Decode(Box::new(e)))
+    })?;
+    let updated_at = row.try_get("updated_at").or_else(|_| {
+        let s: String = row.try_get("updated_at")?;
+        parse_any_timestamp(&s).map_err(|e| sqlx::Error::Decode(Box::new(e)))
+    })?;
+
     Ok(FileDownloadPolicy {
         id: row.try_get("id")?,
         content_id: row.try_get("content_id")?,
-        mode: row.try_get("mode")?,
+        mode: mode_str.into(),
         max_downloads: row.try_get("max_downloads")?,
         download_count: row.try_get("download_count")?,
-        created_at: row.try_get("created_at")?,
-        updated_at: row.try_get("updated_at")?,
+        created_at,
+        updated_at,
     })
 }
 
@@ -63,8 +78,14 @@ fn build_policy_from_pg(row: &PgRow) -> Result<FileDownloadPolicy, sqlx::Error> 
         mode: row.try_get::<String, _>("mode")?.into(),
         max_downloads: row.try_get("max_downloads")?,
         download_count: row.try_get("download_count")?,
-        created_at: row.try_get::<String, _>("created_at")?.parse().map_err(|e| sqlx::Error::Decode(Box::new(e)))?,
-        updated_at: row.try_get::<String, _>("updated_at")?.parse().map_err(|e| sqlx::Error::Decode(Box::new(e)))?,
+        created_at: row
+            .try_get::<String, _>("created_at")?
+            .parse()
+            .map_err(|e| sqlx::Error::Decode(Box::new(e)))?,
+        updated_at: row
+            .try_get::<String, _>("updated_at")?
+            .parse()
+            .map_err(|e| sqlx::Error::Decode(Box::new(e)))?,
     })
 }
 
@@ -89,21 +110,19 @@ impl<'r> FromRow<'r, SqliteRow> for FileDownloadPolicy {
 
 impl<'r> FromRow<'r, PgRow> for FileDownloadPolicy {
     fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
-        // PG timestamps might be parsed as strings due to 003 migration
         let id: i64 = row.try_get("id")?;
         let content_id: i64 = row.try_get("content_id")?;
         let mode_str: String = row.try_get("mode")?;
         let max_downloads: Option<i64> = row.try_get("max_downloads")?;
         let download_count: i64 = row.try_get("download_count")?;
-        
-        // Custom parsing for created_at, updated_at
+
         let created_at_str: String = row.try_get("created_at")?;
         let updated_at_str: String = row.try_get("updated_at")?;
-        
-        let created_at = NaiveDateTime::parse_from_str(&created_at_str, "%Y-%m-%d %H:%M:%S%.f")
-            .unwrap_or_else(|_| chrono::Utc::now().naive_utc());
-        let updated_at = NaiveDateTime::parse_from_str(&updated_at_str, "%Y-%m-%d %H:%M:%S%.f")
-            .unwrap_or_else(|_| chrono::Utc::now().naive_utc());
+
+        let created_at =
+            parse_any_timestamp(&created_at_str).unwrap_or_else(|_| chrono::Utc::now().naive_utc());
+        let updated_at =
+            parse_any_timestamp(&updated_at_str).unwrap_or_else(|_| chrono::Utc::now().naive_utc());
 
         Ok(FileDownloadPolicy {
             id: Some(id),
@@ -138,13 +157,26 @@ pub struct FileAccessCode {
 }
 
 fn build_code_from_sqlite(row: &SqliteRow) -> Result<FileAccessCode, sqlx::Error> {
+    let is_reusable: bool = row
+        .try_get("is_reusable")
+        .or_else(|_| row.try_get::<i64, _>("is_reusable").map(|v| v != 0))
+        .or_else(|_| row.try_get::<i32, _>("is_reusable").map(|v| v != 0))?;
+    let created_at = row.try_get("created_at").or_else(|_| {
+        let s: String = row.try_get("created_at")?;
+        parse_any_timestamp(&s).map_err(|e| sqlx::Error::Decode(Box::new(e)))
+    })?;
+    let used_at = row.try_get("used_at").or_else(|_| {
+        let s: Option<String> = row.try_get("used_at")?;
+        Ok::<Option<NaiveDateTime>, sqlx::Error>(s.and_then(|v| parse_any_timestamp(&v).ok()))
+    })?;
+
     Ok(FileAccessCode {
         id: row.try_get("id")?,
         policy_id: row.try_get("policy_id")?,
         code_hash: row.try_get("code_hash")?,
-        is_reusable: row.try_get("is_reusable")?,
-        used_at: row.try_get("used_at")?,
-        created_at: row.try_get("created_at")?,
+        is_reusable,
+        used_at,
+        created_at,
     })
 }
 
@@ -152,14 +184,16 @@ fn build_code_from_pg(row: &PgRow) -> Result<FileAccessCode, sqlx::Error> {
     let id: i64 = row.try_get("id")?;
     let policy_id: i64 = row.try_get("policy_id")?;
     let code_hash: String = row.try_get("code_hash")?;
-    let is_reusable: bool = row.try_get("is_reusable")?;
-    
+    let is_reusable: bool = row
+        .try_get("is_reusable")
+        .or_else(|_| row.try_get::<i64, _>("is_reusable").map(|v| v != 0))?;
+
     let created_at_str: String = row.try_get("created_at")?;
-    let created_at = NaiveDateTime::parse_from_str(&created_at_str, "%Y-%m-%d %H:%M:%S%.f")
-        .unwrap_or_else(|_| chrono::Utc::now().naive_utc());
-        
+    let created_at =
+        parse_any_timestamp(&created_at_str).unwrap_or_else(|_| chrono::Utc::now().naive_utc());
+
     let used_at = if let Ok(Some(used_str)) = row.try_get::<Option<String>, _>("used_at") {
-        NaiveDateTime::parse_from_str(&used_str, "%Y-%m-%d %H:%M:%S%.f").ok()
+        parse_any_timestamp(&used_str).ok()
     } else {
         None
     };
@@ -179,7 +213,7 @@ fn build_code_from_any(row: &AnyRow) -> Result<FileAccessCode, sqlx::Error> {
         id: row.try_get("id")?,
         policy_id: row.try_get("policy_id")?,
         code_hash: row.try_get("code_hash")?,
-        is_reusable: row.try_get("is_reusable")?,
+        is_reusable: read_bool_from_any(row, "is_reusable")?,
         used_at: read_optional_datetime_from_any(row, "used_at")?,
         created_at: read_datetime_from_any(row, "created_at")?,
     })

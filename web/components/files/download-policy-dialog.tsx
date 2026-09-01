@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -21,17 +21,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { getPolicy, setPolicy, generateCodes, type PolicyMode } from "@/api/policyService";
+import { Textarea } from "@/components/ui/textarea";
+import { getPolicy, setPolicy, type PolicyMode } from "@/api/policyService";
 import { useToast } from "@/hooks/use-toast";
 import { copyTextToClipboard } from "@/lib/utils/clipboard";
 import { Copy } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 interface DownloadPolicyDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   roomName: string;
   contentId: string;
+}
+
+function generateRandomCode(length: number): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let result = "";
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
 }
 
 export function DownloadPolicyDialog({
@@ -45,29 +55,73 @@ export function DownloadPolicyDialog({
   const queryClient = useQueryClient();
 
   const [mode, setMode] = useState<PolicyMode>("off");
-  const [maxDownloads, setMaxDownloads] = useState<number>(0);
-  const [codeCount, setCodeCount] = useState<number>(1);
-  const [generatedCodes, setGeneratedCodes] = useState<string[]>([]);
+  
+  // Download limits
+  const [maxDownloadsLimit, setMaxDownloadsLimit] = useState<string>("unlimited");
+  const [customLimit, setCustomLimit] = useState<number>(0);
+  
+  // Reusable
+  const [reusableCode, setReusableCode] = useState<string>("");
+  
+  // One time
+  const [batchCount, setBatchCount] = useState<number>(10);
+  const [oneTimeCodes, setOneTimeCodes] = useState<string>("");
 
   const { data: policy, isLoading } = useQuery({
     queryKey: ["policy", roomName, contentId],
     queryFn: () => getPolicy(roomName, contentId),
     enabled: open && !!roomName && !!contentId,
+    staleTime: 30_000,
+    retry: 1,
   });
 
+  const policyLoaded = !isLoading;
+
   useEffect(() => {
-    if (policy) {
+    if (policyLoaded && policy) {
       setMode(policy.mode);
-      setMaxDownloads(policy.max_downloads || 0);
+      if (policy.max_downloads === null || policy.max_downloads === undefined) {
+        setMaxDownloadsLimit("unlimited");
+      } else if ([1, 10, 100].includes(policy.max_downloads)) {
+        setMaxDownloadsLimit(policy.max_downloads.toString());
+      } else {
+        setMaxDownloadsLimit("custom");
+        setCustomLimit(policy.max_downloads);
+      }
+    } else if (policyLoaded && !policy) {
+      setMode("off");
+      setMaxDownloadsLimit("unlimited");
     }
-  }, [policy]);
+  }, [policyLoaded, policy, open]);
+
+  const validOneTimeCodes = useMemo(() => {
+    return oneTimeCodes.split("\n").map(s => s.trim()).filter(s => s.length > 0);
+  }, [oneTimeCodes]);
 
   const saveMutation = useMutation({
-    mutationFn: () =>
-      setPolicy(roomName, contentId, {
+    mutationFn: () => {
+      let max_downloads: number | null = null;
+      if (mode !== "one_time") {
+        if (maxDownloadsLimit === "custom") {
+          max_downloads = customLimit;
+        } else if (maxDownloadsLimit !== "unlimited") {
+          max_downloads = parseInt(maxDownloadsLimit, 10);
+        }
+      }
+
+      let codes: string[] | undefined = undefined;
+      if (mode === "reusable" && reusableCode.trim()) {
+        codes = [reusableCode.trim()];
+      } else if (mode === "one_time" && validOneTimeCodes.length > 0) {
+        codes = validOneTimeCodes;
+      }
+
+      return setPolicy(roomName, contentId, {
         mode,
-        max_downloads: maxDownloads > 0 ? maxDownloads : undefined,
-      }),
+        max_downloads,
+        codes,
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["policy", roomName, contentId] });
       toast({ title: t("saveSuccess") });
@@ -78,42 +132,41 @@ export function DownloadPolicyDialog({
     },
   });
 
-  const generateMutation = useMutation({
-    mutationFn: () =>
-      generateCodes(roomName, contentId, {
-        count: mode === "one_time" ? codeCount : 1,
-        is_reusable: mode === "reusable",
-      }),
-    onSuccess: (data) => {
-      setGeneratedCodes(data.codes);
-      queryClient.invalidateQueries({ queryKey: ["policy", roomName, contentId] });
-      toast({ title: t("generateSuccess") });
-    },
-    onError: () => {
-      toast({ title: t("generateFailed"), variant: "destructive" });
-    },
-  });
-
-  const handleCopyCodes = async () => {
+  const handleCopyCodes = async (text: string) => {
     try {
-      await copyTextToClipboard(generatedCodes.join("\\n"));
+      await copyTextToClipboard(text);
       toast({ title: t("copied") });
     } catch {
       toast({ title: t("copyFailed"), variant: "destructive" });
     }
   };
 
-  const handleSave = () => {
-    saveMutation.mutate();
+  const handleExportTxt = () => {
+    const blob = new Blob([oneTimeCodes], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `codes_${contentId}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
-  const handleGenerate = () => {
-    generateMutation.mutate();
+  const handleBatchGenerate = () => {
+    const newCodes = Array.from({ length: batchCount }, () => generateRandomCode(8));
+    setOneTimeCodes(prev => {
+      const p = prev.trim();
+      return p ? p + "\n" + newCodes.join("\n") : newCodes.join("\n");
+    });
+  };
+
+  const handleDeduplicate = () => {
+    const unique = Array.from(new Set(validOneTimeCodes));
+    setOneTimeCodes(unique.join("\n"));
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{t("title")}</DialogTitle>
           <DialogDescription>{t("description")}</DialogDescription>
@@ -123,6 +176,30 @@ export function DownloadPolicyDialog({
           <div className="py-4 text-center text-sm text-muted-foreground">{t("loading")}</div>
         ) : (
           <div className="space-y-4 py-4">
+            
+            {policy && policy.mode !== "off" && (
+              <div className="bg-muted p-3 rounded-md space-y-2">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">
+                    {policy.mode === "reusable" ? t("modeReusable") : t("modeOneTime")}
+                  </Badge>
+                  <span className="text-sm">
+                    {t("downloadStats", { 
+                      count: policy.download_count, 
+                      max: policy.max_downloads ?? t("unlimited") 
+                    })}
+                  </span>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {t("poolStats", { 
+                    total: policy.total_codes, 
+                    remaining: policy.remaining_codes, 
+                    used: policy.used_codes 
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label>{t("mode")}</Label>
               <Select value={mode} onValueChange={(v) => setMode(v as PolicyMode)}>
@@ -139,69 +216,95 @@ export function DownloadPolicyDialog({
 
             {(mode === "off" || mode === "reusable") && (
               <div className="space-y-2">
-                <Label>{t("maxDownloads")}</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={maxDownloads}
-                  onChange={(e) => setMaxDownloads(parseInt(e.target.value) || 0)}
-                  placeholder={t("maxDownloadsPlaceholder")}
-                />
-                <p className="text-xs text-muted-foreground">{t("maxDownloadsHint")}</p>
+                <Label>{t("downloadLimit")}</Label>
+                <Select value={maxDownloadsLimit} onValueChange={setMaxDownloadsLimit}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unlimited">{t("limitUnlimited")}</SelectItem>
+                    <SelectItem value="1">{t("limit1")}</SelectItem>
+                    <SelectItem value="10">{t("limit10")}</SelectItem>
+                    <SelectItem value="100">{t("limit100")}</SelectItem>
+                    <SelectItem value="custom">{t("limitCustom")}</SelectItem>
+                  </SelectContent>
+                </Select>
+                {maxDownloadsLimit === "custom" && (
+                  <Input
+                    type="number"
+                    min={1}
+                    value={customLimit}
+                    onChange={(e) => setCustomLimit(parseInt(e.target.value) || 0)}
+                    placeholder={t("customLimitPlaceholder")}
+                    className="mt-2"
+                  />
+                )}
+              </div>
+            )}
+
+            {mode === "reusable" && (
+              <div className="space-y-2">
+                <Label>{t("reusableCode")}</Label>
+                <div className="flex gap-2">
+                  <Input 
+                    value={reusableCode} 
+                    onChange={(e) => setReusableCode(e.target.value)} 
+                    placeholder={t("reusableCodePlaceholder")} 
+                  />
+                  <Button variant="outline" onClick={() => setReusableCode(generateRandomCode(8))}>
+                    {t("generateRandom")}
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => handleCopyCodes(reusableCode)}>
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             )}
 
             {mode === "one_time" && (
               <div className="space-y-2">
-                <Label>{t("codeCount")}</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={100}
-                  value={codeCount}
-                  onChange={(e) => setCodeCount(parseInt(e.target.value) || 1)}
-                />
-              </div>
-            )}
-
-            {policy?.mode !== "off" && mode === policy?.mode && (
-              <div className="pt-4 border-t space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>{t("generateCodes")}</Label>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleGenerate}
-                    disabled={generateMutation.isPending}
-                  >
-                    {t("generateBtn")}
+                <div className="flex flex-wrap gap-2 items-center">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={1000}
+                    value={batchCount}
+                    onChange={(e) => setBatchCount(parseInt(e.target.value) || 1)}
+                    className="w-20"
+                  />
+                  <Button variant="secondary" size="sm" onClick={handleBatchGenerate}>
+                    {t("batchGenerate")}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleDeduplicate}>
+                    {t("deduplicate")}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setOneTimeCodes("")}>
+                    {t("clear")}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => handleCopyCodes(oneTimeCodes)}>
+                    {t("copyAll")}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleExportTxt}>
+                    {t("exportTxt")}
                   </Button>
                 </div>
-                {policy?.mode === "one_time" && policy.pool_size !== undefined && (
-                  <p className="text-xs text-muted-foreground">
-                    {t("poolSize", { size: policy.pool_size })}
-                  </p>
-                )}
-                {generatedCodes.length > 0 && (
-                  <div className="p-3 bg-muted rounded-md space-y-2 relative">
-                    <p className="text-xs font-medium text-destructive mb-2">{t("generateWarning")}</p>
-                    <div className="max-h-32 overflow-y-auto text-sm space-y-1 select-all break-all pr-8">
-                      {generatedCodes.map((c, i) => (
-                        <div key={i}>{c}</div>
-                      ))}
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-1 bottom-1 h-6 w-6"
-                      onClick={handleCopyCodes}
-                    >
-                      <Copy className="h-3 w-3" />
-                    </Button>
-                  </div>
-                )}
+                <Textarea 
+                  value={oneTimeCodes} 
+                  onChange={(e) => setOneTimeCodes(e.target.value)} 
+                  rows={6}
+                  placeholder={t("oneTimeCodesPlaceholder")}
+                />
+                <div className="flex justify-between items-center text-xs">
+                  <span className={validOneTimeCodes.length > 1000 ? "text-destructive font-medium" : "text-muted-foreground"}>
+                    {t("validCodesCount", { count: validOneTimeCodes.length, max: 1000 })}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {t("autoDownloadTimesHint", { count: validOneTimeCodes.length })}
+                  </span>
+                </div>
               </div>
             )}
+            
           </div>
         )}
 
@@ -209,7 +312,7 @@ export function DownloadPolicyDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("cancel")}
           </Button>
-          <Button onClick={handleSave} disabled={saveMutation.isPending}>
+          <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
             {t("save")}
           </Button>
         </DialogFooter>

@@ -3,14 +3,20 @@ import { api } from "../lib/utils/api";
 export type PolicyMode = "off" | "reusable" | "one_time";
 
 export interface PolicyResponse {
+  id: number;
+  content_id: number;
   mode: PolicyMode;
-  max_downloads?: number;
-  pool_size?: number;
+  max_downloads?: number | null;
+  download_count: number;
+  total_codes: number;
+  remaining_codes: number;
+  used_codes: number;
 }
 
 export interface SetPolicyRequest {
   mode: PolicyMode;
-  max_downloads?: number;
+  max_downloads?: number | null;
+  codes?: string[];
 }
 
 export interface GenerateCodesRequest {
@@ -30,8 +36,10 @@ export interface RedeemResponse {
   ticket: string;
 }
 
-export async function getPolicy(roomName: string, contentId: string): Promise<PolicyResponse> {
-  return await api.get(`/api/v1/rooms/${roomName}/contents/${contentId}/policy`);
+export async function getPolicy(roomName: string, contentId: string): Promise<PolicyResponse | null> {
+  const result = await api.get<PolicyResponse | null>(`/api/v1/rooms/${roomName}/contents/${contentId}/policy`);
+  // Backend returns null when no policy is configured (defaults to "off")
+  return result ?? null;
 }
 
 export async function setPolicy(roomName: string, contentId: string, data: SetPolicyRequest): Promise<PolicyResponse> {
