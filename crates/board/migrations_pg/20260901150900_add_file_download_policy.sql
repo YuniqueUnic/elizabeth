@@ -19,5 +19,5 @@ CREATE TABLE IF NOT EXISTS file_access_codes (
     created_at TEXT NOT NULL DEFAULT to_char(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS.US')
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_file_access_codes_policy_hash ON file_access_codes(policy_id, code_hash);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_file_access_codes_hash ON file_access_codes(code_hash);
 CREATE INDEX IF NOT EXISTS idx_file_access_codes_policy ON file_access_codes(policy_id);
