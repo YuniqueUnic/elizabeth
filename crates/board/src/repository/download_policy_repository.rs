@@ -53,7 +53,7 @@ impl IDownloadPolicyRepository for DownloadPolicyRepository {
                 download_count,
                 CAST(created_at AS TEXT) as created_at,
                 CAST(updated_at AS TEXT) as updated_at
-            FROM file_download_policies 
+            FROM file_download_policies
             WHERE content_id = $1
         "#;
 
@@ -79,9 +79,9 @@ impl IDownloadPolicyRepository for DownloadPolicyRepository {
         let sql = r#"
             INSERT INTO file_download_policies (content_id, mode, max_downloads, download_count, created_at, updated_at)
             VALUES ($1, $2, $3, $4, $5, $6)
-            ON CONFLICT (content_id) 
+            ON CONFLICT (content_id)
             DO UPDATE SET mode = $2, max_downloads = $3, updated_at = $6
-            RETURNING 
+            RETURNING
                 id,
                 content_id,
                 mode,
@@ -137,7 +137,7 @@ impl IDownloadPolicyRepository for DownloadPolicyRepository {
 
         // 1. Get policy
         let sql_policy = r#"
-            SELECT 
+            SELECT
                 id,
                 content_id,
                 mode,
@@ -145,7 +145,7 @@ impl IDownloadPolicyRepository for DownloadPolicyRepository {
                 download_count,
                 CAST(created_at AS TEXT) as created_at,
                 CAST(updated_at AS TEXT) as updated_at
-            FROM file_download_policies 
+            FROM file_download_policies
             WHERE content_id = $1
         "#;
 
@@ -169,14 +169,14 @@ impl IDownloadPolicyRepository for DownloadPolicyRepository {
 
         // 3. Find code
         let sql_code = r#"
-            SELECT 
+            SELECT
                 id,
                 policy_id,
                 code_hash,
                 CASE WHEN is_reusable THEN 1 ELSE 0 END as is_reusable,
                 CAST(used_at AS TEXT) as used_at,
                 CAST(created_at AS TEXT) as created_at
-            FROM file_access_codes 
+            FROM file_access_codes
             WHERE policy_id = $1 AND code_hash = $2
         "#;
 

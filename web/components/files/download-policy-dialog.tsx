@@ -55,14 +55,14 @@ export function DownloadPolicyDialog({
   const queryClient = useQueryClient();
 
   const [mode, setMode] = useState<PolicyMode>("off");
-  
+
   // Download limits
   const [maxDownloadsLimit, setMaxDownloadsLimit] = useState<string>("unlimited");
   const [customLimit, setCustomLimit] = useState<number>(0);
-  
+
   // Reusable
   const [reusableCode, setReusableCode] = useState<string>("");
-  
+
   // One time
   const [batchCount, setBatchCount] = useState<number>(10);
   const [oneTimeCodes, setOneTimeCodes] = useState<string>("");
@@ -176,7 +176,7 @@ export function DownloadPolicyDialog({
           <div className="py-4 text-center text-sm text-muted-foreground">{t("loading")}</div>
         ) : (
           <div className="space-y-4 py-4">
-            
+
             {policy && policy.mode !== "off" && (
               <div className="bg-muted p-3 rounded-md space-y-2">
                 <div className="flex items-center gap-2">
@@ -184,17 +184,17 @@ export function DownloadPolicyDialog({
                     {policy.mode === "reusable" ? t("modeReusable") : t("modeOneTime")}
                   </Badge>
                   <span className="text-sm">
-                    {t("downloadStats", { 
-                      count: policy.download_count, 
-                      max: policy.max_downloads ?? t("unlimited") 
+                    {t("downloadStats", {
+                      count: policy.download_count,
+                      max: policy.max_downloads ?? t("unlimited")
                     })}
                   </span>
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  {t("poolStats", { 
-                    total: policy.total_codes, 
-                    remaining: policy.remaining_codes, 
-                    used: policy.used_codes 
+                  {t("poolStats", {
+                    total: policy.total_codes,
+                    remaining: policy.remaining_codes,
+                    used: policy.used_codes
                   })}
                 </div>
               </div>
@@ -246,10 +246,10 @@ export function DownloadPolicyDialog({
               <div className="space-y-2">
                 <Label>{t("reusableCode")}</Label>
                 <div className="flex gap-2">
-                  <Input 
-                    value={reusableCode} 
-                    onChange={(e) => setReusableCode(e.target.value)} 
-                    placeholder={t("reusableCodePlaceholder")} 
+                  <Input
+                    value={reusableCode}
+                    onChange={(e) => setReusableCode(e.target.value)}
+                    placeholder={t("reusableCodePlaceholder")}
                   />
                   <Button variant="outline" onClick={() => setReusableCode(generateRandomCode(8))}>
                     {t("generateRandom")}
@@ -288,9 +288,9 @@ export function DownloadPolicyDialog({
                     {t("exportTxt")}
                   </Button>
                 </div>
-                <Textarea 
-                  value={oneTimeCodes} 
-                  onChange={(e) => setOneTimeCodes(e.target.value)} 
+                <Textarea
+                  value={oneTimeCodes}
+                  onChange={(e) => setOneTimeCodes(e.target.value)}
                   rows={6}
                   placeholder={t("oneTimeCodesPlaceholder")}
                 />
@@ -304,7 +304,7 @@ export function DownloadPolicyDialog({
                 </div>
               </div>
             )}
-            
+
           </div>
         )}
 

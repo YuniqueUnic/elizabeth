@@ -36,7 +36,7 @@ pub struct DownloadQuery {
     params(
         ("content_id" = i64, Path, description = "内容 id"),
         ("token" = String, Query, description = "有效的房间 token"),
-        ("ticket" = Option<String>, Query, description = "下载票据，当文件策略非off时必需")
+        ("ticket" = Option<String>, Query, description = "下载票据，当文件策略非 off 时必需")
     ),
     responses(
         (status = 200, description = "文件内容"),

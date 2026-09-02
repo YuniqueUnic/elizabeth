@@ -447,7 +447,7 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
       e.stopPropagation();
       dragCounter.current = 0;
       setIsDragging(false);
-      
+
       if (e.dataTransfer?.files?.length) {
         const files = Array.from(e.dataTransfer.files);
         if (files.length > 0) {

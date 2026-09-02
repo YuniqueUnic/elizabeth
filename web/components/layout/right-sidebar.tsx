@@ -286,10 +286,10 @@ export function RightSidebar() {
           const policy = await getPolicy(roomName, file.id);
           // null = no policy configured = treat as "off" (no restriction)
           if (policy && policy.mode !== "off") {
-            toast({ 
-              title: t("toast.downloadFailed"), 
-              description: t("toast.protectedBatchDownloadNotSupported") || "Protected files must be downloaded individually", 
-              variant: "destructive" 
+            toast({
+              title: t("toast.downloadFailed"),
+              description: t("toast.protectedBatchDownloadNotSupported") || "Protected files must be downloaded individually",
+              variant: "destructive"
             });
             continue;
           }
