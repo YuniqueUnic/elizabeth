@@ -1,5 +1,5 @@
 import { Interaction, the } from "@serenity-js/core";
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
 import { nativePageFor } from "../../support/actor-page";
 import { tRoom } from "../../support/i18n";
@@ -477,4 +477,166 @@ export const WaitForSavingToComplete = () =>
   Interaction.where(the`#actor waits for message saving to complete`, async (actor) => {
     const page = await nativePageFor(actor);
     await page.locator('[data-testid="save-messages-btn"][disabled]').waitFor({ state: "attached", timeout: 30_000 });
+  });
+
+export type DownloadPolicyMode = "off" | "reusable" | "one_time";
+
+export interface DownloadPolicyInput {
+  mode: DownloadPolicyMode;
+  reusableCode?: string;
+  oneTimeCodes?: string[];
+}
+
+export const ConfigureFileDownloadPolicy = (
+  fileName: string,
+  policy: DownloadPolicyInput,
+) =>
+  Interaction.where(
+    the`#actor configures the download policy of ${fileName} to ${policy.mode}`,
+    async (actor) => {
+      const page = await nativePageFor(actor);
+
+      const fileCard = RoomScreen.fileCards(page).filter({
+        has: page.getByText(fileName, { exact: true }),
+      }).first();
+      await fileCard.hover();
+      await RoomScreen.filePolicySettingsButton(page, fileName).click();
+      await RoomScreen.downloadPolicyDialog(page).waitFor({ state: "visible", timeout: 10_000 });
+
+      const modeLabels: Record<DownloadPolicyMode, string> = {
+        off: tRoom("downloadPolicy.modeOff"),
+        reusable: tRoom("downloadPolicy.modeReusable"),
+        one_time: tRoom("downloadPolicy.modeOneTime"),
+      };
+      await RoomScreen.downloadPolicyModeSelect(page).click();
+      await page.getByRole("option", { name: modeLabels[policy.mode] }).click();
+
+      if (policy.reusableCode !== undefined) {
+        await RoomScreen.reusableCodeInput(page).fill(policy.reusableCode);
+      }
+      if (policy.oneTimeCodes) {
+        await RoomScreen.oneTimeCodesTextarea(page).fill(policy.oneTimeCodes.join("\n"));
+      }
+
+      const saveRequest = page.waitForResponse(
+        (response) =>
+          response.url().includes("/policy") &&
+          response.request().method() === "PUT",
+        { timeout: 10_000 },
+      );
+      await RoomScreen.downloadPolicySaveButton(page).click();
+
+      const response = await saveRequest;
+      if (!response.ok()) {
+        const body = await response.text().catch(() => "");
+        throw new Error(
+          `Saving download policy failed: ${response.status()} ${response.statusText()} — ${body}`,
+        );
+      }
+      await RoomScreen.downloadPolicyDialog(page).waitFor({ state: "hidden", timeout: 10_000 });
+    },
+  );
+
+export const RedeemAccessCode = (code: string) =>
+  Interaction.where(the`#actor redeems the access code ${code}`, async (actor) => {
+    const page = await nativePageFor(actor);
+
+    const redeemRequest = page.waitForResponse(
+      (response) =>
+        response.url().includes("/redeem") &&
+        response.request().method() === "POST",
+      { timeout: 10_000 },
+    );
+    await RoomScreen.redeemCodeInput(page).fill(code);
+    await RoomScreen.redeemSubmitButton(page).click();
+    await redeemRequest;
+  });
+
+export const CloseFilePreviewDialog = () =>
+  Interaction.where(the`#actor closes the file preview dialog`, async (actor) => {
+    const page = await nativePageFor(actor);
+    await RoomScreen.filePreviewCloseButton(page).click();
+    await RoomScreen.filePreviewDialog(page).waitFor({ state: "hidden", timeout: 10_000 });
+  });
+
+export const PasteTextIntoEditor = (text: string) =>
+  Interaction.where(the`#actor pastes the text into the message editor`, async (actor) => {
+    const page = await nativePageFor(actor);
+    // 派发到 contenteditable：富文本模式下由 ProseMirror 的 handlePaste 处理
+    await RoomScreen.messageInput(page).evaluate((element, content) => {
+      const dataTransfer = new DataTransfer();
+      dataTransfer.setData("text/plain", content);
+      const event = new Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "clipboardData", { value: dataTransfer });
+      element.dispatchEvent(event);
+    }, text);
+  });
+
+async function uploadViaEditor(
+  page: Page,
+  file: UploadableFile,
+  target: Locator,
+  dispatch: (element: HTMLElement, payload: { name: string; mimeType: string; base64: string }) => void,
+) {
+  const uploadResponsePromise = page.waitForResponse(
+    (response) => {
+      const url = response.url();
+      return url.includes("/api/v1/rooms/") && url.includes("/contents")
+        && response.request().method() === "POST";
+    },
+    { timeout: 30_000 },
+  );
+
+  await target.evaluate(dispatch, {
+    name: file.name,
+    mimeType: file.mimeType,
+    base64: file.buffer.toString("base64"),
+  });
+
+  const response = await uploadResponsePromise;
+  if (!response.ok()) {
+    const body = await response.text().catch(() => "");
+    throw new Error(
+      `Editor file transfer failed: ${response.status()} ${response.statusText()} — ${body}`,
+    );
+  }
+}
+
+export const PasteFileIntoEditor = (file: UploadableFile) =>
+  Interaction.where(the`#actor pastes ${file.name} into the message editor`, async (actor) => {
+    const page = await nativePageFor(actor);
+    // 派发到 contenteditable：富文本模式下由 ProseMirror 的 handlePaste 处理
+    await uploadViaEditor(page, file, RoomScreen.messageInput(page), (element, payload) => {
+      const pasted = new File(
+        [Uint8Array.from(atob(payload.base64), (char) => char.charCodeAt(0))],
+        payload.name,
+        { type: payload.mimeType },
+      );
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(pasted);
+      const event = new Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "clipboardData", { value: dataTransfer });
+      element.dispatchEvent(event);
+    });
+  });
+
+export const DropFileOntoEditor = (file: UploadableFile) =>
+  Interaction.where(the`#actor drops ${file.name} onto the message editor`, async (actor) => {
+    const page = await nativePageFor(actor);
+    // 派发到编辑器容器：由容器的 React onDrop 处理，避免与 ProseMirror 的
+    // handleDrop 重复触发同一批文件的上传
+    await uploadViaEditor(page, file, RoomScreen.editorContainer(page), (element, payload) => {
+      const dropped = new File(
+        [Uint8Array.from(atob(payload.base64), (char) => char.charCodeAt(0))],
+        payload.name,
+        { type: payload.mimeType },
+      );
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(dropped);
+      for (const type of ["dragenter", "dragover", "drop"]) {
+        const event = new DragEvent(type, { bubbles: true, cancelable: true });
+        Object.defineProperty(event, "dataTransfer", { value: dataTransfer });
+        element.dispatchEvent(event);
+      }
+    });
   });
