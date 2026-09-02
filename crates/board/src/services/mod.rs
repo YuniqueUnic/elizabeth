@@ -12,6 +12,7 @@ use crate::repository::room_refresh_token_repository::{
 use crate::repository::room_repository::RoomRepository;
 use crate::repository::{RoomAccessRepository, RoomTokenRepository};
 
+pub mod access_code_limiter;
 pub mod auth_service;
 pub mod refresh_token_service;
 pub mod room_lifecycle;
@@ -19,6 +20,7 @@ pub mod room_password;
 pub mod token;
 
 // 重新导出服务类型
+pub use access_code_limiter::*;
 pub use auth_service::*;
 pub use refresh_token_service::*;
 pub use room_lifecycle::*;
@@ -34,6 +36,7 @@ pub struct Services {
     pub room_repository: Arc<RoomRepository>,
     pub room_lifecycle: Arc<RoomLifecycleService>,
     pub room_password: Arc<RoomPasswordService>,
+    pub access_code_limiter: Arc<AccessCodeLimiter>,
 }
 
 impl Services {
@@ -78,6 +81,7 @@ impl Services {
             config.storage.root.clone(),
         ));
         let room_password = Arc::new(RoomPasswordService);
+        let access_code_limiter = Arc::new(AccessCodeLimiter::new());
 
         Ok(Self {
             auth: auth_service,
@@ -86,6 +90,7 @@ impl Services {
             room_repository,
             room_lifecycle,
             room_password,
+            access_code_limiter,
         })
     }
 

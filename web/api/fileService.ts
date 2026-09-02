@@ -291,12 +291,17 @@ export async function downloadFile(
   fileName: string,
   token?: string,
   options?: {
+    ticket?: string;
     abortSignal?: AbortSignal;
     onProgress?: (progress: TransferProgress) => void;
   },
 ): Promise<void> {
   const authToken = await ensureToken(roomName, token);
-  const downloadPath = getContentPath(fileId);
+  let downloadPath = getContentPath(fileId);
+  if (options?.ticket) {
+    const separator = downloadPath.includes("?") ? "&" : "?";
+    downloadPath += `${separator}ticket=${encodeURIComponent(options.ticket)}`;
+  }
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();

@@ -39,6 +39,7 @@ import {
   uploadFile,
   uploadUrl,
 } from "@/api/fileService";
+import { getPolicy } from "@/api/policyService";
 import { useAppStore } from "@/lib/store";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -86,9 +87,16 @@ export function RightSidebar() {
   const roomName = pathname.split("/").filter(Boolean)[0] || currentRoomId;
 
   const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
+  const [previewTicket, setPreviewTicket] = useState<string | undefined>(undefined);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [urlDialogOpen, setUrlDialogOpen] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState<FileItem | null>(null);
+
+  const handleFileClick = (file: FileItem, ticket?: string) => {
+    setPreviewFile(file);
+    setPreviewTicket(ticket);
+    setPreviewOpen(true);
+  };
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: files = [], isLoading } = useQuery({
@@ -273,6 +281,23 @@ export function RightSidebar() {
     clearFileSelection();
 
     for (const file of filesToDownload) {
+      if (!can.delete) {
+        try {
+          const policy = await getPolicy(roomName, file.id);
+          // null = no policy configured = treat as "off" (no restriction)
+          if (policy && policy.mode !== "off") {
+            toast({
+              title: t("toast.downloadFailed"),
+              description: t("toast.protectedBatchDownloadNotSupported") || "Protected files must be downloaded individually",
+              variant: "destructive"
+            });
+            continue;
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+
       const transfer = createTransfer(file.name, file.size || 0, "download");
       addTransfer(transfer);
       downloadFile(roomName, file.id, file.name, undefined, {
@@ -294,11 +319,6 @@ export function RightSidebar() {
           setTimeout(() => removeTransfer(transfer.id), 5000);
         });
     }
-  };
-
-  const handleFileClick = (file: FileItem) => {
-    setPreviewFile(file);
-    setPreviewOpen(true);
   };
 
   const selectedCount = selectedFiles.size;
@@ -441,9 +461,16 @@ export function RightSidebar() {
         file={previewFile}
         roomName={roomName}
         open={previewOpen}
-        onOpenChange={setPreviewOpen}
+        onOpenChange={(open) => {
+          setPreviewOpen(open);
+          if (!open) {
+            setPreviewFile(null);
+            setPreviewTicket(undefined);
+          }
+        }}
         onDelete={handleDelete}
         canDelete={can.delete}
+        ticket={previewTicket}
       />
 
       <UrlUploadDialog

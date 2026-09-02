@@ -7,7 +7,7 @@ import { useTranslations } from "next-intl";
 interface FileListViewProps {
   files: FileItem[];
   onDelete: (fileId: string) => void;
-  onFileClick: (file: FileItem) => void;
+  onFileClick: (file: FileItem, ticket?: string) => void;
   showCheckboxes: boolean;
   canDelete: boolean;
 }

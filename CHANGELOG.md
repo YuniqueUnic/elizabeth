@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v1.1.0.html).
 
+## [1.6.0](https://github.com/YuniqueUnic/elizabeth/compare/v1.5.3...v1.6.0) (2026-09-02)
+
+
+### Features
+
+* implement file download policy and access code protection ([#169](https://github.com/YuniqueUnic/elizabeth/issues/169)) ([610be92](https://github.com/YuniqueUnic/elizabeth/commit/610be92ebc5312ccbcf799284007878d246b61bb))
+
+
+### Bug Fixes
+
+* **db:** ensure migration_path checks compile-time manifest dir for test runners ([#171](https://github.com/YuniqueUnic/elizabeth/issues/171)) ([27937ea](https://github.com/YuniqueUnic/elizabeth/commit/27937ea50d6539868e02005b80db933ccd2a9295))
+
+## [1.5.3](https://github.com/YuniqueUnic/elizabeth/compare/v1.5.2...v1.5.3) (2026-07-29)
+
+
+### Bug Fixes
+
+* **board:** stage chunk uploads on durable storage ([#160](https://github.com/YuniqueUnic/elizabeth/issues/160)) ([859aed8](https://github.com/YuniqueUnic/elizabeth/commit/859aed85c260ce0942fbd0556c538e0c72ce4be5))
+
 ## [1.5.2](https://github.com/YuniqueUnic/elizabeth/compare/v1.5.1...v1.5.2) (2026-07-13)
 
 

@@ -375,7 +375,10 @@ fn start_scheduler(
         TaskRegistration {
             interval: room_interval,
             timeout,
-            task: Arc::new(UploadCleanupTask::new(upload_repository)),
+            task: Arc::new(UploadCleanupTask::new(
+                upload_repository,
+                app_state.storage_root().clone(),
+            )),
         },
     ];
     registrations.extend(

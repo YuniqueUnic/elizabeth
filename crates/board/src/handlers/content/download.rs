@@ -2,39 +2,53 @@ use std::path::Path;
 use std::sync::Arc;
 
 use axum::body::Body;
-use axum::extract::{Path as AxumPath, State};
+use axum::extract::{Path as AxumPath, Query, State};
 use axum::http::HeaderValue;
 use axum::http::header::{CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_TYPE};
 use axum::response::Response;
+use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
+use serde::Deserialize;
 use tokio::fs;
 use tokio_util::io::ReaderStream;
 
 use crate::errors::AppError;
 use crate::handlers::{AuthToken, verify_room_token_by_id};
 use crate::models::content::RoomContent;
-use crate::repository::{IRoomContentRepository, RoomContentRepository};
+use crate::repository::{
+    DownloadPolicyRepository, IDownloadPolicyRepository, IRoomContentRepository,
+    RoomContentRepository,
+};
 use crate::state::AppState;
 use crate::validation::TokenValidator;
+use board_protocol::models::room::DownloadPolicyMode;
 
+use super::policy::DownloadTicketClaims;
 use super::{ContentPermission, ensure_permission};
+
+#[derive(Deserialize)]
+pub struct DownloadQuery {
+    pub ticket: Option<String>,
+}
 
 #[utoipa::path(
     get,
     path = "/api/v1/contents/{content_id}",
     params(
         ("content_id" = i64, Path, description = "内容 id"),
-        ("token" = String, Query, description = "有效的房间 token")
+        ("token" = String, Query, description = "有效的房间 token"),
+        ("ticket" = Option<String>, Query, description = "下载票据，当文件策略非 off 时必需")
     ),
     responses(
         (status = 200, description = "文件内容"),
         (status = 401, description = "token 无效"),
-        (status = 403, description = "无访问权限"),
+        (status = 403, description = "无访问权限或无效票据"),
         (status = 404, description = "文件不存在")
     ),
     tag = "content"
 )]
 pub async fn download_content_global(
     AxumPath(content_id): AxumPath<i64>,
+    Query(query): Query<DownloadQuery>,
     AuthToken(token): AuthToken,
     State(app_state): State<Arc<AppState>>,
 ) -> Result<Response, AppError> {
@@ -53,6 +67,49 @@ pub async fn download_content_global(
         verified.room.permission.can_view(),
         ContentPermission::View,
     )?;
+
+    // Check policy
+    let policy_repo = DownloadPolicyRepository::new(app_state.db_pool.clone());
+    let policy = policy_repo
+        .get_policy_by_content_id(content_id)
+        .await
+        .map_err(|e| AppError::internal(format!("Failed to query policy: {e}")))?;
+
+    if let Some(p) = policy {
+        if p.mode != DownloadPolicyMode::Off {
+            if p.mode == DownloadPolicyMode::Reusable
+                && let Some(max_dl) = p.max_downloads
+                && p.download_count >= max_dl
+            {
+                return Err(AppError::authorization("Max download limit reached"));
+            }
+
+            let ticket = query
+                .ticket
+                .ok_or_else(|| AppError::authorization("Download ticket required"))?;
+            let mut validation = Validation::new(Algorithm::HS256);
+            validation.validate_exp = true;
+
+            let token_data = decode::<DownloadTicketClaims>(
+                &ticket,
+                &DecodingKey::from_secret(app_state.config.auth.jwt_secret.as_bytes()),
+                &validation,
+            )
+            .map_err(|_| AppError::authorization("Invalid or expired download ticket"))?;
+
+            if token_data.claims.content_id != content_id {
+                return Err(AppError::authorization("Ticket is not for this content"));
+            }
+
+            // Increment download count
+            let _ = policy_repo.increment_download_count(content_id).await;
+        } else if let Some(max_dl) = p.max_downloads {
+            if p.download_count >= max_dl {
+                return Err(AppError::authorization("Max download limit reached"));
+            }
+            let _ = policy_repo.increment_download_count(content_id).await;
+        }
+    }
 
     serve_content_stream(content).await
 }

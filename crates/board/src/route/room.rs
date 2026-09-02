@@ -27,6 +27,10 @@ pub fn api_router(app_state: Arc<AppState>) -> OpenApiRouter {
         .routes(routes!(
             crate::handlers::content::download::download_content_global
         ))
+        .routes(routes!(crate::handlers::content::policy::get_policy))
+        .routes(routes!(crate::handlers::content::policy::set_policy))
+        .routes(routes!(crate::handlers::content::policy::generate_codes))
+        .routes(routes!(crate::handlers::content::policy::redeem_code))
         .routes(routes!(crate::handlers::content::update::update_content))
         .routes(routes!(crate::handlers::content::url::create_url_content))
         .routes(routes!(crate::handlers::content::message::create_message))

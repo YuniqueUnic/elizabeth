@@ -49,3 +49,23 @@ pub fn read_optional_datetime_from_any(
         None => Ok(None),
     }
 }
+
+pub fn read_bool_from_any(row: &AnyRow, column: &str) -> Result<bool, Error> {
+    if let Ok(b) = row.try_get::<bool, _>(column) {
+        return Ok(b);
+    }
+    if let Ok(i) = row.try_get::<i64, _>(column) {
+        return Ok(i != 0);
+    }
+    if let Ok(i) = row.try_get::<i32, _>(column) {
+        return Ok(i != 0);
+    }
+    let s: String = row.try_get(column)?;
+    match s.trim().to_lowercase().as_str() {
+        "1" | "true" | "t" | "yes" => Ok(true),
+        "0" | "false" | "f" | "no" => Ok(false),
+        _ => Err(Error::Decode(
+            format!("Invalid boolean value for column '{column}': {s}").into(),
+        )),
+    }
+}
