@@ -427,7 +427,7 @@ pub async fn redeem_code(
         .or_else(|| headers.get("x-real-ip").and_then(|v| v.to_str().ok()))
         .unwrap_or("client");
 
-    let client_key = format!("{}:{}", client_ip, &verified.claims.jti);
+    let client_key = format!("{}:{}", client_ip, verified.claims.jti);
 
     // 1. Check anti-brute-force rate limit before processing
     app_state
