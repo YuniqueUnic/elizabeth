@@ -99,16 +99,28 @@ pub async fn has_pending_sqlite_migrations(pool: &DbPool) -> Result<bool> {
         .any(|migration| !applied.contains(&migration.version)))
 }
 
-fn migration_path(kind: DbKind) -> &'static Path {
-    let primary = match kind {
-        DbKind::Sqlite => Path::new("./migrations"),
-        DbKind::Postgres => Path::new("./migrations_pg"),
+fn migration_path(kind: DbKind) -> PathBuf {
+    let subpath = match kind {
+        DbKind::Sqlite => "migrations",
+        DbKind::Postgres => "migrations_pg",
     };
-    let fallback = match kind {
-        DbKind::Sqlite => Path::new("./crates/board/migrations"),
-        DbKind::Postgres => Path::new("./crates/board/migrations_pg"),
-    };
-    if primary.exists() { primary } else { fallback }
+
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(subpath);
+    if manifest_dir.exists() {
+        return manifest_dir;
+    }
+
+    let cwd_relative = PathBuf::from(".").join(subpath);
+    if cwd_relative.exists() {
+        return cwd_relative;
+    }
+
+    let repo_root_relative = PathBuf::from("./crates/board").join(subpath);
+    if repo_root_relative.exists() {
+        return repo_root_relative;
+    }
+
+    cwd_relative
 }
 
 pub async fn backup_sqlite_before_migrations(pool: &DbPool, url: &str) -> Result<Option<PathBuf>> {
