@@ -30,6 +30,7 @@ import {
   insertMarkdownToEditor,
   applyMarkdownSyntax,
   buildMarkdownForFile,
+  extractFilesFromDataTransfer,
 } from "./editor/helpers";
 import { EditorToolbar } from "./editor/editor-toolbar";
 import { DEFAULT_CODE_BLOCK_LANGUAGE } from "./code-block-language";
@@ -91,6 +92,9 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
     const clearInsertMarkdownRequest = useAppStore((state) => state.clearInsertMarkdownRequest);
     const editorFontSize = useAppStore((state) => state.editorFontSize);
     const [isSourceMode, setIsSourceMode] = useState(false);
+    const [isDragging, setIsDragging] = useState(false);
+    const dragCounter = useRef(0);
+    const handleUploadFilesRef = useRef<((files: File[]) => void) | undefined>(undefined);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     // 用 ref 缓存最新的 sendOnEnter/onRequestSend，避免 useEditor 闭包捕获陈旧值
     const sendOnEnterRef = useRef(sendOnEnter);
@@ -170,6 +174,28 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
               }
             }
             // Shift+Enter 或 sendOnEnter=false 时的 Enter：换行（默认行为）
+          }
+          return false;
+        },
+        handlePaste: (view, event, slice) => {
+          const files = extractFilesFromDataTransfer(event.clipboardData);
+          if (files.length > 0) {
+            event.preventDefault();
+            handleUploadFilesRef.current?.(files);
+            return true;
+          }
+          return false;
+        },
+        handleDrop: (view, event, slice, moved) => {
+          if (!moved) {
+            const files = extractFilesFromDataTransfer(event.dataTransfer);
+            if (files.length > 0) {
+              event.preventDefault();
+              handleUploadFilesRef.current?.(files);
+              setIsDragging(false);
+              dragCounter.current = 0;
+              return true;
+            }
           }
           return false;
         },
@@ -389,15 +415,76 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
       [roomName, editor, can.edit, addTransfer, updateTransferStatus, removeTransfer, queryClient, toast, isSourceMode, value, onChange, roomDetails, t]
     );
 
+    useEffect(() => {
+      handleUploadFilesRef.current = handleUploadFiles;
+    }, [handleUploadFiles]);
+
+    const handleDragEnter = useCallback((e: React.DragEvent) => {
+      if (disabled) return;
+      if (e.dataTransfer?.types.includes("Files")) {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounter.current += 1;
+        if (dragCounter.current === 1) {
+          setIsDragging(true);
+        }
+      }
+    }, [disabled]);
+
+    const handleDragLeave = useCallback((e: React.DragEvent) => {
+      if (disabled) return;
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounter.current -= 1;
+      if (dragCounter.current === 0) {
+        setIsDragging(false);
+      }
+    }, [disabled]);
+
+    const handleDropContainer = useCallback((e: React.DragEvent) => {
+      if (disabled) return;
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounter.current = 0;
+      setIsDragging(false);
+
+      if (e.dataTransfer?.files?.length) {
+        const files = Array.from(e.dataTransfer.files);
+        if (files.length > 0) {
+          handleUploadFiles(files);
+        }
+      }
+    }, [disabled, handleUploadFiles]);
+
+    const handleDragOver = useCallback((e: React.DragEvent) => {
+      if (disabled) return;
+      if (e.dataTransfer?.types.includes("Files")) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }, [disabled]);
+
     return (
       <div
         className={cn(
-          "flex flex-col border border-border rounded-xl bg-card transition-all duration-200 focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/10 overflow-hidden tiptap-editor-container",
+          "flex flex-col border border-border rounded-xl bg-card transition-all duration-200 focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/10 overflow-hidden tiptap-editor-container relative",
           disabled && "opacity-50 pointer-events-none",
+          isDragging && "border-primary/50 ring-2 ring-primary/20",
           className
         )}
         style={{ fontSize: `${editorFontSize}px` }}
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDropContainer}
       >
+        {isDragging && (
+          <div className="absolute inset-0 z-50 rounded-xl bg-background/80 backdrop-blur-sm flex items-center justify-center border-2 border-dashed border-primary pointer-events-none">
+            <span className="font-medium text-primary bg-background px-4 py-2 rounded-md shadow-sm">
+              {t("dropToUpload", { fallback: "Drop files to upload" })}
+            </span>
+          </div>
+        )}
         {toolbarPosition === "top" && (
           <EditorToolbar
             editor={editor}
@@ -435,6 +522,20 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
                     }
                   }
                   // Shift+Enter 或 sendOnEnter=false 时：换行（默认）
+                }
+              }}
+              onPaste={(e) => {
+                const pasteFiles = extractFilesFromDataTransfer(e.clipboardData);
+                if (pasteFiles.length > 0) {
+                  e.preventDefault();
+                  handleUploadFilesRef.current?.(pasteFiles);
+                }
+              }}
+              onDrop={(e) => {
+                const dropFiles = extractFilesFromDataTransfer(e.dataTransfer);
+                if (dropFiles.length > 0) {
+                  e.preventDefault();
+                  handleUploadFilesRef.current?.(dropFiles);
                 }
               }}
               style={{ fontSize: `${editorFontSize}px` }}

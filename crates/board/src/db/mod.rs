@@ -126,15 +126,23 @@ pub async fn backup_sqlite_before_migrations(pool: &DbPool, url: &str) -> Result
     }
 
     let database_path = sqlite_path_from_url(url)?;
-    let parent = database_path.parent().unwrap_or_else(|| Path::new("."));
+    let parent = match database_path.parent() {
+        Some(p) if !p.as_os_str().is_empty() => p,
+        _ => Path::new("."),
+    };
     let file_name = database_path
         .file_name()
         .and_then(|name| name.to_str())
         .ok_or_else(|| anyhow::anyhow!("SQLite database URL has no file name"))?;
     let prefix = format!("{file_name}.bkp");
     let mut backups = existing_backups(parent, &prefix)?;
-    let next = backups.last().map_or(1, |(iteration, _)| iteration + 1);
-    let backup_path = parent.join(format!("{prefix}{next}"));
+    let mut next = backups.last().map_or(1, |(iteration, _)| iteration + 1);
+    let mut backup_path = parent.join(format!("{prefix}{next}"));
+    while backup_path.exists() {
+        next += 1;
+        backup_path = parent.join(format!("{prefix}{next}"));
+    }
+
     let escaped = backup_path.to_string_lossy().replace('\'', "''");
     sqlx::query(&format!("VACUUM INTO '{escaped}'"))
         .execute(pool)
@@ -144,7 +152,7 @@ pub async fn backup_sqlite_before_migrations(pool: &DbPool, url: &str) -> Result
     backups.sort_by_key(|(iteration, _)| *iteration);
     let remove_count = backups.len().saturating_sub(3);
     for (_, path) in backups.into_iter().take(remove_count) {
-        std::fs::remove_file(path)?;
+        let _ = std::fs::remove_file(path);
     }
 
     info!("SQLite migration backup created: {}", backup_path.display());
@@ -166,10 +174,15 @@ fn sqlite_path_from_url(url: &str) -> Result<PathBuf> {
 
 fn existing_backups(directory: &Path, prefix: &str) -> Result<Vec<(u64, PathBuf)>> {
     let mut backups = Vec::new();
-    if !directory.exists() {
+    let dir = if directory.as_os_str().is_empty() {
+        Path::new(".")
+    } else {
+        directory
+    };
+    if !dir.exists() {
         return Ok(backups);
     }
-    for entry in std::fs::read_dir(directory)? {
+    for entry in std::fs::read_dir(dir)? {
         let entry = entry?;
         let name = entry.file_name();
         let name = name.to_string_lossy();

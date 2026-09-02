@@ -16,9 +16,10 @@ interface PDFViewerProps {
   url: string;
   roomName?: string;
   className?: string;
+  ticket?: string;
 }
 
-export function PDFViewer({ url, roomName, className = "" }: PDFViewerProps) {
+export function PDFViewer({ url, roomName, className = "", ticket }: PDFViewerProps) {
   const t = useTranslations("room.pdf");
   const [numPages, setNumPages] = useState<number>(0);
   const [pageNumber, setPageNumber] = useState<number>(1);
@@ -30,7 +31,7 @@ export function PDFViewer({ url, roomName, className = "" }: PDFViewerProps) {
     resolvedSrc,
     loading: isHookLoading,
     error: hookError,
-  } = useSecureBlobUrl(url, roomName);
+  } = useSecureBlobUrl(url, roomName, ticket);
 
   useEffect(() => {
     if (hookError) {

@@ -9,6 +9,7 @@ use crate::models::room::row_utils::{read_datetime_from_any, read_optional_datet
 
 pub mod chunk_upload;
 pub mod content;
+pub mod download_policy;
 pub mod permission;
 pub mod refresh_token;
 pub mod row_utils;
@@ -16,6 +17,7 @@ pub mod token;
 pub mod upload_reservation;
 
 pub use chunk_upload::{ChunkStatus, RoomChunkUpload};
+pub use download_policy::{DownloadPolicyMode, FileAccessCode, FileDownloadPolicy};
 pub use refresh_token::{
     CreateRefreshTokenRequest, RefreshTokenRequest, RefreshTokenResponse, RoomRefreshToken,
     TokenBlacklistEntry,

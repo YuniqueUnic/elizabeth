@@ -85,6 +85,10 @@ impl AppState {
         &self.services.room_password
     }
 
+    pub fn access_code_limiter(&self) -> &crate::services::AccessCodeLimiter {
+        &self.services.access_code_limiter
+    }
+
     /// 便捷方法：获取存储根目录
     pub fn storage_root(&self) -> &std::path::PathBuf {
         &self.config.storage.root

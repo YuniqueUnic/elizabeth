@@ -382,6 +382,11 @@ async function parseResponse<T>(
       if (contentType?.includes("application/json")) {
         const json = await response.json();
 
+        // Handle JSON null body (e.g. Rust Json(Option<T>) returning None)
+        if (json === null || json === undefined) {
+          return null as unknown as T;
+        }
+
         // Backend returns: { code, success, message, data?, timestamp? }
         if (json.success === false) {
           throw new APIError(

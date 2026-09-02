@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -11,11 +11,13 @@ import {
   Download,
   ExternalLink,
   FileText,
+  Lock,
   Maximize2,
   Minimize2,
   Trash2,
   X,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import type { FileItem } from "@/lib/types";
 import { formatFileSize } from "@/lib/utils/format";
 import { useToast } from "@/hooks/use-toast";
@@ -24,6 +26,7 @@ import { useRoomPermissions } from "@/hooks/use-room-permissions";
 import { copyTextToClipboard } from "@/lib/utils/clipboard";
 import { ManualCopyDialog } from "@/components/manual-copy-dialog";
 import {
+  appendAuthAndTicket,
   appendToken,
   buildMarkdownReference,
   buildPreviewMarkdownReference,
@@ -41,6 +44,8 @@ import { getRoomTokenString } from "@/lib/utils/api";
 import { insertMarkdownIntoComposer } from "@/lib/composer-editor";
 import { useTranslations } from "next-intl";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { getPolicy } from "@/api/policyService";
+import { RedeemDialog } from "./redeem-dialog";
 
 // Dynamic import to avoid SSR issues with DOMMatrix
 const PDFViewer = dynamic(
@@ -62,19 +67,36 @@ interface FilePreviewModalProps {
   onOpenChange: (open: boolean) => void;
   onDelete: (fileId: string) => void;
   canDelete?: boolean;
+  ticket?: string;
 }
 
 export function FilePreviewModal(
-  { file, roomName, open, onOpenChange, onDelete, canDelete }: FilePreviewModalProps,
+  { file, roomName, open, onOpenChange, onDelete, canDelete, ticket }: FilePreviewModalProps,
 ) {
   const t = useTranslations("room");
+  const tp = useTranslations("room.downloadPolicy");
   const { toast } = useToast();
   const requestInsertMarkdown = useAppStore((state) => state.requestInsertMarkdown);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [manualCopyValue, setManualCopyValue] = useState("");
+  const [redeemDialogOpen, setRedeemDialogOpen] = useState(false);
+  const [currentTicket, setCurrentTicket] = useState<string | undefined>(ticket);
   const { can } = useRoomPermissions();
   const deleteAllowed = canDelete ?? can.delete;
   const isMobile = useIsMobile();
+
+  useEffect(() => {
+    setCurrentTicket(ticket);
+  }, [ticket, open]);
+
+  const { data: policy } = useQuery({
+    queryKey: ["policy", roomName, file?.id],
+    queryFn: () => (file?.id ? getPolicy(roomName, file.id) : null),
+    enabled: open && !!roomName && !!file?.id,
+    staleTime: 30000,
+  });
+
+  const isProtectedForUser = !currentTicket && Boolean(policy && policy.mode !== "off");
 
   if (!file) return null;
 
@@ -87,7 +109,9 @@ export function FilePreviewModal(
   const roomToken = getRoomTokenString(roomName) ?? undefined;
   const assetPath = resolveFileAssetPath(file);
   const authenticatedAssetPath = assetPath
-    ? (isLink ? assetPath : appendToken(assetPath, roomToken))
+    ? (isLink
+        ? assetPath
+        : appendAuthAndTicket(assetPath, roomToken, currentTicket))
     : undefined;
 
   // Build a token-free shareable URL for clipboard
@@ -97,14 +121,22 @@ export function FilePreviewModal(
     return toAbsoluteUrl(previewPath, window.location.origin);
   }
 
-  const handleDownload = async () => {
+  const performDownload = async (downloadTicket?: string) => {
+    const activeTicket = downloadTicket || currentTicket;
     try {
       toast({ title: t("filePreviewModal.downloadStart"), description: t("filePreviewModal.downloading", { fileName: file.name }) });
-      await downloadFile(roomName, file.id, file.name);
+      await downloadFile(roomName, file.id, file.name, undefined, { ticket: activeTicket });
       toast({ title: t("filePreviewModal.downloadComplete"), description: t("filePreviewModal.downloadCompleteDescription", { fileName: file.name }) });
     } catch {
       toast({ title: t("filePreviewModal.downloadFailed"), description: t("filePreviewModal.downloadFailedDescription"), variant: "destructive" });
     }
+  };
+
+  const handleDownload = async () => {
+    if (currentTicket || !policy || policy.mode === "off") {
+      return performDownload(currentTicket);
+    }
+    setRedeemDialogOpen(true);
   };
 
   const handleCopyLink = async () => {
@@ -221,52 +253,78 @@ export function FilePreviewModal(
           This outer div is simply a flex-1 container with overflow:hidden.
         */}
         <div className="flex-1 min-h-0 overflow-hidden">
-          {isImage && assetPath && (
-            <ImageViewer src={assetPath} alt={file.name} roomName={roomName} />
-          )}
-          {isImage && !assetPath && (
-            <EmptyState message={t("filePreviewModal.imageLoadError")} />
-          )}
-
-          {isVideo && authenticatedAssetPath && (
-            <div className="flex items-center justify-center h-full p-6 bg-black/5">
-              <video
-                src={authenticatedAssetPath}
-                controls
-                className="max-w-full max-h-full rounded-lg shadow-lg"
-              >
-                {t("filePreviewModal.videoNotSupported")}
-              </video>
-            </div>
-          )}
-
-          {isPdf && assetPath && (
-            <PDFViewer url={assetPath} roomName={roomName} />
-          )}
-
-          {isLink && file.url && (
-            <UrlViewer
-              url={file.url}
-              name={file.name}
-              description={file.description ?? file.mimeType}
-            />
-          )}
-
-          {isTextFile && assetPath && (
-            <FileContentPreview
-              fileUrl={assetPath}
-              fileName={file.name}
-              mimeType={file.mimeType}
-              roomName={roomName}
-            />
-          )}
-
-          {!isImage && !isVideo && !isPdf && !isLink && !isTextFile && (
+          {isProtectedForUser ? (
             <EmptyState
-              icon={<FileText className="h-10 w-10 opacity-30" />}
-              message={t("filePreviewModal.unsupportedType")}
-              hint={t("filePreviewModal.downloadToView")}
+              icon={<Lock className="h-10 w-10 text-muted-foreground opacity-40" />}
+              message={tp("previewProtectedMessage")}
+              hint={tp("previewProtectedHint")}
+              action={
+                <Button size="sm" onClick={() => setRedeemDialogOpen(true)} className="mt-2">
+                  <Lock className="h-3.5 w-3.5 mr-1.5" />
+                  {tp("redeemButton")}
+                </Button>
+              }
             />
+          ) : (
+            <>
+              {isImage && assetPath && (
+                <ImageViewer
+                  src={assetPath}
+                  alt={file.name}
+                  roomName={roomName}
+                  ticket={currentTicket}
+                />
+              )}
+              {isImage && !assetPath && (
+                <EmptyState message={t("filePreviewModal.imageLoadError")} />
+              )}
+
+              {isVideo && authenticatedAssetPath && (
+                <div className="flex items-center justify-center h-full p-6 bg-black/5">
+                  <video
+                    src={authenticatedAssetPath}
+                    controls
+                    className="max-w-full max-h-full rounded-lg shadow-lg"
+                  >
+                    {t("filePreviewModal.videoNotSupported")}
+                  </video>
+                </div>
+              )}
+
+              {isPdf && assetPath && (
+                <PDFViewer
+                  url={assetPath}
+                  roomName={roomName}
+                  ticket={currentTicket}
+                />
+              )}
+
+              {isLink && file.url && (
+                <UrlViewer
+                  url={file.url}
+                  name={file.name}
+                  description={file.description ?? file.mimeType}
+                />
+              )}
+
+              {isTextFile && assetPath && (
+                <FileContentPreview
+                  fileUrl={assetPath}
+                  fileName={file.name}
+                  mimeType={file.mimeType}
+                  roomName={roomName}
+                  ticket={currentTicket}
+                />
+              )}
+
+              {!isImage && !isVideo && !isPdf && !isLink && !isTextFile && (
+                <EmptyState
+                  icon={<FileText className="h-10 w-10 opacity-30" />}
+                  message={t("filePreviewModal.unsupportedType")}
+                  hint={t("filePreviewModal.downloadToView")}
+                />
+              )}
+            </>
           )}
         </div>
 
@@ -335,32 +393,46 @@ export function FilePreviewModal(
         </div>
       </DialogContent>
       </Dialog>
-      <ManualCopyDialog
-        open={manualCopyValue.length > 0}
-        value={manualCopyValue}
-        onOpenChange={(nextOpen) => {
-          if (!nextOpen) setManualCopyValue("");
-        }}
-      />
-    </>
-  );
-}
+        <ManualCopyDialog
+          open={manualCopyValue.length > 0}
+          value={manualCopyValue}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) setManualCopyValue("");
+          }}
+        />
+        {redeemDialogOpen && (
+          <RedeemDialog
+            open={redeemDialogOpen}
+            onOpenChange={setRedeemDialogOpen}
+            roomName={roomName}
+            contentId={file.id}
+            onSuccess={(unlockedTicket) => {
+              setCurrentTicket(unlockedTicket);
+            }}
+          />
+        )}
+      </>
+    );
+  }
 
 // ── Shared empty/error state ──────────────────────────────────────────────────
 function EmptyState({
   icon,
   message,
   hint,
+  action,
 }: {
   icon?: React.ReactNode;
   message: string;
   hint?: string;
+  action?: React.ReactNode;
 }) {
   return (
     <div className="flex flex-col items-center justify-center h-full gap-3 p-8 text-muted-foreground">
       {icon}
       <p className="text-sm text-center">{message}</p>
       {hint && <p className="text-xs text-center opacity-70">{hint}</p>}
+      {action}
     </div>
   );
 }
