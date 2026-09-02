@@ -166,6 +166,13 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
                 return true;
               }
             } else if (!event.shiftKey && soe) {
+              // 在代码块中，Enter 键用于代码内换行，不触发快捷发送
+              const isInsideCodeBlock =
+                Boolean(view.state.schema.nodes.codeBlock &&
+                  view.state.selection.$from.parent.type === view.state.schema.nodes.codeBlock);
+              if (isInsideCodeBlock) {
+                return false;
+              }
               // Enter（非 Shift）且 sendOnEnter=true：发送
               if (send) {
                 event.preventDefault();
@@ -183,6 +190,17 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
             event.preventDefault();
             handleUploadFilesRef.current?.(files);
             return true;
+          }
+
+          // 当粘贴包含 fenced code blocks (``` / ~~~) 的纯文本时，
+          // 解析为结构化 Markdown 块，避免退化为包含反引号的普通段落
+          const text = event.clipboardData?.getData("text/plain");
+          if (text && (text.includes("```") || text.includes("~~~"))) {
+            if (editor) {
+              event.preventDefault();
+              insertMarkdownToEditor(editor, text);
+              return true;
+            }
           }
           return false;
         },
@@ -276,7 +294,6 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
       const wasEmittedByThisEditor = locallyEmittedValuesRef.current.delete(value);
       if (
         value !== getMarkdownFromEditor(editor) &&
-        value !== editor.getText() &&
         !wasEmittedByThisEditor
       ) {
         isUpdatingFromProp.current = true;

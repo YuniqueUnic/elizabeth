@@ -37,7 +37,7 @@ function resolveEffectivePermissions(
 export function useRoomPermissions(roomPermissions?: RoomPermission[] | null) {
     const pathname = usePathname();
     // 从真实 URL 解析房间名，避免静态导出时 useParams() 返回编译期占位符
-    const roomName = pathname.split("/").filter(Boolean)[0] ?? undefined;
+    const roomName = pathname?.split("/").filter(Boolean)[0] ?? undefined;
 
     const token = useMemo(() => {
         if (!roomName) return null;

@@ -103,4 +103,23 @@ test.describe("Room message code blocks", () => {
     await expect(latestMessage.locator("code.shiki-code span[style*='color']").first()).toBeVisible();
     await expect(latestMessage).toContainText("toolbar");
   });
+
+  test("renders plain text followed by code block without content duplication", async ({
+    actor,
+    page,
+  }) => {
+    await actor.attemptsTo(
+      SendMessage("基本文本，没有样式\n```\ncode block 样式的内容；比如\n- 文本内容\n1. 各种各样的\n```"),
+    );
+
+    const latestMessage = RoomScreen.messageContents(page).last();
+    await expect(latestMessage.locator("[data-testid='shiki-code-block']")).toBeVisible();
+    await expect(latestMessage.locator("pre.shiki code.shiki-code")).toBeVisible();
+
+    const text = await latestMessage.innerText();
+    const count = (text.match(/code block 样式的内容/g) || []).length;
+    expect(count).toBe(1);
+    await expect(latestMessage).toContainText("基本文本，没有样式");
+    await expect(latestMessage).toContainText("1. 各种各样的");
+  });
 });
