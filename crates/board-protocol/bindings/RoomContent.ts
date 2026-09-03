@@ -4,4 +4,8 @@ import type { ContentType } from "./ContentType";
 /**
  * 数据库 RoomContent 模型
  */
-export type RoomContent = { id: number | null, room_id: number, content_type: ContentType, text: string | null, url: string | null, path: string | null, file_name: string | null, size: number | null, mime_type: string | null, sequence_number: number, created_at: string, updated_at: string, };
+export type RoomContent = { id: number | null, room_id: number, content_type: ContentType, text: string | null, url: string | null, path: string | null, file_name: string | null, size: number | null, mime_type: string | null, sequence_number: number,
+/**
+ * 创建者会话的 JWT jti（own 作用域判定依据；存量内容为 NULL → Own 拒绝）
+ */
+created_by_jti?: string, created_at: string, updated_at: string, };

@@ -1,10 +1,9 @@
 #![allow(dead_code, unused_imports, unused_variables)]
-use board::models::permission::RoomPermission;
-use board::models::{Room, RoomToken};
-use board::services::token::RoomTokenClaims;
 /// 测试数据夹具
 ///
 /// 提供常用的测试数据对象
+use board::models::{Room, RoomToken};
+use board::services::token::RoomTokenClaims;
 use chrono::{NaiveDateTime, Utc};
 
 /// 创建测试房间
@@ -19,20 +18,16 @@ pub fn create_test_room_with_password(name: &str, password: &str) -> Room {
 
 /// 创建测试房间令牌记录
 pub fn create_test_room_token(room_id: i64, jti: &str) -> RoomToken {
-    RoomToken::new(room_id, jti.to_string(), Utc::now().naive_utc())
+    RoomToken::new(room_id, jti.to_string(), "reader", Utc::now().naive_utc())
 }
 
 /// 创建测试令牌声明
-pub fn create_test_token_claims(
-    room_id: i64,
-    room_name: &str,
-    permission: RoomPermission,
-) -> RoomTokenClaims {
+pub fn create_test_token_claims(room_id: i64, room_name: &str, role: &str) -> RoomTokenClaims {
     RoomTokenClaims {
         sub: room_name.to_string(),
         room_id,
         room_name: room_name.to_string(),
-        permission: permission.bits(),
+        role: role.to_string(),
         max_size: 1024 * 1024,              // 1MB
         exp: Utc::now().timestamp() + 3600, // 1 小时后过期
         iat: Utc::now().timestamp(),
@@ -46,7 +41,7 @@ pub fn create_test_token_claims(
 pub fn create_expiring_token_claims(
     room_id: i64,
     room_name: &str,
-    permission: RoomPermission,
+    role: &str,
     minutes_to_expiry: i64,
 ) -> RoomTokenClaims {
     let now = Utc::now();
@@ -54,7 +49,7 @@ pub fn create_expiring_token_claims(
         sub: room_name.to_string(),
         room_id,
         room_name: room_name.to_string(),
-        permission: permission.bits(),
+        role: role.to_string(),
         max_size: 1024 * 1024, // 1MB
         exp: now.timestamp() + minutes_to_expiry * 60,
         iat: now.timestamp(),

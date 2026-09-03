@@ -131,7 +131,8 @@ impl RoomUploadReservationRepository {
                 CAST(expire_at AS TEXT) as expire_at,
                 CAST(created_at AS TEXT) as created_at,
                 CAST(updated_at AS TEXT) as updated_at,
-                permission
+                default_role_key,
+                roles_version
             FROM rooms
             WHERE id = $1
             "#,

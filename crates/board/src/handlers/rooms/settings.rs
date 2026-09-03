@@ -4,10 +4,12 @@ use axum::Json;
 use axum::extract::{Path, State};
 
 use super::shared::{HandlerResult, room_info_from_room};
+use crate::authz::{Authz, Resource, load_role_table};
 use crate::dto::rooms::{RoomView, UpdateRoomSettingsRequest};
 use crate::errors::AppError;
 use crate::handlers::{AuthToken, verify_room_token};
 use crate::models::Room;
+use crate::models::room::role::Capability;
 use crate::repository::{
     IRoomRefreshTokenRepository, IRoomTokenRepository, RoomRefreshTokenRepository, RoomRepository,
     RoomTokenRepository,
@@ -22,14 +24,14 @@ use crate::websocket::types::RoomUpdateReason;
     path = "/api/v1/rooms/{name}/settings",
     params(
         ("name" = String, Path, description = "房间名称"),
-        ("token" = String, Query, description = "有效的房间 token，需要删除权限")
+        ("token" = String, Query, description = "有效的房间 token，需要 room.settings.update 能力")
     ),
     request_body = UpdateRoomSettingsRequest,
     responses(
         (status = 200, description = "设置更新成功", body = RoomView),
         (status = 400, description = "请求参数错误"),
         (status = 401, description = "token 无效或已撤销"),
-        (status = 403, description = "无更新权限"),
+        (status = 403, description = "缺少 room.settings.update 能力"),
         (status = 404, description = "房间不存在")
     ),
     tag = "rooms"
@@ -42,22 +44,25 @@ pub async fn update_room_settings(
 ) -> HandlerResult<RoomView> {
     RoomNameValidator::validate_identifier(&name)?;
     let verified = verify_room_token(app_state.clone(), &name, &token).await?;
-    let token_perm = verified.claims.as_permission();
-
-    if !verified.room.permission.can_delete() || !token_perm.can_delete() {
-        return Err(AppError::permission_denied(
-            "Insufficient permissions to update room settings",
-        ));
-    }
+    let authz = Authz::for_claims(&app_state, &verified.room, &verified.claims).await?;
+    let room_id = verified
+        .room
+        .id
+        .ok_or_else(|| AppError::internal("Room id missing"))?;
+    authz.require(Capability::RoomSettingsUpdate, &Resource::Room { room_id })?;
 
     let repo = RoomRepository::new(app_state.db_pool.clone());
     let mut room = verified.room;
     validate_settings_payload(&payload, app_state.room_expiry_policy())?;
     validate_policy_not_below_usage(&room, &payload)?;
+    validate_default_role_key(&app_state, &room, &payload).await?;
 
     let password_changed = payload.password.is_some() || payload.remove_password == Some(true);
     let password = payload.password.clone();
     let remove_password = payload.remove_password == Some(true);
+    if let Some(default_role_key) = payload.default_role_key.clone() {
+        room.default_role_key = default_role_key;
+    }
     apply_settings_payload(&mut room, payload, app_state.room_expiry_policy())?;
     if remove_password {
         room.password = None;
@@ -88,6 +93,33 @@ pub async fn update_room_settings(
     }
 
     Ok(Json(RoomView::from(&updated_room)))
+}
+
+/// 默认加入角色必须存在于本房角色集（Room Gate 语义：新成员以此为入场角色）。
+async fn validate_default_role_key(
+    app_state: &AppState,
+    room: &Room,
+    payload: &UpdateRoomSettingsRequest,
+) -> Result<(), AppError> {
+    let Some(ref requested) = payload.default_role_key else {
+        return Ok(());
+    };
+    let room_id = room
+        .id
+        .ok_or_else(|| AppError::internal("Room id missing"))?;
+    let table = load_role_table(
+        &app_state.roles_cache,
+        &app_state.db_pool,
+        room_id,
+        room.roles_version,
+    )
+    .await?;
+    if !table.contains_key(requested) {
+        return Err(AppError::validation(
+            "default_role_key must exist in the room role set",
+        ));
+    }
+    Ok(())
 }
 
 fn validate_policy_not_below_usage(

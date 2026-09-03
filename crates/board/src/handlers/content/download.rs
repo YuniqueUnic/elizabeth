@@ -11,9 +11,11 @@ use serde::Deserialize;
 use tokio::fs;
 use tokio_util::io::ReaderStream;
 
+use crate::authz::{Authz, Resource};
 use crate::errors::AppError;
 use crate::handlers::{AuthToken, verify_room_token_by_id};
 use crate::models::content::RoomContent;
+use crate::models::room::role::Capability;
 use crate::repository::{
     DownloadPolicyRepository, IDownloadPolicyRepository, IRoomContentRepository,
     RoomContentRepository,
@@ -23,7 +25,6 @@ use crate::validation::TokenValidator;
 use board_protocol::models::room::DownloadPolicyMode;
 
 use super::policy::DownloadTicketClaims;
-use super::{ContentPermission, ensure_permission};
 
 #[derive(Deserialize)]
 pub struct DownloadQuery {
@@ -62,10 +63,14 @@ pub async fn download_content_global(
         .ok_or_else(|| AppError::not_found("Content not found"))?;
 
     let verified = verify_room_token_by_id(app_state.clone(), content.room_id, &token).await?;
-    ensure_permission(
-        &verified.claims,
-        verified.room.permission.can_view(),
-        ContentPermission::View,
+    let authz = Authz::for_claims(&app_state, &verified.room, &verified.claims).await?;
+    authz.require(
+        Capability::FileDownload,
+        &Resource::Content {
+            room_id: content.room_id,
+            content_type: content.content_type,
+            created_by_jti: content.created_by_jti.as_deref(),
+        },
     )?;
 
     // Check policy

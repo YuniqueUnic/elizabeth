@@ -7,19 +7,21 @@ use ts_rs::TS;
 use crate::dto::{
     ChunkStatusInfo, ChunkUploadRequest, ChunkUploadResponse, ChunkedUploadPreparationRequest,
     ChunkedUploadPreparationResponse, CleanupResponse, CreateMessageRequest, CreateMessageResponse,
-    CreateRoomRequest, CreateUrlContentRequest, CreateUrlContentResponse, DeleteContentRequest,
-    DeleteContentResponse, DeleteRoomResponse, FileMergeRequest, FileMergeResponse,
-    FullRoomGcStatusView, IssueTokenRequest, IssueTokenResponse, LogoutRequest, MergedFileInfo,
-    MessagePage, PublicConfigResponse, PublicRoomConfig, PublicRoomExpiryConfig, ReservedFileInfo,
-    RevokeTokenResponse, RoomContentView, RoomTokenClaims, RoomTokenView, RoomView,
-    RunRoomGcResponse, TokenType, UpdateContentRequest, UpdateContentResponse,
-    UpdateRoomPermissionRequest, UpdateRoomSettingsRequest, UploadContentResponse,
-    UploadPreparationRequest, UploadPreparationResponse, UploadStatusQuery, UploadStatusResponse,
-    ValidateTokenRequest, ValidateTokenResponse, VerifyRoomPasswordRequest,
-    VerifyRoomPasswordResponse,
+    CreateRoleRequest, CreateRoomRequest, CreateRoomResponse, CreateUrlContentRequest,
+    CreateUrlContentResponse, DeleteContentRequest, DeleteContentResponse, DeleteRoleResponse,
+    DeleteRoomResponse, FileMergeRequest, FileMergeResponse, FullRoomGcStatusView,
+    IssueTokenRequest, IssueTokenResponse, LogoutRequest, MergedFileInfo, MessagePage,
+    PublicConfigResponse, PublicRoomConfig, PublicRoomExpiryConfig, ReservedFileInfo,
+    RevokeTokenResponse, RoleDefinition, RoomContentView, RoomTokenClaims, RoomTokenView, RoomView,
+    RunRoomGcResponse, TokenType, UpdateContentRequest, UpdateContentResponse, UpdateRoleRequest,
+    UpdateRoomSettingsRequest, UploadContentResponse, UploadPreparationRequest,
+    UploadPreparationResponse, UploadStatusQuery, UploadStatusResponse, ValidateTokenRequest,
+    ValidateTokenResponse, VerifyRoomPasswordRequest, VerifyRoomPasswordResponse,
 };
 #[cfg(feature = "typescript-export")]
 use crate::models::content::{ContentType, RoomContent};
+#[cfg(feature = "typescript-export")]
+use crate::models::room::role::{Capability, Grant, Scope};
 #[cfg(feature = "typescript-export")]
 use crate::models::{
     ChunkStatus, CreateRefreshTokenRequest, RefreshTokenRequest, RefreshTokenResponse,
@@ -48,6 +50,7 @@ pub fn export_ts_types_to(output_dir: &Path) -> Result<(), ts_rs::ExportError> {
     RoomTokenClaims::export_all(&output_dir_cfg)?;
 
     CreateRoomRequest::export_all(&output_dir_cfg)?;
+    CreateRoomResponse::export_all(&output_dir_cfg)?;
     RoomView::export_all(&output_dir_cfg)?;
     VerifyRoomPasswordRequest::export_all(&output_dir_cfg)?;
     VerifyRoomPasswordResponse::export_all(&output_dir_cfg)?;
@@ -55,8 +58,14 @@ pub fn export_ts_types_to(output_dir: &Path) -> Result<(), ts_rs::ExportError> {
     IssueTokenResponse::export_all(&output_dir_cfg)?;
     ValidateTokenRequest::export_all(&output_dir_cfg)?;
     ValidateTokenResponse::export_all(&output_dir_cfg)?;
-    UpdateRoomPermissionRequest::export_all(&output_dir_cfg)?;
     UpdateRoomSettingsRequest::export_all(&output_dir_cfg)?;
+    RoleDefinition::export_all(&output_dir_cfg)?;
+    CreateRoleRequest::export_all(&output_dir_cfg)?;
+    UpdateRoleRequest::export_all(&output_dir_cfg)?;
+    DeleteRoleResponse::export_all(&output_dir_cfg)?;
+    Capability::export_all(&output_dir_cfg)?;
+    Scope::export_all(&output_dir_cfg)?;
+    Grant::export_all(&output_dir_cfg)?;
     RevokeTokenResponse::export_all(&output_dir_cfg)?;
     DeleteRoomResponse::export_all(&output_dir_cfg)?;
     RoomTokenView::export_all(&output_dir_cfg)?;
@@ -116,6 +125,7 @@ pub fn exported_ts_type_names() -> &'static [&'static str] {
         "TokenType",
         "RoomTokenClaims",
         "CreateRoomRequest",
+        "CreateRoomResponse",
         "RoomView",
         "VerifyRoomPasswordRequest",
         "VerifyRoomPasswordResponse",
@@ -123,8 +133,14 @@ pub fn exported_ts_type_names() -> &'static [&'static str] {
         "IssueTokenResponse",
         "ValidateTokenRequest",
         "ValidateTokenResponse",
-        "UpdateRoomPermissionRequest",
         "UpdateRoomSettingsRequest",
+        "RoleDefinition",
+        "CreateRoleRequest",
+        "UpdateRoleRequest",
+        "DeleteRoleResponse",
+        "Capability",
+        "Scope",
+        "Grant",
         "RevokeTokenResponse",
         "DeleteRoomResponse",
         "RoomTokenView",
@@ -192,8 +208,14 @@ pub fn api_schema_json_pretty() -> Result<String, serde_json::Error> {
         issue_token_response: IssueTokenResponse,
         validate_token_request: ValidateTokenRequest,
         validate_token_response: ValidateTokenResponse,
-        update_room_permission_request: UpdateRoomPermissionRequest,
         update_room_settings_request: UpdateRoomSettingsRequest,
+        role_definition: RoleDefinition,
+        create_role_request: CreateRoleRequest,
+        update_role_request: UpdateRoleRequest,
+        delete_role_response: DeleteRoleResponse,
+        capability: Capability,
+        scope: Scope,
+        grant: Grant,
         revoke_token_response: RevokeTokenResponse,
         delete_room_response: DeleteRoomResponse,
         room_token_view: RoomTokenView,

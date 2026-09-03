@@ -18,3 +18,4 @@
 ## 深入理解（长文）
 
 - `ARCHITECTURE.md`：架构与实现细节（偏工程/源码导读）
+- `PERMISSIONS_REDESIGN.md`：房间角色与权限系统重构设计与开发指引（Role × Capability，待实施的权威契约）

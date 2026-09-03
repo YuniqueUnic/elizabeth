@@ -69,10 +69,10 @@ async fn room_gc_marks_full_unbounded_room_on_empty() -> anyhow::Result<()> {
 
     let token_repo = RoomTokenRepository::new(app_state.db_pool.clone());
     token_repo
-        .create(&RoomToken::new(room_id, "t1", expires_1))
+        .create(&RoomToken::new(room_id, "t1", "reader", expires_1))
         .await?;
     token_repo
-        .create(&RoomToken::new(room_id, "t2", expires_2))
+        .create(&RoomToken::new(room_id, "t2", "reader", expires_2))
         .await?;
 
     app_state
@@ -106,7 +106,7 @@ async fn room_gc_clears_markers_when_room_active_again() -> anyhow::Result<()> {
     let expires_at = Utc::now().naive_utc() + Duration::hours(1);
     let token_repo = RoomTokenRepository::new(app_state.db_pool.clone());
     token_repo
-        .create(&RoomToken::new(room_id, "t1", expires_at))
+        .create(&RoomToken::new(room_id, "t1", "reader", expires_at))
         .await?;
 
     app_state
@@ -147,7 +147,7 @@ async fn room_gc_purges_when_cleanup_after_elapsed_and_no_connections() -> anyho
     let expires_at = Utc::now().naive_utc() + Duration::hours(1);
     let token_repo = RoomTokenRepository::new(app_state.db_pool.clone());
     token_repo
-        .create(&RoomToken::new(room_id, "expired", expires_at))
+        .create(&RoomToken::new(room_id, "expired", "reader", expires_at))
         .await?;
 
     app_state

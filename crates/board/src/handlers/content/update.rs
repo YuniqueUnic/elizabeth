@@ -15,7 +15,9 @@ use crate::repository::{
 use crate::state::AppState;
 use crate::validation::RoomNameValidator;
 
-use super::{ContentPermission, HandlerResult, ensure_permission, room_id_or_error};
+use super::{HandlerResult, room_id_or_error};
+use crate::authz::{Authz, Resource};
+use crate::models::room::role::Capability;
 
 #[utoipa::path(
     put,
@@ -54,11 +56,7 @@ pub async fn update_content(
     }
 
     let mut verified = verify_room_token(app_state.clone(), &name, &token).await?;
-    ensure_permission(
-        &verified.claims,
-        verified.room.permission.can_edit(),
-        ContentPermission::Edit,
-    )?;
+    let authz = Authz::for_claims(&app_state, &verified.room, &verified.claims).await?;
 
     let room_id = room_id_or_error(&verified.claims)?;
     let repository = RoomContentRepository::new(app_state.db_pool.clone());
@@ -71,6 +69,16 @@ pub async fn update_content(
     if existing_content.room_id != room_id {
         return Err(AppError::permission_denied("Content not in this room"));
     }
+
+    // 编辑只改动消息型字段（text/url）；own 作用域按创建者 jti 判定。
+    authz.require(
+        Capability::MsgEdit,
+        &Resource::Content {
+            room_id,
+            content_type: existing_content.content_type,
+            created_by_jti: existing_content.created_by_jti.as_deref(),
+        },
+    )?;
 
     let saved_content = persist_updated_content(&repository, existing_content, payload).await?;
     verified.room = room_repo_update_if_content_size_changed(

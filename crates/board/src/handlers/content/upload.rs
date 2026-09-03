@@ -25,10 +25,10 @@ use crate::repository::{
 use crate::state::AppState;
 use crate::validation::RoomNameValidator;
 
-use super::{
-    ContentPermission, HandlerResult, ensure_permission, ensure_room_storage, room_id_or_error,
-};
+use super::{HandlerResult, ensure_room_storage, room_id_or_error};
+use crate::authz::{Authz, Resource};
 use crate::handlers::{AuthToken, verify_room_token};
+use crate::models::room::role::Capability;
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct UploadReservationQuery {
@@ -65,14 +65,9 @@ pub async fn list_contents(
     RoomNameValidator::validate_identifier(&name)?;
 
     let verified = verify_room_token(app_state.clone(), &name, &token).await?;
+    let authz = Authz::for_claims(&app_state, &verified.room, &verified.claims).await?;
     let room_id = room_id_or_error(&verified.claims)?;
-
-    // Manual permission check is used for now
-    ensure_permission(
-        &verified.claims,
-        verified.room.permission.can_view(),
-        ContentPermission::View,
-    )?;
+    authz.require(Capability::FileList, &Resource::Room { room_id })?;
 
     let repository = RoomContentRepository::new(app_state.db_pool.clone());
     let contents = repository
@@ -117,11 +112,9 @@ pub async fn prepare_upload(
     }
 
     let mut verified = verify_room_token(app_state.clone(), &name, &token).await?;
-    ensure_permission(
-        &verified.claims,
-        verified.room.permission.can_edit(),
-        ContentPermission::Edit,
-    )?;
+    let authz = Authz::for_claims(&app_state, &verified.room, &verified.claims).await?;
+    let room_id = room_id_or_error(&verified.claims)?;
+    authz.require(Capability::FileUpload, &Resource::Room { room_id })?;
 
     let mut total_size: i64 = 0;
     let mut names = HashSet::new();
@@ -216,13 +209,10 @@ pub async fn upload_contents(
     }
 
     let verified = verify_room_token(app_state.clone(), &name, &token).await?;
-    ensure_permission(
-        &verified.claims,
-        verified.room.permission.can_edit(),
-        ContentPermission::Edit,
-    )?;
-
+    let authz = Authz::for_claims(&app_state, &verified.room, &verified.claims).await?;
     let room_id = room_id_or_error(&verified.claims)?;
+    authz.require(Capability::FileUpload, &Resource::Room { room_id })?;
+
     let reservation_repo = RoomUploadReservationRepository::new(app_state.db_pool.clone());
     let reservation = reservation_repo
         .fetch_by_id(query.reservation_id)
@@ -262,8 +252,15 @@ pub async fn upload_contents(
     let staged = stage_multipart_uploads(multipart, &expected_map, &storage_dir).await?;
 
     let repository = RoomContentRepository::new(app_state.db_pool.clone());
-    let (uploaded, actual_total) =
-        persist_staged_uploads(&repository, &app_state, &name, room_id, &staged).await?;
+    let (uploaded, actual_total) = persist_staged_uploads(
+        &repository,
+        &app_state,
+        &name,
+        room_id,
+        &verified.claims.jti,
+        &staged,
+    )
+    .await?;
     let current_size = consume_upload_reservation(
         &reservation_repo,
         query.reservation_id,
@@ -432,13 +429,17 @@ async fn persist_staged_uploads(
     app_state: &Arc<AppState>,
     room_name: &str,
     room_id: i64,
+    owner_jti: &str,
     staged: &[TempUpload],
 ) -> Result<(Vec<RoomContentView>, i64), AppError> {
     let mut uploaded = Vec::new();
     let mut actual_total: i64 = 0;
 
     for temp in staged {
-        let saved = match repository.create(&build_file_content(room_id, temp)).await {
+        let saved = match repository
+            .create(&build_file_content(room_id, owner_jti, temp))
+            .await
+        {
             Ok(value) => value,
             Err(e) => {
                 cleanup_staged_uploads(staged).await;
@@ -456,7 +457,7 @@ async fn persist_staged_uploads(
     Ok((uploaded, actual_total))
 }
 
-fn build_file_content(room_id: i64, temp: &TempUpload) -> RoomContent {
+fn build_file_content(room_id: i64, owner_jti: &str, temp: &TempUpload) -> RoomContent {
     let now = chrono::Utc::now().naive_utc();
     let mut content = RoomContent {
         id: None,
@@ -469,6 +470,7 @@ fn build_file_content(room_id: i64, temp: &TempUpload) -> RoomContent {
         size: None,
         mime_type: None,
         sequence_number: 0,
+        created_by_jti: Some(owner_jti.to_string()),
         created_at: now,
         updated_at: now,
     };

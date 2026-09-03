@@ -55,7 +55,7 @@ impl RoomTokenService {
         Self::with_options(secret, Duration::seconds(ttl_seconds), leeway_seconds)
     }
 
-    pub fn issue(&self, room: &Room) -> Result<(String, RoomTokenClaims)> {
+    pub fn issue(&self, room: &Room, role_key: &str) -> Result<(String, RoomTokenClaims)> {
         if room.is_expired() {
             return Err(anyhow!("room already expired"));
         }
@@ -67,7 +67,7 @@ impl RoomTokenService {
             room.id.ok_or_else(|| anyhow!("room id missing"))?,
             room.slug.clone(),
         )
-        .permission(room.permission.bits())
+        .role(role_key)
         .max_size(room.max_size)
         .exp(exp.timestamp())
         .iat(now.timestamp())

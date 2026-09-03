@@ -16,7 +16,7 @@ import { useAppStore } from "@/lib/store";
 import { uploadFile } from "@/api/fileService";
 import { getRoomDetails } from "@/api/roomService";
 import type { FileItem } from "@/lib/types";
-import { useRoomPermissions } from "@/hooks/use-room-permissions";
+import { useRoomCapabilities } from "@/hooks/use-room-capabilities";
 import { isPermissionDeniedError } from "@/lib/utils/mutations";
 import { registerComposerEditor, unregisterComposerEditor } from "@/lib/composer-editor";
 import { cn } from "@/lib/utils";
@@ -84,7 +84,7 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
       staleTime: 1000,
       enabled: !!roomName,
     });
-    const { can } = useRoomPermissions(roomDetails?.permissions);
+    const { can } = useRoomCapabilities();
     const addTransfer = useAppStore((state) => state.addTransfer);
     const updateTransferStatus = useAppStore((state) => state.updateTransferStatus);
     const removeTransfer = useAppStore((state) => state.removeTransfer);

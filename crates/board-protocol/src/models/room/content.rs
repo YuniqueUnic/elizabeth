@@ -38,6 +38,9 @@ pub struct RoomContent {
     pub mime_type: Option<String>,
     #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
     pub sequence_number: i32,
+    /// 创建者会话的 JWT jti（own 作用域判定依据；存量内容为 NULL → Own 拒绝）
+    #[cfg_attr(feature = "typescript-export", ts(optional))]
+    pub created_by_jti: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
 }
@@ -54,6 +57,7 @@ fn build_room_content_sqlite(row: &SqliteRow) -> Result<RoomContent, sqlx::Error
         size: row.try_get("size")?,
         mime_type: row.try_get("mime_type")?,
         sequence_number: row.try_get("sequence_number")?,
+        created_by_jti: row.try_get("created_by_jti")?,
         created_at: row.try_get("created_at")?,
         updated_at: row.try_get("updated_at")?,
     })
@@ -71,6 +75,7 @@ fn build_room_content_pg(row: &PgRow) -> Result<RoomContent, sqlx::Error> {
         size: row.try_get("size")?,
         mime_type: row.try_get("mime_type")?,
         sequence_number: row.try_get("sequence_number")?,
+        created_by_jti: row.try_get("created_by_jti")?,
         created_at: row.try_get("created_at")?,
         updated_at: row.try_get("updated_at")?,
     })
@@ -88,6 +93,7 @@ fn build_room_content_any(row: &AnyRow) -> Result<RoomContent, sqlx::Error> {
         size: row.try_get("size")?,
         mime_type: row.try_get("mime_type")?,
         sequence_number: row.try_get("sequence_number")?,
+        created_by_jti: row.try_get("created_by_jti")?,
         created_at: read_datetime_from_any(row, "created_at")?,
         updated_at: read_datetime_from_any(row, "updated_at")?,
     })
@@ -126,6 +132,7 @@ impl RoomContent {
             room_id,
             content_type,
             sequence_number,
+            created_by_jti: None,
             created_at: now,
             updated_at: now,
             text: None,

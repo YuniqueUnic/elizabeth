@@ -44,26 +44,30 @@
         "description": "Set the maximum number of visits for the room. Room content will be cleared and reset once the limit is reached."
       },
       "permissions": {
-        "title": "Room Permissions",
-        "description": "Set the current user's permissions for the room:",
+        "title": "Roles and capabilities",
+        "description": "Each room has its own role matrix. The current identity code selects a role; the server evaluates capabilities for every action.",
         "items": {
-          "preview": {
-            "label": "Preview",
-            "description": "View room content"
+          "admin": {
+            "label": "Admin",
+            "description": "The room creator's identity. Manages room settings, roles, sessions, sharing, messages, and files."
           },
-          "edit": {
-            "label": "Edit",
-            "description": "Upload and modify content (requires Preview permission)"
+          "editor": {
+            "label": "Editor",
+            "description": "Can read, send, copy, and edit messages, and upload files. Delete capabilities can be limited to Own content."
           },
-          "share": {
-            "label": "Share",
-            "description": "Publicly share the room (requires Preview permission)"
+          "reader": {
+            "label": "Reader",
+            "description": "The default identity for new visitors. Can read and copy messages and view or download files."
           },
-          "delete": {
-            "label": "Delete",
-            "description": "Delete room content (requires Preview and Edit permissions)"
+          "scope": {
+            "label": "Any / Own",
+            "description": "Any applies to resources in the room. Own applies only when the resource creator matches the identity code."
           }
         }
+      },
+      "authorization": {
+        "title": "Room authorization",
+        "description": "Room password, expiry, and entry limits are access gates. Roles and capabilities are authorization rules, isolated per room and effective immediately after changes."
       }
     },
     "roomSharing": {

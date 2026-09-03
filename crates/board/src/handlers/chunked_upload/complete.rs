@@ -15,6 +15,8 @@ use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
 };
 
+use crate::authz::{Authz, Resource};
+use crate::models::room::role::Capability;
 use crate::{
     dto::chunked_upload::{FileMergeRequest, FileMergeResponse, MergedFileInfo},
     errors::{AppError, AppResult},
@@ -64,10 +66,12 @@ pub async fn complete_file_merge(
     RoomNameValidator::validate_identifier(&room_name)?;
 
     let verified = verify_room_token(app_state.clone(), &room_name, &token).await?;
+    let authz = Authz::for_claims(&app_state, &verified.room, &verified.claims).await?;
     let room = verified.room.clone();
     let room_id = room
         .id
         .ok_or_else(|| AppError::internal("房间 ID 不能为空"))?;
+    authz.require(Capability::FileUpload, &Resource::Room { room_id })?;
     let reservation_repository = RoomUploadReservationRepository::new(app_state.db_pool.clone());
     let reservation_id = parse_reservation_id(&payload.reservation_id)?;
     let reservation = load_reservation(&reservation_repository, reservation_id).await?;
@@ -126,8 +130,14 @@ pub async fn complete_file_merge(
     cleanup_temp_dir(storage_root, reservation_db_id).await;
 
     let content_repository = RoomContentRepository::new(app_state.db_pool.clone());
-    let created_content =
-        create_content_record(&content_repository, room_id, file, &final_storage_path).await?;
+    let created_content = create_content_record(
+        &content_repository,
+        room_id,
+        &verified.claims.jti,
+        file,
+        &final_storage_path,
+    )
+    .await?;
 
     Ok(Json(FileMergeResponse {
         reservation_id: payload.reservation_id.clone(),
@@ -311,17 +321,24 @@ fn unique_storage_path(storage_dir: &StdPath, file_name: &str) -> Result<String,
 async fn create_content_record(
     repository: &RoomContentRepository,
     room_id: i64,
+    owner_jti: &str,
     file: &UploadFileDescriptor,
     final_storage_path: &str,
 ) -> Result<RoomContent, AppError> {
     repository
-        .create(&build_room_content(room_id, file, final_storage_path))
+        .create(&build_room_content(
+            room_id,
+            owner_jti,
+            file,
+            final_storage_path,
+        ))
         .await
         .map_err(|e| AppError::internal(format!("创建内容记录失败：{}", e)))
 }
 
 fn build_room_content(
     room_id: i64,
+    owner_jti: &str,
     file: &UploadFileDescriptor,
     final_storage_path: &str,
 ) -> RoomContent {
@@ -329,6 +346,7 @@ fn build_room_content(
     RoomContent {
         id: None,
         room_id,
+        created_by_jti: Some(owner_jti.to_string()),
         content_type: ContentType::File,
         text: None,
         url: Some(file.name.clone()),

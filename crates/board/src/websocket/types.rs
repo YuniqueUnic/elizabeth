@@ -99,8 +99,8 @@ pub struct RoomInfo {
 pub enum RoomUpdateReason {
     /// 房间访问地址已变更
     AddressChanged,
-    /// 房间权限已变更
-    PermissionsChanged,
+    /// 房间角色矩阵已变更（客户端应刷新能力判定）
+    RolesChanged,
     /// 房间配置已变更
     SettingsChanged,
 }

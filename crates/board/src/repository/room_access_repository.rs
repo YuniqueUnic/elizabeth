@@ -3,6 +3,7 @@ use chrono::NaiveDateTime;
 use std::sync::Arc;
 
 use crate::db::DbPool;
+use crate::models::room::role::{MAX_EDITOR_TOKENS, ROLE_EDITOR};
 use crate::models::room::row_utils::format_naive_datetime;
 use crate::models::{RoomRefreshToken, RoomToken};
 
@@ -26,6 +27,19 @@ impl RoomAccessRepository {
     ) -> Result<bool> {
         let mut tx = self.pool.begin().await?;
         let now = format_naive_datetime(now);
+        if token.role_key.as_deref() == Some(ROLE_EDITOR) {
+            let active_editors: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM room_tokens WHERE room_id = $1 AND role_key = $2 AND revoked_at IS NULL",
+            )
+            .bind(room_id)
+            .bind(ROLE_EDITOR)
+            .fetch_one(&mut *tx)
+            .await?;
+            if active_editors >= MAX_EDITOR_TOKENS {
+                tx.rollback().await?;
+                return Err(anyhow::anyhow!("maximum active editor identities reached"));
+            }
+        }
         let updated = sqlx::query(
             r#"
             UPDATE rooms
@@ -67,6 +81,20 @@ impl RoomAccessRepository {
     ) -> Result<bool> {
         let mut tx = self.pool.begin().await?;
         let now = format_naive_datetime(now);
+        if token.role_key.as_deref() == Some(ROLE_EDITOR) {
+            let active_editors: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM room_tokens WHERE room_id = $1 AND role_key = $2 AND revoked_at IS NULL AND jti <> $3",
+            )
+            .bind(room_id)
+            .bind(ROLE_EDITOR)
+            .bind(previous_jti)
+            .fetch_one(&mut *tx)
+            .await?;
+            if active_editors >= MAX_EDITOR_TOKENS {
+                tx.rollback().await?;
+                return Err(anyhow::anyhow!("maximum active editor identities reached"));
+            }
+        }
         let room_available: i64 = sqlx::query_scalar(
             r#"
             SELECT CASE WHEN EXISTS(
@@ -179,12 +207,13 @@ async fn insert_token(
 ) -> Result<()> {
     sqlx::query(
         r#"
-        INSERT INTO room_tokens (room_id, jti, expires_at, revoked_at, created_at)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO room_tokens (room_id, jti, role_key, expires_at, revoked_at, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6)
         "#,
     )
     .bind(token.room_id)
     .bind(&token.jti)
+    .bind(&token.role_key)
     .bind(format_naive_datetime(token.expires_at))
     .bind(token.revoked_at.map(format_naive_datetime))
     .bind(created_at)

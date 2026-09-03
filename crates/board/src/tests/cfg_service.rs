@@ -241,24 +241,24 @@ fn room_creation_defaults_load_as_one_typed_yaml_policy() {
     assert_eq!(runtime.defaults.password, None);
     assert_eq!(runtime.defaults.max_times_entered, 100);
     assert_eq!(runtime.defaults.max_content_size, 50 * 1024 * 1024);
-    assert_eq!(runtime.defaults.permission.bits(), 15);
+    assert_eq!(runtime.defaults.default_role_key, "reader");
     assert_eq!(runtime.expiry.default_age_seconds(), 7200);
 }
 
 #[test]
 #[serial]
-fn room_creation_permissions_preserve_four_independent_bits() {
+fn room_creation_default_role_is_configurable() {
     let temp = tempdir().expect("tempdir");
     let config_path = temp.path().join("custom.yaml");
     fs::write(
         &config_path,
-        "app:\n  room:\n    defaults:\n      permissions:\n        read: true\n        edit: false\n        share: true\n        delete: false\n",
+        "app:\n  room:\n    defaults:\n      role: reader\n",
     )
     .expect("write config");
 
     let cfg = load_custom_config(&config_path).expect("typed config loaded");
     let runtime = RuntimeRoomConfig::try_from(&cfg.app.room).expect("runtime room config");
-    assert_eq!(runtime.defaults.permission.bits(), 1 | 4);
+    assert_eq!(runtime.defaults.default_role_key, "reader");
 }
 
 #[test]

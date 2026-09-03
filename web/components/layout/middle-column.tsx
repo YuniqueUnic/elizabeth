@@ -9,7 +9,7 @@ import { useCallback, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { Message } from "@/lib/types";
 import { Group, Panel, Separator } from "react-resizable-panels";
-import { useRoomPermissions } from "@/hooks/use-room-permissions";
+import { useRoomCapabilities } from "@/hooks/use-room-capabilities";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -65,7 +65,7 @@ export function MiddleColumn() {
     staleTime: 1000,
     enabled: !!currentRoomId,
   });
-  const { can } = useRoomPermissions(roomDetails?.permissions);
+  const { can } = useRoomCapabilities();
 
   const handleSend = useCallback(
     (content: string) => {

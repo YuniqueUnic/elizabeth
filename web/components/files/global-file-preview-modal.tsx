@@ -26,7 +26,7 @@ import { getRoomDetails } from "@/api/roomService";
 import type { FileItem } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslations } from "next-intl";
-import { useRoomPermissions } from "@/hooks/use-room-permissions";
+import { useRoomCapabilities } from "@/hooks/use-room-capabilities";
 import { isPermissionDeniedError } from "@/lib/utils/mutations";
 
 export function GlobalFilePreviewModal() {
@@ -56,7 +56,7 @@ export function GlobalFilePreviewModal() {
     staleTime: 1000,
     enabled: !!roomName,
   });
-  const { can } = useRoomPermissions(roomDetails?.permissions);
+  const { can } = useRoomCapabilities();
 
   // When a file-id arrives from the store (message-bubble click), locate and open it
   useEffect(() => {

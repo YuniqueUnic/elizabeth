@@ -44,26 +44,30 @@
         "description": "设置房间的最大访问次数。达到次数后，房间内容会被清空并重置。"
       },
       "permissions": {
-        "title": "房间权限",
-        "description": "设置当前用户对房间的权限：",
+        "title": "角色与能力",
+        "description": "每个房间都有独立的角色矩阵。身份码决定当前角色，服务端会针对每项操作实时校验能力。",
         "items": {
-          "preview": {
-            "label": "预览",
-            "description": "查看房间内容"
+          "admin": {
+            "label": "Admin",
+            "description": "房间创建者的身份，可管理房间设置、角色、会话、分享、消息和文件。"
           },
-          "edit": {
-            "label": "编辑",
-            "description": "上传和修改内容（需要预览权限）"
+          "editor": {
+            "label": "Editor",
+            "description": "可读取、发送、复制和编辑消息，并上传文件；删除能力可以限制为仅操作 Own 内容。"
           },
-          "share": {
-            "label": "分享",
-            "description": "公开分享房间（需要预览权限）"
+          "reader": {
+            "label": "Reader",
+            "description": "新访客的默认身份，可读取和复制消息，并预览或下载文件。"
           },
-          "delete": {
-            "label": "删除",
-            "description": "删除房间内容（需要预览和编辑权限）"
+          "scope": {
+            "label": "Any / Own",
+            "description": "Any 适用于房间内任意资源；Own 仅在资源创建者与当前身份码一致时生效。"
           }
         }
+      },
+      "authorization": {
+        "title": "房间授权",
+        "description": "房间密码、过期时间和进入次数属于访问门禁；角色与能力属于授权规则，按房间隔离，修改后立即生效。"
       }
     },
     "roomSharing": {

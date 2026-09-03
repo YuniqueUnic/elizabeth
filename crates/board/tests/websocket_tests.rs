@@ -135,6 +135,7 @@ async fn test_multiple_subscribers_same_room() {
 fn create_test_content() -> RoomContent {
     RoomContent {
         id: Some(1),
+        created_by_jti: None,
         room_id: 1,
         content_type: ContentType::Text,
         text: Some("test content".to_string()),

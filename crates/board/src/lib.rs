@@ -1,4 +1,5 @@
 #![allow(unused_imports, unused_variables, dead_code)]
+pub mod authz;
 mod chunk_temp_storage;
 pub mod cmd;
 pub mod config;
@@ -10,7 +11,6 @@ mod init;
 pub mod middleware;
 pub use board_protocol::dto;
 pub use board_protocol::models;
-pub mod permissions;
 pub mod repository;
 pub mod route;
 mod scheduler;

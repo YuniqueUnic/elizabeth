@@ -8,36 +8,6 @@ use crate::services::RoomTokenClaims;
 
 pub(crate) type HandlerResult<T> = Result<Json<T>, AppError>;
 
-#[derive(Clone, Copy)]
-pub(crate) enum ContentPermission {
-    View,
-    Edit,
-    Delete,
-}
-
-pub(crate) fn ensure_permission(
-    claims: &RoomTokenClaims,
-    room_allows: bool,
-    action: ContentPermission,
-) -> Result<(), AppError> {
-    if !room_allows {
-        return Err(AppError::permission_denied("Permission denied by room"));
-    }
-
-    let permission = claims.as_permission();
-    let token_allows = match action {
-        ContentPermission::View => permission.can_view(),
-        ContentPermission::Edit => permission.can_edit(),
-        ContentPermission::Delete => permission.can_delete(),
-    };
-
-    if !token_allows {
-        return Err(AppError::permission_denied("Permission denied by token"));
-    }
-
-    Ok(())
-}
-
 /// 确保房间存储目录存在，使用 room_id 作为目录名
 pub(crate) async fn ensure_room_storage(
     base_dir: &Path,

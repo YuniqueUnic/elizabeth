@@ -86,8 +86,9 @@ export const API_ENDPOINTS = {
   // Room Management
   rooms: {
     base: (name: string) => `/rooms/${encodeURIComponent(name)}`,
-    permissions: (name: string) =>
-      `/rooms/${encodeURIComponent(name)}/permissions`,
+    roles: (name: string) => `/rooms/${encodeURIComponent(name)}/roles`,
+    role: (name: string, roleKey: string) =>
+      `/rooms/${encodeURIComponent(name)}/roles/${encodeURIComponent(roleKey)}`,
     settings: (name: string) => `/rooms/${encodeURIComponent(name)}/settings`,
     tokens: (name: string) => `/rooms/${encodeURIComponent(name)}/tokens`,
     verifyPassword: (name: string) =>

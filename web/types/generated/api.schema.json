@@ -3,6 +3,9 @@
   "title": "ApiSchema",
   "type": "object",
   "properties": {
+    "capability": {
+      "$ref": "#/$defs/Capability"
+    },
     "chunk_status": {
       "$ref": "#/$defs/ChunkStatus"
     },
@@ -36,6 +39,9 @@
     "create_refresh_token_request": {
       "$ref": "#/$defs/CreateRefreshTokenRequest"
     },
+    "create_role_request": {
+      "$ref": "#/$defs/CreateRoleRequest"
+    },
     "create_room_request": {
       "$ref": "#/$defs/CreateRoomRequest"
     },
@@ -51,6 +57,9 @@
     "delete_content_response": {
       "$ref": "#/$defs/DeleteContentResponse"
     },
+    "delete_role_response": {
+      "$ref": "#/$defs/DeleteRoleResponse"
+    },
     "delete_room_response": {
       "$ref": "#/$defs/DeleteRoomResponse"
     },
@@ -62,6 +71,9 @@
     },
     "full_room_gc_status_view": {
       "$ref": "#/$defs/FullRoomGcStatusView"
+    },
+    "grant": {
+      "$ref": "#/$defs/Grant"
     },
     "issue_token_request": {
       "$ref": "#/$defs/IssueTokenRequest"
@@ -99,6 +111,9 @@
     "revoke_token_response": {
       "$ref": "#/$defs/RevokeTokenResponse"
     },
+    "role_definition": {
+      "$ref": "#/$defs/RoleDefinition"
+    },
     "room_chunk_upload": {
       "$ref": "#/$defs/RoomChunkUpload"
     },
@@ -129,6 +144,9 @@
     "run_room_gc_response": {
       "$ref": "#/$defs/RunRoomGcResponse"
     },
+    "scope": {
+      "$ref": "#/$defs/Scope"
+    },
     "token_blacklist_entry": {
       "$ref": "#/$defs/TokenBlacklistEntry"
     },
@@ -141,8 +159,8 @@
     "update_content_response": {
       "$ref": "#/$defs/UpdateContentResponse"
     },
-    "update_room_permission_request": {
-      "$ref": "#/$defs/UpdateRoomPermissionRequest"
+    "update_role_request": {
+      "$ref": "#/$defs/UpdateRoleRequest"
     },
     "update_room_settings_request": {
       "$ref": "#/$defs/UpdateRoomSettingsRequest"
@@ -205,8 +223,14 @@
     "issue_token_response",
     "validate_token_request",
     "validate_token_response",
-    "update_room_permission_request",
     "update_room_settings_request",
+    "role_definition",
+    "create_role_request",
+    "update_role_request",
+    "delete_role_response",
+    "capability",
+    "scope",
+    "grant",
     "revoke_token_response",
     "delete_room_response",
     "room_token_view",
@@ -243,6 +267,27 @@
     "run_room_gc_response"
   ],
   "$defs": {
+    "Capability": {
+      "description": "一个可鉴权的原子动作。\n\nserde rename 字符串（如 `msg.edit`）同时是 ts-rs TS union、\n`room_roles.capabilities` 紧凑格式与前端 i18n key 的能力段。",
+      "type": "string",
+      "enum": [
+        "room.share",
+        "room.settings.update",
+        "room.roles.manage",
+        "room.delete",
+        "msg.read",
+        "msg.send",
+        "msg.copy",
+        "msg.edit",
+        "msg.delete",
+        "file.list",
+        "file.preview",
+        "file.download",
+        "file.upload",
+        "file.delete",
+        "file.policy.manage"
+      ]
+    },
     "ChunkStatus": {
       "description": "分块状态枚举",
       "type": "string",
@@ -541,6 +586,29 @@
         "expires_at"
       ]
     },
+    "CreateRoleRequest": {
+      "type": "object",
+      "properties": {
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Grant"
+          }
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "role_key": {
+          "description": "自定义角色 key（slug 形式）；系统角色 key 保留字，不可占用",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role_key",
+        "display_name",
+        "capabilities"
+      ]
+    },
     "CreateRoomRequest": {
       "type": "object",
       "properties": {
@@ -623,6 +691,23 @@
         "deleted",
         "freed_size",
         "current_size"
+      ]
+    },
+    "DeleteRoleResponse": {
+      "type": "object",
+      "properties": {
+        "affected_tokens": {
+          "description": "删除时仍绑定该角色的未撤销 token 数（这些会话将立即失去该角色授权）",
+          "type": "integer",
+          "format": "int64"
+        },
+        "deleted": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "deleted",
+        "affected_tokens"
       ]
     },
     "DeleteRoomResponse": {
@@ -732,11 +817,34 @@
         "active_connections"
       ]
     },
+    "Grant": {
+      "description": "最小授权单元：能力 + 作用域。",
+      "type": "object",
+      "properties": {
+        "capability": {
+          "$ref": "#/$defs/Capability"
+        },
+        "scope": {
+          "$ref": "#/$defs/Scope"
+        }
+      },
+      "required": [
+        "capability",
+        "scope"
+      ]
+    },
     "IssueTokenRequest": {
       "type": "object",
       "properties": {
         "password": {
           "description": "房间密码，如果房间设置了密码，则必须填写",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "role": {
+          "description": "请求加入的角色；缺省 = 房间默认角色。\n指定非默认角色需要 `room.roles.manage` 能力（匿名进房者只能拿默认角色）。",
           "type": [
             "string",
             "null"
@@ -759,6 +867,13 @@
     "IssueTokenResponse": {
       "type": "object",
       "properties": {
+        "capabilities": {
+          "description": "签发时解析得到的能力快照（非判定依据；判定以 DB room_roles 实时为准）",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Grant"
+          }
+        },
         "claims": {
           "$ref": "#/$defs/RoomTokenClaims"
         },
@@ -788,7 +903,8 @@
       "required": [
         "token",
         "claims",
-        "expires_at"
+        "expires_at",
+        "capabilities"
       ]
     },
     "LogoutRequest": {
@@ -929,6 +1045,13 @@
           "type": "string",
           "format": "partial-date-time"
         },
+        "capabilities": {
+          "description": "签发时解析得到的能力快照（非判定依据；判定以 DB room_roles 实时为准）",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Grant"
+          }
+        },
         "refresh_token": {
           "description": "新的刷新令牌",
           "type": "string"
@@ -937,13 +1060,19 @@
           "description": "刷新令牌过期时间",
           "type": "string",
           "format": "partial-date-time"
+        },
+        "role": {
+          "description": "刷新后的角色 key（角色归属随 refresh 旋转刷新）",
+          "type": "string"
         }
       },
       "required": [
         "access_token",
         "refresh_token",
         "access_token_expires_at",
-        "refresh_token_expires_at"
+        "refresh_token_expires_at",
+        "role",
+        "capabilities"
       ]
     },
     "ReservedFileInfo": {
@@ -1000,6 +1129,33 @@
       },
       "required": [
         "revoked"
+      ]
+    },
+    "RoleDefinition": {
+      "description": "房间内一个角色的对外视图。",
+      "type": "object",
+      "properties": {
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Grant"
+          }
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "is_system": {
+          "type": "boolean"
+        },
+        "role_key": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "role_key",
+        "display_name",
+        "capabilities",
+        "is_system"
       ]
     },
     "RoomChunkUpload": {
@@ -1062,6 +1218,13 @@
         "created_at": {
           "type": "string",
           "format": "partial-date-time"
+        },
+        "created_by_jti": {
+          "description": "创建者会话的 JWT jti（own 作用域判定依据；存量内容为 NULL → Own 拒绝）",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "file_name": {
           "type": [
@@ -1273,18 +1436,17 @@
           "type": "integer",
           "format": "int64"
         },
-        "permission": {
-          "type": "integer",
-          "format": "uint8",
-          "maximum": 255,
-          "minimum": 0
-        },
         "refresh_jti": {
           "description": "关联的刷新令牌 JTI（仅访问令牌包含此字段）",
           "type": [
             "string",
             "null"
           ]
+        },
+        "role": {
+          "description": "会话绑定的角色 key（快照索引；能力判定永远以 DB room_roles 实时为准）",
+          "type": "string",
+          "default": ""
         },
         "room_id": {
           "type": "integer",
@@ -1306,7 +1468,6 @@
         "sub",
         "room_id",
         "room_name",
-        "permission",
         "max_size",
         "exp",
         "iat",
@@ -1333,6 +1494,13 @@
             "null"
           ],
           "format": "partial-date-time"
+        },
+        "role_key": {
+          "description": "会话绑定的角色",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -1465,6 +1633,10 @@
           "type": "integer",
           "format": "int64"
         },
+        "default_role_key": {
+          "description": "新成员默认加入的角色",
+          "type": "string"
+        },
         "expire_at": {
           "type": [
             "string",
@@ -1490,12 +1662,6 @@
         "password_protected": {
           "type": "boolean"
         },
-        "permission": {
-          "type": "integer",
-          "format": "uint8",
-          "maximum": 255,
-          "minimum": 0
-        },
         "slug": {
           "type": "string"
         },
@@ -1518,7 +1684,7 @@
         "current_times_entered",
         "created_at",
         "updated_at",
-        "permission",
+        "default_role_key",
         "password_protected"
       ]
     },
@@ -1533,6 +1699,14 @@
       },
       "required": [
         "cleaned"
+      ]
+    },
+    "Scope": {
+      "description": "own/any 作用域：`Any` 覆盖任何人的资源；`Own` 仅覆盖自己是创建者的资源。",
+      "type": "string",
+      "enum": [
+        "any",
+        "own"
       ]
     },
     "TokenBlacklistEntry": {
@@ -1617,22 +1791,24 @@
         "updated"
       ]
     },
-    "UpdateRoomPermissionRequest": {
+    "UpdateRoleRequest": {
+      "description": "整体替换角色定义（PUT 语义；系统角色仅可改能力集与显示名，key 与归属不可变）。",
       "type": "object",
       "properties": {
-        "delete": {
-          "type": "boolean",
-          "default": false
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Grant"
+          }
         },
-        "edit": {
-          "type": "boolean",
-          "default": false
-        },
-        "share": {
-          "type": "boolean",
-          "default": false
+        "display_name": {
+          "type": "string"
         }
-      }
+      },
+      "required": [
+        "display_name",
+        "capabilities"
+      ]
     },
     "UpdateRoomSettingsRequest": {
       "type": "object",
@@ -1644,6 +1820,13 @@
             "null"
           ],
           "format": "int64"
+        },
+        "default_role_key": {
+          "description": "新成员默认加入角色（可选；必须存在于本房角色集）",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "max_size": {
           "description": "最大容量限制（可选，单位：字节）",

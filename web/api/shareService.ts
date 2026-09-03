@@ -12,7 +12,7 @@ import { API_ENDPOINTS } from "../lib/config";
 import { api } from "../lib/utils/api";
 import { copyTextToClipboard } from "../lib/utils/clipboard";
 import { getValidToken } from "./authService";
-import { canShareRoom, getUserPermissions } from "./permissionService";
+import { getRoomToken } from "../lib/utils/api";
 import { accessRoom } from "./roomAccessService";
 import QRCode from "qrcode";
 
@@ -63,7 +63,10 @@ export async function getShareLink(
   // Best-effort share link generation with graceful fallback
   try {
     // Check if user has share permission
-    const allowed = await canShareRoom(roomName, token);
+    const grants = getRoomToken(roomName)?.capabilities ?? [];
+    const allowed = grants.some(
+      (grant) => grant.capability === "room.share" && grant.scope === "any",
+    );
     if (!allowed) {
       throw new Error("NO_SHARE_PERMISSION");
     }
@@ -107,13 +110,13 @@ export async function createShareToken(
   const authToken = token || await getValidToken(roomName);
 
   if (!authToken) {
-    throw new Error("需要登录才能创建分享令牌");
+    throw new Error("AUTHENTICATION_REQUIRED");
   }
 
   // Check permissions
-  const userPerms = await getUserPermissions(roomName, authToken);
-  if (!userPerms.canShare) {
-    throw new Error("您没有分享此房间的权限");
+  const grants = getRoomToken(roomName)?.capabilities ?? [];
+  if (!grants.some((grant) => grant.capability === "room.share" && grant.scope === "any")) {
+    throw new Error("CAPABILITY_ROOM_SHARE_REQUIRED");
   }
 
   // Create share token via backend API
@@ -146,8 +149,6 @@ export async function getShareData(
   token?: string,
 ): Promise<ShareLinkData> {
   const shareLink = await getShareLink(roomName, token);
-  const userPerms = await getUserPermissions(roomName, token);
-
   // Generate QR code
   const qrCode = await getQRCodeImage(roomName, {
     width: 300,
@@ -158,7 +159,7 @@ export async function getShareData(
   return {
     url: shareLink,
     qrCode,
-    permissions: userPerms.permissions,
+    permissions: [],
   };
 }
 
@@ -320,7 +321,7 @@ export async function accessSharedRoom(
   } catch (error: any) {
     return {
       success: false,
-      error: error.message || "无法访问房间",
+      error: error.message || "ROOM_ACCESS_FAILED",
     };
   }
 }
@@ -341,7 +342,7 @@ export async function shareViaWebShare(
   token?: string,
 ): Promise<void> {
   if (!navigator.share) {
-    throw new Error("您的浏览器不支持分享功能");
+    throw new Error("WEB_SHARE_UNSUPPORTED");
   }
 
   const shareLink = await getShareLink(roomName, token);

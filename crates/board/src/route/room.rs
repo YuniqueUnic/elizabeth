@@ -10,11 +10,12 @@ pub fn api_router(app_state: Arc<AppState>) -> OpenApiRouter {
         .routes(routes!(crate::handlers::rooms::lifecycle::find))
         .routes(routes!(crate::handlers::rooms::lifecycle::delete))
         .routes(routes!(
-            crate::handlers::rooms::permissions::update_permissions
-        ))
-        .routes(routes!(
             crate::handlers::rooms::settings::update_room_settings
         ))
+        .routes(routes!(crate::handlers::rooms::roles::list_roles))
+        .routes(routes!(crate::handlers::rooms::roles::create_role))
+        .routes(routes!(crate::handlers::rooms::roles::update_role))
+        .routes(routes!(crate::handlers::rooms::roles::delete_role))
         .routes(routes!(crate::handlers::rooms::tokens::issue_token))
         .routes(routes!(crate::handlers::rooms::tokens::verify_password))
         .routes(routes!(crate::handlers::rooms::tokens::list_tokens))

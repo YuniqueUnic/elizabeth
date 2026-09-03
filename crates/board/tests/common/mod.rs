@@ -33,28 +33,6 @@ pub async fn create_test_app() -> Result<(axum::Router, Arc<board::db::DbPool>)>
 
     // 运行迁移
     run_migrations(db_pool.as_ref(), TEST_DB_URL).await?;
-    // 保底：确保关键表/列存在（覆盖潜在缺列）
-    sqlx::query(
-        r#"
-        CREATE TABLE IF NOT EXISTS rooms (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL UNIQUE,
-            slug TEXT NOT NULL UNIQUE,
-            password TEXT,
-            status INTEGER NOT NULL DEFAULT 0,
-            max_size INTEGER NOT NULL DEFAULT 10485760,
-            current_size INTEGER NOT NULL DEFAULT 0,
-            max_times_entered INTEGER NOT NULL DEFAULT 100,
-            current_times_entered INTEGER NOT NULL DEFAULT 0,
-            expire_at TEXT,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            permission INTEGER NOT NULL DEFAULT 1
-        )
-        "#,
-    )
-    .execute(db_pool.as_ref())
-    .await?;
     sqlx::query(
         r#"
         CREATE TABLE IF NOT EXISTS room_refresh_tokens (
@@ -97,7 +75,7 @@ pub async fn create_test_app() -> Result<(axum::Router, Arc<board::db::DbPool>)>
                 password: None,
                 max_times_entered: DEFAULT_MAX_TIMES_ENTER_ROOM,
                 max_content_size: DEFAULT_MAX_ROOM_CONTENT_SIZE,
-                permission: board::models::permission::RoomPermission::new().with_all(),
+                default_role_key: "reader".to_string(),
             },
             share_disabled_lock_duration: 3600,
             expiry: board::config::RoomExpiryPolicy::default(),

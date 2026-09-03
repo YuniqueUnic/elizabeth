@@ -78,26 +78,9 @@ fn apply_room_env_overrides(cfg: &mut configrs::Config) {
     if let Some(password) = env_optional_string("ROOM_DEFAULT_PASSWORD") {
         cfg.app.room.defaults.password = password;
     }
-    apply_env!(
-        env_bool,
-        "ROOM_DEFAULT_PERMISSION_READ",
-        cfg.app.room.defaults.permissions.read
-    );
-    apply_env!(
-        env_bool,
-        "ROOM_DEFAULT_PERMISSION_EDIT",
-        cfg.app.room.defaults.permissions.edit
-    );
-    apply_env!(
-        env_bool,
-        "ROOM_DEFAULT_PERMISSION_SHARE",
-        cfg.app.room.defaults.permissions.share
-    );
-    apply_env!(
-        env_bool,
-        "ROOM_DEFAULT_PERMISSION_DELETE",
-        cfg.app.room.defaults.permissions.delete
-    );
+    if let Some(Some(role)) = env_optional_string("ROOM_DEFAULT_ROLE") {
+        cfg.app.room.defaults.role = role;
+    }
     apply_env!(
         env_duration,
         "ROOM_SHARE_DISABLED_LOCK_DURATION",

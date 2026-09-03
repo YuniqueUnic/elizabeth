@@ -5,51 +5,51 @@ import type { UploadStatus } from "./UploadStatus";
 /**
  * 上传状态查询响应
  */
-export type UploadStatusResponse = { 
+export type UploadStatusResponse = {
 /**
  * 预留 ID
  */
-reservation_id: string, 
+reservation_id: string,
 /**
  * 上传令牌
  */
-upload_token: string, 
+upload_token: string,
 /**
  * 上传状态
  */
-upload_status: UploadStatus, 
+upload_status: UploadStatus,
 /**
  * 总分块数
  */
-total_chunks: number, 
+total_chunks: number,
 /**
  * 已上传分块数
  */
-uploaded_chunks: number, 
+uploaded_chunks: number,
 /**
  * 上传进度百分比（0-100）
  */
-progress_percentage: number, 
+progress_percentage: number,
 /**
  * 预留过期时间
  */
-expires_at: string, 
+expires_at: string,
 /**
  * 已上传分块详细信息
  */
-chunk_details: Array<ChunkStatusInfo>, 
+chunk_details: Array<ChunkStatusInfo>,
 /**
  * 预留大小
  */
-reserved_size: number, 
+reserved_size: number,
 /**
  * 已上传大小
  */
-uploaded_size: number, 
+uploaded_size: number,
 /**
  * 是否超时
  */
-is_expired: boolean, 
+is_expired: boolean,
 /**
  * 剩余时间（秒）
  */

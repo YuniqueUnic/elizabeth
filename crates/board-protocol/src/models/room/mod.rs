@@ -4,14 +4,14 @@ use sqlx::{FromRow, Row, any::AnyRow, postgres::PgRow, sqlite::SqliteRow};
 use utoipa::ToSchema;
 
 use crate::constants::room::{DEFAULT_MAX_ROOM_CONTENT_SIZE, DEFAULT_MAX_TIMES_ENTER_ROOM};
-use crate::models::permission::RoomPermission;
+use crate::models::room::role::DEFAULT_ROLE_KEY as ROOM_DEFAULT_ROLE_KEY;
 use crate::models::room::row_utils::{read_datetime_from_any, read_optional_datetime_from_any};
 
 pub mod chunk_upload;
 pub mod content;
 pub mod download_policy;
-pub mod permission;
 pub mod refresh_token;
+pub mod role;
 pub mod row_utils;
 pub mod token;
 pub mod upload_reservation;
@@ -21,6 +21,11 @@ pub use download_policy::{DownloadPolicyMode, FileAccessCode, FileDownloadPolicy
 pub use refresh_token::{
     CreateRefreshTokenRequest, RefreshTokenRequest, RefreshTokenResponse, RoomRefreshToken,
     TokenBlacklistEntry,
+};
+pub use role::{
+    Capability, DEFAULT_ROLE_KEY, Grant, GrantParseError, ROLE_ADMIN, ROLE_EDITOR, ROLE_READER,
+    RoomRole, SYSTEM_ROLE_TEMPLATES, Scope, SystemRoleTemplate, grants_to_json, is_system_role_key,
+    parse_grant, parse_grants_json,
 };
 pub use token::RoomToken;
 pub use upload_reservation::{RoomUploadReservation, UploadFileDescriptor, UploadStatus};
@@ -70,9 +75,11 @@ pub struct Room {
     pub expire_at: Option<NaiveDateTime>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+    /// 新成员默认加入的角色（必须存在于本房角色集）
+    pub default_role_key: String,
+    /// 角色矩阵版本号：每次角色写路径 +1，用作 RoleTable 缓存失效
     #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
-    #[cfg_attr(feature = "typescript-export", schemars(with = "u8"))]
-    pub permission: RoomPermission,
+    pub roles_version: i64,
 }
 
 fn build_room_from_sqlite(row: &SqliteRow) -> Result<Room, sqlx::Error> {
@@ -89,7 +96,8 @@ fn build_room_from_sqlite(row: &SqliteRow) -> Result<Room, sqlx::Error> {
         expire_at: row.try_get("expire_at")?,
         created_at: row.try_get("created_at")?,
         updated_at: row.try_get("updated_at")?,
-        permission: row.try_get("permission")?,
+        default_role_key: row.try_get("default_role_key")?,
+        roles_version: row.try_get("roles_version")?,
     })
 }
 
@@ -107,13 +115,12 @@ fn build_room_from_pg(row: &PgRow) -> Result<Room, sqlx::Error> {
         expire_at: row.try_get("expire_at")?,
         created_at: row.try_get("created_at")?,
         updated_at: row.try_get("updated_at")?,
-        permission: row.try_get("permission")?,
+        default_role_key: row.try_get("default_role_key")?,
+        roles_version: row.try_get("roles_version")?,
     })
 }
 
 fn build_room_from_any(row: &AnyRow) -> Result<Room, sqlx::Error> {
-    let permission_bits: i64 = row.try_get("permission")?;
-    let permission = RoomPermission::from_bits(permission_bits as u8).unwrap_or_default();
     Ok(Room {
         id: row.try_get("id")?,
         name: row.try_get("name")?,
@@ -127,7 +134,8 @@ fn build_room_from_any(row: &AnyRow) -> Result<Room, sqlx::Error> {
         expire_at: read_optional_datetime_from_any(row, "expire_at")?,
         created_at: read_datetime_from_any(row, "created_at")?,
         updated_at: read_datetime_from_any(row, "updated_at")?,
-        permission,
+        default_role_key: row.try_get("default_role_key")?,
+        roles_version: row.try_get("roles_version")?,
     })
 }
 
@@ -165,7 +173,8 @@ impl Room {
             expire_at: None,
             created_at: now,
             updated_at: now,
-            permission: RoomPermission::new().with_all(),
+            default_role_key: ROOM_DEFAULT_ROLE_KEY.to_string(),
+            roles_version: 1,
         }
     }
 
@@ -197,7 +206,8 @@ impl Room {
         self.availability_at(Utc::now().naive_utc()) == RoomAvailability::Open
     }
 
+    /// 容量检查属于 Resource Policy 层；上传/写入权限由 authz 层单独判定。
     pub fn can_add_content(&self, content_size: i64) -> bool {
-        self.permission.can_edit() && self.current_size + content_size <= self.max_size
+        self.current_size + content_size <= self.max_size
     }
 }

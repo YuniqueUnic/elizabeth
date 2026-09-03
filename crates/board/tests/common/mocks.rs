@@ -7,7 +7,6 @@ use chrono::{NaiveDateTime, Utc};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use board::models::permission::RoomPermission;
 use board::models::{Room, RoomToken};
 use board::repository::{
     IRoomContentRepository, IRoomRefreshTokenRepository, IRoomRepository, IRoomTokenRepository,
@@ -156,7 +155,7 @@ impl MockRoomTokenService for MockTokenService {
             sub: room.name.clone(),
             room_id: room.id.unwrap_or(1),
             room_name: room.name.clone(),
-            permission: room.permission.bits(),
+            role: room.default_role_key.clone(),
             max_size: room.max_size,
             exp: Utc::now().timestamp() + 3600,
             iat: Utc::now().timestamp(),

@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use axum::Json;
 use axum::extract::{Path, State};
+use axum::http::HeaderMap;
 use chrono::{Duration, Utc};
 use sqlx::Row;
 use tempfile::TempDir;
@@ -13,7 +14,7 @@ use crate::dto::rooms::{RoomView, VerifyRoomPasswordRequest};
 use crate::handlers::rooms::find;
 use crate::handlers::rooms::tokens::{issue_token, verify_password};
 use crate::models::content::{ContentType, RoomContent};
-use crate::models::{Room, RoomRefreshToken, RoomToken, permission::RoomPermission};
+use crate::models::{Room, RoomRefreshToken, RoomToken};
 use crate::repository::{
     IRoomContentRepository, IRoomRefreshTokenRepository, IRoomRepository, IRoomTokenRepository,
     IRoomUploadReservationRepository, RoomAccessRepository, RoomContentRepository,
@@ -137,6 +138,7 @@ async fn concurrent_session_grants_stop_exactly_at_the_room_limit() -> anyhow::R
             let token = RoomToken::new(
                 room_id,
                 format!("concurrent-{index}"),
+                "reader",
                 Utc::now().naive_utc() + Duration::hours(1),
             );
             barrier.wait().await;
@@ -176,11 +178,18 @@ async fn refresh_uses_live_room_policy_and_persists_the_new_access_token() -> an
         .room_repository
         .create(&future_room("refresh-live-policy"))
         .await?;
-    let (access_token, claims) = state.token_service().issue(&room)?;
-    let prepared = state
-        .refresh_token_service()
-        .prepare_refresh_token(&room, claims.jti.clone())?;
-    let access_record = RoomToken::new(room.id.unwrap(), claims.jti.clone(), claims.expires_at());
+    let role_key = "reader";
+    let (access_token, claims) = state.token_service().issue(&room, role_key)?;
+    let prepared =
+        state
+            .refresh_token_service()
+            .prepare_refresh_token(&room, role_key, claims.jti.clone())?;
+    let access_record = RoomToken::new(
+        room.id.unwrap(),
+        claims.jti.clone(),
+        role_key,
+        claims.expires_at(),
+    );
     assert!(
         RoomAccessRepository::new(state.db_pool.clone())
             .grant_new_session(
@@ -192,23 +201,14 @@ async fn refresh_uses_live_room_policy_and_persists_the_new_access_token() -> an
             .await?
     );
 
-    let mut live_room = room.clone();
-    live_room.permission = RoomPermission::VIEW_ONLY;
-    state
-        .services
-        .room_repository
-        .update_permissions_and_slug(&live_room)
-        .await?;
-
     let refreshed = state
         .refresh_token_service()
         .refresh_access_token(&prepared.signed_token)
         .await?;
     let refreshed_claims = state.token_service().decode(&refreshed.access_token)?;
-    assert_eq!(
-        refreshed_claims.permission,
-        RoomPermission::VIEW_ONLY.bits()
-    );
+    // 角色归属随 refresh 旋转从 DB 记录刷新
+    assert_eq!(refreshed_claims.role, role_key);
+    assert_eq!(refreshed.role, role_key);
     assert_ne!(refreshed.access_token, access_token);
 
     let token_repository = RoomTokenRepository::new(state.db_pool.clone());
@@ -239,11 +239,13 @@ async fn websocket_handshake_rejects_revoked_sessions_and_returns_live_room_info
         .await?;
     let Json(issued) = issue_token(
         Path(room.slug.clone()),
+        HeaderMap::new(),
         State(state.clone()),
         Json(crate::dto::rooms::IssueTokenRequest {
             password: None,
             token: None,
             with_refresh_token: false,
+            role: None,
         }),
     )
     .await?;
@@ -328,6 +330,7 @@ async fn lifecycle_cleanup_removes_expired_room_storage_and_persistence_graph() 
         .create(&RoomToken::new(
             room_id,
             "cleanup-access",
+            "reader",
             now + Duration::hours(1),
         ))
         .await?;

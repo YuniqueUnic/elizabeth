@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use super::token::RoomTokenClaims;
+use crate::models::room::role::Grant;
 use crate::models::{Room, RoomStatus, RoomToken};
 
 #[derive(Debug, Default, Deserialize, ToSchema)]
@@ -12,6 +13,18 @@ pub struct CreateRoomRequest {
     /// 可选房间密码。密码只在请求边界出现，不会在房间响应中回显。
     #[cfg_attr(feature = "typescript-export", ts(optional))]
     pub password: Option<String>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
+pub struct CreateRoomResponse {
+    #[serde(flatten)]
+    pub room: RoomView,
+    pub token: String,
+    pub claims: RoomTokenClaims,
+    pub expires_at: NaiveDateTime,
+    pub capabilities: Vec<Grant>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -29,7 +42,8 @@ pub struct RoomView {
     pub expire_at: Option<NaiveDateTime>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
-    pub permission: u8,
+    /// 新成员默认加入的角色
+    pub default_role_key: String,
     pub password_protected: bool,
 }
 
@@ -47,7 +61,7 @@ impl From<&Room> for RoomView {
             expire_at: room.expire_at,
             created_at: room.created_at,
             updated_at: room.updated_at,
-            permission: room.permission.bits(),
+            default_role_key: room.default_role_key.clone(),
             password_protected: room.password.is_some(),
         }
     }
@@ -80,6 +94,10 @@ pub struct IssueTokenRequest {
     /// 是否请求刷新令牌对
     #[serde(default)]
     pub with_refresh_token: bool,
+    /// 请求加入的角色；缺省 = 房间默认角色。
+    /// 指定非默认角色需要 `room.roles.manage` 能力（匿名进房者只能拿默认角色）。
+    #[cfg_attr(feature = "typescript-export", ts(optional))]
+    pub role: Option<String>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -89,6 +107,8 @@ pub struct IssueTokenResponse {
     pub token: String,
     pub claims: RoomTokenClaims,
     pub expires_at: NaiveDateTime,
+    /// 签发时解析得到的能力快照（非判定依据；判定以 DB room_roles 实时为准）
+    pub capabilities: Vec<Grant>,
     /// 刷新令牌（仅在请求时返回）
     #[serde(skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "typescript-export", ts(optional))]
@@ -116,18 +136,6 @@ pub struct ValidateTokenResponse {
 #[derive(Debug, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
 #[cfg_attr(feature = "typescript-export", ts(export))]
-pub struct UpdateRoomPermissionRequest {
-    #[serde(default)]
-    pub edit: bool,
-    #[serde(default)]
-    pub share: bool,
-    #[serde(default)]
-    pub delete: bool,
-}
-
-#[derive(Debug, Deserialize, ToSchema)]
-#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct UpdateRoomSettingsRequest {
     /// 新房间密码。字段缺失表示保持当前密码不变。
     #[cfg_attr(feature = "typescript-export", ts(optional))]
@@ -148,6 +156,9 @@ pub struct UpdateRoomSettingsRequest {
     #[cfg_attr(feature = "typescript-export", ts(type = "number | null"))]
     #[cfg_attr(feature = "typescript-export", ts(optional))]
     pub max_size: Option<i64>,
+    /// 新成员默认加入角色（可选；必须存在于本房角色集）
+    #[cfg_attr(feature = "typescript-export", ts(optional))]
+    pub default_role_key: Option<String>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -169,6 +180,9 @@ pub struct DeleteRoomResponse {
 #[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct RoomTokenView {
     pub jti: String,
+    /// 会话绑定的角色
+    #[cfg_attr(feature = "typescript-export", ts(optional))]
+    pub role_key: Option<String>,
     pub expires_at: NaiveDateTime,
     pub revoked_at: Option<NaiveDateTime>,
     pub created_at: NaiveDateTime,
@@ -178,6 +192,7 @@ impl From<RoomToken> for RoomTokenView {
     fn from(value: RoomToken) -> Self {
         Self {
             jti: value.jti,
+            role_key: value.role_key,
             expires_at: value.expires_at,
             revoked_at: value.revoked_at,
             created_at: value.created_at,

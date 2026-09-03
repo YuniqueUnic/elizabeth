@@ -331,7 +331,6 @@ fn generate_frontend_bindings() -> anyhow::Result<()> {
     println!("cargo:rerun-if-changed=../board-protocol/src/models/room/mod.rs");
     println!("cargo:rerun-if-changed=../board-protocol/src/models/room/content.rs");
     println!("cargo:rerun-if-changed=../board-protocol/src/models/room/chunk_upload.rs");
-    println!("cargo:rerun-if-changed=../board-protocol/src/models/room/permission.rs");
     println!("cargo:rerun-if-changed=../board-protocol/src/models/room/refresh_token.rs");
     println!("cargo:rerun-if-changed=../board-protocol/src/models/room/token.rs");
     println!("cargo:rerun-if-changed=../board-protocol/src/models/room/upload_reservation.rs");

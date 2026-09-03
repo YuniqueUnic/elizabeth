@@ -4,4 +4,12 @@ import type { RoomStatus } from "./RoomStatus";
 /**
  * 数据库与 API Room 模型
  */
-export type Room = { id: number | null, name: string, slug: string, password: string | null, status: RoomStatus, max_size: number, current_size: number, max_times_entered: number, current_times_entered: number, expire_at: string | null, created_at: string, updated_at: string, permission: number, };
+export type Room = { id: number | null, name: string, slug: string, password: string | null, status: RoomStatus, max_size: number, current_size: number, max_times_entered: number, current_times_entered: number, expire_at: string | null, created_at: string, updated_at: string,
+/**
+ * 新成员默认加入的角色（必须存在于本房角色集）
+ */
+default_role_key: string,
+/**
+ * 角色矩阵版本号：每次角色写路径 +1，用作 RoleTable 缓存失效
+ */
+roles_version: number, };

@@ -22,7 +22,7 @@ pub struct AdminLimitQuery {
     pub limit: Option<u32>,
 }
 
-fn ensure_admin(headers: &HeaderMap) -> AppResult<()> {
+pub(crate) fn validate_admin_credential(provided: Option<&str>) -> AppResult<()> {
     let expected = std::env::var(ADMIN_TOKEN_ENV).unwrap_or_default();
     if expected.trim().is_empty() {
         return Err(AppError::authorization(format!(
@@ -30,16 +30,19 @@ fn ensure_admin(headers: &HeaderMap) -> AppResult<()> {
         )));
     }
 
-    let provided = headers
-        .get(ADMIN_TOKEN_HEADER)
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-
-    if provided != expected {
+    if provided.unwrap_or("") != expected {
         return Err(AppError::authorization("Invalid admin token"));
     }
 
     Ok(())
+}
+
+fn ensure_admin(headers: &HeaderMap) -> AppResult<()> {
+    validate_admin_credential(
+        headers
+            .get(ADMIN_TOKEN_HEADER)
+            .and_then(|value| value.to_str().ok()),
+    )
 }
 
 fn clamp_limit(limit: Option<u32>) -> u32 {

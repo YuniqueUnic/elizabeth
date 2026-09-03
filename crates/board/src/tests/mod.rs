@@ -1,3 +1,4 @@
+mod authz;
 mod cfg_service;
 mod chunk_temp_storage;
 mod db;

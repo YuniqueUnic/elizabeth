@@ -6,7 +6,7 @@ import { ContentType, parseContentType } from "@/lib/types";
 export type ContentDesktopNotificationKind = "message" | "file" | "link";
 export type RoomDesktopNotificationAction =
   | "address_changed"
-  | "permissions_changed"
+  | "roles_changed"
   | "settings_changed";
 export type DesktopNotificationKind = ContentDesktopNotificationKind | "room";
 export type DesktopNotificationAction =
@@ -40,7 +40,7 @@ export const desktopNotificationActions: DesktopNotificationAction[] = [
   "updated",
   "deleted",
   "address_changed",
-  "permissions_changed",
+  "roles_changed",
   "settings_changed",
 ];
 
@@ -51,7 +51,7 @@ export const desktopNotificationActionsByKind: Record<
   message: ["created", "updated", "deleted"],
   file: ["created", "deleted"],
   link: ["created", "deleted"],
-  room: ["address_changed", "permissions_changed", "settings_changed"],
+  room: ["address_changed", "roles_changed", "settings_changed"],
 };
 
 function createDisabledDesktopNotificationActions(): Record<
@@ -63,7 +63,7 @@ function createDisabledDesktopNotificationActions(): Record<
     updated: false,
     deleted: false,
     address_changed: false,
-    permissions_changed: false,
+    roles_changed: false,
     settings_changed: false,
   };
 }
@@ -89,7 +89,7 @@ export function createDefaultDesktopNotificationTypes(): DesktopNotificationType
     room: {
       ...createDisabledDesktopNotificationActions(),
       address_changed: true,
-      permissions_changed: true,
+      roles_changed: true,
       settings_changed: true,
     },
   };

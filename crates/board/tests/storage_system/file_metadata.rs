@@ -9,7 +9,8 @@ use tower::ServiceExt;
 use crate::common::{create_test_app, http::create_request};
 
 use super::{
-    create_room, create_room_and_issue_session, issue_session, response_json, upload_file,
+    create_room, create_room_and_issue_session, issue_session_with_token, response_json,
+    upload_file,
 };
 
 #[tokio::test]
@@ -96,7 +97,7 @@ async fn test_storage_cleanup() -> Result<()> {
 async fn test_storage_permissions() -> Result<()> {
     let (app, _pool) = create_test_app().await?;
     let room_name = "storage_perms_test_room";
-    create_room(&app, room_name, Some("storage123")).await?;
+    let admin_token = create_room(&app, room_name, Some("storage123")).await?;
 
     let missing_token = app
         .clone()
@@ -118,7 +119,7 @@ async fn test_storage_permissions() -> Result<()> {
         .await?;
     assert_eq!(wrong_password.status(), StatusCode::UNAUTHORIZED);
 
-    let session = issue_session(&app, room_name, Some("storage123")).await?;
+    let session = issue_session_with_token(&app, room_name, &admin_token, "reader").await?;
     let authorized = app
         .oneshot(create_request(
             Method::GET,

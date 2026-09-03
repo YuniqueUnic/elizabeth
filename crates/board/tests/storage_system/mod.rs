@@ -22,7 +22,7 @@ pub(crate) async fn create_room(
     app: &Router,
     room_name: &str,
     password: Option<&str>,
-) -> Result<()> {
+) -> Result<String> {
     let response = app
         .clone()
         .oneshot(create_request(
@@ -37,7 +37,8 @@ pub(crate) async fn create_room(
         ))
         .await?;
     assert_eq!(response.status(), StatusCode::OK);
-    Ok(())
+    let value = response_json(response).await?;
+    Ok(value["token"].as_str().expect("admin token").to_string())
 }
 
 pub(crate) async fn issue_session(
@@ -45,16 +46,23 @@ pub(crate) async fn issue_session(
     room_name: &str,
     password: Option<&str>,
 ) -> Result<IssuedSession> {
+    let admin = create_room(app, room_name, password).await?;
+    issue_session_with_token(app, room_name, &admin, "editor").await
+}
+
+pub(crate) async fn issue_session_with_token(
+    app: &Router,
+    room_name: &str,
+    token: &str,
+    role: &str,
+) -> Result<IssuedSession> {
     let response = app
         .clone()
         .oneshot(create_request(
             Method::POST,
             &format!("/api/v1/rooms/{room_name}/tokens"),
             Some(Body::from(
-                password
-                    .map(|password| json!({ "password": password }))
-                    .unwrap_or_else(|| json!({}))
-                    .to_string(),
+                json!({ "token": token, "role": role }).to_string(),
             )),
         ))
         .await?;
@@ -74,8 +82,8 @@ pub(crate) async fn create_room_and_issue_session(
     room_name: &str,
     password: Option<&str>,
 ) -> Result<IssuedSession> {
-    create_room(app, room_name, password).await?;
-    issue_session(app, room_name, password).await
+    let admin = create_room(app, room_name, password).await?;
+    issue_session_with_token(app, room_name, &admin, "editor").await
 }
 
 pub(crate) async fn upload_file(

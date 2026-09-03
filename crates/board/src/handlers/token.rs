@@ -10,11 +10,10 @@ use crate::repository::{
 };
 use crate::services::RoomTokenClaims;
 use crate::state::AppState;
-use crate::validation::RoomNameValidator;
-use crate::validation::TokenValidator;
+use crate::validation::{RoomNameValidator, TokenValidator};
 
-/// 从 Authorization header 或 ?token= 查询参数中提取 JWT token。
-/// 优先使用 Authorization header，回退到查询参数。
+/// 提取统一的房间身份码：Bearer、X-API-Key 或 ?token= 均承载同一个已签发的房间 JWT。
+/// Authorization 优先，其次是 API key，查询参数仅用于浏览器媒体链接。
 pub struct AuthToken(pub String);
 
 impl<S: Send + Sync> FromRequestParts<S> for AuthToken {
@@ -33,7 +32,15 @@ impl<S: Send + Sync> FromRequestParts<S> for AuthToken {
                 return Ok(AuthToken(token));
             }
 
-            // 2. 回退到 ?token= 查询参数
+            // 2. 机器调用的快捷身份码：其值仍是同一个房间 JWT，不创建第二套授权模型。
+            if let Some(api_key) = parts.headers.get("x-api-key")
+                && let Ok(token) = api_key.to_str()
+                && !token.trim().is_empty()
+            {
+                return Ok(AuthToken(token.trim().to_string()));
+            }
+
+            // 3. 回退到 ?token= 查询参数
             if let Some(query) = parts.uri.query() {
                 for pair in query.split('&') {
                     if let Some((key, value)) = pair.split_once('=')
@@ -58,6 +65,8 @@ pub struct VerifiedRoomToken {
     pub record: RoomToken,
 }
 
+/// 纯「身份 + Room Gate」校验：验签、jti 存活、房间匹配/未过期/开放。
+/// 能力判定一律交给 `authz::Authz`（实时角色矩阵），这里不做任何能力检查。
 pub async fn verify_room_token(
     app_state: Arc<AppState>,
     room_name: &str,
@@ -98,9 +107,6 @@ pub async fn verify_room_token(
     if room.status() != RoomStatus::Open {
         return Err(AppError::authentication("Room cannot be entered"));
     }
-    if !room.permission.can_view() || !claims.as_permission().can_view() {
-        return Err(AppError::permission_denied("Room view permission denied"));
-    }
 
     // 查找令牌记录
     let token_repo = RoomTokenRepository::new(app_state.db_pool.clone());
@@ -118,6 +124,7 @@ pub async fn verify_room_token(
         return Err(AppError::authentication("Token record room mismatch"));
     }
 
+    let claims = resolve_role_claims(claims, &record, &room);
     Ok(VerifiedRoomToken {
         room,
         claims,
@@ -162,9 +169,6 @@ pub async fn verify_room_token_by_id(
     if room.status() != RoomStatus::Open {
         return Err(AppError::authentication("Room cannot be entered"));
     }
-    if !room.permission.can_view() || !claims.as_permission().can_view() {
-        return Err(AppError::permission_denied("Room view permission denied"));
-    }
 
     // 查找令牌记录
     let token_repo = RoomTokenRepository::new(app_state.db_pool.clone());
@@ -182,9 +186,25 @@ pub async fn verify_room_token_by_id(
         return Err(AppError::authentication("Token record room mismatch"));
     }
 
+    let claims = resolve_role_claims(claims, &record, &room);
     Ok(VerifiedRoomToken {
         room,
         claims,
         record,
     })
+}
+
+/// 角色 key 兜底：DB 记录 > claims 快照 > 房间默认角色。
+/// 旧 JWT（无 role claim）在 access TTL 内经此回填后自然淘汰，不构成长期兼容层。
+fn resolve_role_claims(
+    mut claims: RoomTokenClaims,
+    record: &RoomToken,
+    room: &Room,
+) -> RoomTokenClaims {
+    if let Some(role_key) = record.role_key.clone().filter(|role| !role.is_empty()) {
+        claims.role = role_key;
+    } else if claims.role.is_empty() {
+        claims.role = room.default_role_key.clone();
+    }
+    claims
 }

@@ -255,55 +255,6 @@ test.describe("Browser desktop notifications", () => {
       .toContain(tCommon("desktopNotification.title.room.settings_changed"));
   });
 
-  test("sends desktop notifications for remote room permission updates", async ({
-    actor,
-    page,
-    createActor,
-  }) => {
-    await setNotificationPermission(page, "granted");
-    await actor.attemptsTo(SetSettingTo("setting-desktop-notifications", true));
-
-    const sender = await createActor("notification room permissions sender");
-    await sender.actor.attemptsTo(OpenRoom(room.url));
-    expect(await sender.actor.answer(PermissionState("delete"))).toBe(true);
-
-    await sender.actor.attemptsTo(SetRoomPermissions({ delete: false }));
-
-    await expect(RoomScreen.roomAddressChangedAlert(page)).toHaveCount(0);
-    await expect.poll(async () => notificationTags(page))
-      .toContain(":room:permissions_changed:");
-    await expect.poll(async () => notificationText(page))
-      .toContain(tCommon("desktopNotification.title.room.permissions_changed"));
-  });
-
-  test("sends desktop notifications for remote room address changes", async ({
-    actor,
-    page,
-    createActor,
-  }) => {
-    await setNotificationPermission(page, "granted");
-    await actor.attemptsTo(SetSettingTo("setting-desktop-notifications", true));
-
-    const sender = await createActor("notification room address sender");
-    await sender.actor.attemptsTo(OpenRoom(room.url));
-    const shareEnabled = await sender.actor.answer(PermissionState("share"));
-    expect(shareEnabled).toBe(true);
-
-    await sender.actor.attemptsTo(SetRoomPermissions({ share: false }));
-
-    await expect(RoomScreen.roomAddressChangedAlert(page)).toBeVisible();
-    await expect.poll(async () => notificationTags(page))
-      .toContain(":room:address_changed:");
-    await expect.poll(async () => notificationText(page))
-      .toContain(tCommon("desktopNotification.title.room.address_changed"));
-    const addressSubjectPrefix = tCommon(
-      "desktopNotification.roomUpdateSubject.addressChanged",
-      { path: "/__next_room__" },
-    ).replace("/__next_room__", "");
-    await expect.poll(async () => notificationText(page))
-      .toContain(addressSubjectPrefix);
-  });
-
   test("respects the room setting update notification switch", async ({
     actor,
     page,

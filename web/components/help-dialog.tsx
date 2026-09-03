@@ -116,21 +116,21 @@ export function HelpDialog({ children }: { children: React.ReactNode }) {
                                 {t("sections.roomSettings.permissions.description")}
                                 <ul className="list-disc list-inside mt-2 space-y-1">
                                     <li>
-                                        <strong>{t("sections.roomSettings.permissions.items.preview.label")}</strong>：{t("sections.roomSettings.permissions.items.preview.description")}
+                                        <strong>{t("sections.roomSettings.permissions.items.admin.label")}</strong>: {t("sections.roomSettings.permissions.items.admin.description")}
                                     </li>
                                     <li>
-                                        <strong>{t("sections.roomSettings.permissions.items.edit.label")}</strong>
-                                        ：{t("sections.roomSettings.permissions.items.edit.description")}
+                                        <strong>{t("sections.roomSettings.permissions.items.editor.label")}</strong>: {t("sections.roomSettings.permissions.items.editor.description")}
                                     </li>
                                     <li>
-                                        <strong>{t("sections.roomSettings.permissions.items.share.label")}</strong>
-                                        ：{t("sections.roomSettings.permissions.items.share.description")}
+                                        <strong>{t("sections.roomSettings.permissions.items.reader.label")}</strong>: {t("sections.roomSettings.permissions.items.reader.description")}
                                     </li>
                                     <li>
-                                        <strong>{t("sections.roomSettings.permissions.items.delete.label")}</strong>
-                                        ：{t("sections.roomSettings.permissions.items.delete.description")}
+                                        <strong>{t("sections.roomSettings.permissions.items.scope.label")}</strong>: {t("sections.roomSettings.permissions.items.scope.description")}
                                     </li>
                                 </ul>
+                            </HelpItem>
+                            <HelpItem title={t("sections.roomSettings.authorization.title")} icon={KeyRound}>
+                                {t("sections.roomSettings.authorization.description")}
                             </HelpItem>
                         </HelpSection>
 

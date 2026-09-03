@@ -5,8 +5,8 @@ use config::{FileFormat, FileSourceFile, builder::DefaultState};
 pub use configs::{
     AppConfig, CompressionConfig, CorsConfig, DatabaseConfig, DefaultRoomConfig, GcConfig,
     HumanDuration, JwtConfig, LoggingConfig, MiddlewareConfig, RateLimitConfig, RequestIdConfig,
-    RoomConfig, RoomExpiryConfig, RoomPermissionConfig, SecurityConfig, ServerConfig,
-    StorageConfig, TracingConfig, UploadConfig,
+    RoomConfig, RoomExpiryConfig, SecurityConfig, ServerConfig, StorageConfig, TracingConfig,
+    UploadConfig,
 };
 pub use error::{ConfigError, Result};
 use merge::Merge;

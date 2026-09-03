@@ -6,6 +6,8 @@ import { useAppStore } from "@/lib/store";
 import { RoomConfigForm } from "@/components/room/room-config-form";
 import { RoomCapacity } from "@/components/room/room-capacity";
 import { RoomSharing } from "@/components/room/room-sharing";
+import { TokenRoleDisplay } from "@/components/room/token-role-display";
+import { RoleMatrix } from "@/components/room/role-matrix";
 import { useQuery } from "@tanstack/react-query";
 import { getRoomDetails, deleteRoom } from "@/api/roomService";
 import { verifyRoomPassword } from "@/api/authService";
@@ -13,7 +15,7 @@ import { verifyRoomPassword } from "@/api/authService";
 import { clearRoomToken } from "@/lib/utils/api";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useRoomPermissions } from "@/hooks/use-room-permissions";
+import { useRoomCapabilities } from "@/hooks/use-room-capabilities";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -45,7 +47,7 @@ export function LeftSidebar() {
 
   const { toast } = useToast();
   const router = useRouter();
-  const { can } = useRoomPermissions(roomDetails?.permissions);
+  const { can } = useRoomCapabilities();
 
   const [isCloseDialogOpen, setIsCloseDialogOpen] = useState(false);
   const [password, setPassword] = useState("");
@@ -142,6 +144,8 @@ export function LeftSidebar() {
               : roomDetails
               ? (
                 <>
+                  <TokenRoleDisplay roomName={currentRoomId} />
+                  <RoleMatrix roomName={currentRoomId} />
                   <RoomConfigForm roomDetails={roomDetails} />
                   <RoomSharing
                     key={roomDetails.slug}
@@ -226,6 +230,8 @@ export function LeftSidebar() {
               : roomDetails
               ? (
                 <>
+                  <TokenRoleDisplay roomName={currentRoomId} />
+                  <RoleMatrix roomName={currentRoomId} />
                   <RoomConfigForm roomDetails={roomDetails} />
                   <RoomSharing
                     key={roomDetails.slug}

@@ -3,7 +3,7 @@
 /**
  * 登出请求结构（撤销访问令牌）
  */
-export type LogoutRequest = { 
+export type LogoutRequest = {
 /**
  * 访问令牌
  */

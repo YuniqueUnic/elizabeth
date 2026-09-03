@@ -122,7 +122,7 @@ async fn test_room_subscription_and_broadcast() {
     };
 
     broadcaster
-        .broadcast_room_update(&room1, &room_info, RoomUpdateReason::PermissionsChanged)
+        .broadcast_room_update(&room1, &room_info, RoomUpdateReason::RolesChanged)
         .await
         .unwrap();
 
@@ -144,7 +144,7 @@ async fn test_room_subscription_and_broadcast() {
             .as_ref()
             .and_then(|payload| payload.get("reason"))
             .and_then(|reason| reason.as_str()),
-        Some("permissions_changed")
+        Some("roles_changed")
     );
 }
 

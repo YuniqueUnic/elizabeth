@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { createRoom } from "@/api/roomService";
-import { getAccessToken } from "@/api/authService";
+import { setRoomToken } from "@/lib/utils/api";
 import { ArrowRight, Eye, EyeOff, Lock, Plus } from "lucide-react";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { useTranslations } from "next-intl";
@@ -66,11 +66,14 @@ export default function HomePage() {
       setLoading(true);
       setError(null);
 
-      // Create room with optional password
-      await createRoom(trimmed, password || undefined);
-
-      // Get access token
-      await getAccessToken(trimmed, password || undefined);
+      // Creation returns the creator's room-scoped admin identity code.
+      const created = await createRoom(trimmed, password || undefined);
+      setRoomToken(trimmed, {
+        token: created.token,
+        expiresAt: created.expires_at,
+        capabilities: created.capabilities,
+        roleKey: created.claims.role,
+      });
 
       // Navigate to room
       router.push(`/${trimmed}`);

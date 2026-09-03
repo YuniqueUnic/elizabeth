@@ -8,7 +8,7 @@ use tower::ServiceExt;
 
 use crate::common::{create_test_app, http::create_request};
 
-use super::{create_room_and_issue_session, issue_session, response_json, upload_file};
+use super::{create_room_and_issue_session, issue_session_with_token, response_json, upload_file};
 
 #[tokio::test]
 async fn test_upload_reservation() -> Result<()> {
@@ -55,7 +55,7 @@ async fn test_chunk_merge() -> Result<()> {
     let (app, _pool) = create_test_app().await?;
     let room_name = "chunk_owner_test_room";
     let owner = create_room_and_issue_session(&app, room_name, None).await?;
-    let other = issue_session(&app, room_name, None).await?;
+    let other = issue_session_with_token(&app, room_name, &owner.token, "reader").await?;
 
     let prepare = app
         .clone()

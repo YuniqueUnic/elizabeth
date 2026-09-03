@@ -23,6 +23,9 @@ use crate::{
     validation::RoomNameValidator,
 };
 
+use crate::authz::{Authz, Resource};
+use crate::models::room::role::Capability;
+
 use super::{AuthToken, VerifiedRoomToken, verify_room_token};
 type HandlerResult<T> = AppResult<Json<T>>;
 
@@ -79,19 +82,19 @@ pub async fn prepare_chunked_upload(
 
     // 验证 token 并获取房间
     let verified = verify_room_token(app_state.clone(), &room_name, &token).await?;
+    let authz = Authz::for_claims(&app_state, &verified.room, &verified.claims).await?;
     let room = verified.room;
 
-    // 检查 token 是否有编辑权限
-    let token_permission = verified.claims.as_permission();
-    if !token_permission.can_edit() {
-        return Err(AppError::permission_denied("token 无编辑权限"));
-    }
+    let room_id = room
+        .id
+        .ok_or_else(|| AppError::internal("房间 ID 不能为空"))?;
+    authz.require(Capability::FileUpload, &Resource::Room { room_id })?;
 
-    // 计算总预留大小
+    // 计算总预留大小（容量检查属于 Resource Policy 层）
     let total_reserved_size: i64 = payload.files.iter().map(|f| f.size).sum();
 
     if !room.can_add_content(total_reserved_size) {
-        return Err(AppError::permission_denied("房间空间不足或无上传权限"));
+        return Err(AppError::payload_too_large("房间空间不足"));
     }
 
     let upload_token = Uuid::new_v4().to_string();
@@ -212,6 +215,13 @@ pub async fn get_upload_status(
     }
 
     let verified = verify_room_token(app_state.clone(), &room_name, &token).await?;
+    let authz = Authz::for_claims(&app_state, &verified.room, &verified.claims).await?;
+    authz.require(
+        Capability::FileUpload,
+        &Resource::Room {
+            room_id: verified.claims.room_id,
+        },
+    )?;
 
     // 查找预留记录
     let reservation_repository = RoomUploadReservationRepository::new(app_state.db_pool.clone());
@@ -336,6 +346,13 @@ pub async fn cancel_chunked_upload(
     RoomNameValidator::validate_identifier(&room_name)?;
 
     let verified = verify_room_token(app_state.clone(), &room_name, &token).await?;
+    let authz = Authz::for_claims(&app_state, &verified.room, &verified.claims).await?;
+    authz.require(
+        Capability::FileUpload,
+        &Resource::Room {
+            room_id: verified.claims.room_id,
+        },
+    )?;
 
     let reservation_repository = RoomUploadReservationRepository::new(app_state.db_pool.clone());
     let reservation = reservation_repository
@@ -370,6 +387,7 @@ pub async fn cancel_chunked_upload(
     })))
 }
 
+/// 预留记录的归属校验（房间 + 会话）；上传能力由调用方通过 authz.require 判定。
 pub(crate) fn ensure_reservation_access(
     reservation: &crate::models::RoomUploadReservation,
     verified: &VerifiedRoomToken,
@@ -379,9 +397,6 @@ pub(crate) fn ensure_reservation_access(
     }
     if reservation.owner_token_jti != verified.claims.jti {
         return Err(AppError::permission_denied("预留记录不属于当前会话"));
-    }
-    if !verified.room.permission.can_edit() || !verified.claims.as_permission().can_edit() {
-        return Err(AppError::permission_denied("房间或会话无编辑权限"));
     }
     if reservation.expires_at <= Utc::now().naive_utc() {
         return Err(AppError::permission_denied("预留记录已过期"));

@@ -15,7 +15,9 @@ use crate::repository::{IRoomContentRepository, MessagePageCursor, RoomContentRe
 use crate::state::AppState;
 use crate::validation::RoomNameValidator;
 
-use super::{ContentPermission, HandlerResult, ensure_permission, room_id_or_error};
+use super::{HandlerResult, room_id_or_error};
+use crate::authz::{Authz, Resource};
+use crate::models::room::role::Capability;
 
 const DEFAULT_MESSAGE_PAGE_SIZE: u32 = 50;
 const MAX_MESSAGE_PAGE_SIZE: u32 = 100;
@@ -54,12 +56,9 @@ pub async fn list_messages(
     let cursor = query.cursor.as_deref().map(parse_cursor).transpose()?;
 
     let verified = verify_room_token(app_state.clone(), &name, &token).await?;
-    ensure_permission(
-        &verified.claims,
-        verified.room.permission.can_view(),
-        ContentPermission::View,
-    )?;
+    let authz = Authz::for_claims(&app_state, &verified.room, &verified.claims).await?;
     let room_id = room_id_or_error(&verified.claims)?;
+    authz.require(Capability::MsgRead, &Resource::Room { room_id })?;
 
     let repository = RoomContentRepository::new(app_state.db_pool.clone());
     let page = repository
@@ -146,14 +145,16 @@ pub async fn create_message(
     }
 
     let verified = verify_room_token(app_state.clone(), &name, &token).await?;
-    ensure_permission(
-        &verified.claims,
-        verified.room.permission.can_edit(),
-        ContentPermission::Edit,
-    )?;
+    let authz = Authz::for_claims(&app_state, &verified.room, &verified.claims).await?;
 
     let room_id = room_id_or_error(&verified.claims)?;
-    let content = build_message_content(room_id, text, payload.sequence_number.unwrap_or(0));
+    authz.require(Capability::MsgSend, &Resource::Room { room_id })?;
+    let content = build_message_content(
+        room_id,
+        &verified.claims.jti,
+        text,
+        payload.sequence_number.unwrap_or(0),
+    );
 
     let repository = RoomContentRepository::new(app_state.db_pool.clone());
     let saved_content = repository
@@ -168,7 +169,12 @@ pub async fn create_message(
     }))
 }
 
-fn build_message_content(room_id: i64, text: &str, sequence_number: i32) -> RoomContent {
+fn build_message_content(
+    room_id: i64,
+    owner_jti: &str,
+    text: &str,
+    sequence_number: i32,
+) -> RoomContent {
     let now = chrono::Utc::now().naive_utc();
     let mut content = RoomContent::builder()
         .room_id(room_id)
@@ -176,6 +182,7 @@ fn build_message_content(room_id: i64, text: &str, sequence_number: i32) -> Room
         .sequence_number(sequence_number)
         .now(now)
         .build();
+    content.created_by_jti = Some(owner_jti.to_string());
     content.set_text(text.to_string());
     content
 }

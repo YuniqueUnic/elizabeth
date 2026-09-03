@@ -4,11 +4,11 @@ import type { UploadStatus } from "./UploadStatus";
 /**
  * 上传预留记录
  */
-export type RoomUploadReservation = { id: number | null, room_id: number, 
+export type RoomUploadReservation = { id: number | null, room_id: number,
 /**
  * Access-token JTI that owns this reservation.
  */
-owner_token_jti: string, 
+owner_token_jti: string,
 /**
  * Opaque upload lookup token. It is not an access credential by itself.
  */

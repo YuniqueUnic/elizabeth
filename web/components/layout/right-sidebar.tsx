@@ -43,7 +43,7 @@ import { getPolicy } from "@/api/policyService";
 import { useAppStore } from "@/lib/store";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useRoomPermissions } from "@/hooks/use-room-permissions";
+import { useRoomCapabilities } from "@/hooks/use-room-capabilities";
 import { getRoomDetails } from "@/api/roomService";
 import type { FileItem } from "@/lib/types";
 import type { TransferItem, TransferProgress } from "@/lib/transfer-types";
@@ -112,7 +112,7 @@ export function RightSidebar() {
     staleTime: 1000,
     enabled: !!currentRoomId,
   });
-  const { can } = useRoomPermissions(roomDetails?.permissions);
+  const { can } = useRoomCapabilities();
 
   const isUploading = Object.values(transfers).some(
     (t) => t.status === "active" && t.direction === "upload",

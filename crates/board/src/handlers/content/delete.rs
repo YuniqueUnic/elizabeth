@@ -7,14 +7,16 @@ use axum::extract::{Path as AxumPath, State};
 use crate::dto::content::{DeleteContentRequest, DeleteContentResponse};
 use crate::errors::AppError;
 use crate::handlers::{AuthToken, verify_room_token};
-use crate::models::content::RoomContent;
+use crate::models::content::{ContentType, RoomContent};
 use crate::repository::{
     IRoomContentRepository, IRoomRepository, RoomContentRepository, RoomRepository,
 };
 use crate::state::AppState;
 use crate::validation::RoomNameValidator;
 
-use super::{ContentPermission, HandlerResult, ensure_permission, room_id_or_error};
+use super::{HandlerResult, room_id_or_error};
+use crate::authz::{Authz, Resource};
+use crate::models::room::role::Capability;
 
 #[utoipa::path(
     delete,
@@ -45,11 +47,7 @@ pub async fn delete_contents(
     }
 
     let mut verified = verify_room_token(app_state.clone(), &name, &token).await?;
-    ensure_permission(
-        &verified.claims,
-        verified.room.permission.can_delete(),
-        ContentPermission::Delete,
-    )?;
+    let authz = Authz::for_claims(&app_state, &verified.room, &verified.claims).await?;
 
     let room_id = room_id_or_error(&verified.claims)?;
     let repository = RoomContentRepository::new(app_state.db_pool.clone());
@@ -61,6 +59,22 @@ pub async fn delete_contents(
     let contents = collect_target_contents(existing_contents, &payload.ids);
     if contents.is_empty() {
         return Err(AppError::not_found("Contents not found"));
+    }
+
+    // 混合 id 批量删除：按条目类型逐一判定，任一 Deny 则整体 403（未发生任何删除）。
+    for content in &contents {
+        let capability = match content.content_type {
+            ContentType::Text => Capability::MsgDelete,
+            ContentType::Image | ContentType::File | ContentType::Url => Capability::FileDelete,
+        };
+        authz.require(
+            capability,
+            &Resource::Content {
+                room_id,
+                content_type: content.content_type,
+                created_by_jti: content.created_by_jti.as_deref(),
+            },
+        )?;
     }
 
     let freed_size = remove_content_files(&contents).await;

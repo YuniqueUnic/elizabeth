@@ -25,6 +25,9 @@ use crate::{
     validation::RoomNameValidator,
 };
 
+use crate::authz::{Authz, Resource};
+use crate::models::room::role::Capability;
+
 use super::super::{AuthToken, verify_room_token};
 use super::ensure_reservation_access;
 
@@ -66,6 +69,13 @@ pub async fn upload_chunk(
 
     let parsed = parse_chunk_upload(multipart).await?;
     let verified = verify_room_token(app_state.clone(), &room_name, &token).await?;
+    let authz = Authz::for_claims(&app_state, &verified.room, &verified.claims).await?;
+    authz.require(
+        Capability::FileUpload,
+        &Resource::Room {
+            room_id: verified.claims.room_id,
+        },
+    )?;
     let reservation_repository = RoomUploadReservationRepository::new(app_state.db_pool.clone());
     let reservation = load_chunk_reservation(&reservation_repository, &parsed.upload_token).await?;
     let reservation_id = reservation_id_or_error(&reservation)?;

@@ -37,6 +37,8 @@ pub struct Services {
     pub room_lifecycle: Arc<RoomLifecycleService>,
     pub room_password: Arc<RoomPasswordService>,
     pub access_code_limiter: Arc<AccessCodeLimiter>,
+    /// 房间角色矩阵缓存（AppState 与 refresh service 共享同一份）
+    pub roles_cache: Arc<crate::authz::RoleTableCache>,
 }
 
 impl Services {
@@ -56,6 +58,9 @@ impl Services {
         let refresh_repo = Arc::new(RoomRefreshTokenRepository::new(db_pool.clone()));
         let blacklist_repo = Arc::new(TokenBlacklistRepository::new(db_pool.clone()));
 
+        // 创建角色矩阵缓存
+        let roles_cache = Arc::new(crate::authz::RoleTableCache::new());
+
         // 创建刷新令牌服务
         let access_repository = RoomAccessRepository::new(db_pool.clone());
         let access_token_repository = Arc::new(RoomTokenRepository::new(db_pool.clone()));
@@ -63,6 +68,8 @@ impl Services {
             (*token_service).clone(),
             chrono::Duration::seconds(config.auth.refresh_ttl_seconds),
             config.auth.enable_refresh_token_rotation,
+            db_pool.clone(),
+            roles_cache.clone(),
             room_repository.clone(),
             access_repository,
             access_token_repository,
@@ -91,6 +98,7 @@ impl Services {
             room_lifecycle,
             room_password,
             access_code_limiter,
+            roles_cache,
         })
     }
 

@@ -134,7 +134,7 @@ async fn test_find_room_api() -> Result<()> {
     assert_eq!(created["password_protected"], false);
     assert_eq!(created["max_size"], 50 * 1024 * 1024);
     assert_eq!(created["max_times_entered"], 100);
-    assert_eq!(created["permission"], 15);
+    assert_eq!(created["default_role_key"], "reader");
 
     // 查找房间
     let find_request = Request::builder()
@@ -180,7 +180,7 @@ async fn test_find_nonexistent_room() -> Result<()> {
     assert_eq!(room["password_protected"], false);
     assert_eq!(room["max_size"], 50 * 1024 * 1024);
     assert_eq!(room["max_times_entered"], 100);
-    assert_eq!(room["permission"], 15);
+    assert_eq!(room["default_role_key"], "reader");
 
     let created_at = room["created_at"]
         .as_str()
@@ -269,24 +269,13 @@ async fn test_delete_room_api() -> Result<()> {
     let (app, pool) = create_test_app().await?;
 
     // 先创建一个房间
-    let create_request = create_room_request("delete_test", None);
+    let create_request = create_room_request("delete_test", Some("secret123"));
 
     let create_response = app.clone().oneshot(create_request).await?;
     assert_eq!(create_response.status(), StatusCode::OK);
-
-    // 获取具有删除权限的 token
-    let token_payload = json!({});
-    let token_request = create_http_request(
-        Method::POST,
-        "/api/v1/rooms/delete_test/tokens",
-        Some(Body::from(token_payload.to_string())),
-    );
-
-    let token_response = app.clone().oneshot(token_request).await?;
-    assert_eq!(token_response.status(), StatusCode::OK);
-    let token_body = axum::body::to_bytes(token_response.into_body(), usize::MAX).await?;
-    let token_json: serde_json::Value = serde_json::from_slice(&token_body)?;
-    let token = token_json["token"].as_str().unwrap().to_string();
+    let create_body = axum::body::to_bytes(create_response.into_body(), usize::MAX).await?;
+    let create_json: serde_json::Value = serde_json::from_slice(&create_body)?;
+    let token = create_json["token"].as_str().unwrap().to_string();
 
     // 删除房间（需要提供 token）
     let delete_request = create_http_request(
@@ -383,19 +372,8 @@ async fn test_complete_crud_workflow() -> Result<()> {
     assert_eq!(find_json["id"].as_i64().unwrap(), room_id);
     assert_eq!(find_json["name"].as_str().unwrap(), room_name);
 
-    // 3. 获取具有删除权限的 token
-    let token_payload = json!({ "password": "secret123" });
-    let token_request = create_http_request(
-        Method::POST,
-        &format!("/api/v1/rooms/{}/tokens", room_name),
-        Some(Body::from(token_payload.to_string())),
-    );
-
-    let token_response = app.clone().oneshot(token_request).await?;
-    assert_eq!(token_response.status(), StatusCode::OK);
-    let token_body = axum::body::to_bytes(token_response.into_body(), usize::MAX).await?;
-    let token_json: serde_json::Value = serde_json::from_slice(&token_body)?;
-    let token = token_json["token"].as_str().unwrap().to_string();
+    // 3. 使用创建响应中的 admin 身份码删除房间
+    let token = create_json["token"].as_str().unwrap().to_string();
 
     // 4. 删除房间（需要 token）
     let delete_request = create_http_request(

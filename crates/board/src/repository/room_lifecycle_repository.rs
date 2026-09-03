@@ -203,7 +203,8 @@ impl RoomLifecycleRepository {
                    CAST(expire_at AS TEXT) AS expire_at,
                    CAST(created_at AS TEXT) AS created_at,
                    CAST(updated_at AS TEXT) AS updated_at,
-                   permission
+                   default_role_key,
+                   roles_version
             FROM rooms WHERE id = $1
             "#,
         )

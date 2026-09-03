@@ -76,7 +76,7 @@ export interface RoomInfo {
 
 export type RoomUpdateReason =
   | "address_changed"
-  | "permissions_changed"
+  | "roles_changed"
   | "settings_changed";
 
 export interface RoomUpdatePayload {

@@ -64,6 +64,7 @@ export async function getAccessToken(
     password,
     // Pass existing token if available and valid (for token refresh without incrementing view count)
     token: validToken,
+    role: existingToken?.roleKey,
     with_refresh_token: true, // Always request refresh token
   };
 
@@ -77,6 +78,8 @@ export async function getAccessToken(
     token: response.token,
     expiresAt: response.expires_at,
     refreshToken: response.refresh_token,
+    capabilities: response.capabilities,
+    roleKey: response.claims.role,
   };
 
   setRoomToken(roomName, tokenInfo);
@@ -118,6 +121,18 @@ export async function verifyRoomPassword(
  * @param token - Optional token to validate (uses stored token if not provided)
  * @returns Validation result
  */
+export async function issueRoomRoleToken(
+  roomName: string,
+  role: string,
+  adminToken: string,
+): Promise<IssueTokenResponse> {
+  return api.post<IssueTokenResponse>(
+    API_ENDPOINTS.rooms.tokens(roomName),
+    { token: adminToken, role, with_refresh_token: false },
+    { skipTokenInjection: true },
+  );
+}
+
 export async function validateToken(
   roomName: string,
   token?: string,

@@ -155,8 +155,9 @@ pub struct DefaultRoomConfig {
     pub max_times_entered: i64,
     #[merge(strategy = overwrite)]
     pub max_size: bytesize::ByteSize,
+    /// 新房间默认加入角色（admin / editor / reader）
     #[merge(strategy = overwrite)]
-    pub permissions: RoomPermissionConfig,
+    pub role: String,
 }
 
 impl fmt::Debug for DefaultRoomConfig {
@@ -168,7 +169,7 @@ impl fmt::Debug for DefaultRoomConfig {
             )
             .field("max_times_entered", &self.max_times_entered)
             .field("max_size", &self.max_size)
-            .field("permissions", &self.permissions)
+            .field("role", &self.role)
             .finish()
     }
 }
@@ -179,32 +180,8 @@ impl Default for DefaultRoomConfig {
             password: None,
             max_times_entered: 100,
             max_size: bytesize::ByteSize::mib(50),
-            permissions: RoomPermissionConfig::default(),
-        }
-    }
-}
-
-/// 新房间默认权限，与领域层 RoomPermission 的四个 bit 一一对应。
-#[derive(Merge, Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
-#[serde(default)]
-pub struct RoomPermissionConfig {
-    #[merge(strategy = overwrite)]
-    pub read: bool,
-    #[merge(strategy = overwrite)]
-    pub edit: bool,
-    #[merge(strategy = overwrite)]
-    pub share: bool,
-    #[merge(strategy = overwrite)]
-    pub delete: bool,
-}
-
-impl Default for RoomPermissionConfig {
-    fn default() -> Self {
-        Self {
-            read: true,
-            edit: true,
-            share: true,
-            delete: true,
+            // 与 board-protocol 的 DEFAULT_ROLE_KEY 保持一致（reader）
+            role: "reader".to_string(),
         }
     }
 }
@@ -419,10 +396,7 @@ mod tests {
         assert_eq!(cfg.room.defaults.max_size.as_u64(), 50 * 1024 * 1024);
         assert_eq!(cfg.room.defaults.max_times_entered, 100);
         assert_eq!(cfg.room.defaults.password, None);
-        assert_eq!(
-            cfg.room.defaults.permissions,
-            RoomPermissionConfig::default()
-        );
+        assert_eq!(cfg.room.defaults.role, "reader");
         assert_eq!(cfg.room.share_disabled_lock_duration.as_secs(), 3600);
         assert_eq!(
             cfg.room
@@ -481,12 +455,7 @@ mod tests {
                     password: Some("room-pass".into()), // pragma: allowlist secret
                     max_times_entered: 7,
                     max_size: bytesize::ByteSize::b(42),
-                    permissions: RoomPermissionConfig {
-                        read: true,
-                        edit: false,
-                        share: false,
-                        delete: false,
-                    },
+                    role: "reader".to_string(),
                 },
                 share_disabled_lock_duration: Duration::from_secs(120).into(),
                 expiry: RoomExpiryConfig {
@@ -521,15 +490,7 @@ mod tests {
         assert_eq!(left.room.defaults.max_size.as_u64(), 42);
         assert_eq!(left.room.defaults.max_times_entered, 7);
         assert_eq!(left.room.defaults.password.as_deref(), Some("room-pass")); // pragma: allowlist secret
-        assert_eq!(
-            left.room.defaults.permissions,
-            RoomPermissionConfig {
-                read: true,
-                edit: false,
-                share: false,
-                delete: false,
-            }
-        );
+        assert_eq!(left.room.defaults.role, "reader");
         assert_eq!(left.room.share_disabled_lock_duration.as_secs(), 120);
         assert_eq!(left.room.expiry.allowed_ages[0].as_secs(), 30);
         assert_eq!(left.room.expiry.default_age.as_secs(), 30);

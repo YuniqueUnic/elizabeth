@@ -3,8 +3,6 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use crate::models::permission::RoomPermission;
-
 /// 令牌类型枚举
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema, Default)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
@@ -26,7 +24,9 @@ pub struct RoomTokenClaims {
     #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
     pub room_id: i64,
     pub room_name: String,
-    pub permission: u8,
+    /// 会话绑定的角色 key（快照索引；能力判定永远以 DB room_roles 实时为准）
+    #[serde(default)]
+    pub role: String,
     #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
     pub max_size: i64,
     #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
@@ -48,7 +48,7 @@ pub struct RoomTokenClaims {
 pub struct RoomTokenClaimsBuilder {
     room_id: i64,
     room_name: String,
-    permission: u8,
+    role: String,
     max_size: i64,
     exp: i64,
     iat: i64,
@@ -57,10 +57,6 @@ pub struct RoomTokenClaimsBuilder {
 }
 
 impl RoomTokenClaims {
-    pub fn as_permission(&self) -> RoomPermission {
-        RoomPermission::from_bits(self.permission).unwrap_or_default()
-    }
-
     pub fn expires_at(&self) -> NaiveDateTime {
         DateTime::from_timestamp(self.exp, 0)
             .unwrap_or_else(Utc::now)
@@ -107,7 +103,7 @@ impl RoomTokenClaims {
         RoomTokenClaimsBuilder {
             room_id,
             room_name,
-            permission: 0,
+            role: String::new(),
             max_size: 0,
             exp: now.timestamp(),
             iat: now.timestamp(),
@@ -123,7 +119,7 @@ impl RoomTokenClaims {
         RoomTokenClaimsBuilder {
             room_id,
             room_name,
-            permission: 0,
+            role: String::new(),
             max_size: 0,
             exp: now.timestamp(),
             iat: now.timestamp(),
@@ -134,9 +130,9 @@ impl RoomTokenClaims {
 }
 
 impl RoomTokenClaimsBuilder {
-    /// 设置权限
-    pub fn permission(mut self, permission: u8) -> Self {
-        self.permission = permission;
+    /// 设置角色 key
+    pub fn role(mut self, role: impl Into<String>) -> Self {
+        self.role = role.into();
         self
     }
 
@@ -176,7 +172,7 @@ impl RoomTokenClaimsBuilder {
             sub: format!("room:{}", self.room_id),
             room_id: self.room_id,
             room_name: self.room_name,
-            permission: self.permission,
+            role: self.role,
             max_size: self.max_size,
             exp: self.exp,
             iat: self.iat,
@@ -192,7 +188,7 @@ impl RoomTokenClaimsBuilder {
             sub: format!("room:{}", self.room_id),
             room_id: self.room_id,
             room_name: self.room_name,
-            permission: self.permission,
+            role: self.role,
             max_size: self.max_size,
             exp: self.exp,
             iat: self.iat,

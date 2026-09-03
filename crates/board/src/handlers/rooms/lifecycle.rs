@@ -4,11 +4,13 @@ use axum::Json;
 use axum::extract::{Path, State};
 
 use super::shared::{HandlerResult, apply_room_defaults};
-use crate::dto::rooms::{CreateRoomRequest, DeleteRoomResponse, RoomView};
+use crate::authz::{Authz, Resource, load_role_table};
+use crate::dto::rooms::{CreateRoomRequest, CreateRoomResponse, DeleteRoomResponse, RoomView};
 use crate::errors::AppError;
 use crate::handlers::{AuthToken, verify_room_token};
 use crate::models::Room;
-use crate::repository::{IRoomRepository, RoomRepository};
+use crate::models::room::role::{Capability, ROLE_ADMIN};
+use crate::repository::{IRoomRepository, RoomAccessRepository, RoomRepository};
 use crate::state::AppState;
 use crate::validation::{PasswordValidator, RoomNameValidator};
 
@@ -21,7 +23,7 @@ use crate::validation::{PasswordValidator, RoomNameValidator};
     ),
     request_body = CreateRoomRequest,
     responses(
-        (status = 200, description = "房间创建成功", body = RoomView),
+        (status = 200, description = "房间创建成功，同时返回创建者 admin 身份码", body = CreateRoomResponse),
         (status = 400, description = "请求参数错误"),
         (status = 500, description = "服务器内部错误")
     ),
@@ -31,7 +33,7 @@ pub async fn create(
     Path(name): Path<String>,
     State(app_state): State<Arc<AppState>>,
     Json(payload): Json<CreateRoomRequest>,
-) -> HandlerResult<RoomView> {
+) -> HandlerResult<CreateRoomResponse> {
     RoomNameValidator::validate(&name)?;
     if let Some(ref password) = payload.password {
         PasswordValidator::validate_room_password(password)?;
@@ -44,7 +46,44 @@ pub async fn create(
         .await
         .map_err(|e| AppError::internal(format!("Failed to create room: {e}")))?
         .ok_or_else(|| AppError::conflict("Room already exists"))?;
-    Ok(Json(RoomView::from(&created_room)))
+    let (token, claims) = app_state
+        .token_service()
+        .issue(&created_room, ROLE_ADMIN)
+        .map_err(|e| AppError::internal(format!("Failed to issue admin identity code: {e}")))?;
+    let record = crate::models::RoomToken::new(
+        claims.room_id,
+        claims.jti.clone(),
+        ROLE_ADMIN,
+        claims.expires_at(),
+    );
+    let granted = RoomAccessRepository::new(app_state.db_pool.clone())
+        .grant_new_session(
+            claims.room_id,
+            &record,
+            None,
+            chrono::Utc::now().naive_utc(),
+        )
+        .await
+        .map_err(|e| AppError::internal(format!("Failed to persist admin identity code: {e}")))?;
+    if !granted {
+        return Err(AppError::internal(
+            "Created room could not grant admin identity code",
+        ));
+    }
+    let role_table = load_role_table(
+        &app_state.roles_cache,
+        &app_state.db_pool,
+        claims.room_id,
+        created_room.roles_version,
+    )
+    .await?;
+    Ok(Json(CreateRoomResponse {
+        room: RoomView::from(&created_room),
+        token,
+        claims,
+        expires_at: record.expires_at,
+        capabilities: role_table.grants(ROLE_ADMIN).unwrap_or_default().to_vec(),
+    }))
 }
 
 /// 查找房间
@@ -125,15 +164,12 @@ pub async fn delete(
     }
 
     let verified = verify_room_token(app_state.clone(), &name, &token).await?;
-    if !verified.room.permission.can_delete() || !verified.claims.as_permission().can_delete() {
-        return Err(AppError::permission_denied(
-            "Insufficient permissions to delete room",
-        ));
-    }
-
+    let authz = Authz::for_claims(&app_state, &verified.room, &verified.claims).await?;
     let room_id = room
         .id
         .ok_or_else(|| AppError::internal("Room id missing"))?;
+    authz.require(Capability::RoomDelete, &Resource::Room { room_id })?;
+
     let deleted = app_state
         .services
         .room_lifecycle
