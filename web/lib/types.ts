@@ -63,6 +63,9 @@ export function parseContentType(
 export type { Capability, Grant, RoleDefinition } from '../types/generated/api.types';
 import type { Capability, Grant, RoleDefinition } from '../types/generated/api.types';
 
+/** 每个房间最多同时有效的 Editor 身份码数量（与后端 MAX_EDITOR_TOKENS 一致）。 */
+export const MAX_EDITOR_TOKENS = 10;
+
 export type BackendRoom = GeneratedRoomView;
 export type CreateRoomResponse = GeneratedCreateRoomResponse;
 export type RoomRole = RoleDefinition;

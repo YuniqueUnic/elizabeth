@@ -52,7 +52,8 @@
       "room": {
         "address_changed": "房间地址已变更",
         "permissions_changed": "房间权限已更新",
-        "settings_changed": "房间配置已更新"
+        "settings_changed": "房间配置已更新",
+        "roles_changed": "成员角色已变更"
       }
     },
     "summary": {
@@ -72,14 +73,16 @@
       "room": {
         "address_changed": "房间地址已变更",
         "permissions_changed": "房间权限已更新",
-        "settings_changed": "房间配置已更新"
+        "settings_changed": "房间配置已更新",
+        "roles_changed": "成员角色已变更"
       }
     },
     "roomUpdateSubject": {
       "addressChanged": "房间地址已变更：{path}",
       "address_changed": "房间地址已变更",
       "permissions_changed": "房间权限已更新",
-      "settings_changed": "房间配置已更新"
+      "settings_changed": "房间配置已更新",
+      "roles_changed": "成员角色已变更"
     }
   },
   "copySelectedMessages": "复制选中消息",

@@ -9,6 +9,7 @@
  */
 
 import { API_ENDPOINTS } from "../lib/config";
+import { decodeJWT } from "../lib/utils/jwt";
 import {
   api,
   clearRoomToken,
@@ -207,10 +208,13 @@ export async function revokeRoomToken(
     { token: authToken },
   );
 
-  // If this was the currently stored token, clear it
+  // 仅当吊销的是当前会话时才清除本地存储的 token
   const currentToken = getRoomToken(roomName);
   if (currentToken) {
-    clearRoomToken(roomName);
+    const claims = decodeJWT(currentToken.token);
+    if (claims?.jti === jti) {
+      clearRoomToken(roomName);
+    }
   }
 }
 

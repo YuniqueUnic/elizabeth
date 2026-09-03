@@ -13,6 +13,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+/** 后端 naive datetime 为 UTC；解析失败时回退原始字符串。 */
+function formatExpiry(value: string): string {
+  const normalized = value.replace(/(\.\d{3})\d+$/, "$1");
+  const date = new Date(value.includes("T") ? `${normalized}Z` : normalized);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+}
+
+/** 房间设置（仅拥有 room.settings.update 的身份可见）：密码、最大进入次数。 */
 export function RoomConfigForm({ roomDetails }: { roomDetails: RoomDetails }) {
   const t = useTranslations("room.config");
   const roomName = useAppStore((state) => state.currentRoomId);
@@ -30,13 +39,55 @@ export function RoomConfigForm({ roomDetails }: { roomDetails: RoomDetails }) {
     onError: () => toast({ title: t("save.failTitle"), variant: "destructive" }),
   });
   const expiry = config.data?.room.expiry;
-  return <div className="space-y-4">
-    <h3 className="text-sm font-semibold">{t("title")}</h3>
-    {!can.settings && <p className="text-xs text-muted-foreground">{t("adminOnly")}</p>}
-    <div className="space-y-2"><Label htmlFor="room-password">{t("password.label")}</Label><Input id="room-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={!can.settings} autoComplete="new-password" placeholder={t("password.placeholder")} /></div>
-    <div className="space-y-2"><Label htmlFor="room-max-views">{t("maxViews.label")}</Label><Input id="room-max-views" type="number" min={0} value={maxViews} onChange={(e) => setMaxViews(Number(e.target.value))} disabled={!can.settings} /></div>
-    <Button type="button" variant="outline" onClick={() => setRemovePassword(true)} disabled={!can.settings || !roomDetails.settings.passwordProtected}>{t("password.removeAction")}</Button>
-    <Button type="button" onClick={() => mutation.mutate()} disabled={!can.settings || mutation.isPending}>{mutation.isPending ? t("save.saving") : t("save.saveConfig")}</Button>
-    {expiry && <p className="text-xs text-muted-foreground">{roomDetails.settings.expiresAt ?? t("expiry.placeholder")}</p>}
-  </div>;
+  return (
+    <section className="space-y-3">
+      <h3 className="text-sm font-semibold">{t("title")}</h3>
+      <div className="space-y-2">
+        <Label htmlFor="room-password">{t("password.label")}</Label>
+        <Input
+          id="room-password"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          autoComplete="new-password"
+          placeholder={t("password.placeholder")}
+        />
+        {roomDetails.settings.passwordProtected && (
+          <p className="text-xs text-muted-foreground">{t("password.protectedHint")}</p>
+        )}
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="room-max-views">{t("maxViews.label")}</Label>
+        <Input
+          id="room-max-views"
+          type="number"
+          min={0}
+          value={maxViews}
+          onChange={(e) => setMaxViews(Number(e.target.value))}
+        />
+      </div>
+      <div className="flex items-center gap-2">
+        <Button type="button" onClick={() => mutation.mutate()} disabled={!can.settings || mutation.isPending}>
+          {mutation.isPending ? t("save.saving") : t("save.saveConfig")}
+        </Button>
+        {roomDetails.settings.passwordProtected && (
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => setRemovePassword(true)}
+            disabled={!can.settings}
+          >
+            {t("password.removeAction")}
+          </Button>
+        )}
+      </div>
+      {expiry && (
+        <p className="text-xs text-muted-foreground">
+          {roomDetails.settings.expiresAt
+            ? formatExpiry(roomDetails.settings.expiresAt)
+            : t("expiry.placeholder")}
+        </p>
+      )}
+    </section>
+  );
 }

@@ -1,13 +1,12 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, XCircle, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, XCircle } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { RoomConfigForm } from "@/components/room/room-config-form";
 import { RoomCapacity } from "@/components/room/room-capacity";
 import { RoomSharing } from "@/components/room/room-sharing";
-import { TokenRoleDisplay } from "@/components/room/token-role-display";
-import { RoleMatrix } from "@/components/room/role-matrix";
+import { IdentityCard } from "@/components/room/identity-card";
 import { useQuery } from "@tanstack/react-query";
 import { getRoomDetails, deleteRoom } from "@/api/roomService";
 import { verifyRoomPassword } from "@/api/authService";
@@ -31,6 +30,50 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import type { RoomDetails } from "@/lib/types";
+
+/** 侧边栏正文：只保留高频简单配置；成员与权限等复杂操作在身份卡入口的对话框内。 */
+function SidebarBody({
+  roomDetails,
+  isLoading,
+}: {
+  roomDetails?: RoomDetails;
+  isLoading: boolean;
+}) {
+  const t = useTranslations("room");
+  const currentRoomId = useAppStore((state) => state.currentRoomId);
+  const { can } = useRoomCapabilities();
+
+  if (isLoading) {
+    return (
+      <div className="p-4 text-center text-sm text-muted-foreground">
+        {t("sidebar.loading")}
+      </div>
+    );
+  }
+  if (!roomDetails) return null;
+
+  return (
+    <div className="space-y-6 p-4">
+      <IdentityCard roomName={currentRoomId} />
+
+      {can.share && (
+        <RoomSharing
+          key={roomDetails.slug}
+          roomId={roomDetails.slug || roomDetails.name}
+          canShare={can.share}
+        />
+      )}
+
+      {can.settings && <RoomConfigForm roomDetails={roomDetails} />}
+
+      <RoomCapacity
+        currentSize={roomDetails.currentSize}
+        maxSize={roomDetails.maxSize}
+      />
+    </div>
+  );
+}
 
 export function LeftSidebar() {
   const t = useTranslations("room");
@@ -124,57 +167,50 @@ export function LeftSidebar() {
     }
   };
 
+  const closeRoomButton = (
+    <Button
+      variant="destructive"
+      className="w-full justify-center gap-2"
+      disabled={!can.delete}
+      onClick={handleOpenCloseRoom}
+      title={!can.delete ? t("closeRoom.noPermissionTooltip") : t("closeRoom.tooltip")}
+    >
+      <XCircle className="h-4 w-4" />
+      {t("closeRoom.button")}
+    </Button>
+  );
+
   // Mobile layout: full width, no collapse button
   if (isMobile) {
     return (
       <div className="flex h-full w-full flex-col bg-background">
         {/* Header */}
         <div className="flex h-12 items-center justify-between border-b px-4">
-          <h2 className="font-semibold">{t("settings.title")}</h2>
+          <h2 className="font-semibold">{t("sidebar.roomControl")}</h2>
         </div>
 
         <ScrollArea className="flex-1">
-          <div className="space-y-6 p-4">
-            {isLoading
-              ? (
-                <div className="text-center text-sm text-muted-foreground">
-                  {t("sidebar.loading")}
-                </div>
-              )
-              : roomDetails
-              ? (
-                <>
-                  <TokenRoleDisplay roomName={currentRoomId} />
-                  <RoleMatrix roomName={currentRoomId} />
-                  <RoomConfigForm roomDetails={roomDetails} />
-                  <RoomSharing
-                    key={roomDetails.slug}
-                    roomId={roomDetails.slug || roomDetails.name}
-                    canShare={can.share}
-                  />
-                  <RoomCapacity
-                    currentSize={roomDetails.currentSize}
-                    maxSize={roomDetails.maxSize}
-                  />
-
-                  {/* 关闭房间区域 */}
-                  <div className="pt-4 border-t mt-4">
-                    <Button
-                      variant="destructive"
-                      className="w-full justify-center gap-2"
-                      disabled={!can.delete}
-                      onClick={handleOpenCloseRoom}
-                      title={!can.delete ? t("closeRoom.noPermissionTooltip") : t("closeRoom.tooltip")}
-                    >
-                      <XCircle className="h-4 w-4" />
-                      {t("closeRoom.button")}
-                    </Button>
-                  </div>
-                </>
-              )
-              : null}
-          </div>
+          <SidebarBody roomDetails={roomDetails} isLoading={isLoading} />
+          {roomDetails && (
+            <div className="border-t p-4">
+              {closeRoomButton}
+            </div>
+          )}
         </ScrollArea>
+
+        <CloseRoomDialog
+          isOpen={isCloseDialogOpen}
+          onClose={handleCloseDialog}
+          step={step}
+          password={password}
+          setPassword={setPassword}
+          dialogError={dialogError}
+          setDialogError={setDialogError}
+          actionLoading={actionLoading}
+          onVerify={handleVerifyPassword}
+          onConfirmDelete={handleConfirmDelete}
+          roomName={roomDetails?.name ?? ""}
+        />
       </div>
     );
   }
@@ -220,131 +256,140 @@ export function LeftSidebar() {
         </div>
 
         <ScrollArea className="flex-1 h-0">
-          <div className="space-y-6 p-4">
-            {isLoading
-              ? (
-                <div className="text-center text-sm text-muted-foreground">
-                  {t("sidebar.loading")}
-                </div>
-              )
-              : roomDetails
-              ? (
-                <>
-                  <TokenRoleDisplay roomName={currentRoomId} />
-                  <RoleMatrix roomName={currentRoomId} />
-                  <RoomConfigForm roomDetails={roomDetails} />
-                  <RoomSharing
-                    key={roomDetails.slug}
-                    roomId={roomDetails.slug || roomDetails.name}
-                    canShare={can.share}
-                  />
-                  <RoomCapacity
-                    currentSize={roomDetails.currentSize}
-                    maxSize={roomDetails.maxSize}
-                  />
-                </>
-              )
-              : null}
-          </div>
+          <SidebarBody roomDetails={roomDetails} isLoading={isLoading} />
         </ScrollArea>
 
         {/* 底部关闭房间区域 (固定在最下方) */}
         {roomDetails && (
-          <div className="border-t p-4 bg-muted/20 mt-auto shrink-0">
-            <Button
-              variant="destructive"
-              className="w-full justify-center gap-2"
-              disabled={!can.delete}
-              onClick={handleOpenCloseRoom}
-              title={!can.delete ? t("closeRoom.noPermissionTooltip") : t("closeRoom.tooltip")}
-            >
-              <XCircle className="h-4 w-4" />
-              {t("closeRoom.button")}
-            </Button>
+          <div className="mt-auto shrink-0 border-t bg-muted/20 p-4">
+            {closeRoomButton}
           </div>
         )}
       </aside>
 
-      {/* 关闭房间的多步确认对话框 */}
-      <Dialog open={isCloseDialogOpen} onOpenChange={handleCloseDialog}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-destructive">
-              <XCircle className="h-5 w-5" />
-              {t("closeRoom.title", { roomName: roomDetails?.name ?? "" })}
-            </DialogTitle>
-            <DialogDescription>
-              {step === 1 ? t("closeRoom.passwordRequired") : t("closeRoom.destructiveWarning")}
-            </DialogDescription>
-          </DialogHeader>
-
-          {step === 1 && (
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="close-room-password">{t("closeRoom.passwordLabel")}</Label>
-                <Input
-                  id="close-room-password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value);
-                    setDialogError(null);
-                  }}
-                  placeholder={t("closeRoom.passwordPlaceholder")}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      void handleVerifyPassword();
-                    }
-                  }}
-                />
-                {dialogError && (
-                  <p className="text-sm font-medium text-destructive">{dialogError}</p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {step === 2 && (
-            <div className="py-4 space-y-3">
-              <p className="text-sm font-semibold text-destructive">
-                {t("closeRoom.warningPermanent")}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {t("closeRoom.warningRelease")}
-              </p>
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button variant="outline" onClick={handleCloseDialog} disabled={actionLoading}>
-              {t("closeRoom.cancel")}
-            </Button>
-            {step === 1 ? (
-              <Button onClick={handleVerifyPassword} disabled={actionLoading}>
-                {actionLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {t("closeRoom.verifying")}
-                  </>
-                ) : (
-                  t("closeRoom.nextStep")
-                )}
-              </Button>
-            ) : (
-              <Button variant="destructive" onClick={handleConfirmDelete} disabled={actionLoading}>
-                {actionLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {t("closeRoom.closingRoom")}
-                  </>
-                ) : (
-                  t("closeRoom.confirmPhysicalClose")
-                )}
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <CloseRoomDialog
+        isOpen={isCloseDialogOpen}
+        onClose={handleCloseDialog}
+        step={step}
+        password={password}
+        setPassword={setPassword}
+        dialogError={dialogError}
+        setDialogError={setDialogError}
+        actionLoading={actionLoading}
+        onVerify={handleVerifyPassword}
+        onConfirmDelete={handleConfirmDelete}
+        roomName={roomDetails?.name ?? ""}
+      />
     </>
+  );
+}
+
+/** 关闭房间的多步确认对话框；桌面与移动共用。 */
+function CloseRoomDialog({
+  isOpen,
+  onClose,
+  step,
+  password,
+  setPassword,
+  dialogError,
+  setDialogError,
+  actionLoading,
+  onVerify,
+  onConfirmDelete,
+  roomName,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  step: number;
+  password: string;
+  setPassword: (value: string) => void;
+  dialogError: string | null;
+  setDialogError: (value: string | null) => void;
+  actionLoading: boolean;
+  onVerify: () => Promise<void>;
+  onConfirmDelete: () => Promise<void>;
+  roomName: string;
+}) {
+  const t = useTranslations("room");
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-destructive">
+            <XCircle className="h-5 w-5" />
+            {t("closeRoom.title", { roomName })}
+          </DialogTitle>
+          <DialogDescription>
+            {step === 1 ? t("closeRoom.passwordRequired") : t("closeRoom.destructiveWarning")}
+          </DialogDescription>
+        </DialogHeader>
+
+        {step === 1 && (
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="close-room-password">{t("closeRoom.passwordLabel")}</Label>
+              <Input
+                id="close-room-password"
+                type="password"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setDialogError(null);
+                }}
+                placeholder={t("closeRoom.passwordPlaceholder")}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    void onVerify();
+                  }
+                }}
+              />
+              {dialogError && (
+                <p className="text-sm font-medium text-destructive">{dialogError}</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="py-4 space-y-3">
+            <p className="text-sm font-semibold text-destructive">
+              {t("closeRoom.warningPermanent")}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {t("closeRoom.warningRelease")}
+            </p>
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={actionLoading}>
+            {t("closeRoom.cancel")}
+          </Button>
+          {step === 1 ? (
+            <Button onClick={() => void onVerify()} disabled={actionLoading}>
+              {actionLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {t("closeRoom.verifying")}
+                </>
+              ) : (
+                t("closeRoom.nextStep")
+              )}
+            </Button>
+          ) : (
+            <Button variant="destructive" onClick={() => void onConfirmDelete()} disabled={actionLoading}>
+              {actionLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {t("closeRoom.closingRoom")}
+                </>
+              ) : (
+                t("closeRoom.confirmPhysicalClose")
+              )}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
