@@ -81,6 +81,29 @@
         "description": "Click the \"Get Link\" button to view the room's share link and QR code. You can download the QR code image or copy the link to share with others."
       }
     },
+    "fileProtection": {
+      "title": "File Protection & Download Policy",
+      "policy": {
+        "title": "Download policy settings",
+        "description": "Identities with the file.policy.manage capability can configure per-file download protection on the file card. Policies apply to a single file and are independent of the room role permissions."
+      },
+      "modes": {
+        "title": "Protection modes",
+        "description": "Off: anyone with download permission can download directly. Reusable code: the same access code can be used repeatedly. One-time codes: each access code is consumed on first use, ideal for distributing to different people."
+      },
+      "downloadLimit": {
+        "title": "Download limit",
+        "description": "Limit the total number of downloads for the file; enter 0 for no limit. In reusable mode the completed download count is shown; in one-time mode it depends on the number of valid codes in the pool."
+      },
+      "codes": {
+        "title": "Access code management",
+        "description": "Generate random codes, batch-generate them, or set custom codes (e.g. VIP666). Codes can be deduplicated, cleared, copied in bulk, or exported as a .txt file. Copy and store them right away — one-time codes are only fully shown at generation time."
+      },
+      "redeem": {
+        "title": "Redeeming a code",
+        "description": "Accessing a protected file requires an access code to unlock preview and download. Invalid or exhausted codes fail verification; too many failed attempts trigger a temporary lockout, so try again later."
+      }
+    },
     "messageOperations": {
       "title": "Message Operations",
       "editMessage": {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { usePathname } from "next/navigation";
 import { getRoomToken, getRoomTokenString } from "@/lib/utils/api";
 import { decodeJWT } from "@/lib/utils/jwt";
@@ -21,20 +21,23 @@ export function useRoomCapabilities(
   const token = useMemo(() => roomName ? getRoomTokenString(roomName) : null, [roomName]);
   const tokenInfo = useMemo(() => roomName ? getRoomToken(roomName) : null, [roomName]);
   const payload = useMemo(() => token ? decodeJWT(token) : null, [token]);
-  const grants = capabilities ?? tokenInfo?.capabilities ?? [];
   const effectiveGrants = useMemo(() => {
+    const grants = capabilities ?? tokenInfo?.capabilities ?? [];
     if (grants.length > 0) return grants;
     const role = roles?.find((item) => item.role_key === (tokenInfo?.roleKey ?? payload?.role));
     return role?.capabilities ?? [];
-  }, [grants, roles, tokenInfo?.roleKey, payload?.role]);
-  const has = (capability: Capability, scope: Grant["scope"] = "any") =>
-    effectiveGrants.some((grant) => grant.capability === capability && (scope === "any" || grant.scope === scope));
+  }, [capabilities, tokenInfo, roles, payload?.role]);
+  const has = useCallback(
+    (capability: Capability, scope: Grant["scope"] = "any") =>
+      effectiveGrants.some((grant) => grant.capability === capability && (scope === "any" || grant.scope === scope)),
+    [effectiveGrants],
+  );
   const can = useMemo(() => ({
     read: has("msg.read"), edit: has("msg.edit", "any") || has("msg.edit", "own"),
     share: has("room.share"), delete: has("room.delete") || has("msg.delete", "any"),
     settings: has("room.settings.update"), manageRoles: has("room.roles.manage"),
     upload: has("file.upload"), download: has("file.download"),
-  }), [effectiveGrants]);
+  }), [has]);
   return { token, payload, grants: effectiveGrants, capabilities: effectiveGrants.map((grant) => grant.capability), has, can, roleKey: payload?.role ?? tokenInfo?.roleKey ?? null, roomName: payload?.room_name ?? roomName ?? null, roomId: payload?.room_id ?? null };
 }
 

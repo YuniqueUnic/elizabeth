@@ -25,6 +25,8 @@ import {
     Save,
     Settings,
     Share2,
+    ShieldCheck,
+    Ticket,
     Trash2,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -140,6 +142,24 @@ export function HelpDialog({ children }: { children: React.ReactNode }) {
                             </HelpItem>
                             <HelpItem title={t("sections.roomSharing.qrcode.title")} icon={QrCode}>
                                 {t("sections.roomSharing.qrcode.description")}
+                            </HelpItem>
+                        </HelpSection>
+
+                        <HelpSection title={t("sections.fileProtection.title")} icon={ShieldCheck}>
+                            <HelpItem title={t("sections.fileProtection.policy.title")} icon={Settings}>
+                                {t("sections.fileProtection.policy.description")}
+                            </HelpItem>
+                            <HelpItem title={t("sections.fileProtection.modes.title")} icon={Lock}>
+                                {t("sections.fileProtection.modes.description")}
+                            </HelpItem>
+                            <HelpItem title={t("sections.fileProtection.downloadLimit.title")} icon={Download}>
+                                {t("sections.fileProtection.downloadLimit.description")}
+                            </HelpItem>
+                            <HelpItem title={t("sections.fileProtection.codes.title")} icon={KeyRound}>
+                                {t("sections.fileProtection.codes.description")}
+                            </HelpItem>
+                            <HelpItem title={t("sections.fileProtection.redeem.title")} icon={Ticket}>
+                                {t("sections.fileProtection.redeem.description")}
                             </HelpItem>
                         </HelpSection>
 

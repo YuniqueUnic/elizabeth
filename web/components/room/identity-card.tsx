@@ -46,10 +46,11 @@ export function IdentityCard({ roomName }: { roomName: string }) {
         title: t("rotateSuccessTitle"),
         description: t("rotateSuccessDescription"),
       });
+      // 旧 jti 已失效，页面内 WebSocket 仍持有旧 token；整页刷新以新身份码重连
+      window.setTimeout(() => window.location.reload(), 900);
     } catch {
-      toast({ title: t("rotateFailed"), variant: "destructive" });
-    } finally {
       setRotating(false);
+      toast({ title: t("rotateFailed"), variant: "destructive" });
     }
   };
 
