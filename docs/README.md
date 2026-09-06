@@ -7,7 +7,8 @@
 - `DOCKER_QUICK_START.md`：Docker 最短路径（默认 SQLite，可选 PostgreSQL）
 - `DEPLOYMENT.md`：部署简版（建议先看）
 - `DEPLOYMENT_FULL.md`：部署详细版（TLS/反向代理/云平台等）
-- `CLOUDFLARE_DEPLOYMENT_PLAN.md`：Cloudflare（Workers / Durable Objects / D1 / R2 / Containers）部署可行性调研与移植方案（调研结论，待评审）
+- `CLOUDFLARE_DEPLOYMENT_PLAN.md`：Cloudflare（Workers / Durable Objects / D1 /
+  R2 / Containers）部署可行性调研与移植方案（调研结论，待评审）
 
 ## 开发 / 协议
 
@@ -19,4 +20,5 @@
 ## 深入理解（长文）
 
 - `ARCHITECTURE.md`：架构与实现细节（偏工程/源码导读）
-- `PERMISSIONS_REDESIGN.md`：房间角色与权限系统重构设计与开发指引（Role × Capability，待实施的权威契约）
+- `PERMISSIONS_REDESIGN.md`：房间角色与权限系统重构设计与开发指引（Role ×
+  Capability，待实施的权威契约）
