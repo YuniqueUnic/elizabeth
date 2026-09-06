@@ -126,6 +126,8 @@ export interface Message {
   isNew?: boolean;
   isDirty?: boolean;
   isPendingDelete?: boolean;
+  hidden?: boolean;
+  createdByJti?: string;
   originalContent?: string;
   sequence_number?: number;
 }
@@ -152,6 +154,8 @@ export interface FileItem {
   createdAt?: string;
   uploadedAt?: string;
   sequence_number?: number;
+  hidden?: boolean;
+  createdByJti?: string;
 }
 
 /**
@@ -217,6 +221,8 @@ export function backendContentToMessage(content: BackendRoomContent): Message {
     updatedAt: content.updated_at,
     fileName: content.file_name || undefined,
     sequence_number: content.sequence_number,
+    hidden: content.hidden,
+    createdByJti: content.created_by_jti || undefined,
   };
 }
 
@@ -258,5 +264,7 @@ export function backendContentToFileItem(
     createdAt: content.created_at,
     uploadedAt: content.created_at,
     sequence_number: content.sequence_number,
+    hidden: content.hidden,
+    createdByJti: content.created_by_jti || undefined,
   };
 }

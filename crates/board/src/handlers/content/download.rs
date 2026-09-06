@@ -73,6 +73,9 @@ pub async fn download_content_global(
         },
     )?;
 
+    // 隐藏文件对外按不存在处理，堵住直链绕过列表过滤的口子。
+    super::visibility::ensure_content_visible(&authz, &content)?;
+
     // Check policy
     let policy_repo = DownloadPolicyRepository::new(app_state.db_pool.clone());
     let policy = policy_repo

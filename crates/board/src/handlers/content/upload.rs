@@ -75,9 +75,24 @@ pub async fn list_contents(
         .await
         .map_err(|e| AppError::internal(format!("Failed to list contents: {e}")))?;
 
-    Ok(Json(
-        contents.into_iter().map(RoomContentView::from).collect(),
-    ))
+    // 隐藏文件仅对拥有 file.visibility.manage 能力的身份可见；own 作用域按创建者判定。
+    let views = contents
+        .into_iter()
+        .filter(|content| {
+            !content.hidden
+                || authz.permits(
+                    Capability::FileVisibilityManage,
+                    &Resource::Content {
+                        room_id,
+                        content_type: content.content_type,
+                        created_by_jti: content.created_by_jti.as_deref(),
+                    },
+                )
+        })
+        .map(RoomContentView::from)
+        .collect();
+
+    Ok(Json(views))
 }
 
 #[utoipa::path(
@@ -471,6 +486,7 @@ fn build_file_content(room_id: i64, owner_jti: &str, temp: &TempUpload) -> RoomC
         mime_type: None,
         sequence_number: 0,
         created_by_jti: Some(owner_jti.to_string()),
+        hidden: false,
         created_at: now,
         updated_at: now,
     };

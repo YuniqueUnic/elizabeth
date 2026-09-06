@@ -21,6 +21,12 @@ pub struct RoomContentView {
     pub mime_type: Option<String>,
     #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
     pub sequence_number: i32,
+    /// 对外可见性；仅对拥有对应 visibility.manage 能力的身份有意义的标记
+    #[cfg_attr(feature = "typescript-export", ts(type = "boolean"))]
+    pub hidden: bool,
+    /// 创建者会话 jti（前端 own 作用域按钮判定用）
+    #[cfg_attr(feature = "typescript-export", ts(optional))]
+    pub created_by_jti: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
 }
@@ -45,6 +51,8 @@ impl From<RoomContent> for RoomContentView {
             size: value.size,
             mime_type: value.mime_type,
             sequence_number: value.sequence_number,
+            hidden: value.hidden,
+            created_by_jti: value.created_by_jti.clone(),
             created_at: value.created_at,
             updated_at: value.updated_at,
         }
@@ -165,4 +173,20 @@ pub struct MessagePage {
     pub has_more: bool,
     #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
     pub next_sequence_number: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
+pub struct SetContentVisibilityRequest {
+    /// true = 隐藏（对外不可见）；false = 恢复显示
+    #[cfg_attr(feature = "typescript-export", ts(type = "boolean"))]
+    pub hidden: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
+pub struct SetContentVisibilityResponse {
+    pub updated: RoomContentView,
 }

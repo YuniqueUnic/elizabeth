@@ -34,7 +34,14 @@ const CAPABILITY_GROUPS: { key: "room" | "msg" | "file"; capabilities: Capabilit
   },
   {
     key: "msg",
-    capabilities: ["msg.read", "msg.send", "msg.copy", "msg.edit", "msg.delete"],
+    capabilities: [
+      "msg.read",
+      "msg.send",
+      "msg.copy",
+      "msg.edit",
+      "msg.delete",
+      "msg.visibility.manage",
+    ],
   },
   {
     key: "file",
@@ -45,11 +52,18 @@ const CAPABILITY_GROUPS: { key: "room" | "msg" | "file"; capabilities: Capabilit
       "file.upload",
       "file.delete",
       "file.policy.manage",
+      "file.visibility.manage",
     ],
   },
 ];
 
-const OWNABLE = new Set<Capability>(["msg.edit", "msg.delete", "file.delete"]);
+const OWNABLE = new Set<Capability>([
+  "msg.edit",
+  "msg.delete",
+  "file.delete",
+  "msg.visibility.manage",
+  "file.visibility.manage",
+]);
 
 interface RoleDraft {
   roleKey: string;

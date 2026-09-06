@@ -70,6 +70,9 @@ pub async fn update_content(
         return Err(AppError::permission_denied("Content not in this room"));
     }
 
+    // 隐藏内容对外不可编辑（包括消息编辑路径），需先恢复显示或持有 visibility 能力。
+    super::visibility::ensure_content_visible(&authz, &existing_content)?;
+
     // 编辑只改动消息型字段（text/url）；own 作用域按创建者 jti 判定。
     authz.require(
         Capability::MsgEdit,

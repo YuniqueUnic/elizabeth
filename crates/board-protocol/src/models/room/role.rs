@@ -59,6 +59,10 @@ pub enum Capability {
     FileDelete,
     #[serde(rename = "file.policy.manage")]
     FilePolicyManage,
+    #[serde(rename = "msg.visibility.manage")]
+    MsgVisibilityManage,
+    #[serde(rename = "file.visibility.manage")]
+    FileVisibilityManage,
 }
 
 impl fmt::Display for Capability {
@@ -73,7 +77,7 @@ impl fmt::Display for Capability {
 
 impl Capability {
     /// 全量能力表（与 utoipa/ts-rs 契约一致）。
-    pub const ALL: [Capability; 15] = [
+    pub const ALL: [Capability; 17] = [
         Capability::RoomShare,
         Capability::RoomSettingsUpdate,
         Capability::RoomRolesManage,
@@ -89,13 +93,19 @@ impl Capability {
         Capability::FileUpload,
         Capability::FileDelete,
         Capability::FilePolicyManage,
+        Capability::MsgVisibilityManage,
+        Capability::FileVisibilityManage,
     ];
 
     /// 可配置 own/any 作用域的能力；其余能力只能以 Any 授予。
     pub fn is_ownable(self) -> bool {
         matches!(
             self,
-            Capability::MsgEdit | Capability::MsgDelete | Capability::FileDelete
+            Capability::MsgEdit
+                | Capability::MsgDelete
+                | Capability::FileDelete
+                | Capability::MsgVisibilityManage
+                | Capability::FileVisibilityManage
         )
     }
 }
@@ -232,6 +242,8 @@ pub const SYSTEM_ROLE_TEMPLATES: [SystemRoleTemplate; 3] = [
             Grant::any(Capability::FileUpload),
             Grant::any(Capability::FileDelete),
             Grant::any(Capability::FilePolicyManage),
+            Grant::any(Capability::MsgVisibilityManage),
+            Grant::any(Capability::FileVisibilityManage),
         ],
     },
     SystemRoleTemplate {
@@ -243,11 +255,13 @@ pub const SYSTEM_ROLE_TEMPLATES: [SystemRoleTemplate; 3] = [
             Grant::any(Capability::MsgCopy),
             Grant::any(Capability::MsgEdit),
             Grant::own(Capability::MsgDelete),
+            Grant::own(Capability::MsgVisibilityManage),
             Grant::any(Capability::FileList),
             Grant::any(Capability::FilePreview),
             Grant::any(Capability::FileDownload),
             Grant::any(Capability::FileUpload),
             Grant::own(Capability::FileDelete),
+            Grant::own(Capability::FileVisibilityManage),
         ],
     },
     SystemRoleTemplate {

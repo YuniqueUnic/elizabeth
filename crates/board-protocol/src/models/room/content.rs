@@ -41,6 +41,9 @@ pub struct RoomContent {
     /// 创建者会话的 JWT jti（own 作用域判定依据；存量内容为 NULL → Own 拒绝）
     #[cfg_attr(feature = "typescript-export", ts(optional))]
     pub created_by_jti: Option<String>,
+    /// 对外可见性：hidden 的内容对缺少对应 visibility.manage 能力的身份不可见
+    #[cfg_attr(feature = "typescript-export", ts(type = "boolean"))]
+    pub hidden: bool,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
 }
@@ -58,6 +61,7 @@ fn build_room_content_sqlite(row: &SqliteRow) -> Result<RoomContent, sqlx::Error
         mime_type: row.try_get("mime_type")?,
         sequence_number: row.try_get("sequence_number")?,
         created_by_jti: row.try_get("created_by_jti")?,
+        hidden: row.try_get::<i64, _>("hidden")? != 0,
         created_at: row.try_get("created_at")?,
         updated_at: row.try_get("updated_at")?,
     })
@@ -76,6 +80,7 @@ fn build_room_content_pg(row: &PgRow) -> Result<RoomContent, sqlx::Error> {
         mime_type: row.try_get("mime_type")?,
         sequence_number: row.try_get("sequence_number")?,
         created_by_jti: row.try_get("created_by_jti")?,
+        hidden: row.try_get::<bool, _>("hidden")?,
         created_at: row.try_get("created_at")?,
         updated_at: row.try_get("updated_at")?,
     })
@@ -94,6 +99,7 @@ fn build_room_content_any(row: &AnyRow) -> Result<RoomContent, sqlx::Error> {
         mime_type: row.try_get("mime_type")?,
         sequence_number: row.try_get("sequence_number")?,
         created_by_jti: row.try_get("created_by_jti")?,
+        hidden: row.try_get::<i64, _>("hidden")? != 0,
         created_at: read_datetime_from_any(row, "created_at")?,
         updated_at: read_datetime_from_any(row, "updated_at")?,
     })
@@ -133,6 +139,7 @@ impl RoomContent {
             content_type,
             sequence_number,
             created_by_jti: None,
+            hidden: false,
             created_at: now,
             updated_at: now,
             text: None,

@@ -23,6 +23,7 @@ const CONTENT_SELECT_BASE: &str = r#"
         mime_type,
         sequence_number,
         created_by_jti,
+        hidden,
         CAST(created_at AS TEXT) as created_at,
         CAST(updated_at AS TEXT) as updated_at
     FROM room_contents
@@ -114,9 +115,9 @@ impl IRoomContentRepository for RoomContentRepository {
         let id: i64 = sqlx::query_scalar(
             r#"
             INSERT INTO room_contents
-                (room_id, content_type, text, url, path, file_name, size, mime_type, sequence_number, created_by_jti, created_at, updated_at)
+                (room_id, content_type, text, url, path, file_name, size, mime_type, sequence_number, created_by_jti, hidden, created_at, updated_at)
             VALUES
-                ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
             RETURNING id
             "#,
         )
@@ -130,6 +131,7 @@ impl IRoomContentRepository for RoomContentRepository {
         .bind(&room_content.mime_type)
         .bind(room_content.sequence_number)
         .bind(&room_content.created_by_jti)
+        .bind(room_content.hidden)
         .bind(now_str.clone())
         .bind(now_str)
         .fetch_one(&mut *tx)
@@ -156,8 +158,8 @@ impl IRoomContentRepository for RoomContentRepository {
             UPDATE room_contents SET
                 room_id = $1, content_type = $2, text = $3,
                 url = $4, path = $5, file_name = $6, size = $7, mime_type = $8,
-                sequence_number = $9, updated_at = $10
-            WHERE id = $11
+                sequence_number = $9, hidden = $10, updated_at = $11
+            WHERE id = $12
             "#,
         )
         .bind(room_content.room_id)
@@ -169,6 +171,7 @@ impl IRoomContentRepository for RoomContentRepository {
         .bind(room_content.size)
         .bind(&room_content.mime_type)
         .bind(room_content.sequence_number)
+        .bind(room_content.hidden)
         .bind(now_str)
         .bind(content_id)
         .execute(&mut *tx)

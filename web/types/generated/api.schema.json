@@ -285,7 +285,9 @@
         "file.download",
         "file.upload",
         "file.delete",
-        "file.policy.manage"
+        "file.policy.manage",
+        "msg.visibility.manage",
+        "file.visibility.manage"
       ]
     },
     "ChunkStatus": {
@@ -1232,6 +1234,10 @@
             "null"
           ]
         },
+        "hidden": {
+          "description": "对外可见性：hidden 的内容对缺少对应 visibility.manage 能力的身份不可见",
+          "type": "boolean"
+        },
         "id": {
           "type": [
             "integer",
@@ -1287,6 +1293,7 @@
         "room_id",
         "content_type",
         "sequence_number",
+        "hidden",
         "created_at",
         "updated_at"
       ]
@@ -1301,11 +1308,22 @@
           "type": "string",
           "format": "partial-date-time"
         },
+        "created_by_jti": {
+          "description": "创建者会话 jti（前端 own 作用域按钮判定用）",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "file_name": {
           "type": [
             "string",
             "null"
           ]
+        },
+        "hidden": {
+          "description": "对外可见性；仅对拥有对应 visibility.manage 能力的身份有意义的标记",
+          "type": "boolean"
         },
         "id": {
           "type": "integer",
@@ -1349,6 +1367,7 @@
         "id",
         "content_type",
         "sequence_number",
+        "hidden",
         "created_at",
         "updated_at"
       ]

@@ -10,6 +10,7 @@ const capabilityNames = [
   "room.share", "room.settings.update", "room.roles.manage", "room.delete",
   "msg.read", "msg.send", "msg.copy", "msg.edit", "msg.delete",
   "file.list", "file.preview", "file.download", "file.upload", "file.delete", "file.policy.manage",
+  "msg.visibility.manage", "file.visibility.manage",
 ] as const satisfies readonly Capability[];
 
 export function useRoomCapabilities(

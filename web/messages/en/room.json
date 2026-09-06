@@ -215,25 +215,71 @@
     },
     "caps": {
       "room": {
-        "share": { "label": "Share room" },
-        "settings": { "update": { "label": "Update room settings" } },
-        "roles": { "manage": { "label": "Manage members & roles" } },
-        "delete": { "label": "Close room" }
+        "share": {
+          "label": "Share room"
+        },
+        "settings": {
+          "update": {
+            "label": "Update room settings"
+          }
+        },
+        "roles": {
+          "manage": {
+            "label": "Manage members & roles"
+          }
+        },
+        "delete": {
+          "label": "Close room"
+        }
       },
       "msg": {
-        "read": { "label": "Read messages" },
-        "send": { "label": "Send messages" },
-        "copy": { "label": "Copy messages" },
-        "edit": { "label": "Edit messages" },
-        "delete": { "label": "Delete messages" }
+        "read": {
+          "label": "Read messages"
+        },
+        "send": {
+          "label": "Send messages"
+        },
+        "copy": {
+          "label": "Copy messages"
+        },
+        "edit": {
+          "label": "Edit messages"
+        },
+        "delete": {
+          "label": "Delete messages"
+        },
+        "visibility": {
+          "manage": {
+            "label": "Show/hide messages"
+          }
+        }
       },
       "file": {
-        "list": { "label": "List files" },
-        "preview": { "label": "Preview files" },
-        "download": { "label": "Download files" },
-        "upload": { "label": "Upload files" },
-        "delete": { "label": "Delete files" },
-        "policy": { "manage": { "label": "Manage download policy" } }
+        "list": {
+          "label": "List files"
+        },
+        "preview": {
+          "label": "Preview files"
+        },
+        "download": {
+          "label": "Download files"
+        },
+        "upload": {
+          "label": "Upload files"
+        },
+        "delete": {
+          "label": "Delete files"
+        },
+        "policy": {
+          "manage": {
+            "label": "Manage download policy"
+          }
+        },
+        "visibility": {
+          "manage": {
+            "label": "Show/hide files"
+          }
+        }
       }
     }
   },
@@ -317,7 +363,14 @@
     "delete": "Delete",
     "messageNumber": "Message #{number}",
     "userLabel": "User:",
-    "timeLabel": "Time:"
+    "timeLabel": "Time:",
+    "hidden": "Hidden",
+    "hide": "Hide message",
+    "show": "Unhide",
+    "hideSuccess": "Message hidden",
+    "showSuccess": "Message visible again",
+    "visibilityFailed": "Action failed. Please retry",
+    "hiddenHint": "Only members with manage permission can see this message"
   },
   "messageInput": {
     "editingBanner": "Editing message",
@@ -380,7 +433,10 @@
     "downloadSelected": "Download Selected"
   },
   "fileCard": {
-    "deleteFile": "Delete File"
+    "deleteFile": "Delete File",
+    "hidden": "Hidden",
+    "hide": "Hide file",
+    "show": "Unhide"
   },
   "fileDeleteConfirm": {
     "fileType": "file",

@@ -71,8 +71,27 @@ pub async fn list_messages(
         None
     };
 
+    // 隐藏消息仅对拥有 msg.visibility.manage 能力的身份可见；
+    // own 作用域按创建者 jti 逐条判定（作者本人始终能看到自己隐藏的消息）。
+    let items = page
+        .items
+        .into_iter()
+        .filter(|content| {
+            !content.hidden
+                || authz.permits(
+                    Capability::MsgVisibilityManage,
+                    &Resource::Content {
+                        room_id,
+                        content_type: content.content_type,
+                        created_by_jti: content.created_by_jti.as_deref(),
+                    },
+                )
+        })
+        .map(RoomContentView::from)
+        .collect();
+
     Ok(Json(MessagePage {
-        items: page.items.into_iter().map(RoomContentView::from).collect(),
+        items,
         next_cursor,
         has_more: page.has_more,
         next_sequence_number: page.next_sequence_number,

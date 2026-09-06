@@ -6,4 +6,4 @@
  * serde rename 字符串（如 `msg.edit`）同时是 ts-rs TS union、
  * `room_roles.capabilities` 紧凑格式与前端 i18n key 的能力段。
  */
-export type Capability = "room.share" | "room.settings.update" | "room.roles.manage" | "room.delete" | "msg.read" | "msg.send" | "msg.copy" | "msg.edit" | "msg.delete" | "file.list" | "file.preview" | "file.download" | "file.upload" | "file.delete" | "file.policy.manage";
+export type Capability = "room.share" | "room.settings.update" | "room.roles.manage" | "room.delete" | "msg.read" | "msg.send" | "msg.copy" | "msg.edit" | "msg.delete" | "file.list" | "file.preview" | "file.download" | "file.upload" | "file.delete" | "file.policy.manage" | "msg.visibility.manage" | "file.visibility.manage";

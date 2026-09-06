@@ -82,6 +82,19 @@ impl<'a> Authz<'a> {
         }
     }
 
+    /// 非抛错的查询型判定：用于列表过滤等「无权限时降级行为」而非直接 403 的场景。
+    pub fn permits(&self, capability: Capability, resource: &Resource<'_>) -> bool {
+        matches!(
+            authorize(
+                self.grants.as_deref(),
+                &self.principal,
+                capability,
+                resource,
+            ),
+            Decision::Allow,
+        )
+    }
+
     fn denied(capability: Capability, reason: DenyReason) -> AppError {
         AppError::permission_denied(format!(
             "Access denied: capability `{capability}` not granted ({reason})"

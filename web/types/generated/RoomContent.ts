@@ -8,4 +8,8 @@ export type RoomContent = { id: number | null, room_id: number, content_type: Co
 /**
  * 创建者会话的 JWT jti（own 作用域判定依据；存量内容为 NULL → Own 拒绝）
  */
-created_by_jti?: string, created_at: string, updated_at: string, };
+created_by_jti?: string, 
+/**
+ * 对外可见性：hidden 的内容对缺少对应 visibility.manage 能力的身份不可见
+ */
+hidden: boolean, created_at: string, updated_at: string, };

@@ -311,3 +311,97 @@ fn grant_parse_fail_closed_cases() {
     assert!(parse_grants_json("not-json").is_err());
     assert!(parse_grants_json(r#"["ok","room.delete:any"]"#).is_err());
 }
+
+#[test]
+fn visibility_capabilities_follow_role_matrix() {
+    // Admin 拥有任意内容的显隐控制；Reader 完全没有。
+    let admin = principal("jti-admin", ROLE_ADMIN);
+    assert_eq!(
+        authorize(
+            grants(ROLE_ADMIN).as_deref(),
+            &admin,
+            Capability::MsgVisibilityManage,
+            &room(1)
+        ),
+        Decision::Allow
+    );
+    assert_eq!(
+        authorize(
+            grants(ROLE_ADMIN).as_deref(),
+            &admin,
+            Capability::FileVisibilityManage,
+            &room(1)
+        ),
+        Decision::Allow
+    );
+
+    let reader = principal("jti-reader", ROLE_READER);
+    assert_eq!(
+        authorize(
+            grants(ROLE_READER).as_deref(),
+            &reader,
+            Capability::MsgVisibilityManage,
+            &room(1)
+        ),
+        Decision::Deny(DenyReason::CapabilityMissing)
+    );
+}
+
+#[test]
+fn editor_own_scope_visibility_only_covers_own_content() {
+    let editor = principal("jti-editor", ROLE_EDITOR);
+    let own_message = content(1, ContentType::Text, Some("jti-editor"));
+    let others_message = content(1, ContentType::Text, Some("jti-other"));
+
+    assert_eq!(
+        authorize(
+            grants(ROLE_EDITOR).as_deref(),
+            &editor,
+            Capability::MsgVisibilityManage,
+            &own_message
+        ),
+        Decision::Allow
+    );
+    assert_eq!(
+        authorize(
+            grants(ROLE_EDITOR).as_deref(),
+            &editor,
+            Capability::MsgVisibilityManage,
+            &others_message
+        ),
+        Decision::Deny(DenyReason::ScopeOwnViolation)
+    );
+    // 文件域同理：own 作用域同样只覆盖自己上传的文件
+    let own_file = content(1, ContentType::File, Some("jti-editor"));
+    assert_eq!(
+        authorize(
+            grants(ROLE_EDITOR).as_deref(),
+            &editor,
+            Capability::FileVisibilityManage,
+            &own_file
+        ),
+        Decision::Allow
+    );
+    let others_file = content(1, ContentType::File, Some("jti-other"));
+    assert_eq!(
+        authorize(
+            grants(ROLE_EDITOR).as_deref(),
+            &editor,
+            Capability::FileVisibilityManage,
+            &others_file
+        ),
+        Decision::Deny(DenyReason::ScopeOwnViolation)
+    );
+}
+
+#[test]
+fn visibility_grants_roundtrip_and_reject_non_ownable_mixing() {
+    let grants = [Grant::own(Capability::MsgVisibilityManage)];
+    let json = grants_to_json(&grants);
+    assert_eq!(parse_grants_json(&json).unwrap(), grants.to_vec());
+    let grants = [Grant::any(Capability::FileVisibilityManage)];
+    let json = grants_to_json(&grants);
+    assert_eq!(parse_grants_json(&json).unwrap(), grants.to_vec());
+    assert!(parse_grant("msg.visibility.manage:own").is_ok());
+    assert!(parse_grant("file.visibility.manage:any").is_ok());
+}

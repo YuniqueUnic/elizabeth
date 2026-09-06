@@ -107,6 +107,8 @@ export const API_ENDPOINTS = {
     url: (name: string) => `/rooms/${encodeURIComponent(name)}/contents/url`,
     byId: (name: string, contentId: string) =>
       `/rooms/${encodeURIComponent(name)}/contents/${contentId}`,
+    visibility: (name: string, contentId: string) =>
+      `/rooms/${encodeURIComponent(name)}/contents/${contentId}/visibility`,
     messages: (name: string) =>
       `/rooms/${encodeURIComponent(name)}/messages`,
   },

@@ -215,25 +215,71 @@
     },
     "caps": {
       "room": {
-        "share": { "label": "分享房间" },
-        "settings": { "update": { "label": "修改房间设置" } },
-        "roles": { "manage": { "label": "管理成员与角色" } },
-        "delete": { "label": "关闭房间" }
+        "share": {
+          "label": "分享房间"
+        },
+        "settings": {
+          "update": {
+            "label": "修改房间设置"
+          }
+        },
+        "roles": {
+          "manage": {
+            "label": "管理成员与角色"
+          }
+        },
+        "delete": {
+          "label": "关闭房间"
+        }
       },
       "msg": {
-        "read": { "label": "查看消息" },
-        "send": { "label": "发送消息" },
-        "copy": { "label": "复制消息" },
-        "edit": { "label": "编辑消息" },
-        "delete": { "label": "删除消息" }
+        "read": {
+          "label": "查看消息"
+        },
+        "send": {
+          "label": "发送消息"
+        },
+        "copy": {
+          "label": "复制消息"
+        },
+        "edit": {
+          "label": "编辑消息"
+        },
+        "delete": {
+          "label": "删除消息"
+        },
+        "visibility": {
+          "manage": {
+            "label": "控制消息显隐"
+          }
+        }
       },
       "file": {
-        "list": { "label": "查看文件列表" },
-        "preview": { "label": "预览文件" },
-        "download": { "label": "下载文件" },
-        "upload": { "label": "上传文件" },
-        "delete": { "label": "删除文件" },
-        "policy": { "manage": { "label": "管理下载策略" } }
+        "list": {
+          "label": "查看文件列表"
+        },
+        "preview": {
+          "label": "预览文件"
+        },
+        "download": {
+          "label": "下载文件"
+        },
+        "upload": {
+          "label": "上传文件"
+        },
+        "delete": {
+          "label": "删除文件"
+        },
+        "policy": {
+          "manage": {
+            "label": "管理下载策略"
+          }
+        },
+        "visibility": {
+          "manage": {
+            "label": "控制文件显隐"
+          }
+        }
       }
     }
   },
@@ -317,7 +363,14 @@
     "delete": "删除",
     "messageNumber": "消息 #{number}",
     "userLabel": "用户:",
-    "timeLabel": "时间:"
+    "timeLabel": "时间:",
+    "hidden": "已隐藏",
+    "hide": "隐藏消息",
+    "show": "取消隐藏",
+    "hideSuccess": "消息已隐藏",
+    "showSuccess": "消息已恢复显示",
+    "visibilityFailed": "操作失败，请重试",
+    "hiddenHint": "仅管理成员可见，普通成员看不到这条消息"
   },
   "messageInput": {
     "editingBanner": "正在编辑消息",
@@ -380,7 +433,10 @@
     "downloadSelected": "下载选中文件"
   },
   "fileCard": {
-    "deleteFile": "删除文件"
+    "deleteFile": "删除文件",
+    "hidden": "已隐藏",
+    "hide": "隐藏文件",
+    "show": "取消隐藏"
   },
   "fileDeleteConfirm": {
     "fileType": "文件",

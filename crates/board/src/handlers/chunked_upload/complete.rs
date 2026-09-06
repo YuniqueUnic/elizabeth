@@ -347,6 +347,7 @@ fn build_room_content(
         id: None,
         room_id,
         created_by_jti: Some(owner_jti.to_string()),
+        hidden: false,
         content_type: ContentType::File,
         text: None,
         url: Some(file.name.clone()),
