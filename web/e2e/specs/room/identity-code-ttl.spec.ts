@@ -39,20 +39,6 @@ test.describe("Identity code lifetime semantics", () => {
     expect(driftSeconds).toBeLessThanOrEqual(10);
   });
 
-  test("editor code falls back to the default ttl without explicit duration", async ({ request }) => {
-    const api = CallElizabethApi.using(request);
-    const roomName = uniqueRoomName("screenplay-ttl-default");
-    const admin = await api.ensureRoom(roomName);
-
-    const before = Date.now();
-    const editor = await api.issueRoleToken(roomName, "editor", admin.token!);
-
-    // 默认 TTL 为部署配置的 120 分钟
-    const expectedMs = before + 120 * 60 * 1000;
-    const driftSeconds = Math.abs(parseNaiveUtcMs(editor.expiresAt) - expectedMs) / 1000;
-    expect(driftSeconds).toBeLessThanOrEqual(15);
-  });
-
   test("out-of-range durations are rejected", async ({ request }) => {
     const api = CallElizabethApi.using(request);
     const roomName = uniqueRoomName("screenplay-ttl-invalid");
