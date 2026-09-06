@@ -17,4 +17,10 @@ with_refresh_token: boolean,
  * 请求加入的角色；缺省 = 房间默认角色。
  * 指定非默认角色需要 `room.roles.manage` 能力（匿名进房者只能拿默认角色）。
  */
-role?: string, };
+role?: string, 
+/**
+ * 身份码有效时长（秒）；仅对非默认角色生效，缺省 = 部署配置的默认 TTL。
+ * 下限 60 秒，上限 10 年，实际有效期不会超过房间自身的过期时间。
+ * admin 角色忽略此字段：admin 身份码始终跟随房间生命周期。
+ */
+expires_in_secs?: bigint, };

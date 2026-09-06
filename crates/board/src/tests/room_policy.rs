@@ -246,6 +246,7 @@ async fn websocket_handshake_rejects_revoked_sessions_and_returns_live_room_info
             token: None,
             with_refresh_token: false,
             role: None,
+            expires_in_secs: None,
         }),
     )
     .await?;

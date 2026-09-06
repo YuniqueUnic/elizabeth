@@ -17,6 +17,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 /** 后端 naive datetime 为 UTC；前端解析时补 Z 并截断到毫秒。 */
 function parseNaiveUtc(value: string): Date | null {
@@ -115,6 +122,11 @@ export function MemberAccessPanel({ roomName }: { roomName: string }) {
   });
 
   const [issuedCode, setIssuedCode] = useState<string | null>(null);
+  const [issuedExpiresAt, setIssuedExpiresAt] = useState<string | null>(null);
+  const [durationValue, setDurationValue] = useState("7");
+  const [durationUnit, setDurationUnit] = useState<
+    "second" | "minute" | "hour" | "day" | "month"
+  >("day");
   const [manualCopyValue, setManualCopyValue] = useState("");
   const [codeToVerify, setCodeToVerify] = useState("");
   const [verifying, setVerifying] = useState(false);
@@ -128,10 +140,27 @@ export function MemberAccessPanel({ roomName }: { roomName: string }) {
   const invalidateTokens = () =>
     queryClient.invalidateQueries({ queryKey: ["room-tokens", roomName] });
 
+  // 单位换算成秒；"个月"按 30 天计
+  const DURATION_UNIT_SECONDS = {
+    second: 1,
+    minute: 60,
+    hour: 3600,
+    day: 86400,
+    month: 2592000,
+  } as const;
+
+  const resolvedDurationSecs = (() => {
+    const value = Number(durationValue);
+    if (!Number.isFinite(value) || value <= 0) return null;
+    return Math.round(value * DURATION_UNIT_SECONDS[durationUnit]);
+  })();
+
   const issue = useMutation({
-    mutationFn: () => issueRoomRoleToken(roomName, "editor", token!),
+    mutationFn: () =>
+      issueRoomRoleToken(roomName, "editor", token!, resolvedDurationSecs ?? undefined),
     onSuccess: (response) => {
       setIssuedCode(response.token);
+      setIssuedExpiresAt(response.expires_at);
       void invalidateTokens();
     },
     onError: (error: any) => {
@@ -200,10 +229,46 @@ export function MemberAccessPanel({ roomName }: { roomName: string }) {
           </span>
         </div>
         <p className="text-xs text-muted-foreground">{t("editorSeatsHint")}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Label htmlFor="editor-token-duration" className="shrink-0 text-xs text-muted-foreground">
+            {t("durationLabel")}
+          </Label>
+          <Input
+            id="editor-token-duration"
+            type="number"
+            min={1}
+            value={durationValue}
+            onChange={(event) => setDurationValue(event.target.value)}
+            className="h-8 w-24"
+            data-testid="editor-token-duration-value"
+          />
+          <Select
+            value={durationUnit}
+            onValueChange={(value) => setDurationUnit(value as typeof durationUnit)}
+          >
+            <SelectTrigger className="h-8 w-28" data-testid="editor-token-duration-unit">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="second">{t("unitSecond")}</SelectItem>
+              <SelectItem value="minute">{t("unitMinute")}</SelectItem>
+              <SelectItem value="hour">{t("unitHour")}</SelectItem>
+              <SelectItem value="day">{t("unitDay")}</SelectItem>
+              <SelectItem value="month">{t("unitMonth")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <p className="text-xs text-muted-foreground">{t("durationHint")}</p>
         <Button
           type="button"
           size="sm"
-          onClick={() => issue.mutate()}
+          onClick={() => {
+            if (resolvedDurationSecs == null) {
+              toast({ title: t("invalidDuration"), variant: "destructive" });
+              return;
+            }
+            issue.mutate();
+          }}
           disabled={issue.isPending || activeEditorSeats >= MAX_EDITOR_TOKENS}
         >
           {issue.isPending ? (
@@ -234,7 +299,11 @@ export function MemberAccessPanel({ roomName }: { roomName: string }) {
                 {tIdentity("copy")}
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">{t("issuedTokenHint")}</p>
+            <p className="text-xs text-muted-foreground">
+              {issuedExpiresAt
+                ? t("issuedTokenExpires", { time: formatTime(issuedExpiresAt) })
+                : t("issuedTokenHint")}
+            </p>
           </div>
         )}
       </section>
