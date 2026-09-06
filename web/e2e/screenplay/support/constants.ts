@@ -10,11 +10,14 @@ export interface RoomTokenInfo {
   token: string;
   expiresAt: string;
   refreshToken?: string;
+  capabilities?: Array<{ capability: string; scope: "any" | "own" }>;
+  roleKey?: string;
 }
 
 export interface ProvisionedRoom {
   name: string;
   url: string;
   password?: string;
+  /** 房间创建者的 admin 身份码 */
   tokenInfo?: RoomTokenInfo;
 }

@@ -20,6 +20,7 @@ pub fn api_router(app_state: Arc<AppState>) -> OpenApiRouter {
         .routes(routes!(crate::handlers::rooms::tokens::verify_password))
         .routes(routes!(crate::handlers::rooms::tokens::list_tokens))
         .routes(routes!(crate::handlers::rooms::tokens::validate_token))
+        .routes(routes!(crate::handlers::rooms::tokens::my_capabilities))
         .routes(routes!(crate::handlers::rooms::tokens::revoke_token))
         .routes(routes!(crate::handlers::content::upload::list_contents))
         .routes(routes!(crate::handlers::content::upload::prepare_upload))

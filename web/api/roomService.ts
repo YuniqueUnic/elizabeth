@@ -13,6 +13,7 @@ import { api } from "../lib/utils/api";
 import { getValidToken } from "./authService";
 import type {
   BackendRoom,
+  RoomGrant,
   CreateRoomRequest,
   CreateRoomResponse,
   RoomDetails,
@@ -125,6 +126,22 @@ export async function deleteRoomRole(roomName: string, roleKey: string, token?: 
   const authToken = token || await getValidToken(roomName);
   if (!authToken) throw new Error("Authentication required to delete room role");
   await api.delete(API_ENDPOINTS.rooms.role(roomName, roleKey), undefined, { token: authToken });
+}
+
+/**
+ * 获取当前会话的实时能力快照（角色矩阵变更后的客户端刷新通道）。
+ */
+export async function getMyCapabilities(
+  roomName: string,
+  token?: string,
+): Promise<{ role: string; capabilities: RoomGrant[] }> {
+  const authToken = token || (await getValidToken(roomName)) || undefined;
+  if (!authToken) throw new Error("Authentication required to read capabilities");
+  return api.get<{ role: string; capabilities: RoomGrant[] }>(
+    API_ENDPOINTS.rooms.capabilities(roomName),
+    undefined,
+    { token: authToken },
+  );
 }
 
 /**

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { TopBar } from "@/components/layout/top-bar";
@@ -24,6 +24,9 @@ import { ContentType, parseContentType } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslations } from "next-intl";
+import { useRoomCapabilities } from "@/hooks/use-room-capabilities";
+import { getMyCapabilities } from "@/api/roomService";
+import { setRoomToken, getRoomToken } from "@/lib/utils/api";
 import { copyTextToClipboard } from "@/lib/utils/clipboard";
 import { ManualCopyDialog } from "@/components/manual-copy-dialog";
 import {
@@ -72,6 +75,28 @@ function RoomRealtimeSync({
   const applyMessageCreated = useAppStore((state) => state.applyMessageCreated);
   const applyMessageUpdated = useAppStore((state) => state.applyMessageUpdated);
   const applyMessageDeleted = useAppStore((state) => state.applyMessageDeleted);
+  const { has, payload } = useRoomCapabilities();
+  const myJti = payload?.jti ?? null;
+  const canManageMessageVisibility = has("msg.visibility.manage", "any")
+    || has("msg.visibility.manage", "own");
+  const bumpCapabilitiesVersion = useAppStore((state) => state.bumpCapabilitiesVersion);
+
+  // 角色矩阵变更：拉取最新能力快照并更新本地 TokenInfo，UI 门禁随之实时生效
+  const refreshMyCapabilities = useCallback(async () => {
+    try {
+      const current = getRoomToken(roomName);
+      if (!current) return;
+      const snapshot = await getMyCapabilities(roomName);
+      setRoomToken(roomName, {
+        ...current,
+        capabilities: snapshot.capabilities,
+        roleKey: snapshot.role,
+      });
+      bumpCapabilitiesVersion();
+    } catch (error) {
+      console.warn("Failed to refresh capabilities after roles change:", error);
+    }
+  }, [roomName, bumpCapabilitiesVersion]);
   const refreshLatestMessages = useAppStore((state) =>
     state.refreshLatestMessages
   );
@@ -138,6 +163,14 @@ function RoomRealtimeSync({
       }
     },
     onContentUpdated: (payload) => {
+      // 隐藏事件不带正文；无管理能力的成员直接从本地缓存移除，
+      // 持有 msg.visibility.manage 的成员就地合并 hidden 状态
+      if (payload.hidden && payload.content_id != null
+        && payload.created_by_jti !== myJti
+        && !canManageMessageVisibility) {
+        applyMessageDeleted(String(payload.content_id));
+        return;
+      }
       notifyContentChange("updated", payload);
       const kind = parseContentType(payload.content_type);
       if (kind === ContentType.Text) {
@@ -160,6 +193,9 @@ function RoomRealtimeSync({
       notifyRoomUpdate(payload);
       onRoomUpdate?.(payload);
       queryClient.invalidateQueries({ queryKey: ["room", roomName] });
+      if (payload.reason === "roles_changed") {
+        void refreshMyCapabilities();
+      }
     },
   });
 

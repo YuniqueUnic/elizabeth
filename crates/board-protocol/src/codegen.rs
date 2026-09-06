@@ -12,7 +12,7 @@ use crate::dto::{
     DeleteRoomResponse, FileMergeRequest, FileMergeResponse, FullRoomGcStatusView,
     IssueTokenRequest, IssueTokenResponse, LogoutRequest, MergedFileInfo, MessagePage,
     PublicConfigResponse, PublicRoomConfig, PublicRoomExpiryConfig, ReservedFileInfo,
-    RevokeTokenResponse, RoleDefinition, RoomContentView, RoomTokenClaims, RoomTokenView, RoomView,
+    MyCapabilitiesResponse, RevokeTokenResponse, RoleDefinition, RoomContentView, RoomTokenClaims, RoomTokenView, RoomView,
     RunRoomGcResponse, TokenType, UpdateContentRequest, UpdateContentResponse, UpdateRoleRequest,
     UpdateRoomSettingsRequest, UploadContentResponse, UploadPreparationRequest,
     UploadPreparationResponse, UploadStatusQuery, UploadStatusResponse, ValidateTokenRequest,
@@ -67,6 +67,7 @@ pub fn export_ts_types_to(output_dir: &Path) -> Result<(), ts_rs::ExportError> {
     Scope::export_all(&output_dir_cfg)?;
     Grant::export_all(&output_dir_cfg)?;
     RevokeTokenResponse::export_all(&output_dir_cfg)?;
+    MyCapabilitiesResponse::export_all(&output_dir_cfg)?;
     DeleteRoomResponse::export_all(&output_dir_cfg)?;
     RoomTokenView::export_all(&output_dir_cfg)?;
 
@@ -142,6 +143,7 @@ pub fn exported_ts_type_names() -> &'static [&'static str] {
         "Scope",
         "Grant",
         "RevokeTokenResponse",
+        "MyCapabilitiesResponse",
         "DeleteRoomResponse",
         "RoomTokenView",
         "RoomContentView",

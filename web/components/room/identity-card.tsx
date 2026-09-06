@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Copy, Loader2, RotateCw, UsersRound } from "lucide-react";
-import { getAccessToken } from "@/api/authService";
+import { Copy, KeyRound, Loader2, RotateCw, UsersRound } from "lucide-react";
+import { getAccessToken, validateToken } from "@/api/authService";
 import { getRoomTokenString } from "@/lib/utils/api";
 import { useRoomCapabilities } from "@/hooks/use-room-capabilities";
 import { useToast } from "@/hooks/use-toast";
@@ -11,8 +11,18 @@ import { copyTextToClipboard } from "@/lib/utils/clipboard";
 import { ManualCopyDialog } from "@/components/manual-copy-dialog";
 import { RoomPermissionsDialog } from "@/components/room/room-permissions-dialog";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { setRoomToken } from "@/lib/utils/api";
+import { Button } from "@/components/ui/button";
 
 function RoleBadge({ roleKey, label }: { roleKey: string | null; label: string }) {
   return (
@@ -35,7 +45,31 @@ export function IdentityCard({ roomName }: { roomName: string }) {
   const [rotating, setRotating] = useState(false);
   const [permissionsOpen, setPermissionsOpen] = useState(false);
   const [manualCopyValue, setManualCopyValue] = useState("");
+  const [redeemOpen, setRedeemOpen] = useState(false);
+  const [redeemCode, setRedeemCode] = useState("");
+  const [redeeming, setRedeeming] = useState(false);
+  const [redeemError, setRedeemError] = useState<string | null>(null);
   const token = getRoomTokenString(roomName);
+
+  // 身份码兑换：粘贴 admin 分发的身份码，POST /tokens 换取正式会话并切换角色
+  const redeem = async () => {
+    const code = redeemCode.trim();
+    setRedeemError(null);
+    if (!code) return;
+    setRedeeming(true);
+    try {
+      const response = await validateToken(roomName, code);
+      setRoomToken(roomName, {
+        token: code,
+        expiresAt: new Date(Number(response.claims.exp) * 1000).toISOString(),
+        roleKey: response.claims.role,
+      });
+      window.location.reload();
+    } catch {
+      setRedeemError(t("redeemInvalid"));
+      setRedeeming(false);
+    }
+  };
 
   const rotate = async () => {
     setRotating(true);
@@ -128,13 +162,25 @@ export function IdentityCard({ roomName }: { roomName: string }) {
           </Button>
         </>
       ) : (
-        <p className="text-xs text-muted-foreground">
-          {roleKey === "editor"
-            ? t("editorHint")
-            : roleKey === "reader" || !roleKey
-              ? t("readerHint")
-              : t("customHint")}
-        </p>
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">
+            {roleKey === "editor"
+              ? t("editorHint")
+              : roleKey === "reader" || !roleKey
+                ? t("readerHint")
+                : t("customHint")}
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-full justify-center gap-2"
+            onClick={() => setRedeemOpen(true)}
+          >
+            <KeyRound className="h-4 w-4" />
+            {t("redeemAction")}
+          </Button>
+        </div>
       )}
 
       <RoomPermissionsDialog
@@ -142,6 +188,44 @@ export function IdentityCard({ roomName }: { roomName: string }) {
         open={permissionsOpen}
         onOpenChange={setPermissionsOpen}
       />
+      <Dialog open={redeemOpen} onOpenChange={(open) => {
+        if (!redeeming) setRedeemOpen(open);
+      }}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>{t("redeemTitle")}</DialogTitle>
+            <DialogDescription>{t("redeemDescription")}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="identity-redeem-code">{t("codeLabel")}</Label>
+            <Input
+              id="identity-redeem-code"
+              type="password"
+              autoComplete="off"
+              value={redeemCode}
+              onChange={(event) => {
+                setRedeemCode(event.target.value);
+                setRedeemError(null);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") void redeem();
+              }}
+              data-testid="identity-redeem-input"
+            />
+            {redeemError && (
+              <p role="alert" className="text-sm text-destructive">{redeemError}</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRedeemOpen(false)} disabled={redeeming}>
+              {t("redeemCancel")}
+            </Button>
+            <Button onClick={() => void redeem()} disabled={!redeemCode.trim() || redeeming}>
+              {redeeming ? t("redeeming") : t("redeemConfirm")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <ManualCopyDialog
         open={manualCopyValue.length > 0}
         value={manualCopyValue}

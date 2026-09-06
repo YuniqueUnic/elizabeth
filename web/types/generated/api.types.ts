@@ -40,6 +40,7 @@ export * from './Capability';
 export * from './Scope';
 export * from './Grant';
 export * from './RevokeTokenResponse';
+export * from './MyCapabilitiesResponse';
 export * from './DeleteRoomResponse';
 export * from './RoomTokenView';
 export * from './RoomContentView';

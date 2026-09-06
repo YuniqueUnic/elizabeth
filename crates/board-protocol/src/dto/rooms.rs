@@ -161,7 +161,16 @@ pub struct UpdateRoomSettingsRequest {
     pub default_role_key: Option<String>,
 }
 
-#[derive(Debug, Serialize, ToSchema)]
+/// 当前会话的实时能力快照（角色矩阵变更后客户端刷新用）。
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
+pub struct MyCapabilitiesResponse {
+    pub role: String,
+    pub capabilities: Vec<Grant>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
 #[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct RevokeTokenResponse {

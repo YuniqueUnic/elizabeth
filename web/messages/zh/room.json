@@ -146,7 +146,14 @@
     "managePermissions": "成员与权限",
     "editorHint": "你以编辑者身份进入，身份码由房间管理员分发。",
     "readerHint": "你以读者身份进入，仅可查看房间内容。",
-    "customHint": "你的身份由房间管理员分配，具体权限以角色设置为准。"
+    "customHint": "你的身份由房间管理员分配，具体权限以角色设置为准。",
+    "redeemAction": "使用身份码",
+    "redeemTitle": "使用身份码进入",
+    "redeemDescription": "粘贴房间管理员分发的身份码，将以对应身份进入本房间。",
+    "redeemInvalid": "身份码无效或已过期",
+    "redeeming": "验证中...",
+    "redeemConfirm": "进入房间",
+    "redeemCancel": "取消"
   },
   "members": {
     "title": "成员与权限",

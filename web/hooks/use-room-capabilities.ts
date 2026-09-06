@@ -3,6 +3,7 @@
 import { useCallback, useMemo } from "react";
 import { usePathname } from "next/navigation";
 import { getRoomToken, getRoomTokenString } from "@/lib/utils/api";
+import { useAppStore } from "@/lib/store";
 import { decodeJWT } from "@/lib/utils/jwt";
 import type { Capability, Grant, RoleDefinition } from "@/lib/types";
 
@@ -19,8 +20,22 @@ export function useRoomCapabilities(
 ) {
   const pathname = usePathname();
   const roomName = pathname?.split("/").filter(Boolean)[0] ?? undefined;
-  const token = useMemo(() => roomName ? getRoomTokenString(roomName) : null, [roomName]);
-  const tokenInfo = useMemo(() => roomName ? getRoomToken(roomName) : null, [roomName]);
+  // 角色矩阵变更后 bump，强制从 localStorage 重读最新能力快照
+  const capabilitiesVersion = useAppStore((state) => state.capabilitiesVersion);
+  const token = useMemo(
+    () => {
+      void capabilitiesVersion; // 版本号仅作为重读 localStorage 的触发器
+      return roomName ? getRoomTokenString(roomName) : null;
+    },
+    [roomName, capabilitiesVersion],
+  );
+  const tokenInfo = useMemo(
+    () => {
+      void capabilitiesVersion;
+      return roomName ? getRoomToken(roomName) : null;
+    },
+    [roomName, capabilitiesVersion],
+  );
   const payload = useMemo(() => token ? decodeJWT(token) : null, [token]);
   const effectiveGrants = useMemo(() => {
     const grants = capabilities ?? tokenInfo?.capabilities ?? [];

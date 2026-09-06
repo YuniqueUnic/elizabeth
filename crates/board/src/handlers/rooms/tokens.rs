@@ -7,8 +7,8 @@ use axum::http::HeaderMap;
 use super::shared::HandlerResult;
 use crate::authz::{Authz, Resource, load_role_table};
 use crate::dto::rooms::{
-    IssueTokenRequest, IssueTokenResponse, RevokeTokenResponse, RoomTokenView,
-    ValidateTokenRequest, ValidateTokenResponse, VerifyRoomPasswordRequest,
+    IssueTokenRequest, IssueTokenResponse, MyCapabilitiesResponse, RevokeTokenResponse,
+    RoomTokenView, ValidateTokenRequest, ValidateTokenResponse, VerifyRoomPasswordRequest,
     VerifyRoomPasswordResponse,
 };
 use crate::errors::AppError;
@@ -434,4 +434,49 @@ fn broadcast_user_joined(app_state: Arc<AppState>, room_name: String, user_id: S
             log::warn!("Failed to broadcast user joined event: {}", e);
         }
     });
+}
+
+/// 查询当前会话的实时能力快照。
+///
+/// 角色矩阵变更后，客户端收到 roles_changed 事件即调用本端点刷新本地
+/// TokenInfo.capabilities，使 UI 门禁与服务端实时矩阵保持一致（无需重登/轮换）。
+#[utoipa::path(
+    get,
+    path = "/api/v1/rooms/{name}/capabilities",
+    params(
+        ("name" = String, Path, description = "房间名称"),
+        ("token" = String, Query, description = "任一有效房间 token")
+    ),
+    responses(
+        (status = 200, description = "当前会话能力", body = MyCapabilitiesResponse),
+        (status = 401, description = "token 无效或已撤销"),
+        (status = 404, description = "房间不存在")
+    ),
+    tag = "rooms"
+)]
+pub async fn my_capabilities(
+    Path(name): Path<String>,
+    AuthToken(token): AuthToken,
+    State(app_state): State<Arc<AppState>>,
+) -> HandlerResult<MyCapabilitiesResponse> {
+    RoomNameValidator::validate_identifier(&name)?;
+
+    let verified = verify_room_token(app_state.clone(), &name, &token).await?;
+    let room_id = verified
+        .room
+        .id
+        .ok_or_else(|| AppError::internal("Room id missing"))?;
+    let role_table = load_role_table(
+        &app_state.roles_cache,
+        &app_state.db_pool,
+        room_id,
+        verified.room.roles_version,
+    )
+    .await?;
+
+    let role = verified.claims.role.clone();
+    Ok(Json(MyCapabilitiesResponse {
+        capabilities: role_table.grants(&role).unwrap_or_default().to_vec(),
+        role,
+    }))
 }

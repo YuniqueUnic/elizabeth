@@ -58,6 +58,7 @@ impl Broadcaster {
             "text": if content.hidden { None } else { content.text.clone() },
             "file_name": if content.hidden { None } else { content.file_name.clone() },
             "hidden": content.hidden,
+            "created_by_jti": content.created_by_jti,
             "sequence_number": content.sequence_number,
             "created_at": content.created_at,
             "updated_at": content.updated_at,

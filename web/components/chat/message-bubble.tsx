@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Copy, Edit2, RotateCcw, Trash2 } from "lucide-react";
+import { Copy, Edit2, EyeOff, Eye, RotateCcw, Trash2 } from "lucide-react";
 import type { Message } from "@/lib/types";
 import { copyTextToClipboard } from "@/lib/utils/clipboard";
 import { formatDate } from "@/lib/utils/format";
@@ -26,6 +26,8 @@ interface MessageBubbleProps {
   isEditing?: boolean;
   canEdit: boolean;
   canDelete: boolean;
+  canToggleVisibility: boolean;
+  onToggleVisibility: (message: Message) => void;
 }
 
 export const MessageBubble = memo(function MessageBubble(
@@ -39,6 +41,8 @@ export const MessageBubble = memo(function MessageBubble(
     isEditing = false,
     canEdit,
     canDelete,
+    canToggleVisibility,
+    onToggleVisibility,
   }: MessageBubbleProps,
 ) {
   const t = useTranslations("room");
@@ -104,7 +108,7 @@ export const MessageBubble = memo(function MessageBubble(
       <div
       className={`group relative rounded-lg border bg-card p-4 transition-colors hover:bg-accent/50 min-w-0 ${
         isSelected ? "ring-2 ring-primary" : ""
-      } ${message.isPendingDelete ? "opacity-50" : ""}`}
+      } ${message.isPendingDelete || message.hidden ? "opacity-60" : ""}`}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       data-testid={`message-item-${message.id}`}
@@ -178,6 +182,17 @@ export const MessageBubble = memo(function MessageBubble(
               {t("messageBubble.edited")}
             </Badge>
           )}
+          {message.hidden && (
+            <Badge
+              variant="secondary"
+              className="text-xs"
+              title={t("messageBubble.hiddenHint")}
+              data-testid={`message-hidden-badge-${message.id}`}
+            >
+              <EyeOff className="mr-1 h-3 w-3" />
+              {t("messageBubble.hidden")}
+            </Badge>
+          )}
         </div>
       </div>
 
@@ -235,6 +250,18 @@ export const MessageBubble = memo(function MessageBubble(
                 >
                   <Copy className="h-3 w-3" />
                 </Button>
+                {canToggleVisibility && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    data-testid={`message-visibility-${message.id}`}
+                    onClick={() => onToggleVisibility(message)}
+                    title={message.hidden ? t("messageBubble.show") : t("messageBubble.hide")}
+                  >
+                    {message.hidden ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="icon"

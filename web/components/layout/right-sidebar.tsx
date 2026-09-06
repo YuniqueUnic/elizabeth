@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +42,7 @@ import {
 import { getPolicy } from "@/api/policyService";
 import { useAppStore } from "@/lib/store";
 import { useToast } from "@/hooks/use-toast";
+import { setContentVisibility } from "@/api/visibilityService";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useRoomCapabilities } from "@/hooks/use-room-capabilities";
 import { getRoomDetails } from "@/api/roomService";
@@ -112,7 +113,34 @@ export function RightSidebar() {
     staleTime: 1000,
     enabled: !!currentRoomId,
   });
-  const { can } = useRoomCapabilities();
+  const { can, has, payload } = useRoomCapabilities();
+  // own 作用域仅能操作自己上传的文件；any 作用域覆盖全部
+  const canToggleFileVisibility = useCallback(
+    (file: FileItem) =>
+      has("file.visibility.manage", "any") ||
+      (has("file.visibility.manage", "own") &&
+        (!file.createdByJti || file.createdByJti === payload?.jti)),
+    [has, payload?.jti],
+  );
+
+  const handleToggleFileVisibility = useCallback(
+    (file: FileItem) => {
+      const nextHidden = !file.hidden;
+      void setContentVisibility(roomName, file.id, nextHidden).then(
+        () => {
+          toast({
+            title: nextHidden ? t("fileCard.hide") + " ✓" : t("fileCard.show") + " ✓",
+          });
+        },
+        () =>
+          toast({
+            title: t("messageBubble.visibilityFailed"),
+            variant: "destructive",
+          }),
+      );
+    },
+    [roomName, t, toast],
+  );
 
   const isUploading = Object.values(transfers).some(
     (t) => t.status === "active" && t.direction === "upload",
@@ -421,6 +449,8 @@ export function RightSidebar() {
                   onFileClick={handleFileClick}
                   showCheckboxes={true}
                   canDelete={can.delete}
+                  canToggleFileVisibility={canToggleFileVisibility}
+                  onToggleVisibility={handleToggleFileVisibility}
                 />
               )}
           </div>

@@ -91,6 +91,8 @@ export const API_ENDPOINTS = {
       `/rooms/${encodeURIComponent(name)}/roles/${encodeURIComponent(roleKey)}`,
     settings: (name: string) => `/rooms/${encodeURIComponent(name)}/settings`,
     tokens: (name: string) => `/rooms/${encodeURIComponent(name)}/tokens`,
+    capabilities: (name: string) =>
+      `/rooms/${encodeURIComponent(name)}/capabilities`,
     verifyPassword: (name: string) =>
       `/rooms/${encodeURIComponent(name)}/password/verify`,
     validateToken: (name: string) =>
