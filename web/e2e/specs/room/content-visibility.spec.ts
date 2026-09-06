@@ -6,7 +6,13 @@ import { CallElizabethApi } from "../../screenplay/abilities/CallElizabethApi.ab
 import type { ProvisionedRoom } from "../../screenplay/support/constants";
 import { primeRoomToken } from "../../screenplay/support/token-storage";
 import { uniqueRoomName } from "../../screenplay/support/test-data";
-import { OpenRoom, SendMessage, SaveMessages } from "../../screenplay/room/tasks/Room.tasks";
+import {
+  OpenRoom,
+  SendMessage,
+  SaveMessages,
+  UploadRoomFiles,
+} from "../../screenplay/room/tasks/Room.tasks";
+import { textFile } from "../../screenplay/support/test-data";
 
 /**
  * 内容显隐（msg/file.visibility.manage）与权限边界。
@@ -86,16 +92,25 @@ test.describe("Content visibility and permission boundaries", () => {
     actor,
   }) => {
     await actor.attemptsTo(OpenRoom(room.url));
-
-    const link = await api.createUrlContent(
-      room.name,
-      { url: "https://example.com/hidden-asset", name: "hidden-asset-link" },
-      adminToken,
+    // 走真实 UI 上传拿到可下载的文件内容
+    await actor.attemptsTo(
+      UploadRoomFiles(textFile("hidden-asset.txt", "hidden asset content")),
     );
-    expect(link.status).toBe(200);
-    const fileId = link.id!;
 
-    expect(await api.setVisibility(room.name, fileId, true, adminToken)).toBe(200);
+    // 等文件出现在服务端列表并找到其 id
+    let fileId: number | undefined;
+    await expect
+      .poll(async () => {
+        const contents = await api.listContents(room.name, adminToken);
+        const target = contents.items.find(
+          (item: Record<string, unknown>) => item.file_name === "hidden-asset.txt",
+        );
+        fileId = target?.id as number | undefined;
+        return Boolean(fileId);
+      })
+      .toBe(true);
+
+    expect(await api.setVisibility(room.name, fileId!, true, adminToken)).toBe(200);
 
     const readerToken = (await api.issueToken(room.name)).token;
 
@@ -104,15 +119,28 @@ test.describe("Content visibility and permission boundaries", () => {
     expect(contents.items.some((item: Record<string, unknown>) => item.id === fileId)).toBe(false);
 
     // 直链下载按「不存在」拒绝，堵住绕过
-    expect(await api.downloadStatus(fileId, readerToken)).toBe(404);
+    expect(await api.downloadStatus(fileId!, readerToken)).toBe(404);
 
     // 直接改可见性 → 403
-    expect(await api.setVisibility(room.name, fileId, false, readerToken)).toBe(403);
+    expect(await api.setVisibility(room.name, fileId!, false, readerToken)).toBe(403);
 
     // admin 依旧可见可下载
     const adminContents = await api.listContents(room.name, adminToken);
     expect(adminContents.items.some((item: Record<string, unknown>) => item.id === fileId)).toBe(true);
-    expect(await api.downloadStatus(fileId, adminToken)).toBeLessThan(400);
+    expect(await api.downloadStatus(fileId!, adminToken)).toBeLessThan(400);
+
+    // 链接内容的隐藏同样生效（列表过滤即可区分）
+    const link = await api.createUrlContent(
+      room.name,
+      { url: "https://example.com/hidden-link", name: "hidden-link" },
+      adminToken,
+    );
+    expect(link.status).toBe(200);
+    expect(await api.setVisibility(room.name, link.id!, true, adminToken)).toBe(200);
+    const readerAfterLink = await api.listContents(room.name, readerToken);
+    expect(
+      readerAfterLink.items.some((item: Record<string, unknown>) => item.id === link.id),
+    ).toBe(false);
   });
 
   test("editor with own scope manages own content but not others", async ({
@@ -120,7 +148,7 @@ test.describe("Content visibility and permission boundaries", () => {
   }) => {
     await actor.attemptsTo(OpenRoom(room.url));
 
-    const editor = await api.issueToken(room.name, { role: "editor" });
+    const editor = await api.issueRoleToken(room.name, "editor", adminToken);
     expect(editor.roleKey).toBe("editor");
 
     // 自己的消息：隐藏 → 列表带 hidden 标记 → 恢复
@@ -163,7 +191,7 @@ test.describe("Content visibility and permission boundaries", () => {
   test("revoked session loses access immediately", async ({ actor }) => {
     await actor.attemptsTo(OpenRoom(room.url));
 
-    const editor = await api.issueToken(room.name, { role: "editor" });
+    const editor = await api.issueRoleToken(room.name, "editor", adminToken);
     expect((await api.listMessages(room.name, editor.token)).status).toBe(200);
 
     const tokens = await api.listTokens(room.name, adminToken);

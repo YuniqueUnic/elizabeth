@@ -53,7 +53,7 @@
           },
           "editor": {
             "label": "Editor",
-            "description": "Can read, send, copy, and edit messages, and upload files. Delete capabilities can be limited to Own content."
+            "description": "Can read, send, copy, and edit messages and upload files. Delete and visibility capabilities apply to Own content by default."
           },
           "reader": {
             "label": "Reader",
@@ -62,6 +62,10 @@
           "scope": {
             "label": "Any / Own",
             "description": "Any applies to resources in the room. Own applies only when the resource creator matches the identity code."
+          },
+          "visibility": {
+            "label": "Content visibility",
+            "description": "The msg/file.visibility.manage capabilities can hide or restore any message or file (Own scope covers only your own). Hidden content is fully invisible to regular members: excluded from lists, and direct download links behave as if it does not exist."
           }
         }
       },

@@ -135,10 +135,10 @@ export const RoomScreen = {
     page.getByRole("combobox").first(),
 
   roomPasswordInput: (page: Page): Locator =>
-    page.locator("aside").first().locator("#password"),
+    page.locator("aside").first().locator("#room-password"),
 
   maxViewsInput: (page: Page): Locator =>
-    page.locator("aside").first().locator("#max-views"),
+    page.locator("aside").first().locator("#room-max-views"),
 
   saveRoomConfigButton: (page: Page): Locator =>
     page.locator("aside").first().getByRole("button", {
@@ -368,7 +368,7 @@ export const RoomScreen = {
       | "updated"
       | "deleted"
       | "address_changed"
-      | "permissions_changed"
+      | "roles_changed"
       | "settings_changed",
   ): Locator =>
     page.getByTestId(`setting-desktop-notification-${kind}-${action}`),

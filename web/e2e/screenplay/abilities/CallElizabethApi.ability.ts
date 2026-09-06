@@ -60,6 +60,8 @@ export class CallElizabethApi extends Ability {
           token: created.token as string,
           expiresAt: created.expires_at as string,
           refreshToken: created.refresh_token as string | undefined,
+          capabilities: created.capabilities,
+          roleKey: created.claims?.role as string | undefined,
         };
       }
     } else if (createResponse.status() !== 409) {
@@ -105,6 +107,36 @@ export class CallElizabethApi extends Ability {
       );
     }
 
+    const token = await response.json();
+    return {
+      token: token.token as string,
+      expiresAt: token.expires_at as string,
+      refreshToken: token.refresh_token as string | undefined,
+      capabilities: token.capabilities,
+      roleKey: token.claims?.role as string | undefined,
+    };
+  }
+
+  /** 以 admin 身份为他人签发指定角色的身份码。 */
+  async issueRoleToken(
+    roomName: string,
+    role: string,
+    adminToken: string,
+  ): Promise<RoomTokenInfo> {
+    const response = await this.request.post(
+      `${this.apiBaseUrl}/rooms/${encodeURIComponent(roomName)}/tokens`,
+      {
+        data: { token: adminToken, role, with_refresh_token: true },
+        headers: { Authorization: `Bearer ${adminToken}` },
+        timeout: 15_000,
+      },
+    );
+    if (!response.ok()) {
+      const body = await response.text().catch(() => "");
+      throw new Error(
+        `Failed to issue ${role} token for ${roomName}: ${response.status()} ${body}`,
+      );
+    }
     const token = await response.json();
     return {
       token: token.token as string,

@@ -1,10 +1,9 @@
 import { expect, test } from "../../screenplay/fixtures/screenplay.fixture";
 import type { ProvisionedRoom } from "../../screenplay/support/constants";
-import { tCommon } from "../../screenplay/support/i18n";
+import { tCommon, tRoom } from "../../screenplay/support/i18n";
 import { uniqueRoomName } from "../../screenplay/support/test-data";
 import {
   DraftMessageText,
-  PermissionState,
   UnsavedBadgeCount,
 } from "../../screenplay/room/questions/Room.questions";
 import { RoomScreen } from "../../screenplay/room/screens/Room.screen";
@@ -76,13 +75,17 @@ test.describe("Remote room permission downgrades", () => {
       .toBeGreaterThan(0);
 
     // 提升为可编辑 → 保存成功，草稿落库
+    // can.edit 的可见信号：文件管理侧栏出现上传入口
     expect(
       await api.updateRole(room.name, "reader", READER_FULL, "Reader", adminToken),
     ).toBe(200);
-    await expect.poll(
-      async () => remoteUser.actor.answer(PermissionState("edit")),
-      { timeout: 15_000 },
-    ).toBe(true);
+    await expect
+      .poll(
+        () =>
+          remoteUser.page.getByText(tRoom("fileUploadZone.dragOrClick")).count(),
+        { timeout: 15_000 },
+      )
+      .toBeGreaterThan(0);
 
     await remoteUser.actor.attemptsTo(TrySaveMessages());
     await expect.poll(async () => remoteUser.actor.answer(UnsavedBadgeCount()))
@@ -93,10 +96,13 @@ test.describe("Remote room permission downgrades", () => {
     expect(
       await api.updateRole(room.name, "reader", READER_READONLY, "Reader", adminToken),
     ).toBe(200);
-    await expect.poll(
-      async () => remoteUser.actor.answer(PermissionState("edit")),
-      { timeout: 15_000 },
-    ).toBe(false);
+    await expect
+      .poll(
+        () =>
+          remoteUser.page.getByText(tRoom("fileUploadZone.dragOrClick")).count(),
+        { timeout: 15_000 },
+      )
+      .toBe(0);
 
     await RoomScreen.messageInput(remoteUser.page).fill(`${draft} - after downgrade`);
     await remoteUser.actor.attemptsTo(SendCurrentDraft());
@@ -107,8 +113,9 @@ test.describe("Remote room permission downgrades", () => {
     await expect(RoomScreen.toast(remoteUser.page)).toContainText(
       tCommon("permissionDenied.messageSaveEdit"),
     );
-    await expect(RoomScreen.messageInput(remoteUser.page)).toBeVisible();
-    await expect.poll(async () => remoteUser.actor.answer(DraftMessageText()))
-      .toContain("after downgrade");
+    // 待保存内容保留在本地消息列表，不丢失
+    await expect(
+      RoomScreen.messageItems(remoteUser.page).filter({ hasText: "after downgrade" }),
+    ).toBeVisible();
   });
 });

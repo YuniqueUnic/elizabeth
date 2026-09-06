@@ -53,7 +53,7 @@
           },
           "editor": {
             "label": "Editor",
-            "description": "可读取、发送、复制和编辑消息，并上传文件；删除能力可以限制为仅操作 Own 内容。"
+            "description": "可读取、发送、复制和编辑消息，并上传文件；删除与显隐能力默认仅作用于 Own 内容。"
           },
           "reader": {
             "label": "Reader",
@@ -62,6 +62,10 @@
           "scope": {
             "label": "Any / Own",
             "description": "Any 适用于房间内任意资源；Own 仅在资源创建者与当前身份码一致时生效。"
+          },
+          "visibility": {
+            "label": "内容显隐",
+            "description": "msg/file.visibility.manage 能力允许隐藏或恢复任意消息与文件（Own 作用域仅限自己创建的）。被隐藏的内容对普通成员完全不可见：列表不返回、直链下载按不存在处理。"
           }
         }
       },
