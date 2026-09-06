@@ -249,7 +249,7 @@ export class CallElizabethApi extends Ability {
     };
   }
 
-  /** 创建 URL 内容（file 域,免 multipart 预留流程）。 */
+  /** 创建 URL 内容（file 域，免 multipart 预留流程）。 */
   async createUrlContent(
     roomName: string,
     data: { url: string; name: string },
