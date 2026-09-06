@@ -9,7 +9,7 @@ use crate::models::RoomToken;
 use crate::models::room::row_utils::{format_naive_datetime, format_optional_naive_datetime};
 
 const TOKEN_SELECT: &str = r#"
-    SELECT id, room_id, jti,
+    SELECT id, room_id, jti, role_key,
            CAST(expires_at AS TEXT) as expires_at,
            CAST(revoked_at AS TEXT) as revoked_at,
            CAST(created_at AS TEXT) as created_at
@@ -69,13 +69,14 @@ impl IRoomTokenRepository for RoomTokenRepository {
         let revoked_at = format_optional_naive_datetime(room_token.revoked_at);
         let id: i64 = sqlx::query_scalar(
             r#"
-            INSERT INTO room_tokens (room_id, jti, expires_at, revoked_at, created_at)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO room_tokens (room_id, jti, role_key, expires_at, revoked_at, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6)
             RETURNING id
             "#,
         )
         .bind(room_token.room_id)
         .bind(&room_token.jti)
+        .bind(&room_token.role_key)
         .bind(expires_at)
         .bind(revoked_at)
         .bind(now_str)

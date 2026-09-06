@@ -17,15 +17,17 @@
 </div>
 
 <div align="center">
-  <p><strong>Elizabeth</strong> is a room-centric real-time file sharing and collaboration platform where one entry point covers room creation, instant messaging, drag-and-drop uploads, image / PDF / text previews, and shareable invite links.</p>
-  <p>It is built with Rust + Next.js, ships as a single-container stack, and serves the API, WebSocket endpoint, and embedded SPA frontend together. SQLite is the default, and PostgreSQL remains a first-class option.</p>
-  <img src="./elizabeth.room.png" width="720" alt="Elizabeth room UI" />
+  <p><strong>Elizabeth</strong> is a room-centric real-time file sharing and collaboration platform: visiting a single URL provisions a room and signs you in, while messages, files, and links stay in sync instantly — with per-room governance for permissions, identity codes, and file protection.</p>
+  <p>It is built with Rust + Next.js and ships as a single container serving the API, the WebSocket endpoint, and an embedded SPA frontend together. SQLite is the default, and PostgreSQL remains a first-class option.</p>
+  <br />
+  <img src="./docs/images/room-admin-en.png" width="880" alt="Elizabeth room main view (admin)" />
+  <p><sub>The room workspace: identity and everyday settings on the left, realtime messages in the middle, file management on the right.</sub></p>
 </div>
 
 # Elizabeth
 
 A room-centric real-time collaboration platform that keeps messaging, uploads,
-previews, and share links in one flow.
+previews, permissions, and share links in one flow.
 
 <div align="center">
 
@@ -39,142 +41,403 @@ previews, and share links in one flow.
 
 ---
 
+## Highlights
+
+- **Zero-step room provisioning, the room is the identity**: visiting
+  `/room-name` auto-creates the room, and its first creator automatically
+  receives the admin identity code. No sign-up — an identity code is your role
+  credential inside one room.
+- **Three roles × fine-grained capabilities**: built-in admin / editor / reader
+  roles map onto 17 capabilities, each grantable with an `any` or `own` scope.
+  Admins can tune system roles or create custom roles in the "Members &
+  permissions" dialog; changes apply to everyone in the room in real time.
+- **Full identity-code lifecycle**: admins mint editor / reader identity codes
+  and hand them to people they trust. Members redeem codes to join, admins can
+  rotate their own credential, and any active session can be revoked (the client
+  disconnects immediately). Editor seats are capped at 10 and are freed
+  automatically on revocation or expiry.
+- **Show / hide for messages and files**: roles holding `msg.visibility.manage`
+  / `file.visibility.manage` can hide any (or only their own) messages and
+  files. Hidden content disappears completely for users without the capability —
+  direct access returns 404 and realtime payloads never leak the body.
+- **File protection and download policies**: identities holding
+  `file.policy.manage` can protect individual downloads — unlimited, reusable
+  access code, or one-time codes — plus a total download limit. Access codes can
+  be generated randomly, in batches, or custom-defined (e.g. `VIP666`), and
+  exported as `.txt`.
+- **Realtime messaging with rich previews**: Markdown rendering, syntax
+  highlighting, image previews, a PDF reader, text inspection, and link previews
+  out of the box; edits propagate to everyone over WebSocket within seconds.
+- **Single-container, single-port delivery**: one Rust service exposes the API,
+  the WebSocket endpoint, and the embedded frontend assets — deployable with a
+  single `docker run`.
+- **SQLite by default, PostgreSQL when needed**: start lightweight and switch
+  through `DATABASE_URL`; the matching migrations are selected automatically.
+- **OpenAPI / Scalar included**: interactive API docs are available immediately
+  for integrations, debugging, and automation.
+
+## UI Tour
+
+|                        Members & permissions (identity codes and sessions)                         |                         Members & permissions (role capability matrix)                         |
+| :------------------------------------------------------------------------------------------------: | :--------------------------------------------------------------------------------------------: |
+| <img src="./docs/images/permissions-members-en.png" width="100%" alt="Identity code management" /> | <img src="./docs/images/permissions-roles-en.png" width="100%" alt="Role permission matrix" /> |
+
+|               Editor view (can edit messages, no admin section)               |            Landing page (no sign-up; create or join a room)             |
+| :---------------------------------------------------------------------------: | :---------------------------------------------------------------------: |
+| <img src="./docs/images/room-editor-en.png" width="100%" alt="Editor view" /> | <img src="./docs/images/home-en.png" width="100%" alt="Landing page" /> |
+
+> [!TIP]
+> 中文界面截图见[中文 README](./README.md)。
+
+---
+
 ## Quick Navigation
 
-- **[Docker Quick Start](docs/DOCKER_QUICK_START.md)**: The shortest path to get
-  Elizabeth running on one machine.
-- **[Deployment Guide](docs/DEPLOYMENT.md)**: Production deployment notes,
-  reverse proxy setup, and rollout preparation.
-- **[API Guide](docs/API_GUIDE.md)**: Core REST API, auth flow, and content
-  interface overview.
-- **[WebSocket Guide](docs/WEBSOCKET_GUIDE.md)**: Real-time sync and signaling
-  entry points.
-- **[Architecture Guide](docs/ARCHITECTURE.md)**: How the backend, frontend, and
-  storage layers fit together.
+| Document                                         | Content                                                             |
+| :----------------------------------------------- | :------------------------------------------------------------------ |
+| [Docker Quick Start](docs/DOCKER_QUICK_START.md) | The shortest path to get Elizabeth running on one machine           |
+| [Deployment Guide](docs/DEPLOYMENT.md)           | Production deployment, reverse proxy setup, and rollout preparation |
+| [API Guide](docs/API_GUIDE.md)                   | Core REST API, auth flow, and content interface overview            |
+| [WebSocket Guide](docs/WEBSOCKET_GUIDE.md)       | Real-time sync and signaling entry points                           |
+| [Architecture Guide](docs/ARCHITECTURE.md)       | How the backend, frontend, and storage layers fit together          |
 
 ---
 
-## Core Capabilities
+## Permission & Security Model
 
-- **Room-centric collaboration**: Messages, files, and real-time interactions
-  all live inside rooms, keeping sharing flows direct and easy to reason about.
-- **Single-container, single-port delivery**: One Rust service exposes the API,
-  WebSocket endpoint, and embedded frontend assets with a straightforward
-  deployment path.
-- **Real-time messaging plus rich previews**: Markdown, code highlighting, image
-  preview, PDF viewing, text inspection, and link preview are available out of
-  the box.
-- **SQLite by default, PostgreSQL when needed**: Start with a lightweight local
-  database and switch to PostgreSQL through `DATABASE_URL` when scaling up.
-- **OpenAPI / Scalar included**: Interactive API docs are available immediately
-  for integrations, debugging, and automation.
-- **Security baseline included**: JWT auth, room-level access control, and
-  least-privilege container settings are built in.
+Elizabeth isolates everything **per room**: each room owns its role matrix,
+identity-code sessions, and file policies.
+
+### Roles
+
+| Role       | Positioning             | Default capabilities (summary)                                                                                                                                                               |
+| :--------- | :---------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **admin**  | Room creator / governor | All 17 capabilities: room sharing and settings, role management, identity-code issuing and revocation, full message and file operations, download policies, visibility control, room closure |
+| **editor** | Trusted collaborator    | Send / edit messages, upload / preview / download files; delete and visibility limited to their own content (`own` scope)                                                                    |
+| **reader** | Read-only visitor       | View and copy messages, preview and download files (subject to download policies)                                                                                                            |
+
+Every capability can be granted as `any` (all content) or `own` (only content
+created by the holder), and custom roles can express any narrower combination.
+
+### Identity-Code Lifecycle
+
+1. **Mint**: the admin issues editor / reader identity codes under "Members &
+   permissions → Identity codes" (editor seats capped at 10).
+2. **Distribute**: hand the code to the intended user over any channel.
+3. **Redeem**: the recipient pastes the code inside the room to assume the role
+   — no account required.
+4. **Rotate**: the admin can replace their own admin code at any time; the old
+   one stops working immediately.
+5. **Revoke**: any active session can be revoked; the client disconnects on the
+   spot and the seat is freed.
+
+After a role or capability change, online members refresh their capability
+snapshot **in real time** — no re-login required.
+
+### File Protection & Content Visibility
+
+- **Download policies** (`file.policy.manage`): configured per file — unlimited
+  (Off) / reusable access code / one-time codes — with an optional total
+  download limit. Codes can be generated randomly, in batches, or
+  custom-defined, deduplicated, and exported as `.txt`. Protected files ask for
+  a code before unlocking preview and download; repeated failures trigger a
+  temporary lockout.
+- **Show / hide** (`msg.visibility.manage` / `file.visibility.manage`): hidden
+  content vanishes from the listings and realtime feeds of users without the
+  capability, and direct access returns 404 (no existence leak). With the `own`
+  scope, a role can only hide or restore content it created.
 
 ---
 
-## Quick Start (Docker Deployment, SQLite by default)
+## Deployment
 
-Build and deploy with the default, lightweight SQLite database engine:
+The official image is published on
+[Docker Hub `yunique001/elizabeth`](https://hub.docker.com/r/yunique001/elizabeth)
+for `linux/amd64` and `linux/arm64`. SQLite is the default; append the
+repository's Compose override when you need PostgreSQL.
+
+| Deployment path                 | Clone needed | Local build | Persistence                 | Best for                                                  |
+| :------------------------------ | :----------- | :---------- | :-------------------------- | :-------------------------------------------------------- |
+| Docker Hub + `docker run`       | No           | No          | Docker named volumes        | Fastest try-out, single-node or reverse-proxy deployments |
+| Docker Hub + Docker Compose     | Yes          | No          | Host directories by default | Maintainable, configurable long-term deployments          |
+| Docker Compose / `docker build` | Yes          | Yes         | Host directories by default | Development branches, custom images                       |
+| Native Rust + Bun build         | Yes          | Yes         | Local configuration         | Local development and debugging                           |
+
+### Picking an Image Version
+
+Production deployments should pin an exact version so `latest` cannot cause
+surprises when containers are recreated. The version below is updated
+automatically by release-please in Release PRs.
+
+<!-- x-release-please-start-version -->
 
 ```bash
-# Clone the repository
+export ELIZABETH_VERSION=1.6.0
+```
+
+<!-- x-release-please-end -->
+
+Pull manually:
+
+```bash
+docker pull "yunique001/elizabeth:${ELIZABETH_VERSION}"
+```
+
+For a quick trial you can also pull `yunique001/elizabeth:latest`; long-lived
+deployments should still prefer exact versions.
+
+### Option 1: One-command Start from Docker Hub (fastest)
+
+The image bundles the Rust service, the embedded web frontend, database
+migrations, the default YAML configuration, and the `curl` binary needed by the
+health check — no clone required. First generate and store a stable JWT secret:
+
+```bash
+umask 077
+printf 'JWT_SECRET=%s\n' "$(openssl rand -hex 32)" > .env.elizabeth # pragma: allowlist secret
+```
+
+Then run the container:
+
+```bash
+docker run -d \
+  --name elizabeth \
+  --restart unless-stopped \
+  --init \
+  --read-only \
+  --security-opt no-new-privileges:true \
+  --cap-drop ALL \
+  --tmpfs /tmp \
+  -p 127.0.0.1:4092:4092 \
+  --env-file .env.elizabeth \
+  -v elizabeth-data:/app/data \
+  -v elizabeth-storage:/app/storage \
+  --health-cmd='curl -fsS http://127.0.0.1:4092/api/v1/health || exit 1' \
+  --health-interval=30s \
+  --health-timeout=10s \
+  --health-retries=3 \
+  --health-start-period=10s \
+  "yunique001/elizabeth:${ELIZABETH_VERSION}"
+```
+
+> [!IMPORTANT]
+> Keep `.env.elizabeth` safe and reuse the same `JWT_SECRET` whenever the
+> container is recreated or upgraded. Regenerating the secret invalidates all
+> existing tokens; never commit the file to version control.
+
+The command above only listens on `127.0.0.1:4092`, which suits an HTTPS reverse
+proxy in front. To serve a LAN directly, use `-p 4092:4092`; avoid exposing
+plain-HTTP ports to the public internet.
+
+### Option 2: Docker Compose with the Prebuilt Image
+
+Compose reuses the repository's `.env.docker`, YAML configuration, volume
+preparation script, and the PostgreSQL override. The following commands only
+pull the Docker Hub image and never build locally:
+
+```bash
+git clone --branch "v${ELIZABETH_VERSION}" --depth 1 \
+  https://github.com/YuniqueUnic/elizabeth.git
+cd elizabeth
+
+cp .env.docker .env
+${EDITOR:-nano} .env
+
+./scripts/docker_prepare_volumes.sh
+docker compose pull backend
+docker compose up -d --no-build
+```
+
+`JWT_SECRET` in `.env` must be changed for production. To pick another published
+release, set `ELIZABETH_IMAGE=yunique001/elizabeth:<version>` in the current
+shell before running the Compose commands.
+
+### Option 3: Build the Docker Image from Source
+
+Build the current checkout with Compose, using a local image name so the
+official Docker Hub tags are not shadowed:
+
+```bash
 git clone https://github.com/YuniqueUnic/elizabeth.git
 cd elizabeth
 
-# Prepare environment variables file
 cp .env.docker .env
-
-# Set a secure JWT_SECRET in production (recommended >= 32 characters)
 ${EDITOR:-nano} .env
 
-# Start services using Docker Compose
-docker compose up -d --build
+./scripts/docker_prepare_volumes.sh
+ELIZABETH_IMAGE=elizabeth:local docker compose up -d --build
 ```
 
-### Access Ports
-
-Once deployed, you can access various entry points:
-
-- **Web UI Interface**: `http://localhost:4092`
-- **Scalar Interactive API Docs**: `http://localhost:4092/api/v1/scalar`
-- **OpenAPI Specs (JSON)**: `http://localhost:4092/api/v1/openapi.json`
-- **Health Check**: `http://localhost:4092/api/v1/health`
-
----
-
-## Advanced Database Configuration (Adaptive Driver Switch)
-
-Leveraging `sqlx::AnyPool`, Elizabeth automatically decides which engine to use
-and applies database migrations dynamically based on the schema of
-`DATABASE_URL`:
-
-- **SQLite** (Default, reads `./crates/board/migrations` / `/app/migrations` in
-  container)
-- **PostgreSQL** (Reads `./crates/board/migrations_pg` / `/app/migrations_pg` in
-  container)
-
-### Deploy with Pre-configured PostgreSQL Container
-
-To spin up Elizabeth along with a PostgreSQL container in the same environment:
+You can also build only the image and reuse the `docker run` flags from Option
+1:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --build
+docker build \
+  --target runtime \
+  -f Dockerfile.backend \
+  -t elizabeth:local \
+  .
 ```
 
-### Connect to an External PostgreSQL
+### Option 4: Native Rust + Bun Build
 
-If you prefer to connect to an external PostgreSQL server, update `.env` to
-point to it (ensure network accessibility):
+Install the toolchain pinned by the repo (Rust, Bun, and optionally
+[`just`](https://github.com/casey/just)). The recommended flow:
+
+```bash
+cd web
+bun install --frozen-lockfile
+bun run build:embedded
+cd ..
+
+ELIZABETH_SKIP_WEB_BUILD=1 cargo build --release -p elizabeth-board
+```
+
+The binary lands at `target/release/board`. Use `just dev` for local development
+and `just build` for a full release build.
+
+### Using PostgreSQL
+
+Elizabeth picks SQLite or PostgreSQL migrations automatically from the scheme of
+`DATABASE_URL`.
+
+With the repository's PostgreSQL container, set a safe `POSTGRES_PASSWORD` in
+`.env` first, then run:
+
+```bash
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.postgres.yml \
+  pull
+
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.postgres.yml \
+  up -d --no-build
+```
+
+To build from the current source instead, replace `--no-build` in the last
+command with `--build` and set `ELIZABETH_IMAGE=elizabeth:local`.
+
+With an external PostgreSQL, point `.env` at the instance and make sure the
+backend container can reach it:
 
 ```env
 DATABASE_URL=postgresql://username:password@hostname:port/dbname # pragma: allowlist secret
 ```
 
----
+### Configuration & Persistence
 
-## Key Configurations
+Key in-container paths:
 
-In a Docker containerized environment, use the `.env` file at the root to
-configure crucial settings:
+| Path                       | Content                                               | Must persist?                             |
+| :------------------------- | :---------------------------------------------------- | :---------------------------------------- |
+| `/app/data`                | SQLite database                                       | Required when using SQLite                |
+| `/app/storage`             | Room file uploads                                     | Required                                  |
+| `/app/config/backend.yaml` | Deployment defaults, room policies, middleware config | Built-in image version or read-only mount |
 
-| Environment Variable | Default Value                     | Description                                                               |
-| :------------------- | :-------------------------------- | :------------------------------------------------------------------------ |
-| `JWT_SECRET`         | (Required)                        | Key used to sign authentication tokens. Always change this in production. |
-| `DATABASE_URL`       | `sqlite:///app/data/elizabeth.db` | DB connection string. The schema determines the driver selection.         |
-| `DB_MAX_CONNECTIONS` | `20`                              | Maximum number of active db connections in the pool.                      |
-| `DB_MIN_CONNECTIONS` | `5`                               | Minimum number of idle connections to retain in the pool.                 |
+The `docker run` example uses named volumes; Compose binds them to
+`./docker/backend/data`, `./docker/backend/storage`, and
+`./docker/backend/config/backend.yaml` by default, overridable through
+`ELIZABETH_DATA_DIR`, `ELIZABETH_STORAGE_DIR`, and `ELIZABETH_BACKEND_CONFIG` in
+`.env`.
 
-> [!NOTE]
-> The static configuration template resides in
-> `docker/backend/config/backend.yaml` and is loaded during runtime (YAML files
-> do not support dynamic environment variable interpolation; secure variables
-> must be configured via environment overrides).
+Common environment variables:
 
----
+| Variable                            | Default                           | Purpose                                                                  |
+| :---------------------------------- | :-------------------------------- | :----------------------------------------------------------------------- |
+| `JWT_SECRET`                        | Sample value, startup only        | Token-signing key; production must set a stable 32+ character secret     |
+| `DATABASE_URL`                      | `sqlite:///app/data/elizabeth.db` | Database connection string; the scheme selects the driver and migrations |
+| `BACKEND_PORT`                      | `4092`                            | Port exposed to the host by Compose                                      |
+| `ROOM_MAX_SIZE`                     | `50MiB`                           | Default room capacity; accepts `50M`, `100M`, `1G`, `1GiB`               |
+| `ROOM_MAX_TIMES_ENTERED`            | `100`                             | Default maximum entries per room                                         |
+| `ROOM_DEFAULT_AGE`                  | `2h`                              | Default room expiry; accepts `m`, `h`, `d`, `w`                          |
+| `ROOM_DEFAULT_PASSWORD`             | Empty                             | Default room password; empty means no password                           |
+| `ROOM_DEFAULT_PERMISSION_*`         | `true`                            | Default read/edit/share/delete flags for new rooms                       |
+| `ROOM_SHARE_DISABLED_LOCK_DURATION` | `1h`                              | Lock duration after sharing is disabled; humantime units                 |
 
-## Quality Gates & Local Development
+The baked-in configuration lives at `/app/config/backend.yaml`; the repository
+template is `docker/backend/config/backend.yaml`. YAML performs no `${VAR}`
+interpolation; container environment variables override the matching YAML values
+at startup. Compose explicitly forwards the database, JWT, room, upload, GC,
+logging, and middleware settings from `.env.docker`.
 
-When working locally on Rust modules, ensure all of the following quality checks
-pass:
+### Verifying the Deployment & Day-2 Operations
+
+Once deployed, the following endpoints are available:
+
+- Web: `http://localhost:4092/`
+- Health check: `http://localhost:4092/api/v1/health`
+- Scalar API docs: `http://localhost:4092/api/v1/scalar`
+- OpenAPI JSON: `http://localhost:4092/api/v1/openapi.json`
+
+Handy Compose commands:
 
 ```bash
-# Format code style
+docker compose ps
+docker compose logs -f backend
+curl -fsS http://127.0.0.1:4092/api/v1/health
+docker compose down --remove-orphans
+```
+
+To upgrade a prebuilt deployment, switch to the target release, pull, and
+recreate:
+
+```bash
+docker compose pull backend
+docker compose up -d --no-build --remove-orphans
+```
+
+For `docker run` deployments, pull the new version, remove the old container,
+and rerun the original start command with the same `.env.elizabeth`, ports, and
+`elizabeth-data` / `elizabeth-storage` volumes. Never delete the data volumes
+when upgrading or stopping.
+
+---
+
+## Local Development & Testing
+
+### Backend (Rust)
+
+```bash
+just dev          # Build the embedded frontend and start locally (port 4092)
+```
+
+When working on Rust modules, all of the following quality gates must pass:
+
+```bash
 cargo fmt --all
-
-# Static syntax and compile check across workspace
 cargo check --workspace --all-targets --all-features
-
-# Run all unit and integration tests
 cargo test --workspace --all-features
-
-# Code linter check (no warnings or errors allowed)
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 ```
 
 > [!TIP]
-> If you have [just](https://github.com/casey/just) installed, simply run
-> `just verify` to perform all check commands at once.
+> With [just](https://github.com/casey/just) installed, `just verify` runs all
+> of the checks above in one go.
+
+### Frontend (Next.js + Bun)
+
+```bash
+cd web
+bun install --frozen-lockfile
+bun run dev        # Dev server (proxies /api to the local backend)
+bun run typecheck  # tsc --noEmit
+bun run lint       # eslint --max-warnings 0
+```
+
+### End-to-End Tests (Playwright + SerenityJS)
+
+`web/e2e` hosts a Screenplay-pattern e2e suite that goes beyond happy paths:
+permission boundaries (unauthorized writes, download-policy bypass, revocation
+disconnects, editor seat limits), visibility capabilities, realtime
+collaboration, and the key interaction flows:
+
+```bash
+cd web
+bun run e2e:test     # Run the whole suite (boots an isolated test backend)
+bun run e2e:report   # Generate and open the Serenity report
+```
 
 ---
 
@@ -184,16 +447,16 @@ For deep-dive details and operational guidebooks, explore the systematic docs in
 the `docs` directory:
 
 - **[docs/README.md](docs/README.md)**: Main master index for documentation.
-- **[docs/DOCKER_QUICK_START.md](docs/DOCKER_QUICK_START.md)**: Absolute minimal
-  Docker setup guidelines.
-- **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**: Production deployment, reverse
-  proxies, and Nginx setups.
-- **[docs/API_GUIDE.md](docs/API_GUIDE.md)**: Comprehensive guide for core REST
-  APIs and structure models.
-- **[docs/WEBSOCKET_GUIDE.md](docs/WEBSOCKET_GUIDE.md)**: State synchronization
-  and long-lived WebSocket signaling.
-- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**: In-depth micro-architecture,
-  multi-layer decoupling, and internal behaviors.
+- **[docs/DOCKER_QUICK_START.md](docs/DOCKER_QUICK_START.md)**: Minimal Docker
+  setup guidelines.
+- **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**: Production deployment, cloud
+  configurations, and Nginx/reverse-proxy best practices.
+- **[docs/API_GUIDE.md](docs/API_GUIDE.md)**: Core RESTful API calls and
+  field-level details.
+- **[docs/WEBSOCKET_GUIDE.md](docs/WEBSOCKET_GUIDE.md)**: Room state sync and
+  signaling over the long-lived WebSocket connection.
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**: Macro architecture,
+  multi-layer decoupling, and implementation depth.
 
 ---
 

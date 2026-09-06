@@ -132,26 +132,6 @@ impl AuthService {
         self.blacklist_repo.remove_expired().await
     }
 
-    /// 验证令牌并检查房间权限
-    /// 这是核心权限验证方法，其他所有权限验证都应该基于这个方法
-    pub async fn verify_token_with_room_permission(
-        &self,
-        token: &str,
-        room: &Room,
-        required_permission: crate::models::room::permission::RoomPermission,
-    ) -> Result<RoomTokenClaims> {
-        let claims = self.verify_access_token(token, room).await?;
-
-        let user_permission = claims.as_permission();
-        if !room.permission.contains(required_permission)
-            || !user_permission.contains(required_permission)
-        {
-            return Err(anyhow!("insufficient permissions"));
-        }
-
-        Ok(claims)
-    }
-
     /// 从授权头中提取令牌
     pub fn extract_token_from_header(&self, auth_header: &str) -> Result<String> {
         if !auth_header.to_lowercase().starts_with("bearer ") {
@@ -174,19 +154,6 @@ impl AuthService {
     ) -> Result<RoomTokenClaims> {
         let token = self.extract_token_from_header(auth_header)?;
         self.verify_access_token(&token, room).await
-    }
-
-    /// 验证授权头中的令牌并检查权限
-    /// 核心授权头权限验证方法
-    pub async fn verify_auth_header_with_permission(
-        &self,
-        auth_header: &str,
-        room: &Room,
-        required_permission: crate::models::room::permission::RoomPermission,
-    ) -> Result<RoomTokenClaims> {
-        let token = self.extract_token_from_header(auth_header)?;
-        self.verify_token_with_room_permission(&token, room, required_permission)
-            .await
     }
 
     /// 检查令牌是否即将过期（5 分钟内）
@@ -226,46 +193,6 @@ mod tests {
             .with_min_connections(1);
         let pool = settings.create_pool().await.unwrap();
         run_migrations(&pool, TEST_DB_URL).await.unwrap();
-        // 保底：确保核心表存在且含 permission 列
-        sqlx::query("DROP TABLE IF EXISTS rooms")
-            .execute(&pool)
-            .await
-            .ok();
-        sqlx::query(
-            r#"
-            CREATE TABLE IF NOT EXISTS rooms (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL UNIQUE,
-                slug TEXT NOT NULL UNIQUE,
-                password TEXT,
-                status INTEGER NOT NULL DEFAULT 0,
-                max_size INTEGER NOT NULL DEFAULT 10485760,
-                current_size INTEGER NOT NULL DEFAULT 0,
-                max_times_entered INTEGER NOT NULL DEFAULT 100,
-                current_times_entered INTEGER NOT NULL DEFAULT 0,
-                expire_at TEXT,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                permission INTEGER NOT NULL DEFAULT 1
-            )
-            "#,
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
-        sqlx::query(
-            r#"
-            CREATE TABLE IF NOT EXISTS token_blacklist (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                jti TEXT NOT NULL UNIQUE,
-                expires_at TEXT NOT NULL,
-                created_at TEXT NOT NULL
-            )
-            "#,
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
         Arc::new(pool)
     }
 
@@ -313,7 +240,7 @@ mod tests {
             sub: "room:1".to_string(),
             room_id: 0,
             room_name: "test_room".to_string(),
-            permission: 0,
+            role: "reader".to_string(),
             max_size: 1024,
             exp: (now + Duration::hours(1)).timestamp(),
             iat: now.timestamp(),
@@ -354,7 +281,7 @@ mod tests {
             sub: "room:test_room".to_string(),
             room_id: 0,
             room_name: "test_room".to_string(),
-            permission: crate::models::room::permission::RoomPermission::VIEW_ONLY.bits(),
+            role: "reader".to_string(),
             max_size: 1024,
             exp: (Utc::now() + chrono::Duration::hours(1)).timestamp(),
             iat: Utc::now().timestamp(),
@@ -393,7 +320,7 @@ mod tests {
             sub: "room:test_room".to_string(),
             room_id: 0,
             room_name: "test_room".to_string(),
-            permission: crate::models::room::permission::RoomPermission::VIEW_ONLY.bits(),
+            role: "reader".to_string(),
             max_size: 1024,
             exp: (Utc::now() + chrono::Duration::hours(1)).timestamp(),
             iat: Utc::now().timestamp(),
@@ -429,7 +356,7 @@ mod tests {
             sub: "room:test_room".to_string(),
             room_id: 0,
             room_name: "test_room".to_string(),
-            permission: crate::models::room::permission::RoomPermission::VIEW_ONLY.bits(),
+            role: "reader".to_string(),
             max_size: 1024,
             exp: (Utc::now() + chrono::Duration::hours(1)).timestamp(),
             iat: Utc::now().timestamp(),
@@ -465,7 +392,7 @@ mod tests {
             sub: "room:test_room".to_string(),
             room_id: 0,
             room_name: "test_room".to_string(),
-            permission: crate::models::room::permission::RoomPermission::VIEW_ONLY.bits(),
+            role: "reader".to_string(),
             max_size: 1024,
             exp: (Utc::now() + chrono::Duration::minutes(1)).timestamp(),
             iat: Utc::now().timestamp(),
@@ -498,7 +425,7 @@ mod tests {
             sub: "room:test_room".to_string(),
             room_id: 0,
             room_name: "test_room".to_string(),
-            permission: crate::models::room::permission::RoomPermission::VIEW_ONLY.bits(),
+            role: "reader".to_string(),
             max_size: 1024,
             exp: (Utc::now() + chrono::Duration::minutes(4)).timestamp(),
             iat: Utc::now().timestamp(),

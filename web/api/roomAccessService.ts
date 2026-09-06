@@ -75,7 +75,7 @@ export async function checkRoomAvailability(
       expired: isExpired,
       full: isFull,
       requiresPassword: room.password_protected,
-      isShareable: (room.permission & 4) !== 0, // SHARE permission bit
+      isShareable: room.default_role_key !== "reader",
     };
   } catch (error: any) {
     if (error.code === 404) {
@@ -107,10 +107,7 @@ export async function getAccessibleRoomName(
   roomDetails?: RoomDetails,
 ): Promise<string> {
   // If room details are provided and room is shareable, return base name
-  if (
-    roomDetails && (roomDetails.permissions.includes("share") ||
-      (roomDetails as any).permissionBits?.includes(4))
-  ) {
+  if (roomDetails && roomDetails.defaultRoleKey !== "reader") {
     return baseName;
   }
 

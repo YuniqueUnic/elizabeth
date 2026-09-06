@@ -4,7 +4,7 @@
  * This service handles room-related operations including:
  * - Creating rooms
  * - Fetching room details
- * - Updating room permissions
+ * - Updating room settings and role capabilities
  * - Deleting rooms
  */
 
@@ -13,11 +13,14 @@ import { api } from "../lib/utils/api";
 import { getValidToken } from "./authService";
 import type {
   BackendRoom,
+  RoomGrant,
   CreateRoomRequest,
+  CreateRoomResponse,
   RoomDetails,
-  RoomPermission,
+  RoomRole,
   RoomTokenView,
-  UpdateRoomPermissionRequest,
+  CreateRoleRequest,
+  UpdateRoleRequest,
   UpdateRoomSettingsRequest,
 } from "../lib/types";
 import { backendRoomToRoomDetails as convertRoom } from "../lib/types";
@@ -36,18 +39,18 @@ import { backendRoomToRoomDetails as convertRoom } from "../lib/types";
 export async function createRoom(
   name: string,
   password?: string,
-): Promise<RoomDetails> {
+): Promise<CreateRoomResponse> {
   const payload: CreateRoomRequest = {};
   if (password) {
     payload.password = password;
   }
-  const room = await api.post<BackendRoom>(
+  const response = await api.post<CreateRoomResponse>(
     API_ENDPOINTS.rooms.base(name),
     payload,
     { skipTokenInjection: true },
   );
 
-  return convertRoom(room);
+  return response;
 }
 
 /**
@@ -101,38 +104,44 @@ export async function deleteRoom(
   );
 }
 
+export async function listRoomRoles(roomName: string, token?: string): Promise<RoomRole[]> {
+  const authToken = token || await getValidToken(roomName);
+  if (!authToken) throw new Error("Authentication required to list room roles");
+  return api.get<RoomRole[]>(API_ENDPOINTS.rooms.roles(roomName), undefined, { token: authToken });
+}
+
+export async function createRoomRole(roomName: string, request: CreateRoleRequest, token?: string): Promise<RoomRole> {
+  const authToken = token || await getValidToken(roomName);
+  if (!authToken) throw new Error("Authentication required to create room role");
+  return api.post<RoomRole>(API_ENDPOINTS.rooms.roles(roomName), request, { token: authToken });
+}
+
+export async function updateRoomRole(roomName: string, roleKey: string, request: UpdateRoleRequest, token?: string): Promise<RoomRole> {
+  const authToken = token || await getValidToken(roomName);
+  if (!authToken) throw new Error("Authentication required to update room role");
+  return api.put<RoomRole>(API_ENDPOINTS.rooms.role(roomName, roleKey), request, { token: authToken });
+}
+
+export async function deleteRoomRole(roomName: string, roleKey: string, token?: string): Promise<void> {
+  const authToken = token || await getValidToken(roomName);
+  if (!authToken) throw new Error("Authentication required to delete room role");
+  await api.delete(API_ENDPOINTS.rooms.role(roomName, roleKey), undefined, { token: authToken });
+}
+
 /**
- * Update room permissions
- *
- * @param roomName - The name of the room
- * @param permissions - Array of permissions to set
- * @param token - Optional token for authentication
- * @returns Updated room details
+ * 获取当前会话的实时能力快照（角色矩阵变更后的客户端刷新通道）。
  */
-export async function updateRoomPermissions(
+export async function getMyCapabilities(
   roomName: string,
-  permissions: RoomPermission[],
   token?: string,
-): Promise<RoomDetails> {
-  const authToken = token || (await getValidToken(roomName));
-
-  if (!authToken) {
-    throw new Error("Authentication required to update permissions");
-  }
-
-  // Backend expects { edit: bool, share: bool, delete: bool }
-  // VIEW_ONLY (read) is always included by default
-  const payload: UpdateRoomPermissionRequest = {
-    edit: permissions.includes("edit"),
-    share: permissions.includes("share"),
-    delete: permissions.includes("delete"),
-  };
-  const room = await api.post<BackendRoom>(
-    API_ENDPOINTS.rooms.permissions(roomName),
-    payload,
+): Promise<{ role: string; capabilities: RoomGrant[] }> {
+  const authToken = token || (await getValidToken(roomName)) || undefined;
+  if (!authToken) throw new Error("Authentication required to read capabilities");
+  return api.get<{ role: string; capabilities: RoomGrant[] }>(
+    API_ENDPOINTS.rooms.capabilities(roomName),
+    undefined,
     { token: authToken },
   );
-  return convertRoom(room);
 }
 
 /**
@@ -226,7 +235,10 @@ const roomService = {
   createRoom,
   getRoomDetails,
   deleteRoom,
-  updateRoomPermissions,
+  listRoomRoles,
+  createRoomRole,
+  updateRoomRole,
+  deleteRoomRole,
   listRoomTokens,
 };
 

@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use axum::Json;
 use axum::extract::{Path, State};
+use axum::http::HeaderMap;
 use chrono::Utc;
 
 use crate::config::{AppConfig, AuthConfig};
@@ -36,9 +37,15 @@ async fn issue_new_token(
         password: None,
         token: None,
         with_refresh_token: false,
+        role: None,
     };
-    let Json(resp) =
-        issue_token(Path(room_slug.to_string()), State(app_state), Json(payload)).await?;
+    let Json(resp) = issue_token(
+        Path(room_slug.to_string()),
+        HeaderMap::new(),
+        State(app_state),
+        Json(payload),
+    )
+    .await?;
     Ok(resp.token)
 }
 
@@ -51,9 +58,15 @@ async fn refresh_token(
         password: None,
         token: Some(previous_token),
         with_refresh_token: false,
+        role: None,
     };
-    let Json(resp) =
-        issue_token(Path(room_slug.to_string()), State(app_state), Json(payload)).await?;
+    let Json(resp) = issue_token(
+        Path(room_slug.to_string()),
+        HeaderMap::new(),
+        State(app_state),
+        Json(payload),
+    )
+    .await?;
     Ok(resp.token)
 }
 

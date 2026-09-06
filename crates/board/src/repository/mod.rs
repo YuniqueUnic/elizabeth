@@ -5,6 +5,7 @@ pub mod room_content_repository;
 pub mod room_lifecycle_repository;
 pub mod room_refresh_token_repository;
 pub mod room_repository;
+pub mod room_role_repository;
 pub mod room_token_repository;
 pub mod room_upload_reservation_repository;
 
@@ -15,5 +16,6 @@ pub use room_content_repository::*;
 pub use room_lifecycle_repository::*;
 pub use room_refresh_token_repository::*;
 pub use room_repository::*;
+pub use room_role_repository::*;
 pub use room_token_repository::*;
 pub use room_upload_reservation_repository::*;

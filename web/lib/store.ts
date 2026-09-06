@@ -145,6 +145,10 @@ interface AppState {
   isSaving: boolean;
   saveMessages: () => Promise<void>;
 
+  // 角色矩阵版本号：roles_changed 实时刷新本地能力快照后自增，触发 UI 门禁重算
+  capabilitiesVersion: number;
+  bumpCapabilitiesVersion: () => void;
+
   // Composer state (draft + edit mode). Not persisted.
   composerContent: string;
   setComposerContent: (content: string) => void;
@@ -173,6 +177,11 @@ interface AppState {
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
+      // 角色矩阵版本号：roles_changed 实时刷新后自增，触发能力门禁重算
+      capabilitiesVersion: 0,
+      bumpCapabilitiesVersion: () =>
+        set((state) => ({ capabilitiesVersion: state.capabilitiesVersion + 1 })),
+
       // Locale
       locale: "zh",
       setLocale: (locale) => {

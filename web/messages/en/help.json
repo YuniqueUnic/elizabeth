@@ -44,26 +44,34 @@
         "description": "Set the maximum number of visits for the room. Room content will be cleared and reset once the limit is reached."
       },
       "permissions": {
-        "title": "Room Permissions",
-        "description": "Set the current user's permissions for the room:",
+        "title": "Roles and capabilities",
+        "description": "Each room has its own role matrix. The current identity code selects a role; the server evaluates capabilities for every action.",
         "items": {
-          "preview": {
-            "label": "Preview",
-            "description": "View room content"
+          "admin": {
+            "label": "Admin",
+            "description": "The room creator's identity. Manages room settings, roles, sessions, sharing, messages, and files."
           },
-          "edit": {
-            "label": "Edit",
-            "description": "Upload and modify content (requires Preview permission)"
+          "editor": {
+            "label": "Editor",
+            "description": "Can read, send, copy, and edit messages and upload files. Delete and visibility capabilities apply to Own content by default."
           },
-          "share": {
-            "label": "Share",
-            "description": "Publicly share the room (requires Preview permission)"
+          "reader": {
+            "label": "Reader",
+            "description": "The default identity for new visitors. Can read and copy messages and view or download files."
           },
-          "delete": {
-            "label": "Delete",
-            "description": "Delete room content (requires Preview and Edit permissions)"
+          "scope": {
+            "label": "Any / Own",
+            "description": "Any applies to resources in the room. Own applies only when the resource creator matches the identity code."
+          },
+          "visibility": {
+            "label": "Content visibility",
+            "description": "The msg/file.visibility.manage capabilities can hide or restore any message or file (Own scope covers only your own). Hidden content is fully invisible to regular members: excluded from lists, and direct download links behave as if it does not exist."
           }
         }
+      },
+      "authorization": {
+        "title": "Room authorization",
+        "description": "Room password, expiry, and entry limits are access gates. Roles and capabilities are authorization rules, isolated per room and effective immediately after changes."
       }
     },
     "roomSharing": {
@@ -75,6 +83,29 @@
       "qrcode": {
         "title": "QR Code",
         "description": "Click the \"Get Link\" button to view the room's share link and QR code. You can download the QR code image or copy the link to share with others."
+      }
+    },
+    "fileProtection": {
+      "title": "File Protection & Download Policy",
+      "policy": {
+        "title": "Download policy settings",
+        "description": "Identities with the file.policy.manage capability can configure per-file download protection on the file card. Policies apply to a single file and are independent of the room role permissions."
+      },
+      "modes": {
+        "title": "Protection modes",
+        "description": "Off: anyone with download permission can download directly. Reusable code: the same access code can be used repeatedly. One-time codes: each access code is consumed on first use, ideal for distributing to different people."
+      },
+      "downloadLimit": {
+        "title": "Download limit",
+        "description": "Limit the total number of downloads for the file; enter 0 for no limit. In reusable mode the completed download count is shown; in one-time mode it depends on the number of valid codes in the pool."
+      },
+      "codes": {
+        "title": "Access code management",
+        "description": "Generate random codes, batch-generate them, or set custom codes (e.g. VIP666). Codes can be deduplicated, cleared, copied in bulk, or exported as a .txt file. Copy and store them right away — one-time codes are only fully shown at generation time."
+      },
+      "redeem": {
+        "title": "Redeeming a code",
+        "description": "Accessing a protected file requires an access code to unlock preview and download. Invalid or exhausted codes fail verification; too many failed attempts trigger a temporary lockout, so try again later."
       }
     },
     "messageOperations": {

@@ -2,6 +2,8 @@ import { expect, test } from "../../screenplay/fixtures/screenplay.fixture";
 import type { ProvisionedRoom } from "../../screenplay/support/constants";
 import { readNotifications, setNotificationPermission } from "../../screenplay/support/notifications";
 import { uniqueRoomName } from "../../screenplay/support/test-data";
+import { joinAsEditor, joinAsRole } from "../../screenplay/support/collaborator";
+import { CallElizabethApi } from "../../screenplay/abilities/CallElizabethApi.ability";
 import {
   FileNames,
   LastMessageText,
@@ -39,12 +41,16 @@ const notificationTags = async (page: import("@playwright/test").Page) => {
 
 test.describe("Browser desktop notifications", () => {
   let room: ProvisionedRoom;
+  let api: CallElizabethApi;
+  let adminToken: string;
 
-  test.beforeEach(async ({ actor, provisionRoom }) => {
+  test.beforeEach(async ({ actor, provisionRoom, request }) => {
     room = await provisionRoom({
       actor,
       roomName: uniqueRoomName("screenplay-notifications"),
     });
+    api = CallElizabethApi.using(request);
+    adminToken = room.tokenInfo!.token;
 
     await actor.attemptsTo(OpenRoom(room.url));
   });
@@ -57,9 +63,8 @@ test.describe("Browser desktop notifications", () => {
     await setNotificationPermission(page, "granted");
     await actor.attemptsTo(SetSettingTo("setting-desktop-notifications", true));
 
-    const sender = await createActor("notification sender");
+    const sender = await joinAsEditor(createActor, api, room, "notification sender", adminToken);
     await sender.actor.attemptsTo(
-      OpenRoom(room.url),
       SendMessage("Remote notification payload"),
       SaveMessages(),
     );
@@ -81,9 +86,8 @@ test.describe("Browser desktop notifications", () => {
     );
 
     const sensitiveMessage = `DO_NOT_LEAK_MESSAGE_${Date.now()}`;
-    const sender = await createActor("notification privacy sender");
+    const sender = await joinAsEditor(createActor, api, room, "notification privacy sender", adminToken);
     await sender.actor.attemptsTo(
-      OpenRoom(room.url),
       SendMessage(sensitiveMessage),
       SaveMessages(),
     );
@@ -105,9 +109,8 @@ test.describe("Browser desktop notifications", () => {
   }) => {
     await setNotificationPermission(page, "granted");
 
-    const sender = await createActor("notification disabled sender");
+    const sender = await joinAsEditor(createActor, api, room, "notification disabled sender", adminToken);
     await sender.actor.attemptsTo(
-      OpenRoom(room.url),
       SendMessage("Disabled notification payload"),
       SaveMessages(),
     );
@@ -122,10 +125,9 @@ test.describe("Browser desktop notifications", () => {
     createActor,
   }) => {
     const message = "Remote deleted notification payload";
-    const sender = await createActor("notification delete sender");
+    const sender = await joinAsEditor(createActor, api, room, "notification delete sender", adminToken);
 
     await sender.actor.attemptsTo(
-      OpenRoom(room.url),
       SendMessage(message),
       SaveMessages(),
     );
@@ -171,9 +173,8 @@ test.describe("Browser desktop notifications", () => {
       SetSettingTo("setting-desktop-notification-message-created", false),
     );
 
-    const sender = await createActor("notification matrix sender");
+    const sender = await joinAsEditor(createActor, api, room, "notification matrix sender", adminToken);
     await sender.actor.attemptsTo(
-      OpenRoom(room.url),
       SendMessage(message),
       SaveMessages(),
     );
@@ -209,9 +210,8 @@ test.describe("Browser desktop notifications", () => {
     page,
     createActor,
   }) => {
-    const sender = await createActor("notification update sender");
+    const sender = await joinAsEditor(createActor, api, room, "notification update sender", adminToken);
     await sender.actor.attemptsTo(
-      OpenRoom(room.url),
       SendMessage("Original message before update"),
       SaveMessages(),
     );
@@ -242,9 +242,8 @@ test.describe("Browser desktop notifications", () => {
     await setNotificationPermission(page, "granted");
     await actor.attemptsTo(SetSettingTo("setting-desktop-notifications", true));
 
-    const sender = await createActor("notification room settings sender");
+    const sender = await joinAsRole(createActor, api, room, "notification room settings sender", adminToken, "admin");
     await sender.actor.attemptsTo(
-      OpenRoom(room.url),
       ConfigureRoom({ maxViews: 777 }),
     );
 
@@ -253,55 +252,6 @@ test.describe("Browser desktop notifications", () => {
       .toContain(":room:settings_changed:");
     await expect.poll(async () => notificationText(page))
       .toContain(tCommon("desktopNotification.title.room.settings_changed"));
-  });
-
-  test("sends desktop notifications for remote room permission updates", async ({
-    actor,
-    page,
-    createActor,
-  }) => {
-    await setNotificationPermission(page, "granted");
-    await actor.attemptsTo(SetSettingTo("setting-desktop-notifications", true));
-
-    const sender = await createActor("notification room permissions sender");
-    await sender.actor.attemptsTo(OpenRoom(room.url));
-    expect(await sender.actor.answer(PermissionState("delete"))).toBe(true);
-
-    await sender.actor.attemptsTo(SetRoomPermissions({ delete: false }));
-
-    await expect(RoomScreen.roomAddressChangedAlert(page)).toHaveCount(0);
-    await expect.poll(async () => notificationTags(page))
-      .toContain(":room:permissions_changed:");
-    await expect.poll(async () => notificationText(page))
-      .toContain(tCommon("desktopNotification.title.room.permissions_changed"));
-  });
-
-  test("sends desktop notifications for remote room address changes", async ({
-    actor,
-    page,
-    createActor,
-  }) => {
-    await setNotificationPermission(page, "granted");
-    await actor.attemptsTo(SetSettingTo("setting-desktop-notifications", true));
-
-    const sender = await createActor("notification room address sender");
-    await sender.actor.attemptsTo(OpenRoom(room.url));
-    const shareEnabled = await sender.actor.answer(PermissionState("share"));
-    expect(shareEnabled).toBe(true);
-
-    await sender.actor.attemptsTo(SetRoomPermissions({ share: false }));
-
-    await expect(RoomScreen.roomAddressChangedAlert(page)).toBeVisible();
-    await expect.poll(async () => notificationTags(page))
-      .toContain(":room:address_changed:");
-    await expect.poll(async () => notificationText(page))
-      .toContain(tCommon("desktopNotification.title.room.address_changed"));
-    const addressSubjectPrefix = tCommon(
-      "desktopNotification.roomUpdateSubject.addressChanged",
-      { path: "/__next_room__" },
-    ).replace("/__next_room__", "");
-    await expect.poll(async () => notificationText(page))
-      .toContain(addressSubjectPrefix);
   });
 
   test("respects the room setting update notification switch", async ({
@@ -315,9 +265,8 @@ test.describe("Browser desktop notifications", () => {
       SetSettingTo("setting-desktop-notification-room-settings_changed", false),
     );
 
-    const sender = await createActor("notification room setting disabled sender");
+    const sender = await joinAsRole(createActor, api, room, "notification room setting disabled sender", adminToken, "admin");
     await sender.actor.attemptsTo(
-      OpenRoom(room.url),
       ConfigureRoom({ maxViews: 888 }),
     );
 
@@ -337,9 +286,8 @@ test.describe("Browser desktop notifications", () => {
     );
 
     const linkName = `Link created off ${Date.now()}`;
-    const sender = await createActor("notification link disabled sender");
+    const sender = await joinAsEditor(createActor, api, room, "notification link disabled sender", adminToken);
     await sender.actor.attemptsTo(
-      OpenRoom(room.url),
       AddRoomLink({
         urlInput: `example.com/disabled-${Date.now()}`,
         name: linkName,
@@ -363,9 +311,8 @@ test.describe("Browser desktop notifications", () => {
     );
 
     const linkName = `Link created only ${Date.now()}`;
-    const sender = await createActor("notification link sender");
+    const sender = await joinAsEditor(createActor, api, room, "notification link sender", adminToken);
     await sender.actor.attemptsTo(
-      OpenRoom(room.url),
       AddRoomLink({
         urlInput: `example.com/created-${Date.now()}`,
         name: linkName,

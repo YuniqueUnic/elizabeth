@@ -4,10 +4,12 @@ use chrono::{NaiveDateTime, Utc};
 use sqlx::{Any, FromRow, Row};
 use std::sync::Arc;
 
+use crate::models::room::role::SYSTEM_ROLE_TEMPLATES;
+use crate::models::room::role::grants_to_json;
 use crate::models::room::row_utils::{format_naive_datetime, format_optional_naive_datetime};
 use crate::{
     db::DbPool,
-    models::{Room, RoomStatus, permission::RoomPermission},
+    models::{Room, RoomStatus},
 };
 
 const ROOM_SELECT_BASE: &str = r#"
@@ -24,7 +26,8 @@ const ROOM_SELECT_BASE: &str = r#"
         CAST(expire_at AS TEXT) as expire_at,
         CAST(created_at AS TEXT) as created_at,
         CAST(updated_at AS TEXT) as updated_at,
-        permission
+        default_role_key,
+        roles_version
     FROM rooms
 "#;
 
@@ -127,14 +130,16 @@ impl RoomRepository {
                 max_size = $2,
                 max_times_entered = $3,
                 expire_at = $4,
-                updated_at = $5
-            WHERE id = $6
+                default_role_key = $5,
+                updated_at = $6
+            WHERE id = $7
             "#,
         )
         .bind(&room.password)
         .bind(room.max_size)
         .bind(room.max_times_entered)
         .bind(format_optional_naive_datetime(room.expire_at))
+        .bind(&room.default_role_key)
         .bind(now)
         .bind(room_id)
         .execute(&mut *tx)
@@ -144,22 +149,46 @@ impl RoomRepository {
         Ok(updated)
     }
 
-    pub async fn update_permissions_and_slug(&self, room: &Room) -> Result<Room> {
-        let room_id = room
-            .id
-            .ok_or_else(|| anyhow!("room id is required for permission update"))?;
-        let mut tx = self.pool.begin().await?;
-        let now = format_naive_datetime(Utc::now().naive_utc());
-        sqlx::query("UPDATE rooms SET permission = $1, slug = $2, updated_at = $3 WHERE id = $4")
-            .bind(i64::from(room.permission.bits()))
-            .bind(&room.slug)
-            .bind(now)
+    /// 角色矩阵写路径专用：bump 版本号使所有会话的 RoleTable 缓存立即失效。
+    pub async fn bump_roles_version(&self, room_id: i64) -> Result<i64> {
+        let version: i64 = sqlx::query_scalar(
+            "UPDATE rooms SET roles_version = roles_version + 1 WHERE id = $1 RETURNING roles_version",
+        )
+        .bind(room_id)
+        .fetch_one(&*self.pool)
+        .await?;
+        Ok(version)
+    }
+
+    /// 角色矩阵写路径的与 bump 版本号同事务的变体（供 RoleRepository 组合）。
+    pub async fn bump_roles_version_in<'e, E>(executor: E, room_id: i64) -> Result<()>
+    where
+        E: sqlx::Executor<'e, Database = Any>,
+    {
+        sqlx::query("UPDATE rooms SET roles_version = roles_version + 1 WHERE id = $1")
             .bind(room_id)
-            .execute(&mut *tx)
+            .execute(executor)
             .await?;
-        let updated = Self::fetch_room_by_id_or_err(&mut *tx, room_id).await?;
-        tx.commit().await?;
-        Ok(updated)
+        Ok(())
+    }
+
+    /// 新房间种子：同事务写入三个系统角色（§5.3 模板）。
+    async fn seed_system_roles(tx: &mut sqlx::Transaction<'_, Any>, room_id: i64) -> Result<()> {
+        for template in SYSTEM_ROLE_TEMPLATES.iter() {
+            sqlx::query(
+                r#"
+                INSERT INTO room_roles (room_id, role_key, display_name, capabilities, is_system)
+                VALUES ($1, $2, $3, $4, 1)
+                "#,
+            )
+            .bind(room_id)
+            .bind(template.key)
+            .bind(template.display_name)
+            .bind(grants_to_json(template.capabilities))
+            .execute(&mut **tx)
+            .await?;
+        }
+        Ok(())
     }
 
     pub async fn release_display_name(&self, room_id: i64, new_name: &str) -> Result<Room> {
@@ -210,8 +239,8 @@ impl IRoomRepository for RoomRepository {
             INSERT INTO rooms (
                 name, slug, password, status, max_size, current_size,
                 max_times_entered, current_times_entered, expire_at,
-                created_at, updated_at, permission
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                created_at, updated_at, default_role_key, roles_version
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
             ON CONFLICT DO NOTHING
             RETURNING id
             "#,
@@ -227,12 +256,16 @@ impl IRoomRepository for RoomRepository {
         .bind(expire_at.clone())
         .bind(now_str.clone())
         .bind(now_str.clone())
-        .bind(i64::from(room.permission.bits()))
+        .bind(&room.default_role_key)
+        .bind(room.roles_version)
         .fetch_optional(&mut *tx)
         .await?;
 
         let created_room = match inserted_id {
-            Some(inserted_id) => Some(Self::fetch_room_by_id_or_err(&mut *tx, inserted_id).await?),
+            Some(inserted_id) => {
+                Self::seed_system_roles(&mut tx, inserted_id).await?;
+                Some(Self::fetch_room_by_id_or_err(&mut *tx, inserted_id).await?)
+            }
             None => None,
         };
 
@@ -266,8 +299,8 @@ impl IRoomRepository for RoomRepository {
             UPDATE rooms SET
                 password = $1, status = $2, max_size = $3, current_size = $4,
                 max_times_entered = $5, current_times_entered = $6, expire_at = $7,
-                updated_at = $8, permission = $9, slug = $10
-            WHERE id = $11
+                updated_at = $8, slug = $9
+            WHERE id = $10
             "#,
         )
         .bind(&room.password)
@@ -278,7 +311,6 @@ impl IRoomRepository for RoomRepository {
         .bind(room.current_times_entered)
         .bind(expire_at)
         .bind(now_str)
-        .bind(i64::from(room.permission.bits()))
         .bind(&room.slug)
         .bind(room_id)
         .execute(&mut *tx)

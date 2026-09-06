@@ -12,4 +12,9 @@ token?: string,
 /**
  * 是否请求刷新令牌对
  */
-with_refresh_token: boolean, };
+with_refresh_token: boolean, 
+/**
+ * 请求加入的角色；缺省 = 房间默认角色。
+ * 指定非默认角色需要 `room.roles.manage` 能力（匿名进房者只能拿默认角色）。
+ */
+role?: string, };

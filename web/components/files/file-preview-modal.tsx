@@ -22,7 +22,7 @@ import type { FileItem } from "@/lib/types";
 import { formatFileSize } from "@/lib/utils/format";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/lib/store";
-import { useRoomPermissions } from "@/hooks/use-room-permissions";
+import { useRoomCapabilities } from "@/hooks/use-room-capabilities";
 import { copyTextToClipboard } from "@/lib/utils/clipboard";
 import { ManualCopyDialog } from "@/components/manual-copy-dialog";
 import {
@@ -81,7 +81,7 @@ export function FilePreviewModal(
   const [manualCopyValue, setManualCopyValue] = useState("");
   const [redeemDialogOpen, setRedeemDialogOpen] = useState(false);
   const [currentTicket, setCurrentTicket] = useState<string | undefined>(ticket);
-  const { can } = useRoomPermissions();
+  const { can } = useRoomCapabilities();
   const deleteAllowed = canDelete ?? can.delete;
   const isMobile = useIsMobile();
 

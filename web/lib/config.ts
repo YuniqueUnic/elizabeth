@@ -86,10 +86,13 @@ export const API_ENDPOINTS = {
   // Room Management
   rooms: {
     base: (name: string) => `/rooms/${encodeURIComponent(name)}`,
-    permissions: (name: string) =>
-      `/rooms/${encodeURIComponent(name)}/permissions`,
+    roles: (name: string) => `/rooms/${encodeURIComponent(name)}/roles`,
+    role: (name: string, roleKey: string) =>
+      `/rooms/${encodeURIComponent(name)}/roles/${encodeURIComponent(roleKey)}`,
     settings: (name: string) => `/rooms/${encodeURIComponent(name)}/settings`,
     tokens: (name: string) => `/rooms/${encodeURIComponent(name)}/tokens`,
+    capabilities: (name: string) =>
+      `/rooms/${encodeURIComponent(name)}/capabilities`,
     verifyPassword: (name: string) =>
       `/rooms/${encodeURIComponent(name)}/password/verify`,
     validateToken: (name: string) =>
@@ -106,6 +109,8 @@ export const API_ENDPOINTS = {
     url: (name: string) => `/rooms/${encodeURIComponent(name)}/contents/url`,
     byId: (name: string, contentId: string) =>
       `/rooms/${encodeURIComponent(name)}/contents/${contentId}`,
+    visibility: (name: string, contentId: string) =>
+      `/rooms/${encodeURIComponent(name)}/contents/${contentId}/visibility`,
     messages: (name: string) =>
       `/rooms/${encodeURIComponent(name)}/messages`,
   },

@@ -52,7 +52,8 @@
       "room": {
         "address_changed": "Room address changed",
         "permissions_changed": "Room permissions updated",
-        "settings_changed": "Room settings updated"
+        "settings_changed": "Room settings updated",
+        "roles_changed": "Member roles updated"
       }
     },
     "summary": {
@@ -72,14 +73,16 @@
       "room": {
         "address_changed": "Room address changed",
         "permissions_changed": "Room permissions updated",
-        "settings_changed": "Room settings updated"
+        "settings_changed": "Room settings updated",
+        "roles_changed": "Member roles updated"
       }
     },
     "roomUpdateSubject": {
       "addressChanged": "Room address changed: {path}",
       "address_changed": "Room address changed",
       "permissions_changed": "Room permissions updated",
-      "settings_changed": "Room settings updated"
+      "settings_changed": "Room settings updated",
+      "roles_changed": "Member roles updated"
     }
   },
   "copySelectedMessages": "Copy selected messages",

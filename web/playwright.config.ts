@@ -98,6 +98,9 @@ export default defineConfig<SerenityFixtures, SerenityWorkerFixtures>({
       `PORT=${serverPort} DATABASE_URL='${databaseUrl}' ` +
       `DB_MAX_CONNECTIONS=5 DB_MIN_CONNECTIONS=1 ` +
       `ELIZABETH__APP__STORAGE__ROOT='${storageRoot}' ` +
+      // e2e fixture 依赖平台引导凭证补签身份码（如二次加入同一房间），
+      // 与 CallElizabethApi.ability 的 ADMIN_BOOTSTRAP_TOKEN 默认值保持一致。
+      `ELIZABETH_ADMIN_TOKEN='${process.env.ELIZABETH_ADMIN_TOKEN ?? "elizabeth-test-admin"}' ` +
       `cargo run -p elizabeth-board -- run`,
     url: `${appBaseUrl}/api/v1/health`,
     reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === "1",

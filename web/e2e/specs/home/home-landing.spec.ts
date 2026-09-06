@@ -57,7 +57,7 @@ test.describe("Home landing", () => {
       password_protected: false,
       max_size: 50 * 1024 * 1024,
       max_times_entered: 100,
-      permission: 15,
+      default_role_key: "reader",
     });
     const lifetimeSeconds = Math.round(
       (Date.parse(room.expire_at) - Date.parse(room.created_at)) / 1000,

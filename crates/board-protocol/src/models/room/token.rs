@@ -14,6 +14,9 @@ pub struct RoomToken {
     #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
     pub room_id: i64,
     pub jti: String,
+    /// 该会话绑定的角色 key（实时能力判定仍以 room_roles 为准）
+    #[cfg_attr(feature = "typescript-export", ts(optional))]
+    pub role_key: Option<String>,
     pub expires_at: NaiveDateTime,
     pub revoked_at: Option<NaiveDateTime>,
     pub created_at: NaiveDateTime,
@@ -24,6 +27,7 @@ fn build_room_token_sqlite(row: &SqliteRow) -> Result<RoomToken, sqlx::Error> {
         id: row.try_get("id")?,
         room_id: row.try_get("room_id")?,
         jti: row.try_get("jti")?,
+        role_key: row.try_get("role_key")?,
         expires_at: row.try_get("expires_at")?,
         revoked_at: row.try_get("revoked_at")?,
         created_at: row.try_get("created_at")?,
@@ -35,6 +39,7 @@ fn build_room_token_pg(row: &PgRow) -> Result<RoomToken, sqlx::Error> {
         id: row.try_get("id")?,
         room_id: row.try_get("room_id")?,
         jti: row.try_get("jti")?,
+        role_key: row.try_get("role_key")?,
         expires_at: row.try_get("expires_at")?,
         revoked_at: row.try_get("revoked_at")?,
         created_at: row.try_get("created_at")?,
@@ -46,6 +51,7 @@ fn build_room_token_any(row: &AnyRow) -> Result<RoomToken, sqlx::Error> {
         id: row.try_get("id")?,
         room_id: row.try_get("room_id")?,
         jti: row.try_get("jti")?,
+        role_key: row.try_get("role_key")?,
         expires_at: read_datetime_from_any(row, "expires_at")?,
         revoked_at: read_optional_datetime_from_any(row, "revoked_at")?,
         created_at: read_datetime_from_any(row, "created_at")?,
@@ -71,12 +77,18 @@ impl<'r> FromRow<'r, AnyRow> for RoomToken {
 }
 
 impl RoomToken {
-    pub fn new(room_id: i64, jti: impl Into<String>, expires_at: NaiveDateTime) -> Self {
+    pub fn new(
+        room_id: i64,
+        jti: impl Into<String>,
+        role_key: impl Into<String>,
+        expires_at: NaiveDateTime,
+    ) -> Self {
         let now = Utc::now().naive_utc();
         Self {
             id: None,
             room_id,
             jti: jti.into(),
+            role_key: Some(role_key.into()),
             expires_at,
             revoked_at: None,
             created_at: now,

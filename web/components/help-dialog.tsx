@@ -25,6 +25,8 @@ import {
     Save,
     Settings,
     Share2,
+    ShieldCheck,
+    Ticket,
     Trash2,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -116,21 +118,21 @@ export function HelpDialog({ children }: { children: React.ReactNode }) {
                                 {t("sections.roomSettings.permissions.description")}
                                 <ul className="list-disc list-inside mt-2 space-y-1">
                                     <li>
-                                        <strong>{t("sections.roomSettings.permissions.items.preview.label")}</strong>：{t("sections.roomSettings.permissions.items.preview.description")}
+                                        <strong>{t("sections.roomSettings.permissions.items.admin.label")}</strong>: {t("sections.roomSettings.permissions.items.admin.description")}
                                     </li>
                                     <li>
-                                        <strong>{t("sections.roomSettings.permissions.items.edit.label")}</strong>
-                                        ：{t("sections.roomSettings.permissions.items.edit.description")}
+                                        <strong>{t("sections.roomSettings.permissions.items.editor.label")}</strong>: {t("sections.roomSettings.permissions.items.editor.description")}
                                     </li>
                                     <li>
-                                        <strong>{t("sections.roomSettings.permissions.items.share.label")}</strong>
-                                        ：{t("sections.roomSettings.permissions.items.share.description")}
+                                        <strong>{t("sections.roomSettings.permissions.items.reader.label")}</strong>: {t("sections.roomSettings.permissions.items.reader.description")}
                                     </li>
                                     <li>
-                                        <strong>{t("sections.roomSettings.permissions.items.delete.label")}</strong>
-                                        ：{t("sections.roomSettings.permissions.items.delete.description")}
+                                        <strong>{t("sections.roomSettings.permissions.items.scope.label")}</strong>: {t("sections.roomSettings.permissions.items.scope.description")}
                                     </li>
                                 </ul>
+                            </HelpItem>
+                            <HelpItem title={t("sections.roomSettings.authorization.title")} icon={KeyRound}>
+                                {t("sections.roomSettings.authorization.description")}
                             </HelpItem>
                         </HelpSection>
 
@@ -140,6 +142,24 @@ export function HelpDialog({ children }: { children: React.ReactNode }) {
                             </HelpItem>
                             <HelpItem title={t("sections.roomSharing.qrcode.title")} icon={QrCode}>
                                 {t("sections.roomSharing.qrcode.description")}
+                            </HelpItem>
+                        </HelpSection>
+
+                        <HelpSection title={t("sections.fileProtection.title")} icon={ShieldCheck}>
+                            <HelpItem title={t("sections.fileProtection.policy.title")} icon={Settings}>
+                                {t("sections.fileProtection.policy.description")}
+                            </HelpItem>
+                            <HelpItem title={t("sections.fileProtection.modes.title")} icon={Lock}>
+                                {t("sections.fileProtection.modes.description")}
+                            </HelpItem>
+                            <HelpItem title={t("sections.fileProtection.downloadLimit.title")} icon={Download}>
+                                {t("sections.fileProtection.downloadLimit.description")}
+                            </HelpItem>
+                            <HelpItem title={t("sections.fileProtection.codes.title")} icon={KeyRound}>
+                                {t("sections.fileProtection.codes.description")}
+                            </HelpItem>
+                            <HelpItem title={t("sections.fileProtection.redeem.title")} icon={Ticket}>
+                                {t("sections.fileProtection.redeem.description")}
                             </HelpItem>
                         </HelpSection>
 

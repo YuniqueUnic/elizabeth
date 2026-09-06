@@ -7,6 +7,8 @@ export interface MessageContentEvent {
   sequence_number?: number;
   created_at?: string;
   updated_at?: string;
+  /** hidden = true 时事件不携带正文，仅用于触发本地缓存失效 */
+  hidden?: boolean;
 }
 
 const isPending = (message: LocalMessage) =>
@@ -157,5 +159,6 @@ export function messageFromContentEvent(
     updatedAt: payload.updated_at ?? payload.created_at ?? existing?.updatedAt,
     sequence_number: payload.sequence_number ?? existing?.sequence_number ?? 0,
     isOwn: existing?.isOwn,
+    hidden: payload.hidden ?? existing?.hidden,
   };
 }

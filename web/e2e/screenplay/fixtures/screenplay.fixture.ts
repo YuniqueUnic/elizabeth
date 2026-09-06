@@ -94,16 +94,16 @@ const {
       options: ProvisionRoomOptions = {},
     ): Promise<ProvisionedRoom> => {
       const roomName = options.roomName ?? uniqueRoomName("screenplay-room");
-      await api.ensureRoom(roomName, options.password);
+      // 建房者即 admin：持有创建时返回的 admin 身份码（已存在则用平台引导凭证补签）
+      const adminTokenInfo = await api.ensureRoom(roomName, options.password);
 
-      let tokenInfo: RoomTokenInfo | undefined;
+      let tokenInfo: RoomTokenInfo | undefined = adminTokenInfo;
       if (options.injectToken !== false && options.actor) {
-        tokenInfo = await api.issueToken(roomName, {
-          password: options.password,
-          withRefreshToken: options.withRefreshToken,
-        });
         const page = await nativePageFor(options.actor);
-        await primeRoomToken(page, roomName, tokenInfo);
+        await primeRoomToken(page, roomName, adminTokenInfo);
+      }
+      if (options.injectToken === false) {
+        tokenInfo = undefined;
       }
 
       return {

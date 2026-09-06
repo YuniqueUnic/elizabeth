@@ -5,7 +5,6 @@
 
 use anyhow::Result;
 use board::db::{DbPool, DbPoolSettings, run_migrations};
-use board::models::permission::RoomPermission;
 use board::models::room::row_utils::format_naive_datetime;
 use chrono::DateTime;
 use std::sync::Arc;
@@ -41,7 +40,8 @@ fn create_test_room(name: &str) -> Room {
         expire_at: None,
         created_at: now,
         updated_at: now,
-        permission: RoomPermission::new().with_all(), // 所有权限都允许
+        default_role_key: "reader".to_string(),
+        roles_version: 1,
     }
 }
 
@@ -172,15 +172,13 @@ async fn test_update_room() -> Result<()> {
     room.id = created_room.id;
     room.slug = created_room.slug.clone();
     room.max_size = 200;
-    room.permission = RoomPermission::new(); // 移除所有权限
-
     let updated_room = repository.update(&room).await?;
 
     assert_eq!(updated_room.id, created_room.id);
     assert_eq!(updated_room.name, "update_test");
     assert_eq!(updated_room.slug, created_room.slug);
     assert_eq!(updated_room.max_size, 200);
-    assert_eq!(updated_room.permission, RoomPermission::VIEW_ONLY);
+    assert_eq!(updated_room.default_role_key, "reader");
 
     Ok(())
 }

@@ -3,6 +3,7 @@ pub mod auth;
 pub mod chunked_upload;
 pub mod config;
 pub mod content;
+pub mod roles;
 pub mod rooms;
 pub mod token;
 
@@ -11,5 +12,6 @@ pub use auth::*;
 pub use chunked_upload::*;
 pub use config::*;
 pub use content::*;
+pub use roles::*;
 pub use rooms::*;
 pub use token::*;

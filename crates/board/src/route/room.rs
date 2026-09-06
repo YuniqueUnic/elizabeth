@@ -10,15 +10,17 @@ pub fn api_router(app_state: Arc<AppState>) -> OpenApiRouter {
         .routes(routes!(crate::handlers::rooms::lifecycle::find))
         .routes(routes!(crate::handlers::rooms::lifecycle::delete))
         .routes(routes!(
-            crate::handlers::rooms::permissions::update_permissions
-        ))
-        .routes(routes!(
             crate::handlers::rooms::settings::update_room_settings
         ))
+        .routes(routes!(crate::handlers::rooms::roles::list_roles))
+        .routes(routes!(crate::handlers::rooms::roles::create_role))
+        .routes(routes!(crate::handlers::rooms::roles::update_role))
+        .routes(routes!(crate::handlers::rooms::roles::delete_role))
         .routes(routes!(crate::handlers::rooms::tokens::issue_token))
         .routes(routes!(crate::handlers::rooms::tokens::verify_password))
         .routes(routes!(crate::handlers::rooms::tokens::list_tokens))
         .routes(routes!(crate::handlers::rooms::tokens::validate_token))
+        .routes(routes!(crate::handlers::rooms::tokens::my_capabilities))
         .routes(routes!(crate::handlers::rooms::tokens::revoke_token))
         .routes(routes!(crate::handlers::content::upload::list_contents))
         .routes(routes!(crate::handlers::content::upload::prepare_upload))
@@ -32,6 +34,9 @@ pub fn api_router(app_state: Arc<AppState>) -> OpenApiRouter {
         .routes(routes!(crate::handlers::content::policy::generate_codes))
         .routes(routes!(crate::handlers::content::policy::redeem_code))
         .routes(routes!(crate::handlers::content::update::update_content))
+        .routes(routes!(
+            crate::handlers::content::visibility::set_content_visibility
+        ))
         .routes(routes!(crate::handlers::content::url::create_url_content))
         .routes(routes!(crate::handlers::content::message::create_message))
         .routes(routes!(crate::handlers::content::message::list_messages))

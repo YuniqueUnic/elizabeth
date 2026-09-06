@@ -9,7 +9,9 @@ import { useCallback, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { Message } from "@/lib/types";
 import { Group, Panel, Separator } from "react-resizable-panels";
-import { useRoomPermissions } from "@/hooks/use-room-permissions";
+import { useRoomCapabilities } from "@/hooks/use-room-capabilities";
+import { useToast } from "@/hooks/use-toast";
+import { setContentVisibility } from "@/api/visibilityService";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -65,7 +67,34 @@ export function MiddleColumn() {
     staleTime: 1000,
     enabled: !!currentRoomId,
   });
-  const { can } = useRoomPermissions(roomDetails?.permissions);
+  const { can, has, payload } = useRoomCapabilities();
+  const { toast } = useToast();
+
+  // own 作用域仅能操作自己创建的消息；any 作用域覆盖全部
+  const canToggleMessageVisibility = useCallback(
+    (message: Message) =>
+      has("msg.visibility.manage", "any") ||
+      (has("msg.visibility.manage", "own") &&
+        (!message.createdByJti || message.createdByJti === payload?.jti)),
+    [has, payload?.jti],
+  );
+
+  const handleToggleVisibility = useCallback(
+    (message: Message) => {
+      const nextHidden = !message.hidden;
+      void setContentVisibility(currentRoomId, message.id, nextHidden).then(
+        () => {
+          toast({
+            title: nextHidden
+              ? t("messageBubble.hideSuccess")
+              : t("messageBubble.showSuccess"),
+          });
+        },
+        () => toast({ title: t("messageBubble.visibilityFailed"), variant: "destructive" }),
+      );
+    },
+    [currentRoomId, t, toast],
+  );
 
   const handleSend = useCallback(
     (content: string) => {
@@ -119,6 +148,8 @@ export function MiddleColumn() {
             editingMessageId={composerEditingMessageId}
             canEdit={can.edit}
             canDelete={can.delete}
+            canToggleMessageVisibility={canToggleMessageVisibility}
+            onToggleVisibility={handleToggleVisibility}
           />
         </Panel>
 

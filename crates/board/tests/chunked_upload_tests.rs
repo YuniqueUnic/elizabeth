@@ -87,8 +87,10 @@ async fn test_chunked_upload_complete_workflow() -> Result<()> {
     let create_response = app.clone().oneshot(create_request).await?;
     assert_eq!(create_response.status(), StatusCode::OK);
 
-    // 2. 发放访问令牌
-    let issue_payload = json!({ "password": "chunked123" });
+    // 2. 创建者 admin 身份码签发 editor 访问令牌
+    let create_body = axum::body::to_bytes(create_response.into_body(), usize::MAX).await?;
+    let create_json: serde_json::Value = serde_json::from_slice(&create_body)?;
+    let issue_payload = json!({ "token": create_json["token"], "role": "editor" });
     let issue_request = create_http_request(
         Method::POST,
         &format!("/api/v1/rooms/{}/tokens", room_name),
@@ -233,11 +235,15 @@ async fn test_chunked_upload_error_handling() -> Result<()> {
 
     let create_response = app.clone().oneshot(create_request).await?;
     assert_eq!(create_response.status(), StatusCode::OK);
+    let create_body = axum::body::to_bytes(create_response.into_body(), usize::MAX).await?;
+    let create_json: serde_json::Value = serde_json::from_slice(&create_body)?;
 
     let issue_request = create_http_request(
         Method::POST,
         &format!("/api/v1/rooms/{}/tokens", room_name),
-        Some(Body::from(json!({ "password": "error123" }).to_string())),
+        Some(Body::from(
+            json!({ "token": create_json["token"], "role": "editor" }).to_string(),
+        )),
     );
     let issue_response = app.clone().oneshot(issue_request).await?;
     assert_eq!(issue_response.status(), StatusCode::OK);
@@ -321,8 +327,10 @@ async fn test_chunked_upload_status() -> Result<()> {
     let create_response = app.clone().oneshot(create_request).await?;
     assert_eq!(create_response.status(), StatusCode::OK);
 
-    // 发放访问令牌
-    let issue_payload = json!({ "password": "status123" });
+    // 创建者 admin 身份码签发 editor 访问令牌
+    let create_body = axum::body::to_bytes(create_response.into_body(), usize::MAX).await?;
+    let create_json: serde_json::Value = serde_json::from_slice(&create_body)?;
+    let issue_payload = json!({ "token": create_json["token"], "role": "editor" });
     let issue_request = create_http_request(
         Method::POST,
         &format!("/api/v1/rooms/{}/tokens", room_name),

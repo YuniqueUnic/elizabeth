@@ -11,10 +11,12 @@ import {
   ClickDownloadMessages,
   ClickMessageCopyButton,
   ClickMessageDeleteButton,
+  CloseFilePreviewDialog,
   CloseSettings,
   ConfirmDeleteAction,
   ConfirmDeleteAndDisable,
   ConfirmFileDeleteAction,
+  ConfigureFileDownloadPolicy,
   OpenSettings,
   ClickSaveMessages,
   ClickSend,
@@ -25,11 +27,15 @@ import {
   ConfirmPhysicalClose,
   AddLinkToRoom,
   DeleteFileNamed,
+  DropFileOntoEditor,
   EditLatestMessage,
   EnterMessage,
   EnterRoomPassword,
   OpenCloseRoomDialog,
   OpenFilePreviewNamed,
+  PasteFileIntoEditor,
+  PasteTextIntoEditor,
+  RedeemAccessCode,
   ResizeViewport,
   SaveRoomConfiguration,
   ScrollMessageListToBottom,
@@ -44,6 +50,7 @@ import {
   VerifyCloseRoomPassword,
   WaitForRoomToBeReady,
   WaitForSavingToComplete,
+  type DownloadPolicyInput,
 } from "../interactions/Room.interactions";
 import type { UploadableFile } from "../../support/test-data";
 
@@ -327,4 +334,43 @@ export const ToggleSettingInOpenDialog = (testid: string) =>
   Task.where(
     the`#actor toggles a setting in the open settings dialog`,
     ToggleSetting(testid),
+  );
+
+export const ConfigureDownloadPolicy = (
+  fileName: string,
+  policy: DownloadPolicyInput,
+) =>
+  Task.where(
+    the`#actor configures the download policy of ${fileName}`,
+    ConfigureFileDownloadPolicy(fileName, policy),
+  );
+
+export const RedeemFileAccessCode = (code: string) =>
+  Task.where(
+    the`#actor redeems the file access code ${code}`,
+    RedeemAccessCode(code),
+  );
+
+export const CloseFilePreview = () =>
+  Task.where(
+    the`#actor closes the file preview`,
+    CloseFilePreviewDialog(),
+  );
+
+export const PasteIntoComposer = (text: string) =>
+  Task.where(
+    the`#actor pastes text into the message composer`,
+    PasteTextIntoEditor(text),
+  );
+
+export const PasteFileIntoComposer = (file: UploadableFile) =>
+  Task.where(
+    the`#actor pastes ${file.name} into the message composer`,
+    PasteFileIntoEditor(file),
+  );
+
+export const DropFileIntoComposer = (file: UploadableFile) =>
+  Task.where(
+    the`#actor drops ${file.name} into the message composer`,
+    DropFileOntoEditor(file),
   );

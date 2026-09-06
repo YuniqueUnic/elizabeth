@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Shield, Lock } from "lucide-react";
+import { Eye, EyeOff, Trash2, Shield, Lock } from "lucide-react";
 import type { FileItem } from "@/lib/types";
 import { useAppStore } from "@/lib/store";
 import { formatFileSize } from "@/lib/utils/format";
@@ -52,10 +52,20 @@ interface FileCardProps {
   onClick: (file: FileItem, ticket?: string) => void;
   showCheckbox: boolean;
   canDelete: boolean;
+  canToggleVisibility: boolean;
+  onToggleVisibility: (file: FileItem) => void;
 }
 
 export function FileCard(
-  { file, onDelete, onClick, showCheckbox, canDelete }: FileCardProps,
+  {
+    file,
+    onDelete,
+    onClick,
+    showCheckbox,
+    canDelete,
+    canToggleVisibility,
+    onToggleVisibility,
+  }: FileCardProps,
 ) {
   const t = useTranslations("room");
   const tp = useTranslations("room.downloadPolicy");
@@ -92,7 +102,9 @@ export function FileCard(
           isSelected
             ? "border-primary border-2 bg-primary/5 shadow-sm"
             : "border-border bg-card hover:bg-accent/50"
-        }`}
+        } ${file.hidden ? "opacity-60" : ""}`}
+        data-testid={`file-card-${file.id}`}
+        data-hidden={file.hidden ? "true" : "false"}
       >
         {/* Checkbox */}
         {showCheckbox && (
@@ -131,6 +143,16 @@ export function FileCard(
                   {tp("protectedBadge")}
                 </Badge>
               )}
+              {file.hidden && (
+                <Badge
+                  variant="secondary"
+                  className="px-1 text-[10px] h-4"
+                  data-testid={`file-hidden-badge-${file.id}`}
+                >
+                  <EyeOff className="w-3 h-3 mr-1" />
+                  {t("fileCard.hidden")}
+                </Badge>
+              )}
             </div>
           </div>
         </div>
@@ -149,6 +171,22 @@ export function FileCard(
               title={tp("settingsTitle")}
             >
               <Shield className="h-4 w-4 text-muted-foreground" />
+            </Button>
+          )}
+
+          {canToggleVisibility && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              data-testid={`file-visibility-${file.id}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleVisibility(file);
+              }}
+              title={file.hidden ? t("fileCard.show") : t("fileCard.hide")}
+            >
+              {file.hidden ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
             </Button>
           )}
 

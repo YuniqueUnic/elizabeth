@@ -10,10 +10,20 @@ interface FileListViewProps {
   onFileClick: (file: FileItem, ticket?: string) => void;
   showCheckboxes: boolean;
   canDelete: boolean;
+  canToggleFileVisibility: (file: FileItem) => boolean;
+  onToggleVisibility: (file: FileItem) => void;
 }
 
 export function FileListView(
-  { files, onDelete, onFileClick, showCheckboxes, canDelete }: FileListViewProps,
+  {
+    files,
+    onDelete,
+    onFileClick,
+    showCheckboxes,
+    canDelete,
+    canToggleFileVisibility,
+    onToggleVisibility,
+  }: FileListViewProps,
 ) {
   const t = useTranslations("room");
 
@@ -35,6 +45,8 @@ export function FileListView(
           onClick={onFileClick}
           showCheckbox={showCheckboxes}
           canDelete={canDelete}
+          canToggleVisibility={canToggleFileVisibility(file)}
+          onToggleVisibility={onToggleVisibility}
         />
       ))}
     </div>

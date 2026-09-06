@@ -43,7 +43,7 @@ import {
   isPermissionDeniedError,
 } from "@/lib/utils/mutations";
 import { cn } from "@/lib/utils";
-import { useRoomPermissions } from "@/hooks/use-room-permissions";
+import { useRoomCapabilities } from "@/hooks/use-room-capabilities";
 
 function GitHubIcon({ className }: { className?: string }) {
   return (
@@ -92,7 +92,7 @@ export function TopBar() {
     queryKey: ["room", currentRoomId],
     queryFn: () => getRoomDetails(currentRoomId),
   });
-  const { can } = useRoomPermissions(roomDetails?.permissions);
+  const { can } = useRoomCapabilities();
 
   const describeLocalSavePermissionBlock = () => {
     const pendingMessages = messages.filter((message) =>

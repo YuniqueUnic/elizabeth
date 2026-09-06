@@ -41,7 +41,7 @@
   },
   "config": {
     "title": "Room Configuration",
-    "adminOnly": "Only room administrators (with delete permission) can modify room configuration",
+    "adminOnly": "Only an identity with room.settings.update can modify this room's configuration",
     "adminSaveOnly": "Only room administrators can save configuration",
     "expiry": {
       "label": "Expiry Time",
@@ -128,6 +128,168 @@
     "warningTitle": "Warning",
     "jwtRefreshFail": "Password has been updated, but JWT refresh failed. Please refresh the page and log in again."
   },
+  "identity": {
+    "title": "My identity",
+    "roleAdmin": "Admin",
+    "roleEditor": "Editor",
+    "roleReader": "Reader",
+    "roleCustom": "Custom",
+    "codeLabel": "Room identity code",
+    "copy": "Copy identity code",
+    "copied": "Copied",
+    "copyFailed": "Copy failed. Please copy manually",
+    "rotate": "Rotate identity code",
+    "rotating": "Rotating...",
+    "rotateSuccessTitle": "Identity code rotated",
+    "rotateSuccessDescription": "The old code is now invalid. Use the new code from now on.",
+    "rotateFailed": "Rotation failed. Please try again",
+    "managePermissions": "Members & permissions",
+    "editorHint": "You joined as an editor. Your identity code is issued by the room admin.",
+    "readerHint": "You joined as a reader with view-only access.",
+    "customHint": "Your identity is assigned by the room admin. See the role settings for details.",
+    "redeemAction": "Use an identity code",
+    "redeemTitle": "Enter with an identity code",
+    "redeemDescription": "Paste the identity code issued by the room admin to join with that identity.",
+    "redeemInvalid": "The identity code is invalid or expired",
+    "redeeming": "Verifying...",
+    "redeemConfirm": "Enter room",
+    "redeemCancel": "Cancel"
+  },
+  "members": {
+    "title": "Members & permissions",
+    "description": "Manage member identity codes and role permissions for this room.",
+    "tabMembers": "Identity codes",
+    "tabRoles": "Role permissions",
+    "loading": "Loading...",
+    "editorSeats": "Editor seats",
+    "editorSeatsUsage": "{used} / {max} in use",
+    "editorSeatsHint": "Each editor identity code occupies one seat and is released when revoked or expired.",
+    "seatsFull": "All editor seats are in use (max {max}). Revoke an unused code first.",
+    "issueEditor": "Generate editor code",
+    "issuing": "Generating...",
+    "issueSuccessTitle": "Editor code generated",
+    "issueFailed": "Generation failed",
+    "issuedTokenLabel": "New editor code (shown once)",
+    "issuedTokenHint": "Copy it now and share it through a secure channel.",
+    "sessions": "Active sessions",
+    "sessionsHint": "All live identities in this room. Revoking disconnects the user immediately.",
+    "sessionCurrent": "Current",
+    "sessionCreated": "Issued {time}",
+    "sessionExpires": "Expires {time}",
+    "revoke": "Revoke",
+    "revoking": "Revoking...",
+    "revokeSuccess": "Session revoked",
+    "revokeFailed": "Revoke failed",
+    "noSessions": "No active sessions",
+    "validator": "Verify a code",
+    "validatorHint": "Paste any identity code to check its role and validity.",
+    "validatorPlaceholder": "Paste an identity code",
+    "validate": "Verify",
+    "validating": "Verifying...",
+    "invalidFormat": "That does not look like a valid identity code",
+    "invalid": "The identity code is invalid or expired",
+    "validRole": "Valid · role: {role}"
+  },
+  "roles": {
+    "title": "Role permissions",
+    "loading": "Loading role matrix...",
+    "forbidden": "This identity cannot manage room roles.",
+    "newRole": "New role",
+    "roleKey": "Role key",
+    "roleKeyPlaceholder": "for example, moderator",
+    "displayName": "Display name",
+    "displayNamePlaceholder": "Role name",
+    "save": "Save role",
+    "saving": "Saving...",
+    "delete": "Delete role",
+    "deleting": "Deleting...",
+    "off": "Off",
+    "any": "Any",
+    "own": "Own only",
+    "systemBadge": "System",
+    "defaultBadge": "Default",
+    "adminWarning": "Changing admin permissions can affect your own control over this room.",
+    "immediateEffect": "Changes apply to every session in the room immediately.",
+    "saveSuccess": "Role saved",
+    "deleteSuccess": "Role deleted",
+    "saveFailed": "Unable to save role",
+    "deleteFailed": "Unable to delete role",
+    "deleteDefaultRoleConflict": "This role is the default join role. Change the default first.",
+    "groups": {
+      "room": "Room",
+      "msg": "Messages",
+      "file": "Files"
+    },
+    "caps": {
+      "room": {
+        "share": {
+          "label": "Share room"
+        },
+        "settings": {
+          "update": {
+            "label": "Update room settings"
+          }
+        },
+        "roles": {
+          "manage": {
+            "label": "Manage members & roles"
+          }
+        },
+        "delete": {
+          "label": "Close room"
+        }
+      },
+      "msg": {
+        "read": {
+          "label": "Read messages"
+        },
+        "send": {
+          "label": "Send messages"
+        },
+        "copy": {
+          "label": "Copy messages"
+        },
+        "edit": {
+          "label": "Edit messages"
+        },
+        "delete": {
+          "label": "Delete messages"
+        },
+        "visibility": {
+          "manage": {
+            "label": "Show/hide messages"
+          }
+        }
+      },
+      "file": {
+        "list": {
+          "label": "List files"
+        },
+        "preview": {
+          "label": "Preview files"
+        },
+        "download": {
+          "label": "Download files"
+        },
+        "upload": {
+          "label": "Upload files"
+        },
+        "delete": {
+          "label": "Delete files"
+        },
+        "policy": {
+          "manage": {
+            "label": "Manage download policy"
+          }
+        },
+        "visibility": {
+          "manage": {
+            "label": "Show/hide files"
+          }
+        }
+      }
+    }
+  },
   "passwordDialog": {
     "title": "Room is Encrypted",
     "description": "Room {roomName} requires a password to access",
@@ -208,7 +370,14 @@
     "delete": "Delete",
     "messageNumber": "Message #{number}",
     "userLabel": "User:",
-    "timeLabel": "Time:"
+    "timeLabel": "Time:",
+    "hidden": "Hidden",
+    "hide": "Hide message",
+    "show": "Unhide",
+    "hideSuccess": "Message hidden",
+    "showSuccess": "Message visible again",
+    "visibilityFailed": "Action failed. Please retry",
+    "hiddenHint": "Only members with manage permission can see this message"
   },
   "messageInput": {
     "editingBanner": "Editing message",
@@ -271,7 +440,10 @@
     "downloadSelected": "Download Selected"
   },
   "fileCard": {
-    "deleteFile": "Delete File"
+    "deleteFile": "Delete File",
+    "hidden": "Hidden",
+    "hide": "Hide file",
+    "show": "Unhide"
   },
   "fileDeleteConfirm": {
     "fileType": "file",

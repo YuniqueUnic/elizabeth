@@ -76,7 +76,7 @@ export interface RoomInfo {
 
 export type RoomUpdateReason =
   | "address_changed"
-  | "permissions_changed"
+  | "roles_changed"
   | "settings_changed";
 
 export interface RoomUpdatePayload {
@@ -94,6 +94,10 @@ export interface ContentEventPayload {
   content_type?: BackendContentType;
   text?: string | null;
   file_name?: string | null;
+  /** hidden = true 时事件不携带正文；可见性由各端按能力过滤 */
+  hidden?: boolean;
+  /** 创建者会话 jti（own 作用域判定） */
+  created_by_jti?: string | null;
   created_at?: string;
   updated_at?: string;
   sequence_number?: number;
