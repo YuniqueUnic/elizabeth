@@ -56,6 +56,9 @@ test.describe("Identity code lifetime semantics", () => {
 
     await actor.attemptsTo(OpenRoom(room.url));
     await page.getByRole("button", { name: /成员与权限|Members & permissions/ }).click();
+    // Duration fields only appear for non-admin roles; select editor first
+    await page.getByRole("combobox").click();
+    await page.getByRole("option", { name: /editor/ }).click();
     await expect(page.getByTestId("editor-token-duration-value")).toBeVisible();
     await expect(page.getByTestId("editor-token-duration-unit")).toBeVisible();
   });

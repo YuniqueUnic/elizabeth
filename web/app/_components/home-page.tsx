@@ -354,7 +354,7 @@ export default function HomePage() {
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">{t("createdIdentityCodeHint")}</p>
-                <Button type="button" className="w-full" onClick={() => router.push(`/${roomName.trim()}`)}>{t("enterRoom")}</Button>
+                <Button type="button" data-testid="enter-room" className="w-full" onClick={() => router.push(`/${roomName.trim()}`)}>{t("enterRoom")}</Button>
               </div>
             )}
 

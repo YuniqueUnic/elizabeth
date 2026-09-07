@@ -138,8 +138,8 @@ export function MemberAccessPanel({ roomName }: { roomName: string }) {
             </Select>
           </div>
           {role !== "admin" && <div className="grid grid-cols-[1fr_auto] gap-2">
-            <div className="space-y-2"><Label htmlFor="identity-duration">{t("durationLabel")}</Label><Input id="identity-duration" type="number" min={1} value={durationValue} onChange={(event) => setDurationValue(event.target.value)} /></div>
-            <Select value={durationUnit} onValueChange={(value) => setDurationUnit(value as DurationUnit)}><SelectTrigger className="self-end"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="second">{t("unitSecond")}</SelectItem><SelectItem value="minute">{t("unitMinute")}</SelectItem><SelectItem value="hour">{t("unitHour")}</SelectItem><SelectItem value="day">{t("unitDay")}</SelectItem><SelectItem value="month">{t("unitMonth")}</SelectItem></SelectContent></Select>
+            <div className="space-y-2"><Label htmlFor="identity-duration">{t("durationLabel")}</Label><Input id="identity-duration" data-testid="editor-token-duration-value" type="number" min={1} value={durationValue} onChange={(event) => setDurationValue(event.target.value)} /></div>
+            <Select value={durationUnit} onValueChange={(value) => setDurationUnit(value as DurationUnit)}><SelectTrigger data-testid="editor-token-duration-unit" className="self-end"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="second">{t("unitSecond")}</SelectItem><SelectItem value="minute">{t("unitMinute")}</SelectItem><SelectItem value="hour">{t("unitHour")}</SelectItem><SelectItem value="day">{t("unitDay")}</SelectItem><SelectItem value="month">{t("unitMonth")}</SelectItem></SelectContent></Select>
           </div>}
           <Button type="button" onClick={() => {
             if (role !== "admin" && durationSeconds === null) { toast({ title: t("invalidDuration"), variant: "destructive" }); return; }

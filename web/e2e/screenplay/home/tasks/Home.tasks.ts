@@ -53,6 +53,13 @@ export const CreateRoomFromHome = (
         const page = await nativePageFor(actor);
         await HomeScreen.createRoomButton(page).click();
       }),
+      Interaction.where(the`#actor enters the room after creation`, async (actor) => {
+        const page = await nativePageFor(actor);
+        const enterButton = page.getByTestId("enter-room");
+        if (await enterButton.isVisible({ timeout: 5000 }).catch(() => false)) {
+          await enterButton.click();
+        }
+      }),
     );
   };
 
