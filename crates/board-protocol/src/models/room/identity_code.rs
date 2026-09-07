@@ -8,105 +8,87 @@ use crate::models::room::row_utils::{read_datetime_from_any, read_optional_datet
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
 #[cfg_attr(feature = "typescript-export", ts(export))]
-pub struct RoomToken {
+pub struct RoomIdentityCode {
     #[cfg_attr(feature = "typescript-export", ts(type = "number | null"))]
     pub id: Option<i64>,
     #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
     pub room_id: i64,
-    pub jti: String,
-    /// 该会话绑定的角色 key（实时能力判定仍以 room_roles 为准）
-    #[cfg_attr(feature = "typescript-export", ts(optional))]
-    pub role_key: Option<String>,
-    #[cfg_attr(feature = "typescript-export", ts(type = "number | null"))]
-    pub identity_code_id: Option<i64>,
+    /// Only used for server-side verification and never returned by the API.
+    pub code_hash: String,
+    pub role_key: String,
     pub expires_at: NaiveDateTime,
     pub revoked_at: Option<NaiveDateTime>,
+    pub created_by_jti: Option<String>,
     pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
 
-fn build_room_token_sqlite(row: &SqliteRow) -> Result<RoomToken, sqlx::Error> {
-    Ok(RoomToken {
+fn build_sqlite(row: &SqliteRow) -> Result<RoomIdentityCode, sqlx::Error> {
+    Ok(RoomIdentityCode {
         id: row.try_get("id")?,
         room_id: row.try_get("room_id")?,
-        jti: row.try_get("jti")?,
+        code_hash: row.try_get("code_hash")?,
         role_key: row.try_get("role_key")?,
-        identity_code_id: row.try_get("identity_code_id")?,
         expires_at: row.try_get("expires_at")?,
         revoked_at: row.try_get("revoked_at")?,
+        created_by_jti: row.try_get("created_by_jti")?,
         created_at: row.try_get("created_at")?,
+        updated_at: row.try_get("updated_at")?,
     })
 }
 
-fn build_room_token_pg(row: &PgRow) -> Result<RoomToken, sqlx::Error> {
-    Ok(RoomToken {
+fn build_pg(row: &PgRow) -> Result<RoomIdentityCode, sqlx::Error> {
+    Ok(RoomIdentityCode {
         id: row.try_get("id")?,
         room_id: row.try_get("room_id")?,
-        jti: row.try_get("jti")?,
+        code_hash: row.try_get("code_hash")?,
         role_key: row.try_get("role_key")?,
-        identity_code_id: row.try_get("identity_code_id")?,
         expires_at: row.try_get("expires_at")?,
         revoked_at: row.try_get("revoked_at")?,
+        created_by_jti: row.try_get("created_by_jti")?,
         created_at: row.try_get("created_at")?,
+        updated_at: row.try_get("updated_at")?,
     })
 }
 
-fn build_room_token_any(row: &AnyRow) -> Result<RoomToken, sqlx::Error> {
-    Ok(RoomToken {
+fn build_any(row: &AnyRow) -> Result<RoomIdentityCode, sqlx::Error> {
+    Ok(RoomIdentityCode {
         id: row.try_get("id")?,
         room_id: row.try_get("room_id")?,
-        jti: row.try_get("jti")?,
+        code_hash: row.try_get("code_hash")?,
         role_key: row.try_get("role_key")?,
-        identity_code_id: row.try_get("identity_code_id")?,
         expires_at: read_datetime_from_any(row, "expires_at")?,
         revoked_at: read_optional_datetime_from_any(row, "revoked_at")?,
+        created_by_jti: row.try_get("created_by_jti")?,
         created_at: read_datetime_from_any(row, "created_at")?,
+        updated_at: read_datetime_from_any(row, "updated_at")?,
     })
 }
 
-impl<'r> FromRow<'r, SqliteRow> for RoomToken {
+impl<'r> FromRow<'r, SqliteRow> for RoomIdentityCode {
     fn from_row(row: &'r SqliteRow) -> Result<Self, sqlx::Error> {
-        build_room_token_sqlite(row)
+        build_sqlite(row)
     }
 }
 
-impl<'r> FromRow<'r, PgRow> for RoomToken {
+impl<'r> FromRow<'r, PgRow> for RoomIdentityCode {
     fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
-        build_room_token_pg(row)
+        build_pg(row)
     }
 }
 
-impl<'r> FromRow<'r, AnyRow> for RoomToken {
+impl<'r> FromRow<'r, AnyRow> for RoomIdentityCode {
     fn from_row(row: &'r AnyRow) -> Result<Self, sqlx::Error> {
-        build_room_token_any(row)
+        build_any(row)
     }
 }
 
-impl RoomToken {
-    pub fn new(
-        room_id: i64,
-        jti: impl Into<String>,
-        role_key: impl Into<String>,
-        expires_at: NaiveDateTime,
-    ) -> Self {
-        let now = Utc::now().naive_utc();
-        Self {
-            id: None,
-            room_id,
-            jti: jti.into(),
-            role_key: Some(role_key.into()),
-            identity_code_id: None,
-            expires_at,
-            revoked_at: None,
-            created_at: now,
-        }
-    }
-
-    pub fn with_identity_code_id(mut self, identity_code_id: i64) -> Self {
-        self.identity_code_id = Some(identity_code_id);
-        self
+impl RoomIdentityCode {
+    pub fn is_active_at(&self, now: NaiveDateTime) -> bool {
+        self.revoked_at.is_none() && self.expires_at > now
     }
 
     pub fn is_active(&self) -> bool {
-        self.revoked_at.is_none() && self.expires_at > Utc::now().naive_utc()
+        self.is_active_at(Utc::now().naive_utc())
     }
 }

@@ -9,7 +9,7 @@ use crate::models::RoomToken;
 use crate::models::room::row_utils::{format_naive_datetime, format_optional_naive_datetime};
 
 const TOKEN_SELECT: &str = r#"
-    SELECT id, room_id, jti, role_key,
+    SELECT id, room_id, jti, role_key, identity_code_id,
            CAST(expires_at AS TEXT) as expires_at,
            CAST(revoked_at AS TEXT) as revoked_at,
            CAST(created_at AS TEXT) as created_at
@@ -22,6 +22,11 @@ pub trait IRoomTokenRepository: Send + Sync {
     async fn find_by_jti(&self, jti: &str) -> Result<Option<RoomToken>>;
     async fn list_by_room(&self, room_id: i64) -> Result<Vec<RoomToken>>;
     async fn revoke(&self, jti: &str) -> Result<bool>;
+    async fn revoke_active_by_identity_code(
+        &self,
+        room_id: i64,
+        identity_code_id: i64,
+    ) -> Result<u64>;
     async fn delete_by_room(&self, room_id: i64) -> Result<u64>;
 }
 
@@ -69,14 +74,15 @@ impl IRoomTokenRepository for RoomTokenRepository {
         let revoked_at = format_optional_naive_datetime(room_token.revoked_at);
         let id: i64 = sqlx::query_scalar(
             r#"
-            INSERT INTO room_tokens (room_id, jti, role_key, expires_at, revoked_at, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO room_tokens (room_id, jti, role_key, identity_code_id, expires_at, revoked_at, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING id
             "#,
         )
         .bind(room_token.room_id)
         .bind(&room_token.jti)
         .bind(&room_token.role_key)
+        .bind(room_token.identity_code_id)
         .bind(expires_at)
         .bind(revoked_at)
         .bind(now_str)
@@ -116,6 +122,23 @@ impl IRoomTokenRepository for RoomTokenRepository {
         .execute(&*self.pool)
         .await?;
         Ok(result.rows_affected() > 0)
+    }
+
+    async fn revoke_active_by_identity_code(
+        &self,
+        room_id: i64,
+        identity_code_id: i64,
+    ) -> Result<u64> {
+        let now = format_naive_datetime(Utc::now().naive_utc());
+        let result = sqlx::query(
+            "UPDATE room_tokens SET revoked_at = $3 WHERE room_id = $1 AND identity_code_id = $2 AND revoked_at IS NULL AND CAST(expires_at AS TEXT) > $3",
+        )
+        .bind(room_id)
+        .bind(identity_code_id)
+        .bind(now)
+        .execute(&*self.pool)
+        .await?;
+        Ok(result.rows_affected())
     }
 
     async fn delete_by_room(&self, room_id: i64) -> Result<u64> {

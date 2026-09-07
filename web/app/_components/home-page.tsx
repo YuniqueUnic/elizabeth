@@ -15,9 +15,11 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { createRoom } from "@/api/roomService";
 import { setRoomToken } from "@/lib/utils/api";
-import { ArrowRight, Eye, EyeOff, Lock, Plus } from "lucide-react";
+import { ArrowRight, Copy, Eye, EyeOff, KeyRound, Lock, Plus } from "lucide-react";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { useTranslations } from "next-intl";
+import { copyTextToClipboard } from "@/lib/utils/clipboard";
+import { ManualCopyDialog } from "@/components/manual-copy-dialog";
 
 export default function HomePage() {
   const t = useTranslations("home");
@@ -27,6 +29,10 @@ export default function HomePage() {
   const [roomName, setRoomName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [adminIdentityCode, setAdminIdentityCode] = useState("");
+  const [confirmAdminIdentityCode, setConfirmAdminIdentityCode] = useState("");
+  const [createdIdentityCode, setCreatedIdentityCode] = useState<string | null>(null);
+  const [manualCopyValue, setManualCopyValue] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -62,12 +68,25 @@ export default function HomePage() {
       return;
     }
 
+    if (adminIdentityCode && adminIdentityCode !== confirmAdminIdentityCode) {
+      setError(t("identityCodeMismatch"));
+      return;
+    }
+
+    if (!adminIdentityCode && confirmAdminIdentityCode) {
+      setError(t("enterIdentityCodeFirst"));
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
 
-      // Creation returns the creator's room-scoped admin identity code.
-      const created = await createRoom(trimmed, password || undefined);
+      const created = await createRoom(
+        trimmed,
+        password || undefined,
+        adminIdentityCode.trim() || undefined,
+      );
       setRoomToken(trimmed, {
         token: created.token,
         expiresAt: created.expires_at,
@@ -75,8 +94,8 @@ export default function HomePage() {
         roleKey: created.claims.role,
       });
 
-      // Navigate to room
-      router.push(`/${trimmed}`);
+      setCreatedIdentityCode(created.identity_code ?? null);
+      if (!created.identity_code) router.push(`/${trimmed}`);
     } catch (err: any) {
       if (err.message?.includes("409") || err.message?.includes("exists")) {
         setError(tErrors("roomNameAlreadyExists"));
@@ -286,6 +305,59 @@ export default function HomePage() {
               </div>
             </div>
 
+            <div className="space-y-2">
+              <Label htmlFor="admin-identity-code">
+                <div className="flex items-center gap-2">
+                  <KeyRound className="h-4 w-4" />
+                  <span>{t("adminIdentityCodeOptional")}</span>
+                </div>
+              </Label>
+              <Input
+                id="admin-identity-code"
+                type="password"
+                autoComplete="off"
+                value={adminIdentityCode}
+                onChange={(event) => {
+                  setAdminIdentityCode(event.target.value);
+                  setError(null);
+                }}
+                placeholder={t("adminIdentityCodeHint")}
+                disabled={loading}
+              />
+              <Input
+                id="confirm-admin-identity-code"
+                type="password"
+                autoComplete="off"
+                value={confirmAdminIdentityCode}
+                onChange={(event) => {
+                  setConfirmAdminIdentityCode(event.target.value);
+                  setError(null);
+                }}
+                placeholder={t("confirmAdminIdentityCode")}
+                disabled={loading || !adminIdentityCode}
+              />
+              <p className="text-xs text-muted-foreground">{t("adminIdentityCodeHint")}</p>
+            </div>
+
+            {createdIdentityCode && (
+              <div className="space-y-2 border border-primary/40 bg-primary/5 p-3">
+                <Label>{t("createdIdentityCode")}</Label>
+                <div className="flex gap-2">
+                  <Input readOnly value={createdIdentityCode} onFocus={(event) => event.currentTarget.select()} className="font-mono text-xs" />
+                  <Button
+                    type="button"
+                    size="icon"
+                    title={t("copyIdentityCode")}
+                    onClick={() => void copyTextToClipboard(createdIdentityCode).catch(() => setManualCopyValue(createdIdentityCode))}
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">{t("createdIdentityCodeHint")}</p>
+                <Button type="button" data-testid="enter-room" className="w-full" onClick={() => router.push(`/${roomName.trim()}`)}>{t("enterRoom")}</Button>
+              </div>
+            )}
+
             {error && (
               <Alert variant="destructive">
                 <AlertDescription>{error}</AlertDescription>
@@ -311,12 +383,17 @@ export default function HomePage() {
               </Button>
               <Button
                 onClick={handleCreateRoom}
-                disabled={loading || !roomName.trim()}
+                disabled={loading || !roomName.trim() || Boolean(createdIdentityCode)}
                 className="flex-1"
               >
                 {loading ? t("creating") : t("createRoom")}
               </Button>
             </div>
+            <ManualCopyDialog
+              open={manualCopyValue.length > 0}
+              value={manualCopyValue}
+              onOpenChange={(open) => !open && setManualCopyValue("")}
+            />
           </CardContent>
         </Card>
       </div>

@@ -17,6 +17,18 @@ pub fn api_router(app_state: Arc<AppState>) -> OpenApiRouter {
         .routes(routes!(crate::handlers::rooms::roles::update_role))
         .routes(routes!(crate::handlers::rooms::roles::delete_role))
         .routes(routes!(crate::handlers::rooms::tokens::issue_token))
+        .routes(routes!(
+            crate::handlers::rooms::identity_codes::create_identity_code
+        ))
+        .routes(routes!(
+            crate::handlers::rooms::identity_codes::list_identity_codes
+        ))
+        .routes(routes!(
+            crate::handlers::rooms::identity_codes::update_identity_code
+        ))
+        .routes(routes!(
+            crate::handlers::rooms::identity_codes::redeem_identity_code
+        ))
         .routes(routes!(crate::handlers::rooms::tokens::verify_password))
         .routes(routes!(crate::handlers::rooms::tokens::list_tokens))
         .routes(routes!(crate::handlers::rooms::tokens::validate_token))

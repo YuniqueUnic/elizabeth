@@ -8,11 +8,15 @@ use crate::authz::{Authz, Resource, load_role_table};
 use crate::dto::rooms::{CreateRoomRequest, CreateRoomResponse, DeleteRoomResponse, RoomView};
 use crate::errors::AppError;
 use crate::handlers::{AuthToken, verify_room_token};
-use crate::models::Room;
 use crate::models::room::role::{Capability, ROLE_ADMIN};
-use crate::repository::{IRoomRepository, RoomAccessRepository, RoomRepository};
+use crate::models::{Room, RoomIdentityCode};
+use crate::repository::{
+    IRoomIdentityCodeRepository, IRoomRepository, RoomAccessRepository, RoomIdentityCodeRepository,
+    RoomRepository,
+};
 use crate::state::AppState;
 use crate::validation::{PasswordValidator, RoomNameValidator};
+use uuid::Uuid;
 
 /// 创建房间
 #[utoipa::path(
@@ -35,59 +39,140 @@ pub async fn create(
     Json(payload): Json<CreateRoomRequest>,
 ) -> HandlerResult<CreateRoomResponse> {
     RoomNameValidator::validate(&name)?;
-    if let Some(ref password) = payload.password {
+    let CreateRoomRequest {
+        password,
+        admin_identity_code,
+    } = payload;
+    if let Some(ref password) = password {
         PasswordValidator::validate_room_password(password)?;
     }
+    let admin_identity_code = match admin_identity_code {
+        Some(code) => super::identity_codes::validate_identity_code(&code)?,
+        None => format!("admin_{}", Uuid::new_v4().simple()),
+    };
+    let identity_code_hash = app_state
+        .room_password_service()
+        .hash(admin_identity_code.clone())
+        .await
+        .map_err(|e| AppError::internal(format!("Failed to protect admin identity code: {e}")))?;
 
     let repository = RoomRepository::new(app_state.db_pool.clone());
-    let room = new_room_with_defaults(&app_state, name, payload.password).await?;
+    let room = new_room_with_defaults(&app_state, name, password).await?;
     let created_room = repository
         .create_if_absent(&room)
         .await
         .map_err(|e| AppError::internal(format!("Failed to create room: {e}")))?
         .ok_or_else(|| AppError::conflict("Room already exists"))?;
-    // admin 身份码跟随房间生命周期：超长 TTL 由房间过期时间统一封顶
-    let (token, claims) = app_state
-        .token_service()
-        .issue_with_ttl(
-            &created_room,
-            ROLE_ADMIN,
-            crate::services::token::room_lifetime_ttl(),
-        )
-        .map_err(|e| AppError::internal(format!("Failed to issue admin identity code: {e}")))?;
+    let room_id = created_room
+        .id
+        .ok_or_else(|| AppError::internal("Created room is missing its id"))?;
+    let expires_at = match created_room.expire_at {
+        Some(expires_at) => expires_at,
+        None => {
+            return cleanup_created_room(&repository, &created_room, "Created room has no expiry")
+                .await;
+        }
+    };
+    let now = chrono::Utc::now().naive_utc();
+    let identity_code = match RoomIdentityCodeRepository::new(app_state.db_pool.clone())
+        .create(&RoomIdentityCode {
+            id: None,
+            room_id,
+            code_hash: identity_code_hash,
+            role_key: ROLE_ADMIN.to_string(),
+            expires_at,
+            revoked_at: None,
+            created_by_jti: None,
+            created_at: now,
+            updated_at: now,
+        })
+        .await
+    {
+        Ok(code) => code,
+        Err(error) => {
+            return cleanup_created_room(
+                &repository,
+                &created_room,
+                format!("Failed to create admin identity code: {error}"),
+            )
+            .await;
+        }
+    };
+    let identity_code_id = match identity_code.id {
+        Some(id) => id,
+        None => {
+            return cleanup_created_room(
+                &repository,
+                &created_room,
+                "Created identity code is missing its id",
+            )
+            .await;
+        }
+    };
+    let (token, claims) = match app_state.token_service().issue_with_ttl(
+        &created_room,
+        ROLE_ADMIN,
+        crate::services::token::room_lifetime_ttl(),
+    ) {
+        Ok(issued) => issued,
+        Err(error) => {
+            return cleanup_created_room(
+                &repository,
+                &created_room,
+                format!("Failed to issue admin session: {error}"),
+            )
+            .await;
+        }
+    };
     let record = crate::models::RoomToken::new(
         claims.room_id,
         claims.jti.clone(),
         ROLE_ADMIN,
         claims.expires_at(),
-    );
-    let granted = RoomAccessRepository::new(app_state.db_pool.clone())
-        .grant_new_session(
-            claims.room_id,
-            &record,
-            None,
-            chrono::Utc::now().naive_utc(),
-        )
+    )
+    .with_identity_code_id(identity_code_id);
+    let granted = match RoomAccessRepository::new(app_state.db_pool.clone())
+        .grant_new_session(claims.room_id, &record, None, now)
         .await
-        .map_err(|e| AppError::internal(format!("Failed to persist admin identity code: {e}")))?;
+    {
+        Ok(granted) => granted,
+        Err(error) => {
+            return cleanup_created_room(
+                &repository,
+                &created_room,
+                format!("Failed to persist admin session: {error}"),
+            )
+            .await;
+        }
+    };
     if !granted {
-        return Err(AppError::internal(
-            "Created room could not grant admin identity code",
-        ));
+        return cleanup_created_room(
+            &repository,
+            &created_room,
+            "Created room could not grant admin session",
+        )
+        .await;
     }
-    let role_table = load_role_table(
+    let role_table = match load_role_table(
         &app_state.roles_cache,
         &app_state.db_pool,
         claims.room_id,
         created_room.roles_version,
     )
-    .await?;
+    .await
+    {
+        Ok(roles) => roles,
+        Err(error) => {
+            return cleanup_created_room(&repository, &created_room, error.to_string()).await;
+        }
+    };
     Ok(Json(CreateRoomResponse {
         room: RoomView::from(&created_room),
         token,
         claims,
         expires_at: record.expires_at,
         capabilities: role_table.grants(ROLE_ADMIN).unwrap_or_default().to_vec(),
+        identity_code: Some(admin_identity_code),
     }))
 }
 
@@ -187,6 +272,25 @@ pub async fn delete(
     Ok(Json(DeleteRoomResponse {
         message: "Room deleted successfully".to_string(),
     }))
+}
+
+async fn cleanup_created_room(
+    repository: &RoomRepository,
+    room: &Room,
+    reason: impl AsRef<str>,
+) -> HandlerResult<CreateRoomResponse> {
+    let cleanup = repository.delete(&room.slug).await;
+    match cleanup {
+        Ok(true) => Err(AppError::internal(reason.as_ref())),
+        Ok(false) => Err(AppError::internal(format!(
+            "{}; cleanup could not find the created room",
+            reason.as_ref()
+        ))),
+        Err(error) => Err(AppError::internal(format!(
+            "{}; failed to clean up created room: {error}",
+            reason.as_ref()
+        ))),
+    }
 }
 
 async fn new_room_with_defaults(

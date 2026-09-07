@@ -3,7 +3,7 @@
 /**
  * 刷新令牌验证请求结构
  */
-export type RefreshTokenRequest = { 
+export type RefreshTokenRequest = {
 /**
  * 刷新令牌（明文）
  */

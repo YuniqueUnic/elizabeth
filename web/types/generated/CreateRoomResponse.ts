@@ -3,7 +3,11 @@ import type { Grant } from "./Grant";
 import type { RoomStatus } from "./RoomStatus";
 import type { RoomTokenClaims } from "./RoomTokenClaims";
 
-export type CreateRoomResponse = { token: string, claims: RoomTokenClaims, expires_at: string, capabilities: Array<Grant>, id: bigint, name: string, slug: string, status: RoomStatus, max_size: bigint, current_size: bigint, max_times_entered: bigint, current_times_entered: bigint, expire_at: string | null, created_at: string, updated_at: string, 
+export type CreateRoomResponse = { token: string, claims: RoomTokenClaims, expires_at: string, capabilities: Array<Grant>,
+/**
+ * 创建时仅回显一次的 admin 身份码。
+ */
+identity_code?: string, id: bigint, name: string, slug: string, status: RoomStatus, max_size: bigint, current_size: bigint, max_times_entered: bigint, current_times_entered: bigint, expire_at: string | null, created_at: string, updated_at: string,
 /**
  * 新成员默认加入的角色
  */

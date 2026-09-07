@@ -2,15 +2,15 @@
 import type { Grant } from "./Grant";
 import type { RoomTokenClaims } from "./RoomTokenClaims";
 
-export type IssueTokenResponse = { token: string, claims: RoomTokenClaims, expires_at: string, 
+export type IssueTokenResponse = { token: string, claims: RoomTokenClaims, expires_at: string,
 /**
  * 签发时解析得到的能力快照（非判定依据；判定以 DB room_roles 实时为准）
  */
-capabilities: Array<Grant>, 
+capabilities: Array<Grant>,
 /**
  * 刷新令牌（仅在请求时返回）
  */
-refresh_token?: string, 
+refresh_token?: string,
 /**
  * 刷新令牌过期时间（仅在请求时返回）
  */

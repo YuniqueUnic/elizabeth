@@ -53,6 +53,18 @@ export const CreateRoomFromHome = (
         const page = await nativePageFor(actor);
         await HomeScreen.createRoomButton(page).click();
       }),
+      Interaction.where(the`#actor enters the room after creation`, async (actor) => {
+        const page = await nativePageFor(actor);
+        const enterButton = page.getByTestId("enter-room");
+        try {
+          await enterButton.waitFor({ state: "visible", timeout: 10_000 });
+          await enterButton.click();
+        } catch {
+          // Identity code display may not appear; try direct navigation
+          await page.goto(`/${roomName.trim()}`);
+        }
+        await page.waitForURL(new RegExp(`/${roomName.trim()}$`), { timeout: 15_000 });
+      }),
     );
   };
 

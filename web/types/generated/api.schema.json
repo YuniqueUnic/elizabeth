@@ -614,6 +614,13 @@
     "CreateRoomRequest": {
       "type": "object",
       "properties": {
+        "admin_identity_code": {
+          "description": "创建者 admin 身份码。创建流程暂不消费该字段，供后续集成使用。",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "password": {
           "description": "可选房间密码。密码只在请求边界出现，不会在房间响应中回显。",
           "type": [

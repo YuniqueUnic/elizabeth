@@ -207,13 +207,14 @@ async fn insert_token(
 ) -> Result<()> {
     sqlx::query(
         r#"
-        INSERT INTO room_tokens (room_id, jti, role_key, expires_at, revoked_at, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO room_tokens (room_id, jti, role_key, identity_code_id, expires_at, revoked_at, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         "#,
     )
     .bind(token.room_id)
     .bind(&token.jti)
     .bind(&token.role_key)
+    .bind(token.identity_code_id)
     .bind(format_naive_datetime(token.expires_at))
     .bind(token.revoked_at.map(format_naive_datetime))
     .bind(created_at)
