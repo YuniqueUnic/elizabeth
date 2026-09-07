@@ -23,20 +23,20 @@ pub trait IRoomIdentityCodeRepository: Send + Sync {
     async fn create(&self, code: &RoomIdentityCode) -> Result<RoomIdentityCode>;
     async fn list_by_room(&self, room_id: i64) -> Result<Vec<RoomIdentityCode>>;
     async fn find_by_id(&self, room_id: i64, id: i64) -> Result<Option<RoomIdentityCode>>;
-    async fn reset(
-        &self,
-        room_id: i64,
-        id: i64,
-        code_hash: String,
-        expires_at: NaiveDateTime,
-    ) -> Result<RoomIdentityCode>;
     async fn update_expiry(
         &self,
         room_id: i64,
         id: i64,
         expires_at: NaiveDateTime,
     ) -> Result<RoomIdentityCode>;
-    async fn revoke(&self, room_id: i64, id: i64) -> Result<bool>;
+    async fn reset_and_revoke_sessions(
+        &self,
+        room_id: i64,
+        id: i64,
+        code_hash: String,
+        expires_at: NaiveDateTime,
+    ) -> Result<RoomIdentityCode>;
+    async fn revoke_and_revoke_sessions(&self, room_id: i64, id: i64) -> Result<bool>;
 }
 
 pub struct RoomIdentityCodeRepository {
@@ -57,11 +57,13 @@ impl RoomIdentityCodeRepository {
         E: sqlx::Executor<'e, Database = Any>,
     {
         let sql = format!("{IDENTITY_CODE_SELECT} WHERE room_id = $1 AND id = $2");
-        Ok(sqlx::query_as::<_, RoomIdentityCode>(&sql)
-            .bind(room_id)
-            .bind(id)
-            .fetch_optional(executor)
-            .await?)
+        Ok(
+            sqlx::query_as::<_, RoomIdentityCode>(sqlx::AssertSqlSafe(sql))
+                .bind(room_id)
+                .bind(id)
+                .fetch_optional(executor)
+                .await?,
+        )
     }
 
     async fn fetch_or_error<'e, E>(executor: E, room_id: i64, id: i64) -> Result<RoomIdentityCode>
@@ -92,30 +94,43 @@ impl IRoomIdentityCodeRepository for RoomIdentityCodeRepository {
 
     async fn list_by_room(&self, room_id: i64) -> Result<Vec<RoomIdentityCode>> {
         let sql = format!("{IDENTITY_CODE_SELECT} WHERE room_id = $1 ORDER BY created_at DESC");
-        Ok(sqlx::query_as::<_, RoomIdentityCode>(&sql)
-            .bind(room_id)
-            .fetch_all(&*self.pool)
-            .await?)
+        Ok(
+            sqlx::query_as::<_, RoomIdentityCode>(sqlx::AssertSqlSafe(sql))
+                .bind(room_id)
+                .fetch_all(&*self.pool)
+                .await?,
+        )
     }
 
     async fn find_by_id(&self, room_id: i64, id: i64) -> Result<Option<RoomIdentityCode>> {
         Self::fetch_optional(&*self.pool, room_id, id).await
     }
 
-    async fn reset(
+    async fn reset_and_revoke_sessions(
         &self,
         room_id: i64,
         id: i64,
         code_hash: String,
         expires_at: NaiveDateTime,
     ) -> Result<RoomIdentityCode> {
+        let mut tx = self.pool.begin().await?;
         let now = format_naive_datetime(Utc::now().naive_utc());
+        sqlx::query(
+            "UPDATE room_tokens SET revoked_at = $3 WHERE room_id = $1 AND identity_code_id = $2 AND revoked_at IS NULL AND CAST(expires_at AS TEXT) > $3",
+        )
+        .bind(room_id)
+        .bind(id)
+        .bind(&now)
+        .execute(&mut *tx)
+        .await?;
         let result = sqlx::query("UPDATE room_identity_codes SET code_hash = $3, expires_at = $4, revoked_at = NULL, updated_at = $5 WHERE room_id = $1 AND id = $2")
-            .bind(room_id).bind(id).bind(code_hash).bind(format_naive_datetime(expires_at)).bind(now).execute(&*self.pool).await?;
+            .bind(room_id).bind(id).bind(code_hash).bind(format_naive_datetime(expires_at)).bind(now).execute(&mut *tx).await?;
         if result.rows_affected() == 0 {
             return Err(anyhow!("room identity code not found"));
         }
-        Self::fetch_or_error(&*self.pool, room_id, id).await
+        let updated = Self::fetch_or_error(&mut *tx, room_id, id).await?;
+        tx.commit().await?;
+        Ok(updated)
     }
 
     async fn update_expiry(
@@ -133,10 +148,24 @@ impl IRoomIdentityCodeRepository for RoomIdentityCodeRepository {
         Self::fetch_or_error(&*self.pool, room_id, id).await
     }
 
-    async fn revoke(&self, room_id: i64, id: i64) -> Result<bool> {
+    async fn revoke_and_revoke_sessions(&self, room_id: i64, id: i64) -> Result<bool> {
+        let mut tx = self.pool.begin().await?;
         let now = format_naive_datetime(Utc::now().naive_utc());
         let result = sqlx::query("UPDATE room_identity_codes SET revoked_at = $3, updated_at = $3 WHERE room_id = $1 AND id = $2 AND revoked_at IS NULL")
-            .bind(room_id).bind(id).bind(now).execute(&*self.pool).await?;
-        Ok(result.rows_affected() > 0)
+            .bind(room_id).bind(id).bind(&now).execute(&mut *tx).await?;
+        if result.rows_affected() == 0 {
+            tx.rollback().await?;
+            return Ok(false);
+        }
+        sqlx::query(
+            "UPDATE room_tokens SET revoked_at = $3 WHERE room_id = $1 AND identity_code_id = $2 AND revoked_at IS NULL AND CAST(expires_at AS TEXT) > $3",
+        )
+        .bind(room_id)
+        .bind(id)
+        .bind(now)
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        Ok(true)
     }
 }

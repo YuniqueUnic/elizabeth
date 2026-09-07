@@ -51,11 +51,11 @@ futures = "0.3"
 # === Web Framework ===
 axum = { version = "0.8", features = ["multipart", "ws"] }
 tower = "0.5"
-tower-http = { version = "0.6", features = ["trace", "cors", "compression-br", "set-header"] }
+tower-http = { version = "0.7", features = ["trace", "cors", "compression-br", "set-header"] }
 tower_governor = "0.8"
 
 # === Database ===
-sqlx = { version = "0.8", features = ["runtime-tokio", "tls-rustls-aws-lc-rs", "sqlite", "postgres", "any", "migrate", "chrono"] }
+sqlx = { version = "0.9", features = ["runtime-tokio", "tls-rustls-aws-lc-rs", "sqlite", "postgres", "any", "migrate", "chrono"] }
 
 # === API Documentation ===
 utoipa = { version = "5", features = ["chrono"] }
@@ -63,8 +63,8 @@ utoipa-scalar = { version = "0.3", features = ["axum"] }
 utoipa-axum = "0.2"
 
 # === Security & Authentication ===
-argon2 = "0.5.3"
-jsonwebtoken = { version = "10", features = ["use_pem", "aws_lc_rs"] }
+argon2 = "0.6.0"
+jsonwebtoken = { version = "11", features = ["use_pem", "aws_lc_rs"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 sha2 = "0.11"
 hex = "0.4"
@@ -79,7 +79,7 @@ regex = "1"
 mime_guess = "2.0"
 sanitize-filename = "0.6"
 url = "2"
-opendal = { version = "0.56", features = ["services-fs", "services-s3"] }
+opendal = { version = "0.58.2", features = ["services-fs", "services-s3"] }
 rust-embed = { version = "8", features = ["mime-guess", "include-exclude"] }
 
 # === Build Tools ===
@@ -98,5 +98,5 @@ schemars = { version = "1", features = ["chrono04"] }
 ts-rs = { version = "12", features = ["chrono-impl", "serde-compat"] }
 
 # === Dev Dependencies ===
-serial_test = "3"
+serial_test = "4"
 tempfile = "3"

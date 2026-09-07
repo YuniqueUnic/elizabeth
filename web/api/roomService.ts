@@ -65,6 +65,7 @@ export interface RoomIdentityCode {
   revoked_at: string | null;
   created_at: string;
   updated_at: string;
+  is_current: boolean;
 }
 
 export interface CreateRoomIdentityCodeRequest {
@@ -76,6 +77,13 @@ export interface CreateRoomIdentityCodeRequest {
 export interface IdentityCodeResult {
   code?: string;
   identity_code: RoomIdentityCode;
+}
+
+type IdentityCodeApiResponse = RoomIdentityCode & { code?: string };
+
+function identityCodeResult(response: IdentityCodeApiResponse): IdentityCodeResult {
+  const { code, ...identityCode } = response;
+  return { code, identity_code: identityCode };
 }
 
 export async function listRoomIdentityCodes(roomName: string, token?: string): Promise<RoomIdentityCode[]> {
@@ -91,7 +99,12 @@ export async function createRoomIdentityCode(
 ): Promise<IdentityCodeResult> {
   const authToken = token || await getValidToken(roomName);
   if (!authToken) throw new Error("Authentication required to create identity codes");
-  return api.post<IdentityCodeResult>(API_ENDPOINTS.rooms.identityCodes(roomName), request, { token: authToken });
+  const response = await api.post<IdentityCodeApiResponse>(
+    API_ENDPOINTS.rooms.identityCodes(roomName),
+    request,
+    { token: authToken },
+  );
+  return identityCodeResult(response);
 }
 
 export async function updateRoomIdentityCode(
@@ -102,7 +115,12 @@ export async function updateRoomIdentityCode(
 ): Promise<IdentityCodeResult> {
   const authToken = token || await getValidToken(roomName);
   if (!authToken) throw new Error("Authentication required to update identity codes");
-  return api.patch<IdentityCodeResult>(API_ENDPOINTS.rooms.identityCode(roomName, id), request, { token: authToken });
+  const response = await api.patch<IdentityCodeApiResponse>(
+    API_ENDPOINTS.rooms.identityCode(roomName, id),
+    request,
+    { token: authToken },
+  );
+  return identityCodeResult(response);
 }
 
 export function redeemRoomIdentityCode(roomName: string, code: string): Promise<IssueTokenResponse> {

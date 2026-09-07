@@ -62,7 +62,7 @@ impl RoomRefreshTokenRepository {
         E: sqlx::Executor<'e, Database = Any>,
     {
         let sql = format!("{REFRESH_TOKEN_SELECT} WHERE id = $1");
-        sqlx::query_as::<_, RoomRefreshToken>(&sql)
+        sqlx::query_as::<_, RoomRefreshToken>(sqlx::AssertSqlSafe(sql))
             .bind(id)
             .fetch_optional(executor)
             .await?
@@ -77,7 +77,7 @@ impl RoomRefreshTokenRepository {
         E: sqlx::Executor<'e, Database = Any>,
     {
         let sql = format!("{REFRESH_TOKEN_SELECT} WHERE token_hash = $1");
-        let token = sqlx::query_as::<_, RoomRefreshToken>(&sql)
+        let token = sqlx::query_as::<_, RoomRefreshToken>(sqlx::AssertSqlSafe(sql))
             .bind(token_hash)
             .fetch_optional(executor)
             .await?;
@@ -132,7 +132,7 @@ impl IRoomRefreshTokenRepository for RoomRefreshTokenRepository {
              AND CAST(expires_at AS TEXT) > $2 \
              ORDER BY created_at DESC"
         );
-        let tokens = sqlx::query_as::<_, RoomRefreshToken>(&sql)
+        let tokens = sqlx::query_as::<_, RoomRefreshToken>(sqlx::AssertSqlSafe(sql))
             .bind(room_id)
             .bind(format_naive_datetime(Utc::now().naive_utc()))
             .fetch_all(&*self.pool)
@@ -258,7 +258,7 @@ impl ITokenBlacklistRepository for TokenBlacklistRepository {
         .await?;
 
         let sql = format!("{TOKEN_BLACKLIST_SELECT} WHERE jti = $1");
-        let stored = sqlx::query_as::<_, TokenBlacklistEntry>(&sql)
+        let stored = sqlx::query_as::<_, TokenBlacklistEntry>(sqlx::AssertSqlSafe(sql))
             .bind(&entry.jti)
             .fetch_one(&mut *tx)
             .await?;

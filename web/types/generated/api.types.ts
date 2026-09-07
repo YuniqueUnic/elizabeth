@@ -43,6 +43,7 @@ export * from './RevokeTokenResponse';
 export * from './MyCapabilitiesResponse';
 export * from './DeleteRoomResponse';
 export * from './RoomTokenView';
+export * from './RoomIdentityCodeView';
 export * from './RoomContentView';
 export * from './UploadContentResponse';
 export * from './UploadPreparationRequest';

@@ -13,7 +13,7 @@ pub struct CreateRoomRequest {
     /// 可选房间密码。密码只在请求边界出现，不会在房间响应中回显。
     #[cfg_attr(feature = "typescript-export", ts(optional))]
     pub password: Option<String>,
-    /// 创建者 admin 身份码。创建流程暂不消费该字段，供后续集成使用。
+    /// 创建者 admin 身份码；未提供时由服务端生成一次性随机身份码。
     #[cfg_attr(feature = "typescript-export", ts(optional))]
     pub admin_identity_code: Option<String>,
 }
@@ -56,6 +56,8 @@ pub struct RedeemRoomIdentityCodeRequest {
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct RoomIdentityCodeView {
     pub id: i64,
     pub role: String,
@@ -63,6 +65,8 @@ pub struct RoomIdentityCodeView {
     pub revoked_at: Option<NaiveDateTime>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+    /// 当前有效会话是否由此身份码兑换而来。
+    pub is_current: bool,
 }
 
 #[derive(Debug, Serialize, ToSchema)]

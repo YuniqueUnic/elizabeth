@@ -4,4 +4,4 @@ export type RoomToken = { id: number | null, room_id: number, jti: string,
 /**
  * 该会话绑定的角色 key（实时能力判定仍以 room_roles 为准）
  */
-role_key?: string, expires_at: string, revoked_at: string | null, created_at: string, };
+role_key?: string, identity_code_id: number | null, expires_at: string, revoked_at: string | null, created_at: string, };

@@ -78,7 +78,7 @@ impl RoomContentRepository {
         E: sqlx::Executor<'e, Database = Any>,
     {
         let sql = format!("{CONTENT_SELECT_BASE} WHERE id = $1");
-        let content = sqlx::query_as::<_, RoomContent>(&sql)
+        let content = sqlx::query_as::<_, RoomContent>(sqlx::AssertSqlSafe(sql))
             .bind(content_id)
             .fetch_optional(executor)
             .await?;
@@ -186,7 +186,7 @@ impl IRoomContentRepository for RoomContentRepository {
         let sql = format!(
             "{CONTENT_SELECT_BASE} WHERE room_id = $1 ORDER BY sequence_number ASC, id ASC"
         );
-        let rows = sqlx::query_as::<_, RoomContent>(&sql)
+        let rows = sqlx::query_as::<_, RoomContent>(sqlx::AssertSqlSafe(sql))
             .bind(room_id)
             .fetch_all(&*self.pool)
             .await?;
@@ -207,7 +207,7 @@ impl IRoomContentRepository for RoomContentRepository {
                    AND (sequence_number < $3 OR (sequence_number = $3 AND id < $4)) \
                  ORDER BY sequence_number DESC, id DESC LIMIT $5"
             );
-            sqlx::query_as::<_, RoomContent>(&sql)
+            sqlx::query_as::<_, RoomContent>(sqlx::AssertSqlSafe(sql))
                 .bind(room_id)
                 .bind(ContentType::Text)
                 .bind(cursor.sequence_number)
@@ -221,7 +221,7 @@ impl IRoomContentRepository for RoomContentRepository {
                  WHERE room_id = $1 AND content_type = $2 \
                  ORDER BY sequence_number DESC, id DESC LIMIT $3"
             );
-            sqlx::query_as::<_, RoomContent>(&sql)
+            sqlx::query_as::<_, RoomContent>(sqlx::AssertSqlSafe(sql))
                 .bind(room_id)
                 .bind(ContentType::Text)
                 .bind(fetch_limit)
@@ -268,7 +268,7 @@ impl IRoomContentRepository for RoomContentRepository {
         }
         sql.push(')');
 
-        let mut query = sqlx::query(&sql).bind(room_id);
+        let mut query = sqlx::query(sqlx::AssertSqlSafe(sql)).bind(room_id);
         for id in content_ids {
             query = query.bind(id);
         }

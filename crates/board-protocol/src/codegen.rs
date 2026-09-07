@@ -12,8 +12,8 @@ use crate::dto::{
     DeleteRoomResponse, FileMergeRequest, FileMergeResponse, FullRoomGcStatusView,
     IssueTokenRequest, IssueTokenResponse, LogoutRequest, MergedFileInfo, MessagePage,
     MyCapabilitiesResponse, PublicConfigResponse, PublicRoomConfig, PublicRoomExpiryConfig,
-    ReservedFileInfo, RevokeTokenResponse, RoleDefinition, RoomContentView, RoomTokenClaims,
-    RoomTokenView, RoomView, RunRoomGcResponse, TokenType, UpdateContentRequest,
+    ReservedFileInfo, RevokeTokenResponse, RoleDefinition, RoomContentView, RoomIdentityCodeView,
+    RoomTokenClaims, RoomTokenView, RoomView, RunRoomGcResponse, TokenType, UpdateContentRequest,
     UpdateContentResponse, UpdateRoleRequest, UpdateRoomSettingsRequest, UploadContentResponse,
     UploadPreparationRequest, UploadPreparationResponse, UploadStatusQuery, UploadStatusResponse,
     ValidateTokenRequest, ValidateTokenResponse, VerifyRoomPasswordRequest,
@@ -71,6 +71,7 @@ pub fn export_ts_types_to(output_dir: &Path) -> Result<(), ts_rs::ExportError> {
     MyCapabilitiesResponse::export_all(&output_dir_cfg)?;
     DeleteRoomResponse::export_all(&output_dir_cfg)?;
     RoomTokenView::export_all(&output_dir_cfg)?;
+    RoomIdentityCodeView::export_all(&output_dir_cfg)?;
 
     RoomContentView::export_all(&output_dir_cfg)?;
     UploadContentResponse::export_all(&output_dir_cfg)?;
@@ -147,6 +148,7 @@ pub fn exported_ts_type_names() -> &'static [&'static str] {
         "MyCapabilitiesResponse",
         "DeleteRoomResponse",
         "RoomTokenView",
+        "RoomIdentityCodeView",
         "RoomContentView",
         "UploadContentResponse",
         "UploadPreparationRequest",

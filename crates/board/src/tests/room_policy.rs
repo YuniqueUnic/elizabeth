@@ -384,7 +384,7 @@ async fn lifecycle_cleanup_removes_expired_room_storage_and_persistence_graph() 
             "SELECT COUNT(*) FROM {table} WHERE {} = $1",
             if table == "rooms" { "id" } else { "room_id" }
         );
-        let count: i64 = sqlx::query_scalar(&sql)
+        let count: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
             .bind(room_id)
             .fetch_one(&*state.db_pool)
             .await?;

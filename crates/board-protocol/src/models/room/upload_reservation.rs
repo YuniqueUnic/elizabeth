@@ -68,12 +68,9 @@ impl<'r> sqlx::Decode<'r, sqlx::Sqlite> for UploadStatus {
 impl<'q> sqlx::Encode<'q, sqlx::Sqlite> for UploadStatus {
     fn encode_by_ref(
         &self,
-        args: &mut Vec<sqlx::sqlite::SqliteArgumentValue<'q>>,
+        args: &mut <sqlx::Sqlite as sqlx::Database>::ArgumentBuffer,
     ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
-        args.push(sqlx::sqlite::SqliteArgumentValue::Text(
-            std::borrow::Cow::Borrowed(self.as_storage_value()),
-        ));
-        Ok(sqlx::encode::IsNull::No)
+        <String as sqlx::Encode<sqlx::Sqlite>>::encode(self.as_storage_value().to_owned(), args)
     }
 }
 
@@ -93,7 +90,7 @@ impl<'r> sqlx::Decode<'r, sqlx::Postgres> for UploadStatus {
 impl<'q> sqlx::Encode<'q, sqlx::Postgres> for UploadStatus {
     fn encode_by_ref(
         &self,
-        buf: &mut <sqlx::Postgres as sqlx::Database>::ArgumentBuffer<'q>,
+        buf: &mut <sqlx::Postgres as sqlx::Database>::ArgumentBuffer,
     ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
         <&str as sqlx::Encode<sqlx::Postgres>>::encode(self.as_storage_value(), buf)
     }
@@ -115,7 +112,7 @@ impl<'r> sqlx::Decode<'r, sqlx::Any> for UploadStatus {
 impl<'q> sqlx::Encode<'q, sqlx::Any> for UploadStatus {
     fn encode_by_ref(
         &self,
-        buf: &mut <sqlx::Any as sqlx::Database>::ArgumentBuffer<'q>,
+        buf: &mut <sqlx::Any as sqlx::Database>::ArgumentBuffer,
     ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
         <&str as sqlx::Encode<sqlx::Any>>::encode(self.as_storage_value(), buf)
     }

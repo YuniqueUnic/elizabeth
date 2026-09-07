@@ -66,13 +66,8 @@ pub async fn create(
     let room_id = created_room
         .id
         .ok_or_else(|| AppError::internal("Created room is missing its id"))?;
-    let expires_at = match created_room.expire_at {
-        Some(expires_at) => expires_at,
-        None => {
-            return cleanup_created_room(&repository, &created_room, "Created room has no expiry")
-                .await;
-        }
-    };
+    let expires_at =
+        super::identity_codes::identity_code_expiry(&app_state, &created_room, ROLE_ADMIN, None)?;
     let now = chrono::Utc::now().naive_utc();
     let identity_code = match RoomIdentityCodeRepository::new(app_state.db_pool.clone())
         .create(&RoomIdentityCode {
