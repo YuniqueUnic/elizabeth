@@ -314,9 +314,10 @@ fn identity_code_expiry(
                 "admin identity code expiry follows the room lifetime",
             ));
         }
-        return room
+        // Rooms without expiry get a far-future admin code (100 years).
+        return Ok(room
             .expire_at
-            .ok_or_else(|| AppError::internal("Room has no expiry for admin identity code"));
+            .unwrap_or_else(|| Utc::now().naive_utc() + Duration::days(365 * 100)));
     }
     let seconds =
         requested_secs.unwrap_or_else(|| app_state.token_service().get_ttl().num_seconds());
