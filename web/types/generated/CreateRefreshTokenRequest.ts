@@ -3,19 +3,19 @@
 /**
  * 用于创建刷新令牌的请求结构
  */
-export type CreateRefreshTokenRequest = { 
+export type CreateRefreshTokenRequest = {
 /**
  * 房间 ID
  */
-room_id: number, 
+room_id: number,
 /**
  * 访问令牌 JTI
  */
-access_token_jti: string, 
+access_token_jti: string,
 /**
  * 刷新令牌（明文，仅用于创建时哈希）
  */
-refresh_token: string, 
+refresh_token: string,
 /**
  * 过期时间
  */

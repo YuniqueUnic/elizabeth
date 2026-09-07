@@ -13,6 +13,9 @@ pub struct CreateRoomRequest {
     /// 可选房间密码。密码只在请求边界出现，不会在房间响应中回显。
     #[cfg_attr(feature = "typescript-export", ts(optional))]
     pub password: Option<String>,
+    /// 创建者 admin 身份码。创建流程暂不消费该字段，供后续集成使用。
+    #[cfg_attr(feature = "typescript-export", ts(optional))]
+    pub admin_identity_code: Option<String>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -25,6 +28,58 @@ pub struct CreateRoomResponse {
     pub claims: RoomTokenClaims,
     pub expires_at: NaiveDateTime,
     pub capabilities: Vec<Grant>,
+    /// 创建时仅回显一次的 admin 身份码。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript-export", ts(optional))]
+    pub identity_code: Option<String>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct CreateRoomIdentityCodeRequest {
+    pub code: String,
+    pub role: String,
+    pub expires_in_secs: Option<i64>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct UpdateRoomIdentityCodeRequest {
+    /// 提供时重置身份码，明文仅在本次响应中返回。
+    pub code: Option<String>,
+    pub expires_in_secs: Option<i64>,
+    #[serde(default)]
+    pub disable: bool,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct RedeemRoomIdentityCodeRequest {
+    pub code: String,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct RoomIdentityCodeView {
+    pub id: i64,
+    pub role: String,
+    pub expires_at: NaiveDateTime,
+    pub revoked_at: Option<NaiveDateTime>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct CreateRoomIdentityCodeResponse {
+    #[serde(flatten)]
+    pub identity_code: RoomIdentityCodeView,
+    /// 只在创建或重置时回显一次，数据库中仅保存 Argon2 hash。
+    pub code: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct UpdateRoomIdentityCodeResponse {
+    #[serde(flatten)]
+    pub identity_code: RoomIdentityCodeView,
+    /// 仅在重置时回显一次。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]

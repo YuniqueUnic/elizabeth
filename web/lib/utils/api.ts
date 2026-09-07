@@ -646,6 +646,21 @@ export const api = {
   },
 
   /**
+   * Make a PATCH request
+   */
+  patch: <T = any>(
+    path: string,
+    data?: any,
+    options?: RequestOptions,
+  ): Promise<T> => {
+    return request<T>(path, {
+      ...options,
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
    * Make a DELETE request
    */
   delete: <T = any>(

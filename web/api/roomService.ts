@@ -22,6 +22,7 @@ import type {
   CreateRoleRequest,
   UpdateRoleRequest,
   UpdateRoomSettingsRequest,
+  IssueTokenResponse,
 } from "../lib/types";
 import { backendRoomToRoomDetails as convertRoom } from "../lib/types";
 
@@ -39,10 +40,14 @@ import { backendRoomToRoomDetails as convertRoom } from "../lib/types";
 export async function createRoom(
   name: string,
   password?: string,
+  adminIdentityCode?: string,
 ): Promise<CreateRoomResponse> {
   const payload: CreateRoomRequest = {};
   if (password) {
     payload.password = password;
+  }
+  if (adminIdentityCode) {
+    payload.admin_identity_code = adminIdentityCode;
   }
   const response = await api.post<CreateRoomResponse>(
     API_ENDPOINTS.rooms.base(name),
@@ -51,6 +56,57 @@ export async function createRoom(
   );
 
   return response;
+}
+
+export interface RoomIdentityCode {
+  id: number;
+  role: string;
+  expires_at: string;
+  revoked_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateRoomIdentityCodeRequest {
+  code: string;
+  role: string;
+  expires_in_secs?: number;
+}
+
+export interface IdentityCodeResult {
+  code?: string;
+  identity_code: RoomIdentityCode;
+}
+
+export async function listRoomIdentityCodes(roomName: string, token?: string): Promise<RoomIdentityCode[]> {
+  const authToken = token || await getValidToken(roomName);
+  if (!authToken) throw new Error("Authentication required to list identity codes");
+  return api.get<RoomIdentityCode[]>(API_ENDPOINTS.rooms.identityCodes(roomName), undefined, { token: authToken });
+}
+
+export async function createRoomIdentityCode(
+  roomName: string,
+  request: CreateRoomIdentityCodeRequest,
+  token?: string,
+): Promise<IdentityCodeResult> {
+  const authToken = token || await getValidToken(roomName);
+  if (!authToken) throw new Error("Authentication required to create identity codes");
+  return api.post<IdentityCodeResult>(API_ENDPOINTS.rooms.identityCodes(roomName), request, { token: authToken });
+}
+
+export async function updateRoomIdentityCode(
+  roomName: string,
+  id: number,
+  request: { code?: string; expires_in_secs?: number; disable?: boolean },
+  token?: string,
+): Promise<IdentityCodeResult> {
+  const authToken = token || await getValidToken(roomName);
+  if (!authToken) throw new Error("Authentication required to update identity codes");
+  return api.patch<IdentityCodeResult>(API_ENDPOINTS.rooms.identityCode(roomName, id), request, { token: authToken });
+}
+
+export function redeemRoomIdentityCode(roomName: string, code: string): Promise<IssueTokenResponse> {
+  return api.post<IssueTokenResponse>(API_ENDPOINTS.rooms.redeemIdentityCode(roomName), { code }, { skipTokenInjection: true });
 }
 
 /**

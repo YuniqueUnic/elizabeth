@@ -91,6 +91,12 @@ export const API_ENDPOINTS = {
       `/rooms/${encodeURIComponent(name)}/roles/${encodeURIComponent(roleKey)}`,
     settings: (name: string) => `/rooms/${encodeURIComponent(name)}/settings`,
     tokens: (name: string) => `/rooms/${encodeURIComponent(name)}/tokens`,
+    identityCodes: (name: string) =>
+      `/rooms/${encodeURIComponent(name)}/identity-codes`,
+    identityCode: (name: string, id: number) =>
+      `/rooms/${encodeURIComponent(name)}/identity-codes/${id}`,
+    redeemIdentityCode: (name: string) =>
+      `/rooms/${encodeURIComponent(name)}/identity-codes/redeem`,
     capabilities: (name: string) =>
       `/rooms/${encodeURIComponent(name)}/capabilities`,
     verifyPassword: (name: string) =>
