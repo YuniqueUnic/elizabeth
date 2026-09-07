@@ -5,7 +5,6 @@ import { RoomScreen } from "../../screenplay/room/screens/Room.screen";
 import {
   OpenRoom,
   PasteIntoComposer,
-  SendMessage,
 } from "../../screenplay/room/tasks/Room.tasks";
 
 test.describe("Room message code blocks", () => {
@@ -24,9 +23,8 @@ test.describe("Room message code blocks", () => {
     actor,
     page,
   }) => {
-    await actor.attemptsTo(
-      SendMessage("```javascript\nconst answer = 42;\n```"),
-    );
+    await actor.attemptsTo(PasteIntoComposer("```javascript\nconst answer = 42;\n```"));
+    await RoomScreen.sendButton(page).click();
 
     const latestMessage = RoomScreen.messageContents(page).last();
     await expect(latestMessage.locator("[data-testid='shiki-code-block']")).toBeVisible();
@@ -109,9 +107,8 @@ test.describe("Room message code blocks", () => {
     actor,
     page,
   }) => {
-    await actor.attemptsTo(
-      SendMessage("基本文本，没有样式\n```\ncode block 样式的内容；比如\n- 文本内容\n1. 各种各样的\n```"),
-    );
+    await actor.attemptsTo(PasteIntoComposer("基本文本，没有样式\n```\ncode block 样式的内容；比如\n- 文本内容\n1. 各种各样的\n```"));
+    await RoomScreen.sendButton(page).click();
 
     const latestMessage = RoomScreen.messageContents(page).last();
     await expect(latestMessage.locator("[data-testid='shiki-code-block']")).toBeVisible();

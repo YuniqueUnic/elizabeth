@@ -79,7 +79,7 @@ regex = "1"
 mime_guess = "2.0"
 sanitize-filename = "0.6"
 url = "2"
-opendal = { version = "0.59", features = ["services-fs", "services-s3"] }
+opendal = { version = "0.58.2", features = ["services-fs", "services-s3"] }
 rust-embed = { version = "8", features = ["mime-guess", "include-exclude"] }
 
 # === Build Tools ===
@@ -100,8 +100,3 @@ ts-rs = { version = "12", features = ["chrono-impl", "serde-compat"] }
 # === Dev Dependencies ===
 serial_test = "4"
 tempfile = "3"
-
-# crates.io's opendal-core 0.59.0 package omits CHANGELOG.md required by its docs module.
-# Use the matching upstream release tag until the corrected package is published.
-[patch.crates-io]
-opendal-core = { git = "https://github.com/apache/opendal.git", tag = "v0.59.0" }

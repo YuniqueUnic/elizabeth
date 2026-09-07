@@ -3,6 +3,7 @@
 import {
   useEditor,
   EditorContent,
+  NodeViewContent,
   NodeViewWrapper,
   ReactNodeViewRenderer,
   type NodeViewProps,
@@ -32,8 +33,12 @@ function ShikiCodeBlockView({ node }: NodeViewProps) {
       : DEFAULT_CODE_BLOCK_LANGUAGE;
 
   return (
-    <NodeViewWrapper className="not-prose w-full max-w-full min-w-0 overflow-hidden" contentEditable={false}>
+    <NodeViewWrapper
+      className="not-prose w-full max-w-full min-w-0 overflow-hidden"
+      contentEditable={false}
+    >
       <CodeHighlighter code={node.textContent} language={language} />
+      <NodeViewContent className="hidden" />
     </NodeViewWrapper>
   );
 }
