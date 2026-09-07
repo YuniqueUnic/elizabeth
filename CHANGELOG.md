@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v1.1.0.html).
 
+## [1.8.1](https://github.com/YuniqueUnic/elizabeth/compare/v1.8.0...v1.8.1) (2026-09-07)
+
+
+### Bug Fixes
+
+* **identity:** replace JWT-as-identity-code with room-bound custom identity codes ([#177](https://github.com/YuniqueUnic/elizabeth/issues/177)) ([5765687](https://github.com/YuniqueUnic/elizabeth/commit/576568783cc34463059edae6874db724e28e64a1))
+
 ## [1.8.0](https://github.com/YuniqueUnic/elizabeth/compare/v1.7.0...v1.8.0) (2026-09-07)
 
 
