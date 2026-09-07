@@ -615,7 +615,7 @@
       "type": "object",
       "properties": {
         "admin_identity_code": {
-          "description": "创建者 admin 身份码。创建流程暂不消费该字段，供后续集成使用。",
+          "description": "创建者 admin 身份码；未提供时由服务端生成一次性随机身份码。",
           "type": [
             "string",
             "null"

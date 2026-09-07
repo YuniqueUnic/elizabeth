@@ -16,8 +16,8 @@ use crate::handlers::{AuthToken, verify_room_token};
 use crate::models::room::role::{Capability, ROLE_ADMIN};
 use crate::models::{Room, RoomIdentityCode, RoomToken};
 use crate::repository::{
-    IRoomIdentityCodeRepository, IRoomRepository, IRoomTokenRepository, RoomAccessRepository,
-    RoomIdentityCodeRepository, RoomRepository, RoomTokenRepository,
+    IRoomIdentityCodeRepository, IRoomRepository, RoomAccessRepository, RoomIdentityCodeRepository,
+    RoomRepository,
 };
 use crate::services::token::{MAX_IDENTITY_TTL_SECONDS, MIN_IDENTITY_TTL_SECONDS};
 use crate::state::AppState;
@@ -37,7 +37,10 @@ pub async fn create_identity_code(
     State(app_state): State<Arc<AppState>>,
     Json(payload): Json<CreateRoomIdentityCodeRequest>,
 ) -> HandlerResult<CreateRoomIdentityCodeResponse> {
-    let (room, room_id, creator_jti) = require_manager(&app_state, &name, &token).await?;
+    let manager = require_manager(&app_state, &name, &token).await?;
+    let room = manager.room;
+    let room_id = manager.room_id;
+    let creator_jti = manager.jti;
     let code = validate_identity_code(&payload.code)?;
     let role_key = payload.role.trim();
     ensure_role_exists(&app_state, &room, room_id, role_key).await?;
@@ -63,7 +66,7 @@ pub async fn create_identity_code(
         .await
         .map_err(|e| AppError::internal(format!("Failed to create identity code: {e}")))?;
     Ok(Json(CreateRoomIdentityCodeResponse {
-        identity_code: code_view(created),
+        identity_code: code_view(created, None),
         code,
     }))
 }
@@ -80,12 +83,17 @@ pub async fn list_identity_codes(
     AuthToken(token): AuthToken,
     State(app_state): State<Arc<AppState>>,
 ) -> HandlerResult<Vec<RoomIdentityCodeView>> {
-    let (_, room_id, _) = require_manager(&app_state, &name, &token).await?;
+    let manager = require_manager(&app_state, &name, &token).await?;
     let codes = RoomIdentityCodeRepository::new(app_state.db_pool.clone())
-        .list_by_room(room_id)
+        .list_by_room(manager.room_id)
         .await
         .map_err(|e| AppError::internal(format!("Failed to list identity codes: {e}")))?;
-    Ok(Json(codes.into_iter().map(code_view).collect()))
+    Ok(Json(
+        codes
+            .into_iter()
+            .map(|code| code_view(code, manager.identity_code_id))
+            .collect(),
+    ))
 }
 
 #[utoipa::path(
@@ -102,7 +110,9 @@ pub async fn update_identity_code(
     State(app_state): State<Arc<AppState>>,
     Json(payload): Json<UpdateRoomIdentityCodeRequest>,
 ) -> HandlerResult<UpdateRoomIdentityCodeResponse> {
-    let (room, room_id, _) = require_manager(&app_state, &name, &token).await?;
+    let manager = require_manager(&app_state, &name, &token).await?;
+    let room = manager.room;
+    let room_id = manager.room_id;
     if payload.disable && (payload.code.is_some() || payload.expires_in_secs.is_some()) {
         return Err(AppError::validation(
             "disable cannot be combined with reset or expiry update",
@@ -119,16 +129,9 @@ pub async fn update_identity_code(
         .await
         .map_err(|e| AppError::internal(format!("Failed to load identity code: {e}")))?
         .ok_or_else(|| AppError::not_found("Room identity code"))?;
-    let token_repo = RoomTokenRepository::new(app_state.db_pool.clone());
     if payload.disable {
-        token_repo
-            .revoke_active_by_identity_code(room_id, id)
-            .await
-            .map_err(|e| {
-                AppError::internal(format!("Failed to revoke identity-code sessions: {e}"))
-            })?;
         let revoked = code_repo
-            .revoke(room_id, id)
+            .revoke_and_revoke_sessions(room_id, id)
             .await
             .map_err(|e| AppError::internal(format!("Failed to disable identity code: {e}")))?;
         if !revoked {
@@ -140,7 +143,7 @@ pub async fn update_identity_code(
             .map_err(|e| AppError::internal(e.to_string()))?
             .ok_or_else(|| AppError::not_found("Room identity code"))?;
         return Ok(Json(UpdateRoomIdentityCodeResponse {
-            identity_code: code_view(updated),
+            identity_code: code_view(updated, manager.identity_code_id),
             code: None,
         }));
     }
@@ -157,18 +160,12 @@ pub async fn update_identity_code(
             .hash(code.clone())
             .await
             .map_err(|e| AppError::internal(format!("Failed to protect identity code: {e}")))?;
-        token_repo
-            .revoke_active_by_identity_code(room_id, id)
-            .await
-            .map_err(|e| {
-                AppError::internal(format!("Failed to revoke identity-code sessions: {e}"))
-            })?;
         let updated = code_repo
-            .reset(room_id, id, hash, expires_at)
+            .reset_and_revoke_sessions(room_id, id, hash, expires_at)
             .await
             .map_err(|e| AppError::internal(format!("Failed to reset identity code: {e}")))?;
         return Ok(Json(UpdateRoomIdentityCodeResponse {
-            identity_code: code_view(updated),
+            identity_code: code_view(updated, manager.identity_code_id),
             code: Some(code),
         }));
     }
@@ -177,7 +174,7 @@ pub async fn update_identity_code(
         .await
         .map_err(|e| AppError::internal(format!("Failed to update identity code: {e}")))?;
     Ok(Json(UpdateRoomIdentityCodeResponse {
-        identity_code: code_view(updated),
+        identity_code: code_view(updated, manager.identity_code_id),
         code: None,
     }))
 }
@@ -261,11 +258,18 @@ pub async fn redeem_identity_code(
     }))
 }
 
+struct IdentityCodeManager {
+    room: Room,
+    room_id: i64,
+    jti: String,
+    identity_code_id: Option<i64>,
+}
+
 async fn require_manager(
     app_state: &Arc<AppState>,
     name: &str,
     token: &str,
-) -> Result<(Room, i64, String), AppError> {
+) -> Result<IdentityCodeManager, AppError> {
     RoomNameValidator::validate_identifier(name)?;
     let verified = verify_room_token(app_state.clone(), name, token).await?;
     let room_id = verified
@@ -275,7 +279,12 @@ async fn require_manager(
     Authz::for_claims(app_state, &verified.room, &verified.claims)
         .await?
         .require(Capability::RoomRolesManage, &Resource::Room { room_id })?;
-    Ok((verified.room, room_id, verified.record.jti))
+    Ok(IdentityCodeManager {
+        room: verified.room,
+        room_id,
+        jti: verified.record.jti,
+        identity_code_id: verified.record.identity_code_id,
+    })
 }
 
 async fn ensure_role_exists(
@@ -302,7 +311,7 @@ async fn ensure_role_exists(
     Ok(())
 }
 
-fn identity_code_expiry(
+pub(crate) fn identity_code_expiry(
     app_state: &AppState,
     room: &Room,
     role_key: &str,
@@ -368,13 +377,18 @@ pub(crate) fn validate_identity_code(raw: &str) -> Result<String, AppError> {
     Ok(code.to_owned())
 }
 
-fn code_view(code: RoomIdentityCode) -> RoomIdentityCodeView {
+fn code_view(
+    code: RoomIdentityCode,
+    current_identity_code_id: Option<i64>,
+) -> RoomIdentityCodeView {
+    let id = code.id.unwrap_or_default();
     RoomIdentityCodeView {
-        id: code.id.unwrap_or_default(),
+        id,
         role: code.role_key,
         expires_at: code.expires_at,
         revoked_at: code.revoked_at,
         created_at: code.created_at,
         updated_at: code.updated_at,
+        is_current: current_identity_code_id == Some(id),
     }
 }

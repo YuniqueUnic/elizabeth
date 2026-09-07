@@ -46,11 +46,13 @@ impl RoomChunkUploadRepository {
     where
         E: sqlx::Executor<'e, Database = Any>,
     {
-        sqlx::query_as::<_, RoomChunkUpload>(&format!("{SELECT_BASE} WHERE id = $1"))
-            .bind(id)
-            .fetch_optional(executor)
-            .await?
-            .ok_or_else(|| anyhow!("chunk upload not found"))
+        sqlx::query_as::<_, RoomChunkUpload>(sqlx::AssertSqlSafe(format!(
+            "{SELECT_BASE} WHERE id = $1"
+        )))
+        .bind(id)
+        .fetch_optional(executor)
+        .await?
+        .ok_or_else(|| anyhow!("chunk upload not found"))
     }
 
     async fn fetch_optional<'e, E>(
@@ -61,9 +63,9 @@ impl RoomChunkUploadRepository {
     where
         E: sqlx::Executor<'e, Database = Any>,
     {
-        sqlx::query_as::<_, RoomChunkUpload>(&format!(
+        sqlx::query_as::<_, RoomChunkUpload>(sqlx::AssertSqlSafe(format!(
             "{SELECT_BASE} WHERE reservation_id = $1 AND chunk_index = $2"
-        ))
+        )))
         .bind(reservation_id)
         .bind(chunk_index)
         .fetch_optional(executor)
@@ -115,9 +117,9 @@ impl IRoomChunkUploadRepository for RoomChunkUploadRepository {
     }
 
     async fn find_by_reservation_id(&self, reservation_id: i64) -> Result<Vec<RoomChunkUpload>> {
-        let rows = sqlx::query_as::<_, RoomChunkUpload>(&format!(
+        let rows = sqlx::query_as::<_, RoomChunkUpload>(sqlx::AssertSqlSafe(format!(
             "{SELECT_BASE} WHERE reservation_id = $1 ORDER BY chunk_index"
-        ))
+        )))
         .bind(reservation_id)
         .fetch_all(&*self.pool)
         .await?;

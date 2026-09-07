@@ -50,16 +50,31 @@ test.describe("Identity code lifetime semantics", () => {
     }
   });
 
-  test("member panel exposes the duration configuration", async ({ actor, page, provisionRoom }) => {
+  test("member panel exposes custom codes, TTL controls, and the current-code marker", async ({ actor, page, provisionRoom }) => {
     const roomName = uniqueRoomName("screenplay-ttl-ui");
     const room = await provisionRoom({ actor, roomName });
 
     await actor.attemptsTo(OpenRoom(room.url));
     await page.getByRole("button", { name: /成员与权限|Members & permissions/ }).click();
-    // Duration fields only appear for non-admin roles; select editor first
+    await expect(page.getByText(/当前身份码|Current identity code/)).toBeVisible();
+
+    // Duration fields only appear for non-admin roles; select editor first.
     await page.locator("#identity-role").click();
     await page.getByRole("option", { name: /editor/ }).click();
     await expect(page.getByTestId("editor-token-duration-value")).toBeVisible();
     await expect(page.getByTestId("editor-token-duration-unit")).toBeVisible();
+
+    await page.locator("#new-identity-code").fill("editor-ui-code-001");
+    await page.getByTestId("editor-token-duration-value").fill("2");
+    await page.getByTestId("editor-token-duration-unit").click();
+    await page.getByRole("option", { name: /minutes|分钟/ }).click();
+    await page.getByRole("button", { name: /创建身份码|Create identity code/ }).click();
+    await expect(page.locator("input[readonly]")).toHaveValue("editor-ui-code-001");
+
+    const currentCode = page.getByTestId("current-identity-code");
+    await currentCode.getByRole("button", { name: /替换|Replace/ }).click();
+    await currentCode.locator('input[id^="replace-identity-code-"]').fill("admin-ui-code-001");
+    await currentCode.getByRole("button", { name: /保存身份码|Save identity code/ }).click();
+    await expect(page.getByText(/当前会话已结束|Your current session has ended/)).toBeVisible();
   });
 });

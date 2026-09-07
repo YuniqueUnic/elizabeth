@@ -49,7 +49,7 @@ pub async fn init_db(settings: &DbPoolSettings) -> Result<DbPool> {
         pool_options = pool_options.after_connect(move |connection, _metadata| {
             Box::pin(async move {
                 let statement = format!("PRAGMA busy_timeout = {busy_timeout_ms}");
-                connection.execute(statement.as_str()).await?;
+                connection.execute(sqlx::AssertSqlSafe(statement)).await?;
                 connection.execute("PRAGMA foreign_keys = ON").await?;
                 Ok(())
             })
@@ -156,7 +156,9 @@ pub async fn backup_sqlite_before_migrations(pool: &DbPool, url: &str) -> Result
     }
 
     let escaped = backup_path.to_string_lossy().replace('\'', "''");
-    sqlx::query(&format!("VACUUM INTO '{escaped}'"))
+    // SQLite does not allow binding a path in VACUUM INTO. The path comes from
+    // the configured database URL and embedded quotes are escaped above.
+    sqlx::query(sqlx::AssertSqlSafe(format!("VACUUM INTO '{escaped}'")))
         .execute(pool)
         .await?;
 

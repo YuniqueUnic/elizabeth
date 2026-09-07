@@ -60,7 +60,7 @@ impl RoomRepository {
         E: sqlx::Executor<'e, Database = Any>,
     {
         let sql = format!("{ROOM_SELECT_BASE} WHERE id = $1");
-        let room = sqlx::query_as::<_, Room>(&sql)
+        let room = sqlx::query_as::<_, Room>(sqlx::AssertSqlSafe(sql))
             .bind(id)
             .fetch_optional(executor)
             .await?;
@@ -72,7 +72,7 @@ impl RoomRepository {
         E: sqlx::Executor<'e, Database = Any>,
     {
         let sql = format!("{ROOM_SELECT_BASE} WHERE slug = $1");
-        let room = sqlx::query_as::<_, Room>(&sql)
+        let room = sqlx::query_as::<_, Room>(sqlx::AssertSqlSafe(sql))
             .bind(slug)
             .fetch_optional(executor)
             .await?;
@@ -87,7 +87,7 @@ impl RoomRepository {
         E: sqlx::Executor<'e, Database = Any>,
     {
         let sql = format!("{ROOM_SELECT_BASE} WHERE name = $1");
-        let room = sqlx::query_as::<_, Room>(&sql)
+        let room = sqlx::query_as::<_, Room>(sqlx::AssertSqlSafe(sql))
             .bind(name)
             .fetch_optional(executor)
             .await?;
@@ -110,7 +110,7 @@ impl RoomRepository {
         let sql = format!(
             "{ROOM_SELECT_BASE} WHERE expire_at IS NOT NULL AND CAST(expire_at AS TEXT) < $1"
         );
-        let rooms = sqlx::query_as::<_, Room>(&sql)
+        let rooms = sqlx::query_as::<_, Room>(sqlx::AssertSqlSafe(sql))
             .bind(format_naive_datetime(before))
             .fetch_all(executor)
             .await?;

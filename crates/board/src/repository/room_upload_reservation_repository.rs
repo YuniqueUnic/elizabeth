@@ -95,11 +95,12 @@ impl RoomUploadReservationRepository {
     where
         E: sqlx::Executor<'e, Database = Any>,
     {
-        let row =
-            sqlx::query_as::<_, RoomUploadReservation>(&format!("{SELECT_BASE} WHERE id = $1"))
-                .bind(reservation_id)
-                .fetch_optional(executor)
-                .await?;
+        let row = sqlx::query_as::<_, RoomUploadReservation>(sqlx::AssertSqlSafe(format!(
+            "{SELECT_BASE} WHERE id = $1"
+        )))
+        .bind(reservation_id)
+        .fetch_optional(executor)
+        .await?;
         Ok(row)
     }
 
@@ -212,9 +213,9 @@ impl IRoomUploadReservationRepository for RoomUploadReservationRepository {
     }
 
     async fn find_by_token(&self, token_jti: &str) -> Result<Option<RoomUploadReservation>> {
-        let row = sqlx::query_as::<_, RoomUploadReservation>(&format!(
+        let row = sqlx::query_as::<_, RoomUploadReservation>(sqlx::AssertSqlSafe(format!(
             "{SELECT_BASE} WHERE token_jti = $1"
-        ))
+        )))
         .bind(token_jti)
         .fetch_optional(&*self.pool)
         .await?;

@@ -160,7 +160,7 @@ impl OpendalBackend {
                 // Build filesystem operator
                 let builder = opendal::services::Fs::default().root(&config.root);
 
-                Operator::new(builder).map_err(StorageError::from)?.finish()
+                Operator::new(builder).map_err(StorageError::from)?
             }
             StorageType::S3 => {
                 // Build S3 operator
@@ -179,7 +179,7 @@ impl OpendalBackend {
                     builder = builder.region(&region);
                 }
 
-                Operator::new(builder).map_err(StorageError::from)?.finish()
+                Operator::new(builder).map_err(StorageError::from)?
             }
         };
 

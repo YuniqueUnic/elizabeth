@@ -203,7 +203,9 @@ async fn apply_sqlite_journal_mode(
         SqliteJournalMode::Wal => "WAL",
     };
     let statement = format!("PRAGMA journal_mode = {pragma_value}");
-    sqlx::query(&statement).execute(pool).await?;
+    sqlx::query(sqlx::AssertSqlSafe(statement))
+        .execute(pool)
+        .await?;
     Ok(())
 }
 

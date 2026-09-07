@@ -44,7 +44,7 @@ impl RoomTokenRepository {
         E: sqlx::Executor<'e, Database = Any>,
     {
         let sql = format!("{TOKEN_SELECT} WHERE jti = $1");
-        let token = sqlx::query_as::<_, RoomToken>(&sql)
+        let token = sqlx::query_as::<_, RoomToken>(sqlx::AssertSqlSafe(sql))
             .bind(jti)
             .fetch_optional(executor)
             .await?;
@@ -56,7 +56,7 @@ impl RoomTokenRepository {
         E: sqlx::Executor<'e, Database = Any>,
     {
         let sql = format!("{TOKEN_SELECT} WHERE id = $1");
-        sqlx::query_as::<_, RoomToken>(&sql)
+        sqlx::query_as::<_, RoomToken>(sqlx::AssertSqlSafe(sql))
             .bind(id)
             .fetch_optional(executor)
             .await?
@@ -100,7 +100,7 @@ impl IRoomTokenRepository for RoomTokenRepository {
 
     async fn list_by_room(&self, room_id: i64) -> Result<Vec<RoomToken>> {
         let sql = format!("{TOKEN_SELECT} WHERE room_id = $1 ORDER BY created_at DESC");
-        let tokens = sqlx::query_as::<_, RoomToken>(&sql)
+        let tokens = sqlx::query_as::<_, RoomToken>(sqlx::AssertSqlSafe(sql))
             .bind(room_id)
             .fetch_all(&*self.pool)
             .await?;
