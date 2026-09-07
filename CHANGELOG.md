@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v1.1.0.html).
 
+## [1.7.0](https://github.com/YuniqueUnic/elizabeth/compare/v1.6.0...v1.7.0) (2026-09-06)
+
+
+### Features
+
+* content visibility, permissions UX overhaul, e2e hardening, and README rebuild ([#172](https://github.com/YuniqueUnic/elizabeth/issues/172)) ([e8643a2](https://github.com/YuniqueUnic/elizabeth/commit/e8643a28d93bbdf4c71d38245bad90370f8ef43f))
+
 ## [1.6.0](https://github.com/YuniqueUnic/elizabeth/compare/v1.5.3...v1.6.0) (2026-09-02)
 
 
