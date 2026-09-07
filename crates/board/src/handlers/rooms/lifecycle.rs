@@ -46,9 +46,14 @@ pub async fn create(
         .await
         .map_err(|e| AppError::internal(format!("Failed to create room: {e}")))?
         .ok_or_else(|| AppError::conflict("Room already exists"))?;
+    // admin 身份码跟随房间生命周期：超长 TTL 由房间过期时间统一封顶
     let (token, claims) = app_state
         .token_service()
-        .issue(&created_room, ROLE_ADMIN)
+        .issue_with_ttl(
+            &created_room,
+            ROLE_ADMIN,
+            crate::services::token::room_lifetime_ttl(),
+        )
         .map_err(|e| AppError::internal(format!("Failed to issue admin identity code: {e}")))?;
     let record = crate::models::RoomToken::new(
         claims.room_id,

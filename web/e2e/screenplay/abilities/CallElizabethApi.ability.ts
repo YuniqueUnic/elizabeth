@@ -12,6 +12,8 @@ export interface IssueTokenOptions {
   role?: string;
   withRefreshToken?: boolean;
   asAdminBootstrap?: boolean;
+  /** 身份码有效时长（秒）；仅对非默认角色生效 */
+  expiresInSecs?: number;
 }
 
 export interface CapabilityGrant {
@@ -94,6 +96,7 @@ export class CallElizabethApi extends Ability {
           password: options.password,
           role: options.role,
           with_refresh_token: options.withRefreshToken ?? true,
+          expires_in_secs: options.expiresInSecs,
         },
         headers,
         timeout: 15_000,
@@ -122,11 +125,17 @@ export class CallElizabethApi extends Ability {
     roomName: string,
     role: string,
     adminToken: string,
+    expiresInSecs?: number,
   ): Promise<RoomTokenInfo> {
     const response = await this.request.post(
       `${this.apiBaseUrl}/rooms/${encodeURIComponent(roomName)}/tokens`,
       {
-        data: { token: adminToken, role, with_refresh_token: true },
+        data: {
+          token: adminToken,
+          role,
+          with_refresh_token: true,
+          expires_in_secs: expiresInSecs,
+        },
         headers: { Authorization: `Bearer ${adminToken}` },
         timeout: 15_000,
       },
@@ -152,11 +161,17 @@ export class CallElizabethApi extends Ability {
     roomName: string,
     role: string,
     adminToken: string,
+    expiresInSecs?: number,
   ): Promise<number> {
     const response = await this.request.post(
       `${this.apiBaseUrl}/rooms/${encodeURIComponent(roomName)}/tokens`,
       {
-        data: { token: adminToken, role, with_refresh_token: false },
+        data: {
+          token: adminToken,
+          role,
+          with_refresh_token: false,
+          expires_in_secs: expiresInSecs,
+        },
         headers: { Authorization: `Bearer ${adminToken}` },
         timeout: 15_000,
       },

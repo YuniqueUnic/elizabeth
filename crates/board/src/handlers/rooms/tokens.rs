@@ -14,7 +14,7 @@ use crate::dto::rooms::{
 use crate::errors::AppError;
 use crate::handlers::admin::validate_admin_credential;
 use crate::handlers::{AuthToken, verify_room_token};
-use crate::models::room::role::Capability;
+use crate::models::room::role::{Capability, ROLE_ADMIN};
 use crate::models::{Room, RoomStatus, RoomToken};
 use crate::repository::{
     IRoomRepository, IRoomTokenRepository, RoomAccessRepository, RoomRepository,
@@ -114,6 +114,26 @@ pub async fn issue_token(
             .unwrap_or_else(|| room.default_role_key.clone()),
     };
 
+    // 身份码有效时长：admin 跟随房间生命周期；其他角色可由签发者配置，
+    // 缺省用部署配置的默认 TTL。实际过期时间由 expiration_for 统一封顶到房间过期。
+    let requested_ttl = if role_key == ROLE_ADMIN {
+        crate::services::token::room_lifetime_ttl()
+    } else if let Some(secs) = payload.expires_in_secs {
+        if !(crate::services::token::MIN_IDENTITY_TTL_SECONDS
+            ..=crate::services::token::MAX_IDENTITY_TTL_SECONDS)
+            .contains(&secs)
+        {
+            return Err(AppError::validation(format!(
+                "expires_in_secs must be between {} and {} seconds",
+                crate::services::token::MIN_IDENTITY_TTL_SECONDS,
+                crate::services::token::MAX_IDENTITY_TTL_SECONDS
+            )));
+        }
+        chrono::Duration::seconds(secs)
+    } else {
+        app_state.token_service().get_ttl()
+    };
+
     let previous_jti = requester.as_ref().and_then(|verified| {
         let current_role = verified
             .record
@@ -125,7 +145,7 @@ pub async fn issue_token(
 
     let (token, claims) = app_state
         .token_service()
-        .issue(&room, &role_key)
+        .issue_with_ttl(&room, &role_key, requested_ttl)
         .map_err(|e| AppError::authentication(e.to_string()))?;
     let record = RoomToken::new(
         claims.room_id,
@@ -419,6 +439,7 @@ pub async fn verify_password(
         token: None,
         with_refresh_token: false,
         role: None,
+        expires_in_secs: None,
     };
     validate_room_password(&app_state, &room, &request).await?;
     Ok(Json(VerifyRoomPasswordResponse { valid: true }))

@@ -121,8 +121,11 @@ created by the holder), and custom roles can express any narrower combination.
 
 ### Identity-Code Lifecycle
 
-1. **Mint**: the admin issues editor / reader identity codes under "Members &
-   permissions → Identity codes" (editor seats capped at 10).
+1. **Mint**: the admin issues editor identity codes under "Members & permissions
+   → Identity codes" (seats capped at 10) with a configurable validity of
+   seconds / minutes / hours / days / months; codes never outlive the room.
+   **The admin identity code follows the room lifetime** and can be rotated from
+   the identity card. The first user who creates a room holds it.
 2. **Distribute**: hand the code to the intended user over any channel.
 3. **Redeem**: the recipient pastes the code inside the room to assume the role
    — no account required.

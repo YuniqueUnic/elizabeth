@@ -98,6 +98,12 @@ pub struct IssueTokenRequest {
     /// 指定非默认角色需要 `room.roles.manage` 能力（匿名进房者只能拿默认角色）。
     #[cfg_attr(feature = "typescript-export", ts(optional))]
     pub role: Option<String>,
+    /// 身份码有效时长（秒）；仅对非默认角色生效，缺省 = 部署配置的默认 TTL。
+    /// 下限 60 秒，上限 10 年，实际有效期不会超过房间自身的过期时间。
+    /// admin 角色忽略此字段：admin 身份码始终跟随房间生命周期。
+    #[cfg_attr(feature = "typescript-export", ts(optional))]
+    #[serde(default)]
+    pub expires_in_secs: Option<i64>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]

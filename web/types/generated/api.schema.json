@@ -838,6 +838,15 @@
     "IssueTokenRequest": {
       "type": "object",
       "properties": {
+        "expires_in_secs": {
+          "description": "身份码有效时长（秒）；仅对非默认角色生效，缺省 = 部署配置的默认 TTL。\n下限 60 秒，上限 10 年，实际有效期不会超过房间自身的过期时间。\nadmin 角色忽略此字段：admin 身份码始终跟随房间生命周期。",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64",
+          "default": null
+        },
         "password": {
           "description": "房间密码，如果房间设置了密码，则必须填写",
           "type": [

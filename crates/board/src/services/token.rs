@@ -17,6 +17,17 @@ const DEFAULT_TOKEN_TTL_MINUTES: i64 = 120;
 const DEFAULT_REFRESH_TOKEN_TTL_DAYS: i64 = 7;
 const MINIMUM_EXP_DELTA_SECONDS: i64 = 5;
 
+/// 身份码允许配置的最短有效时长（秒）。
+pub const MIN_IDENTITY_TTL_SECONDS: i64 = 60;
+/// 身份码允许配置的最长有效时长（10 年）；实际有效期仍会被房间过期时间封顶。
+pub const MAX_IDENTITY_TTL_SECONDS: i64 = 31_536_000 * 10;
+
+/// "跟随房间生命周期"的请求 TTL：远超任何房间有效期，
+/// 由 `expiration_for` 统一封顶到房间过期时刻。
+pub fn room_lifetime_ttl() -> Duration {
+    Duration::days(365 * 100)
+}
+
 #[derive(Clone)]
 pub struct RoomTokenService {
     secret: Arc<String>,
@@ -56,12 +67,22 @@ impl RoomTokenService {
     }
 
     pub fn issue(&self, room: &Room, role_key: &str) -> Result<(String, RoomTokenClaims)> {
+        self.issue_with_ttl(room, role_key, self.ttl)
+    }
+
+    /// 以指定有效时长签发访问令牌；实际过期时间不会超过房间自身的过期时间。
+    pub fn issue_with_ttl(
+        &self,
+        room: &Room,
+        role_key: &str,
+        requested_ttl: Duration,
+    ) -> Result<(String, RoomTokenClaims)> {
         if room.is_expired() {
             return Err(anyhow!("room already expired"));
         }
 
         let now = Utc::now();
-        let exp = self.expiration_for(room, self.ttl)?;
+        let exp = self.expiration_for(room, requested_ttl)?;
 
         let claims = RoomTokenClaims::access_token_builder(
             room.id.ok_or_else(|| anyhow!("room id missing"))?,

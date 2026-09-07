@@ -38,6 +38,7 @@ async fn issue_new_token(
         token: None,
         with_refresh_token: false,
         role: None,
+        expires_in_secs: None,
     };
     let Json(resp) = issue_token(
         Path(room_slug.to_string()),
@@ -59,6 +60,7 @@ async fn refresh_token(
         token: Some(previous_token),
         with_refresh_token: false,
         role: None,
+        expires_in_secs: None,
     };
     let Json(resp) = issue_token(
         Path(room_slug.to_string()),
@@ -148,5 +150,183 @@ async fn issue_token_allows_refresh_when_room_full() -> anyhow::Result<()> {
         .expect_err("expected full room to reject new entry");
     assert_eq!(err.status_code(), axum::http::StatusCode::UNAUTHORIZED);
 
+    Ok(())
+}
+
+async fn mint_persisted_admin_token(
+    app_state: Arc<AppState>,
+    room: &Room,
+) -> anyhow::Result<String> {
+    let (token, claims) = app_state.token_service().issue(room, "admin")?;
+    let record = crate::models::RoomToken::new(
+        claims.room_id,
+        claims.jti.clone(),
+        "admin",
+        claims.expires_at(),
+    );
+    crate::repository::RoomAccessRepository::new(app_state.db_pool.clone())
+        .grant_new_session(claims.room_id, &record, None, Utc::now().naive_utc())
+        .await?;
+    Ok(token)
+}
+
+async fn create_room_with_expiry(
+    app_state: Arc<AppState>,
+    slug: &str,
+    expire_in: chrono::Duration,
+) -> anyhow::Result<Room> {
+    let mut room = Room::new(slug.to_string(), None);
+    room.expire_at = Some((Utc::now() + expire_in).naive_utc());
+    let repo = RoomRepository::new(app_state.db_pool.clone());
+    let created = repo
+        .create_if_absent(&room)
+        .await?
+        .expect("fresh room must be created");
+    Ok(created)
+}
+
+#[tokio::test]
+async fn admin_identity_code_follows_room_lifetime_and_ignores_expires_in() -> anyhow::Result<()> {
+    let app_state = setup_state().await?;
+    let room = create_room_with_expiry(
+        app_state.clone(),
+        "room-admin-lifetime",
+        chrono::Duration::days(30),
+    )
+    .await?;
+
+    // 创建者 admin 码本身也应跟随房间生命周期
+    let room_expire = room
+        .expire_at
+        .expect("room expiry set")
+        .and_utc()
+        .timestamp();
+    let (_creator_token, creator_claims) = app_state.token_service().issue_with_ttl(
+        &room,
+        "admin",
+        crate::services::token::room_lifetime_ttl(),
+    )?;
+    assert!(
+        (creator_claims.exp - room_expire).abs() <= 6,
+        "creator admin exp {} should track room expiry {}",
+        creator_claims.exp,
+        room_expire
+    );
+
+    // 通过签发接口轮换/补发 admin 码：携带 expires_in_secs 也必须被忽略
+    let creator_token = mint_persisted_admin_token(app_state.clone(), &room).await?;
+    let Json(resp) = issue_token(
+        Path(room.slug.clone()),
+        HeaderMap::new(),
+        State(app_state.clone()),
+        Json(IssueTokenRequest {
+            password: None,
+            token: Some(creator_token),
+            with_refresh_token: false,
+            role: Some("admin".to_string()),
+            expires_in_secs: Some(3600),
+        }),
+    )
+    .await?;
+    let admin_expire = resp.expires_at.and_utc().timestamp();
+    assert!(
+        (admin_expire - room_expire).abs() <= 6,
+        "admin identity code exp {} should track room expiry {}",
+        admin_expire,
+        room_expire
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn editor_identity_code_honors_configured_ttl() -> anyhow::Result<()> {
+    let app_state = setup_state().await?;
+    let room = create_room_with_expiry(
+        app_state.clone(),
+        "room-editor-ttl",
+        chrono::Duration::days(30),
+    )
+    .await?;
+    let admin_token = mint_persisted_admin_token(app_state.clone(), &room).await?;
+
+    let before = Utc::now().timestamp();
+    let Json(resp) = issue_token(
+        Path(room.slug.clone()),
+        HeaderMap::new(),
+        State(app_state.clone()),
+        Json(IssueTokenRequest {
+            password: None,
+            token: Some(admin_token),
+            with_refresh_token: false,
+            role: Some("editor".to_string()),
+            expires_in_secs: Some(3600),
+        }),
+    )
+    .await?;
+    let editor_expire = resp.expires_at.and_utc().timestamp();
+    assert!(
+        (editor_expire - (before + 3600)).abs() <= 10,
+        "editor exp {} should be ~now+3600s",
+        editor_expire
+    );
+
+    // 缺省时长 = 部署配置的默认 TTL（开发配置 120 分钟）
+    let admin_token = mint_persisted_admin_token(app_state.clone(), &room).await?;
+    let before = Utc::now().timestamp();
+    let Json(resp) = issue_token(
+        Path(room.slug.clone()),
+        HeaderMap::new(),
+        State(app_state),
+        Json(IssueTokenRequest {
+            password: None,
+            token: Some(admin_token),
+            with_refresh_token: false,
+            role: Some("editor".to_string()),
+            expires_in_secs: None,
+        }),
+    )
+    .await?;
+    let default_expire = resp.expires_at.and_utc().timestamp();
+    assert!(
+        (default_expire - (before + 120 * 60)).abs() <= 15,
+        "editor default exp {} should be ~now+120min",
+        default_expire
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn editor_identity_code_rejects_out_of_range_ttl() -> anyhow::Result<()> {
+    let app_state = setup_state().await?;
+    let room = create_room_with_expiry(
+        app_state.clone(),
+        "room-editor-ttl-range",
+        chrono::Duration::days(30),
+    )
+    .await?;
+    let admin_token = mint_persisted_admin_token(app_state.clone(), &room).await?;
+
+    for invalid in [
+        30_i64,
+        0,
+        -1,
+        crate::services::token::MAX_IDENTITY_TTL_SECONDS + 1,
+    ] {
+        let result = issue_token(
+            Path(room.slug.clone()),
+            HeaderMap::new(),
+            State(app_state.clone()),
+            Json(IssueTokenRequest {
+                password: None,
+                token: Some(admin_token.clone()),
+                with_refresh_token: false,
+                role: Some("editor".to_string()),
+                expires_in_secs: Some(invalid),
+            }),
+        )
+        .await;
+        let err = result.expect_err("out-of-range ttl must be rejected");
+        assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
+    }
     Ok(())
 }

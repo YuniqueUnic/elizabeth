@@ -188,7 +188,16 @@
     "validating": "校验中...",
     "invalidFormat": "身份码格式不正确",
     "invalid": "身份码无效或已过期",
-    "validRole": "有效 · 角色：{role}"
+    "validRole": "有效 · 角色：{role}",
+    "durationLabel": "有效期",
+    "durationHint": "身份码到期自动失效，最长不超过房间有效期；admin 身份码始终跟随房间生命周期。",
+    "invalidDuration": "请输入大于 0 的有效时长",
+    "unitSecond": "秒",
+    "unitMinute": "分钟",
+    "unitHour": "小时",
+    "unitDay": "天",
+    "unitMonth": "个月",
+    "issuedTokenExpires": "有效期至 {time}"
   },
   "roles": {
     "title": "角色权限",

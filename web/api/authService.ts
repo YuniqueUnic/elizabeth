@@ -126,10 +126,16 @@ export async function issueRoomRoleToken(
   roomName: string,
   role: string,
   adminToken: string,
+  expiresInSecs?: number,
 ): Promise<IssueTokenResponse> {
   return api.post<IssueTokenResponse>(
     API_ENDPOINTS.rooms.tokens(roomName),
-    { token: adminToken, role, with_refresh_token: false },
+    {
+      token: adminToken,
+      role,
+      with_refresh_token: false,
+      expires_in_secs: expiresInSecs,
+    },
     { skipTokenInjection: true },
   );
 }

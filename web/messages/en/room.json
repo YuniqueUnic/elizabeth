@@ -188,7 +188,16 @@
     "validating": "Verifying...",
     "invalidFormat": "That does not look like a valid identity code",
     "invalid": "The identity code is invalid or expired",
-    "validRole": "Valid · role: {role}"
+    "validRole": "Valid · role: {role}",
+    "durationLabel": "Validity",
+    "durationHint": "Codes expire automatically and never outlive the room; the admin code always follows the room lifetime.",
+    "invalidDuration": "Enter a duration greater than 0",
+    "unitSecond": "seconds",
+    "unitMinute": "minutes",
+    "unitHour": "hours",
+    "unitDay": "days",
+    "unitMonth": "months",
+    "issuedTokenExpires": "Valid until {time}"
   },
   "roles": {
     "title": "Role permissions",
