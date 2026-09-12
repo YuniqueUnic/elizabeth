@@ -72,7 +72,7 @@ async fn test_admin_api_disabled_without_token_config() -> Result<()> {
                 .as_str()
                 .unwrap()
                 .contains("Admin API disabled"),
-            "{uri} 应在未配置 token 时整体关闭: {body}"
+            "{uri} 应在未配置 token 时整体关闭：{body}"
         );
     }
 
