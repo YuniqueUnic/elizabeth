@@ -1,4 +1,5 @@
 import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
+import { parser } from "typescript-eslint";
 import React from "react";
 
 const config = [
@@ -14,6 +15,13 @@ const config = [
     ],
   },
   ...nextCoreWebVitals,
+  {
+    // eslint-config-next/parser bundles a scope manager predating ESLint 10's
+    // ScopeManager#addGlobals (vercel/next.js#89764); plain JS configs parse
+    // fine with the ESLint-10-compatible typescript parser.
+    files: ["**/*.js", "**/*.mjs", "**/*.cjs"],
+    languageOptions: { parser },
+  },
   {
     settings: {
       react: {
