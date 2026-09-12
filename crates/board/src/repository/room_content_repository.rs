@@ -159,9 +159,9 @@ impl IRoomContentRepository for RoomContentRepository {
             r#"
             UPDATE room_contents SET
                 room_id = $1, content_type = $2, text = $3,
-                url = $4, path = $5, file_name = $6, size = $7, mime_type = $8,
-                sequence_number = $9, hidden = $10, updated_at = $11
-            WHERE id = $12
+                url = $4, path = $5, hash = $6, file_name = $7, size = $8,
+                mime_type = $9, sequence_number = $10, hidden = $11, updated_at = $12
+            WHERE id = $13
             "#,
         )
         .bind(room_content.room_id)

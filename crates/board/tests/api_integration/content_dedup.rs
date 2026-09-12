@@ -304,3 +304,32 @@ async fn test_cross_room_dedup_is_disabled_by_default() -> Result<()> {
     let _ = (&in_a, &in_b);
     Ok(())
 }
+
+#[tokio::test]
+async fn test_content_update_persists_hash_and_hidden_flag() -> Result<()> {
+    // 回归：UPDATE 语句曾因占位符与绑定错位而静默失效（隐藏不落库）。
+    let (app, pool) = create_test_app().await?;
+    let token = create_room(&app, "update-room").await?;
+    let payload: &'static [u8] = b"update persistence probe";
+    let uploaded = put_upload(&app, "update-room", "probe.txt", &token, payload).await?;
+    let content_id = uploaded["uploaded"][0]["id"].as_i64().unwrap();
+
+    let set_hidden = Request::builder()
+        .method(Method::PUT)
+        .uri(format!(
+            "/api/v1/rooms/update-room/contents/{content_id}/visibility?token={token}"
+        ))
+        .header("content-type", "application/json")
+        .body(Body::from(json!({"hidden": true}).to_string()))?;
+    let response = app.clone().oneshot(set_hidden).await?;
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let (hidden, hash): (i64, Option<String>) =
+        sqlx::query_as("SELECT hidden, hash FROM room_contents WHERE id = $1")
+            .bind(content_id)
+            .fetch_one(pool.as_ref())
+            .await?;
+    assert_eq!(hidden, 1, "隐藏状态必须真实落库");
+    assert_eq!(hash.as_deref(), Some(sha256_hex(payload).as_str()));
+    Ok(())
+}
