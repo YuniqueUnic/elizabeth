@@ -11,7 +11,13 @@ command -v jq >/dev/null || echo "以下示例依赖 jq"
 错误响应统一为 JSON envelope，脚本据此判断成败：
 
 ```json
-{"error": {"code": "VALIDATION_ERROR", "message": "Validation error: ...", "status": 400}}
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Validation error: ...",
+    "status": 400
+  }
+}
 ```
 
 建议 `curl` 一律加 `-f`（非 2xx 直接失败退出），配合 `set -e` 或 `&&` 串联。
@@ -26,7 +32,8 @@ echo "$CREATE" | jq -r '.identity_code'             # admin 身份码，仅此�
 ```
 
 - 带密码建房：`-d '{"password":"xxx"}'`。
-- 指定 admin 身份码（重复执行可复建同码房间）：`-d '{"admin_identity_code":"..."}'`。
+- 指定 admin
+  身份码（重复执行可复建同码房间）：`-d '{"admin_identity_code":"..."}'`。
 - 房间已存在返回 `409 CONFLICT`。
 
 ## 2. 发送文本消息
@@ -66,9 +73,8 @@ DOWNLOAD_URL=$(echo "$UPLOAD" | jq -r '.uploaded[0].download_url')
 curl -sS -f -o report.md "$BASE$DOWNLOAD_URL?token=$TOKEN"
 ```
 
-- `download_url` 不携带任何凭据；下载必须附加房间 token（query 参数
-  `?token=` 便于 `wget`/浏览器，`curl` 也可用
-  `-H "Authorization: Bearer $TOKEN"`）。
+- `download_url` 不携带任何凭据；下载必须附加房间 token（query 参数 `?token=`
+  便于 `wget`/浏览器，`curl` 也可用 `-H "Authorization: Bearer $TOKEN"`）。
 - 需要下载票据的文件见第 6 节；token 只证明房间身份，票据策略不受影响。
 
 wget 等价写法：
@@ -98,7 +104,8 @@ curl -sS -f -T report.md -H "Authorization: Bearer $EDITOR_TOKEN" \
 ```
 
 - 身份码仅保存 Argon2 哈希，明文只在创建/重置响应中出现一次。
-- `expires_in_secs` 仅对非 admin 角色生效（60 秒 ~ 10 年，且不超过房间过期时间）。
+- `expires_in_secs` 仅对非 admin 角色生效（60 秒 ~ 10
+  年，且不超过房间过期时间）。
 
 ## 6. 受保护下载（下载策略 + 下载票据）
 
@@ -129,14 +136,13 @@ curl -sS -f -o report.md "$BASE$DOWNLOAD_URL?token=$TOKEN&ticket=$TICKET"
 
 ## 7. 常用错误码
 
-| code | status | 典型原因 |
-|---|---|---|
-| `VALIDATION_ERROR` | 400 | 文件名不合法、Content-Length 不符、文件类型被房间策略拒绝 |
-| `AUTHENTICATION_FAILED` / `TOKEN_ERROR` | 401 | 缺 token、token 无效或过期 |
-| `PERMISSION_DENIED` / `AUTHORIZATION_FAILED` | 403 | 角色无对应能力、下载票据/访问码无效 |
-| `NOT_FOUND` | 404 | 房间/内容不存在 |
-| `PAYLOAD_TOO_LARGE` | 413 | 超出房间容量或请求体上限 |
-| `CONFLICT` | 409 | 房间名已存在 |
+| code                                         | status | 典型原因                                                  |
+| -------------------------------------------- | ------ | --------------------------------------------------------- |
+| `VALIDATION_ERROR`                           | 400    | 文件名不合法、Content-Length 不符、文件类型被房间策略拒绝 |
+| `AUTHENTICATION_FAILED` / `TOKEN_ERROR`      | 401    | 缺 token、token 无效或过期                                |
+| `PERMISSION_DENIED` / `AUTHORIZATION_FAILED` | 403    | 角色无对应能力、下载票据/访问码无效                       |
+| `NOT_FOUND`                                  | 404    | 房间/内容不存在                                           |
+| `PAYLOAD_TOO_LARGE`                          | 413    | 超出房间容量或请求体上限                                  |
+| `CONFLICT`                                   | 409    | 房间名已存在                                              |
 
-完整 API 见 `API_GUIDE.md` / `API_GUIDE_FULL.md`；交互式文档
-`/api/v1/scalar`。
+完整 API 见 `API_GUIDE.md` / `API_GUIDE_FULL.md`；交互式文档 `/api/v1/scalar`。
