@@ -109,6 +109,8 @@
   "loadingRoom": "Loading room...",
   "errorTitle": "Error",
   "preparingRoomAccess": "Preparing room access...",
+  "roomReadyTitle": "Room created",
+  "roomReadyDescription": "Room {roomName} is ready. Save the one-time admin identity code below first; it is the only credential to recover admin access.",
   "roomAddressChanged": "Room address changed",
   "roomRedirectedToast": "This room has switched to a new address. Please navigate to continue.",
   "roomRedirectDescription": "This room has switched to a new address: {path}. To continue, please navigate to the new address and log in again.",

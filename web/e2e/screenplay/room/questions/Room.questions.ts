@@ -150,3 +150,11 @@ export const RoomExists = (roomName: string) =>
     const api = CallElizabethApi.as(actor);
     return api.roomExists(roomName);
   });
+
+export const DisclosedIdentityCode = () =>
+  Question.about(the`the disclosed one-time identity code`, async (actor) => {
+    const page = await nativePageFor(actor);
+    return RoomScreen.disclosedIdentityCode(page).evaluate(
+      (element) => (element as HTMLInputElement).value,
+    );
+  });

@@ -1,5 +1,7 @@
-import { Task, the } from "@serenity-js/core";
+import { Interaction, Task, the } from "@serenity-js/core";
 import { Navigate } from "@serenity-js/web";
+
+import { nativePageFor } from "../../support/actor-page";
 
 import {
   CancelDialog,
@@ -33,9 +35,11 @@ import {
   EnterRoomPassword,
   OpenCloseRoomDialog,
   OpenFilePreviewNamed,
+  OpenIdentityRedeemDialog,
   PasteFileIntoEditor,
   PasteTextIntoEditor,
   RedeemAccessCode,
+  RedeemIdentityCode,
   ResizeViewport,
   SaveRoomConfiguration,
   ScrollMessageListToBottom,
@@ -52,6 +56,7 @@ import {
   WaitForSavingToComplete,
   type DownloadPolicyInput,
 } from "../interactions/Room.interactions";
+import { RoomScreen } from "../screens/Room.screen";
 import type { UploadableFile } from "../../support/test-data";
 
 export const OpenRoom = (url: string) =>
@@ -59,6 +64,28 @@ export const OpenRoom = (url: string) =>
     the`#actor opens the room at ${url}`,
     Navigate.to(url),
     WaitForRoomToBeReady(),
+  );
+
+export const OpenUnprovisionedRoom = (url: string) =>
+  Task.where(
+    the`#actor opens an unprovisioned room at ${url}`,
+    Navigate.to(url),
+    Interaction.where(
+      the`#actor waits for the one-time identity code disclosure`,
+      async (actor) => {
+        const page = await nativePageFor(actor);
+        await RoomScreen.identityCodeDisclosure(page).waitFor({
+          state: "visible",
+          timeout: 30_000,
+        });
+      },
+    ),
+  );
+
+export const VisitRoomUrl = (url: string) =>
+  Task.where(
+    the`#actor visits ${url} without waiting for the room UI`,
+    Navigate.to(url),
   );
 
 export const SendMessage = (content: string) =>
@@ -240,6 +267,28 @@ export const UnlockProtectedRoom = (password: string) =>
     the`#actor unlocks the protected room`,
     EnterRoomPassword(password),
     WaitForRoomToBeReady(),
+  );
+
+export const EnterRoomAfterDisclosure = () =>
+  Task.where(
+    the`#actor enters the room after the identity code disclosure`,
+    Interaction.where(the`#actor acknowledges the disclosed identity code`, async (actor) => {
+      const page = await nativePageFor(actor);
+      await RoomScreen.enterRoomAfterDisclosure(page).click();
+    }),
+    WaitForRoomToBeReady(),
+  );
+
+export const RedeemIdentityCodeInRoom = (code: string) =>
+  Task.where(
+    the`#actor upgrades the session with the identity code ${code}`,
+    OpenIdentityRedeemDialog(),
+    RedeemIdentityCode(code),
+    Interaction.where(the`#actor waits for the reloaded session`, async (actor) => {
+      const page = await nativePageFor(actor);
+      await page.waitForLoadState("load").catch(() => {});
+      await WaitForRoomToBeReady().performAs(actor);
+    }),
   );
 
 export const UpdateLatestMessage = (content: string) =>
