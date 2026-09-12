@@ -257,6 +257,21 @@ fn build_api_router(
     let ws_router = route::ws::api_router(app_state.clone());
     let router = router.merge(ws_router);
 
+    // 搜索引擎索引策略（默认防索引）：robots.txt 显式声明，HTML 响应附加 X-Robots-Tag
+    let disallow_search_indexing = cfg.app.middleware.security.disallow_search_indexing;
+    let router = router.route(
+        "/robots.txt",
+        axum::routing::get(move || async move {
+            (
+                [(
+                    axum::http::header::CONTENT_TYPE,
+                    "text/plain; charset=utf-8",
+                )],
+                robots_txt_body(disallow_search_indexing),
+            )
+        }),
+    );
+
     // Apply middleware configuration
     let middleware_config = crate::middleware::from_app_config(cfg);
     let middleware = crate::middleware::apply(&middleware_config, router)?;
@@ -265,9 +280,21 @@ fn build_api_router(
     // - 精确匹配静态文件（_next/*, favicon.ico 等）→ 直接返回
     // - /api/* 路径 → JSON 404（防止穿透到 SPA）
     // - 所有其他路径 → 返回 index.html（由客户端 React Router 接管）
-    let router = middleware.router.fallback(spa_fallback);
+    let router = middleware
+        .router
+        .fallback(move |request| spa_fallback(request, disallow_search_indexing));
 
     Ok((scalar_path, router, middleware.scheduled_tasks))
+}
+
+/// robots.txt 内容：防索引开启时拒绝全部爬虫，关闭时显式放行
+/// （避免关闭时 /robots.txt 落入 SPA fallback 返回 HTML）。
+fn robots_txt_body(disallow_search_indexing: bool) -> &'static str {
+    if disallow_search_indexing {
+        "User-agent: *\nDisallow: /\n"
+    } else {
+        "User-agent: *\nAllow: /\n"
+    }
 }
 
 /// Next.js `output: 'export'` 产物目录，由 rust-embed 在编译期打包进二进制
@@ -279,7 +306,7 @@ fn build_api_router(
 struct EmbeddedSpa;
 
 /// SPA Fallback Handler（极简三步逻辑）
-async fn spa_fallback(request: Request<Body>) -> Response {
+async fn spa_fallback(request: Request<Body>, disallow_search_indexing: bool) -> Response {
     let path = request.uri().path().trim_start_matches('/').to_string();
 
     // Step 1：防御拦截 API 路由 — /api/* 绝不降级为 HTML
@@ -315,23 +342,32 @@ async fn spa_fallback(request: Request<Body>) -> Response {
         "_.html"
     };
 
-    serve_html_asset(fallback_file)
+    serve_html_asset(fallback_file, disallow_search_indexing)
 }
 
-fn serve_html_asset(name: &str) -> Response {
+fn serve_html_asset(name: &str, disallow_search_indexing: bool) -> Response {
     match EmbeddedSpa::get(name) {
-        Some(html) => Response::builder()
-            .status(StatusCode::OK)
-            .header(
-                axum::http::header::CONTENT_TYPE,
-                HeaderValue::from_static("text/html; charset=utf-8"),
-            )
-            .header(
-                axum::http::header::CACHE_CONTROL,
-                HeaderValue::from_static("no-store, max-age=0"),
-            )
-            .body(Body::from(html.data))
-            .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response()),
+        Some(html) => {
+            let mut builder = Response::builder()
+                .status(StatusCode::OK)
+                .header(
+                    axum::http::header::CONTENT_TYPE,
+                    HeaderValue::from_static("text/html; charset=utf-8"),
+                )
+                .header(
+                    axum::http::header::CACHE_CONTROL,
+                    HeaderValue::from_static("no-store, max-age=0"),
+                );
+            if disallow_search_indexing {
+                builder = builder.header(
+                    axum::http::header::HeaderName::from_static("x-robots-tag"),
+                    HeaderValue::from_static("noindex"),
+                );
+            }
+            builder
+                .body(Body::from(html.data))
+                .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
+        }
         None => (
             StatusCode::SERVICE_UNAVAILABLE,
             format!(

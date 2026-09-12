@@ -354,6 +354,12 @@ pub struct SecurityConfig {
     #[default = "strict-origin-when-cross-origin"]
     #[merge(strategy = overwrite_not_empty_string)]
     pub referrer_policy: String,
+
+    /// 搜索引擎索引策略：开启时服务 Disallow: / 的 robots.txt 并对 HTML 响应
+    /// 附加 X-Robots-Tag: noindex（私人分享工具默认不应被搜索引擎收录）。
+    #[default(true)]
+    #[merge(strategy = overwrite)]
+    pub disallow_search_indexing: bool,
 }
 
 #[derive(Debug, Clone, SmartDefault, Merge, serde::Deserialize, serde::Serialize)]
