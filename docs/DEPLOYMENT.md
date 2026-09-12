@@ -47,13 +47,13 @@ MinIO、Cloudflare R2）。房间内容经服务端代理存取，桶地址与�
 ```yaml
 app:
   storage:
-    backend: s3        # fs（默认）| s3
+    backend: s3 # fs（默认）| s3
     s3:
       endpoint: https://<account>.r2.cloudflarestorage.com
       bucket: elizabeth
       access_key_id: "<ACCESS_KEY_ID>"
       secret_access_key: "<SECRET_ACCESS_KEY>"
-      region: auto     # R2 填 auto；AWS 填如 us-east-1
+      region: auto # R2 填 auto；AWS 填如 us-east-1
 ```
 
 或使用环境变量：
