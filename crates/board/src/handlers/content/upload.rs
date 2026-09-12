@@ -11,7 +11,8 @@ use tokio::io::AsyncWriteExt;
 use utoipa::ToSchema;
 
 use crate::dto::content::{
-    RoomContentView, UploadContentResponse, UploadPreparationRequest, UploadPreparationResponse,
+    PresignedUpload, RoomContentView, UploadContentResponse, UploadPreparationRequest,
+    UploadPreparationResponse,
 };
 use crate::errors::AppError;
 use crate::models::{
@@ -174,7 +175,16 @@ pub async fn prepare_upload(
             .ok_or_else(|| AppError::validation("Total size overflow"))?;
     }
 
-    let manifest_json = serde_json::to_string(&payload.files)
+    // presigned 模式：服务端为每个文件生成唯一对象 key 写入清单，
+    // 预留成功后逐文件签发直传 URL；proxy 模式保持原语义。
+    let presigned = app_state.transfer_mode() == crate::config::TransferMode::Presigned;
+    let mut files = payload.files;
+    if presigned {
+        for file in &mut files {
+            file.storage_key = Some(crate::storage::presigned_key(room_id, &file.name));
+        }
+    }
+    let manifest_json = serde_json::to_string(&files)
         .map_err(|e| AppError::internal(format!("Serialize manifest failed: {e}")))?;
 
     let reservation_repo = RoomUploadReservationRepository::new(app_state.db_pool.clone());
@@ -196,6 +206,33 @@ pub async fn prepare_upload(
 
     let remaining_size = (updated_room.max_size - updated_room.current_size).max(0);
 
+    let presigned_uploads = if presigned {
+        let ttl = app_state.presign_ttl();
+        let expires_at =
+            chrono::Utc::now().naive_utc() + chrono::Duration::seconds(ttl.as_secs() as i64);
+        let mut uploads = Vec::new();
+        for file in &files {
+            let key = file
+                .storage_key
+                .clone()
+                .ok_or_else(|| AppError::internal("Presigned manifest is missing storage key"))?;
+            let url = app_state
+                .storage
+                .presign_write(&key, ttl)
+                .await
+                .map_err(|e| AppError::internal(format!("Presign upload failed: {e}")))?;
+            uploads.push(PresignedUpload {
+                file_name: file.name.clone(),
+                method: "PUT".to_string(),
+                url,
+                expires_at,
+            });
+        }
+        Some(uploads)
+    } else {
+        None
+    };
+
     Ok(Json(UploadPreparationResponse {
         reservation_id: reservation
             .id
@@ -205,6 +242,7 @@ pub async fn prepare_upload(
         current_size: updated_room.current_size,
         remaining_size,
         max_size: updated_room.max_size,
+        presigned_uploads,
     }))
 }
 
@@ -514,7 +552,11 @@ fn build_file_content(
     content
 }
 
-fn broadcast_content_created(app_state: Arc<AppState>, room_name: String, content: RoomContent) {
+pub(super) fn broadcast_content_created(
+    app_state: Arc<AppState>,
+    room_name: String,
+    content: RoomContent,
+) {
     let broadcaster = app_state.broadcaster.clone();
     tokio::spawn(async move {
         if let Err(e) = broadcaster
@@ -560,6 +602,7 @@ fn actual_manifest(staged: &[TempUpload]) -> Vec<UploadFileDescriptor> {
             mime: temp.mime.clone(),
             chunk_size: None,
             file_hash: None,
+            storage_key: None,
         })
         .collect()
 }

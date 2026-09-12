@@ -5,7 +5,7 @@ use axum::body::Body;
 use axum::extract::{Path as AxumPath, Query, State};
 use axum::http::HeaderValue;
 use axum::http::header::{CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_TYPE};
-use axum::response::Response;
+use axum::response::{IntoResponse, Response};
 use futures::StreamExt;
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
 use serde::Deserialize;
@@ -115,6 +115,28 @@ pub async fn download_content_global(
                 return Err(AppError::authorization("Max download limit reached"));
             }
             let _ = policy_repo.increment_download_count(content_id).await;
+        }
+    }
+
+    // presigned 传输模式：鉴权（token / 票据 / 策略）通过后签发短时效直下 URL。
+    // 历史本地内容（FS locator）无法预签名，回落到代理流式传输。
+    if app_state.transfer_mode() == crate::config::TransferMode::Presigned
+        && let Some(locator) = content.path.as_deref()
+    {
+        match app_state
+            .storage
+            .presign_read(locator, app_state.presign_ttl())
+            .await
+        {
+            Ok(url) => {
+                return Ok(axum::response::Redirect::temporary(&url).into_response());
+            }
+            Err(crate::storage::StorageError::Unsupported) => {}
+            Err(error) => {
+                return Err(AppError::internal(format!(
+                    "Presign download failed: {error}"
+                )));
+            }
         }
     }
 

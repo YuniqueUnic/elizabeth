@@ -37,6 +37,10 @@ pub enum StorageError {
     /// 其他错误
     #[error("Storage error: {0}")]
     Other(String),
+
+    /// 当前后端不支持该操作（如本地文件系统不支持预签名）
+    #[error("Operation not supported by this storage backend")]
+    Unsupported,
 }
 
 pub type StorageResult<T> = Result<T, StorageError>;
@@ -61,6 +65,21 @@ pub trait StorageBackend: Send + Sync {
 
     /// 清空房间全部存储内容（房间回收）。
     async fn purge_room(&self, room_id: i64) -> StorageResult<()>;
+
+    /// 对象大小（字节）；presigned 提交时核对客户端直传结果。
+    async fn object_size(&self, locator: &str) -> StorageResult<u64>;
+
+    /// 签发短时效的读 URL；不支持预签名的后端返回 Unsupported。
+    async fn presign_read(&self, locator: &str, ttl: std::time::Duration) -> StorageResult<String> {
+        let _ = (locator, ttl);
+        Err(StorageError::Unsupported)
+    }
+
+    /// 签发短时效的写 URL；不支持预签名的后端返回 Unsupported。
+    async fn presign_write(&self, key: &str, ttl: std::time::Duration) -> StorageResult<String> {
+        let _ = (key, ttl);
+        Err(StorageError::Unsupported)
+    }
 }
 
 /// 本地文件系统后端。locator = 绝对路径。
@@ -122,21 +141,64 @@ impl StorageBackend for FsBackend {
             Err(error) => Err(error.into()),
         }
     }
+
+    async fn object_size(&self, locator: &str) -> StorageResult<u64> {
+        match tokio::fs::metadata(locator).await {
+            Ok(meta) => Ok(meta.len()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                Err(StorageError::NotFound(locator.to_string()))
+            }
+            Err(error) => Err(error.into()),
+        }
+    }
 }
 
 /// Opendal 后端（S3 兼容对象存储）。locator = 对象 key。
 pub struct OpendalBackend {
     operator: opendal::Operator,
+    presign_base_url: Option<String>,
 }
 
 impl OpendalBackend {
     /// 用给定 Operator 构造（生产走 S3，测试可注入任意 opendal 服务）。
     pub fn from_operator(operator: opendal::Operator) -> Self {
-        Self { operator }
+        Self {
+            operator,
+            presign_base_url: None,
+        }
+    }
+
+    /// 设置预签名 URL 的自定义公网 base URL（CDN / 自定义域名）。
+    ///
+    /// 注意：S3 SigV4 会把 Host 绑入签名，替换 Host 仅在签名不绑定 Host 的
+    /// 服务（如 MinIO 配置 domain、透明签名代理）或自定义域名场景下可用。
+    pub fn with_presign_base_url(mut self, base_url: Option<String>) -> Self {
+        self.presign_base_url = base_url;
+        self
+    }
+
+    fn apply_presign_base_url(&self, url: String) -> String {
+        match &self.presign_base_url {
+            Some(base) => {
+                let trimmed = base.trim_end_matches('/');
+                match url.split_once("://") {
+                    Some((_, rest)) => match rest.split_once('/') {
+                        Some((_, path)) => format!("{trimmed}/{path}"),
+                        None => trimmed.to_string(),
+                    },
+                    None => url,
+                }
+            }
+            None => url,
+        }
     }
 
     /// 构造 S3 兼容后端（AWS S3 / MinIO / Cloudflare R2）。
-    pub fn s3(config: &S3StorageConfig, root: &str) -> StorageResult<Self> {
+    pub fn s3(
+        config: &S3StorageConfig,
+        root: &str,
+        presign_base_url: Option<String>,
+    ) -> StorageResult<Self> {
         if config.endpoint.trim().is_empty() || config.bucket.trim().is_empty() {
             return Err(StorageError::Other(
                 "storage.s3.endpoint and storage.s3.bucket are required when backend = s3"
@@ -159,6 +221,7 @@ impl OpendalBackend {
 
         Ok(Self {
             operator: opendal::Operator::new(builder)?,
+            presign_base_url,
         })
     }
 }
@@ -209,6 +272,27 @@ impl StorageBackend for OpendalBackend {
             .await?;
         Ok(())
     }
+
+    async fn object_size(&self, locator: &str) -> StorageResult<u64> {
+        let metadata = self.operator.stat(locator).await.map_err(|error| {
+            if error.kind() == opendal::ErrorKind::NotFound {
+                StorageError::NotFound(locator.to_string())
+            } else {
+                StorageError::Opendal(error)
+            }
+        })?;
+        Ok(metadata.content_length())
+    }
+
+    async fn presign_read(&self, locator: &str, ttl: std::time::Duration) -> StorageResult<String> {
+        let request = self.operator.presign_read(locator, ttl).await?;
+        Ok(self.apply_presign_base_url(request.uri().to_string()))
+    }
+
+    async fn presign_write(&self, key: &str, ttl: std::time::Duration) -> StorageResult<String> {
+        let request = self.operator.presign_write(key, ttl).await?;
+        Ok(self.apply_presign_base_url(request.uri().to_string()))
+    }
 }
 
 /// 按部署配置选择存储后端。
@@ -218,12 +302,26 @@ impl StorageBackend for OpendalBackend {
 pub fn from_config(
     config: &crate::config::StorageConfig,
 ) -> StorageResult<std::sync::Arc<dyn StorageBackend>> {
-    match &config.s3 {
-        Some(s3) => Ok(std::sync::Arc::new(RouterBackend::new(
-            OpendalBackend::s3(s3, "/")?,
-            FsBackend::new(config.root.clone()),
-        ))),
-        None => Ok(std::sync::Arc::new(FsBackend::new(config.root.clone()))),
+    let transfer = &config.transfer;
+    match (&config.s3, transfer) {
+        (Some(s3), _) => {
+            if config.presign_ttl_seconds <= 0 {
+                return Err(StorageError::Other(
+                    "storage.presign_ttl_seconds must be greater than 0".to_string(),
+                ));
+            }
+            let primary = OpendalBackend::s3(s3, "/", config.presign_base_url.clone())?;
+            Ok(std::sync::Arc::new(RouterBackend::new(
+                primary,
+                FsBackend::new(config.root.clone()),
+            )))
+        }
+        (None, crate::config::TransferMode::Proxy) => {
+            Ok(std::sync::Arc::new(FsBackend::new(config.root.clone())))
+        }
+        (None, crate::config::TransferMode::Presigned) => Err(StorageError::Other(
+            "storage.transfer = presigned requires storage.backend = s3".to_string(),
+        )),
     }
 }
 
@@ -268,6 +366,28 @@ impl StorageBackend for RouterBackend {
     async fn purge_room(&self, room_id: i64) -> StorageResult<()> {
         self.primary.purge_room(room_id).await
     }
+
+    async fn object_size(&self, locator: &str) -> StorageResult<u64> {
+        if locator.starts_with('/') {
+            self.local_fs.object_size(locator).await
+        } else {
+            self.primary.object_size(locator).await
+        }
+    }
+
+    async fn presign_read(&self, locator: &str, ttl: std::time::Duration) -> StorageResult<String> {
+        if locator.starts_with('/') {
+            // 历史本地内容无法预签名，调用方（下载端点）回落到代理传输。
+            return Err(StorageError::Unsupported);
+        }
+        self.primary.presign_read(locator, ttl).await
+    }
+}
+
+/// presigned 直传专用 key：服务端生成 uuid 段，杜绝客户端互相覆盖。
+pub fn presigned_key(room_id: i64, file_name: &str) -> String {
+    let safe_name = sanitize_filename::sanitize(file_name);
+    format!("{room_id}/{}/{safe_name}", uuid::Uuid::new_v4().simple())
 }
 
 /// 计算唯一 key：冲突时追加 (N)。文件名统一净化，杜绝路径逃逸。

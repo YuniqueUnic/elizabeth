@@ -139,6 +139,12 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
                 }
                 configrs::StorageBackendKind::Fs => None,
             },
+            transfer: match cfg.app.storage.transfer {
+                configrs::TransferMode::Proxy => crate::config::TransferMode::Proxy,
+                configrs::TransferMode::Presigned => crate::config::TransferMode::Presigned,
+            },
+            presign_base_url: cfg.app.storage.presign_base_url.clone(),
+            presign_ttl_seconds: cfg.app.storage.presign_ttl_seconds as i64,
         },
         room: RoomConfig::try_from(&cfg.app.room)?,
         auth: AuthConfig::new(cfg.app.jwt.secret.clone())

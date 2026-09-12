@@ -3,4 +3,8 @@
 /**
  * 客户端上报的文件信息
  */
-export type UploadFileDescriptor = { name: string, size: number, mime?: string, chunk_size?: number, file_hash?: string, };
+export type UploadFileDescriptor = { name: string, size: number, mime?: string, chunk_size?: number, file_hash?: string, 
+/**
+ * presigned 传输模式下由服务端生成的对象 key（服务端权威，客户端输入被忽略）。
+ */
+storage_key?: string, };

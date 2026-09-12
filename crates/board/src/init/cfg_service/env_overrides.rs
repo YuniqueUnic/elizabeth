@@ -139,6 +139,20 @@ fn apply_storage_env_overrides(cfg: &mut configrs::Config) {
             s3.region = Some(region);
         }
     }
+    if let Some(transfer) = env_string("STORAGE_TRANSFER") {
+        cfg.app.storage.transfer = match transfer.trim().to_lowercase().as_str() {
+            "presigned" => configrs::TransferMode::Presigned,
+            _ => configrs::TransferMode::Proxy,
+        };
+    }
+    if let Some(base) = env_optional_string("STORAGE_PRESIGN_BASE_URL") {
+        cfg.app.storage.presign_base_url = base;
+    }
+    apply_env!(
+        env_u64,
+        "STORAGE_PRESIGN_TTL_SECONDS",
+        cfg.app.storage.presign_ttl_seconds
+    );
 }
 
 fn apply_middleware_env_overrides(cfg: &mut configrs::Config) {

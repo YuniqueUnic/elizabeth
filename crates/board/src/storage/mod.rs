@@ -9,5 +9,5 @@ pub mod backend;
 
 pub use backend::{
     ContentStream, FsBackend, OpendalBackend, RouterBackend, StorageBackend, StorageError,
-    StorageResult, from_config, unique_key,
+    StorageResult, from_config, presigned_key, unique_key,
 };

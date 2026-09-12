@@ -121,6 +121,16 @@ impl AppState {
         chrono::Duration::seconds(self.config.storage.upload_reservation_ttl_seconds)
     }
 
+    /// 内容传输模式
+    pub fn transfer_mode(&self) -> crate::config::TransferMode {
+        self.config.storage.transfer
+    }
+
+    /// 预签名 URL 有效期
+    pub fn presign_ttl(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(self.config.storage.presign_ttl_seconds.max(1) as u64)
+    }
+
     pub fn room_creation_defaults(&self) -> &crate::config::RoomCreationDefaults {
         &self.config.room.defaults
     }

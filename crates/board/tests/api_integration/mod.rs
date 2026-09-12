@@ -6,3 +6,4 @@ mod message_pagination;
 mod roles;
 mod storage_backends;
 mod tokens;
+mod transfer_modes;

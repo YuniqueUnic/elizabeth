@@ -266,3 +266,107 @@ pub mod http {
         serde_json::from_slice(&body).map_err(|e| anyhow::anyhow!("Failed to parse JSON: {}", e))
     }
 }
+
+/// 内存存储后端：presigned 传输模式测试用。
+///
+/// presign 只做本地字符串拼装（不触网），URL 携带 `X-Amz-Expires=<ttl>`；
+/// `put_direct` 模拟客户端直传完成后存储里的对象。
+pub mod storage {
+    use async_trait::async_trait;
+    use board::storage::{ContentStream, StorageBackend, StorageError, StorageResult};
+    use std::collections::HashMap;
+    use std::path::Path;
+    use std::sync::Mutex;
+
+    pub struct InMemoryStorageBackend {
+        files: Mutex<HashMap<String, Vec<u8>>>,
+        pub presign_host: String,
+    }
+
+    impl InMemoryStorageBackend {
+        pub fn new(presign_host: &str) -> Self {
+            Self {
+                files: Mutex::new(HashMap::new()),
+                presign_host: presign_host.to_string(),
+            }
+        }
+
+        /// 模拟客户端向预签名 URL 直传完成。
+        pub fn put_direct(&self, key: &str, data: Vec<u8>) {
+            self.files.lock().unwrap().insert(key.to_string(), data);
+        }
+
+        pub fn contains(&self, key: &str) -> bool {
+            self.files.lock().unwrap().contains_key(key)
+        }
+
+        fn presign(&self, path: &str, ttl: std::time::Duration) -> String {
+            format!(
+                "https://{}/{path}?X-Amz-Expires={}",
+                self.presign_host,
+                ttl.as_secs()
+            )
+        }
+    }
+
+    #[async_trait]
+    impl StorageBackend for InMemoryStorageBackend {
+        async fn exists_key(&self, key: &str) -> StorageResult<bool> {
+            Ok(self.contains(key))
+        }
+
+        async fn store_file(&self, key: &str, local: &Path) -> StorageResult<String> {
+            let data = tokio::fs::read(local).await?;
+            self.files.lock().unwrap().insert(key.to_string(), data);
+            Ok(key.to_string())
+        }
+
+        async fn read(&self, locator: &str) -> StorageResult<ContentStream> {
+            match self.files.lock().unwrap().get(locator).cloned() {
+                Some(data) => Ok(Box::pin(futures::stream::once(async move {
+                    Ok(bytes::Bytes::from(data))
+                }))),
+                None => Err(StorageError::NotFound(locator.to_string())),
+            }
+        }
+
+        async fn delete(&self, locator: &str) -> StorageResult<()> {
+            self.files.lock().unwrap().remove(locator);
+            Ok(())
+        }
+
+        async fn purge_room(&self, room_id: i64) -> StorageResult<()> {
+            let prefix = format!("{room_id}/");
+            self.files
+                .lock()
+                .unwrap()
+                .retain(|key, _| !key.starts_with(&prefix));
+            Ok(())
+        }
+
+        async fn object_size(&self, locator: &str) -> StorageResult<u64> {
+            self.files
+                .lock()
+                .unwrap()
+                .get(locator)
+                .map(|data| data.len() as u64)
+                .ok_or_else(|| StorageError::NotFound(locator.to_string()))
+        }
+
+        async fn presign_read(
+            &self,
+            locator: &str,
+            ttl: std::time::Duration,
+        ) -> StorageResult<String> {
+            Ok(self.presign(locator, ttl))
+        }
+
+        async fn presign_write(
+            &self,
+            key: &str,
+            ttl: std::time::Duration,
+        ) -> StorageResult<String> {
+            Ok(self.presign(key, ttl))
+        }
+    }
+}

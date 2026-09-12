@@ -29,6 +29,14 @@ pub async fn create_test_app() -> Result<(axum::Router, Arc<board::db::DbPool>)>
 pub async fn create_test_app_with_storage(
     storage: Option<Arc<dyn board::storage::StorageBackend>>,
 ) -> Result<(axum::Router, Arc<board::db::DbPool>)> {
+    create_test_app_with_config(storage, |_| {}).await
+}
+
+/// 创建测试应用并允许改写配置（如传输模式）后再构建 AppState。
+pub async fn create_test_app_with_config(
+    storage: Option<Arc<dyn board::storage::StorageBackend>>,
+    mutate: impl FnOnce(&mut board::config::AppConfig),
+) -> Result<(axum::Router, Arc<board::db::DbPool>)> {
     // 创建测试数据库
     let db_pool = Arc::new(
         DbPoolSettings::new(TEST_DB_URL)
@@ -70,13 +78,13 @@ pub async fn create_test_app_with_storage(
     .await?;
 
     // 创建测试配置
-    let app_config = AppConfig {
+    let mut app_config = AppConfig {
         server: ServerConfig::default(),
         database: board::config::DatabaseConfig::default(),
         storage: StorageConfig {
             root: std::env::temp_dir().join(format!("elizabeth-test-{}", Uuid::new_v4())),
             upload_reservation_ttl_seconds: DEFAULT_UPLOAD_RESERVATION_TTL_SECONDS,
-            s3: None,
+            ..StorageConfig::default()
         },
         room: RoomConfig {
             defaults: board::config::RoomCreationDefaults {
@@ -90,6 +98,7 @@ pub async fn create_test_app_with_storage(
         },
         auth: AuthConfig::new("test-secret-key-for-unit-testing-123456789".to_string())?,
     };
+    mutate(&mut app_config);
 
     // 创建应用状态
     let app_state = Arc::new(match storage {

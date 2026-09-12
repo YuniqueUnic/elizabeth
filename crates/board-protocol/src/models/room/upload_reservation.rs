@@ -133,6 +133,10 @@ pub struct UploadFileDescriptor {
     pub chunk_size: Option<i32>,
     #[cfg_attr(feature = "typescript-export", ts(optional))]
     pub file_hash: Option<String>,
+    /// presigned 传输模式下由服务端生成的对象 key（服务端权威，客户端输入被忽略）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript-export", ts(optional))]
+    pub storage_key: Option<String>,
 }
 
 /// 上传预留记录

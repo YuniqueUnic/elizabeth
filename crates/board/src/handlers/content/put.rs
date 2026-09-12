@@ -88,6 +88,7 @@ pub async fn put_content(
         mime: None,
         chunk_size: None,
         file_hash: None,
+        storage_key: None,
     }];
     let manifest_json = serde_json::to_string(&manifest)
         .map_err(|e| AppError::internal(format!("Serialize manifest failed: {e}")))?;
