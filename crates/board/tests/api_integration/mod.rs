@@ -1,3 +1,4 @@
+mod admin_console;
 mod basic;
 mod content_dedup;
 mod content_flow;

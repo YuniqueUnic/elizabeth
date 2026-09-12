@@ -112,11 +112,17 @@ pub async fn create_test_app_with_config(
         board::route::room::api_router(app_state.clone()).split_for_parts();
     let (auth_router, auth_api) =
         board::route::auth::auth_router(app_state.clone()).split_for_parts();
+    let (admin_router, admin_api) =
+        board::route::admin::api_router(app_state.clone()).split_for_parts();
 
     api.merge(room_api);
     api.merge(auth_api);
+    api.merge(admin_api);
 
-    let app = status_router.merge(room_router).merge(auth_router);
+    let app = status_router
+        .merge(room_router)
+        .merge(auth_router)
+        .merge(admin_router);
 
     Ok((app, db_pool))
 }
