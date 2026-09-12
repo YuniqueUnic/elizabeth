@@ -22,6 +22,13 @@ const TEST_DB_URL: &str = "sqlite::memory:";
 
 /// 创建测试应用
 pub async fn create_test_app() -> Result<(axum::Router, Arc<board::db::DbPool>)> {
+    create_test_app_with_storage(None).await
+}
+
+/// 创建测试应用；提供 storage 时以显式后端替换配置推导出的默认后端。
+pub async fn create_test_app_with_storage(
+    storage: Option<Arc<dyn board::storage::StorageBackend>>,
+) -> Result<(axum::Router, Arc<board::db::DbPool>)> {
     // 创建测试数据库
     let db_pool = Arc::new(
         DbPoolSettings::new(TEST_DB_URL)
@@ -69,6 +76,7 @@ pub async fn create_test_app() -> Result<(axum::Router, Arc<board::db::DbPool>)>
         storage: StorageConfig {
             root: std::env::temp_dir().join(format!("elizabeth-test-{}", Uuid::new_v4())),
             upload_reservation_ttl_seconds: DEFAULT_UPLOAD_RESERVATION_TTL_SECONDS,
+            s3: None,
         },
         room: RoomConfig {
             defaults: board::config::RoomCreationDefaults {
@@ -84,7 +92,10 @@ pub async fn create_test_app() -> Result<(axum::Router, Arc<board::db::DbPool>)>
     };
 
     // 创建应用状态
-    let app_state = Arc::new(AppState::new(app_config, db_pool.clone())?);
+    let app_state = Arc::new(match storage {
+        Some(storage) => AppState::with_storage(app_config, db_pool.clone(), storage)?,
+        None => AppState::new(app_config, db_pool.clone())?,
+    });
 
     // 创建路由
     let (status_router, mut api) = board::route::status::api_router().split_for_parts();

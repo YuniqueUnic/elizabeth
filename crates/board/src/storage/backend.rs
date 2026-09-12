@@ -1,274 +1,306 @@
-//! Storage backend abstraction
+//! 内容存储后端抽象
 //!
-//! This module defines a unified storage interface that supports multiple storage backends:
-//! - Local filesystem (FS)
-//! - S3-compatible object storage (AWS S3, MinIO, Cloudflare R2)
+//! `room_contents.path` 保存的是不透明的 locator 字符串，解释权在所选后端：
+//! - 本地文件系统：绝对路径（与历史行为一致，存量数据无需迁移）；
+//! - S3 兼容对象存储：对象 key（如 "5/report.pdf"）。
 //!
-//! # Architecture
-//!
-//! The storage layer is designed with the following principles:
-//! - **Abstraction**: Single `StorageBackend` trait for all storage operations
-//! - **Flexibility**: Easy to add new storage backends
-//! - **Type Safety**: Rust's type system ensures correct usage
-//! - **Async-first**: All operations are async for better performance
+//! 上传侧统一先把请求体落到本地暂存区（预留目录），再由后端把暂存文件
+//! 转为正式内容（FS 用 rename 原子落位，S3 流式上传），保证失败路径
+//! 不会在正式存储里留下半截内容。
+
+use std::path::{Path, PathBuf};
+use std::pin::Pin;
 
 use async_trait::async_trait;
-use opendal::{Builder, Operator};
-use std::path::Path;
+use futures::{Stream, StreamExt};
+use tokio::io::AsyncWriteExt;
 
-/// Storage backend type enumeration
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StorageType {
-    /// Local filesystem storage
-    Fs,
-    /// S3-compatible object storage (AWS S3, MinIO, R2)
-    S3,
-}
+use crate::config::S3StorageConfig;
 
-/// Storage backend configuration
-#[derive(Debug, Clone)]
-pub struct StorageConfig {
-    /// Storage type
-    pub storage_type: StorageType,
+pub type ContentStream = Pin<Box<dyn Stream<Item = StorageResult<bytes::Bytes>> + Send>>;
 
-    /// Root path for file storage
-    /// - For FS: local directory path
-    /// - For S3: bucket prefix/path
-    pub root: String,
-
-    /// S3-specific configuration (only used when storage_type is S3)
-    pub s3_config: Option<S3Config>,
-}
-
-/// S3-compatible storage configuration
-#[derive(Debug, Clone)]
-pub struct S3Config {
-    /// S3 endpoint URL (e.g., "https://s3.amazonaws.com")
-    pub endpoint: String,
-
-    /// Bucket name
-    pub bucket: String,
-
-    /// AWS access key ID
-    pub access_key_id: String,
-
-    /// AWS secret access key
-    pub secret_access_key: String,
-
-    /// AWS region (e.g., "us-east-1")
-    pub region: Option<String>,
-}
-
-/// Result type for storage operations
-pub type StorageResult<T> = Result<T, StorageError>;
-
-/// Storage error types
+/// 存储操作错误
 #[derive(Debug, thiserror::Error)]
 pub enum StorageError {
-    /// I/O error occurred
+    /// I/O 错误
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 
-    /// Opendal error occurred
+    /// Opendal 错误
     #[error("Storage error: {0}")]
     Opendal(#[from] opendal::Error),
 
-    /// File not found
-    #[error("File not found: {0}")]
+    /// 内容不存在
+    #[error("Content not found: {0}")]
     NotFound(String),
 
-    /// Permission denied
-    #[error("Permission denied: {0}")]
-    PermissionDenied(String),
-
-    /// Invalid path
-    #[error("Invalid path: {0}")]
-    InvalidPath(String),
-
-    /// Other error
+    /// 其他错误
     #[error("Storage error: {0}")]
     Other(String),
 }
 
-/// Storage backend trait
+pub type StorageResult<T> = Result<T, StorageError>;
+
+/// 内容存储后端
 ///
-/// This trait defines the interface for all storage backends.
-/// All operations are async and return `StorageResult`.
+/// key 形如 "{room_id}/{file_name}"（已做文件名净化与冲突唯一化）；
+/// locator 是持久化到 `room_contents.path` 的内容寻址串，由后端解释。
 #[async_trait]
 pub trait StorageBackend: Send + Sync {
-    /// Get a file from storage
-    ///
-    /// # Arguments
-    /// * `path` - Relative path to the file
-    ///
-    /// # Returns
-    /// File contents as bytes
-    async fn get(&self, path: &str) -> StorageResult<Vec<u8>>;
+    /// key 对应的正式内容是否已存在（用于上传文件名冲突检测）。
+    async fn exists_key(&self, key: &str) -> StorageResult<bool>;
 
-    /// Put a file to storage
-    ///
-    /// # Arguments
-    /// * `path` - Relative path where to store the file
-    /// * `data` - File contents as bytes
-    async fn put(&self, path: &str, data: Vec<u8>) -> StorageResult<()>;
+    /// 把本地暂存文件的内容写入 key，返回应持久化的 locator。
+    async fn store_file(&self, key: &str, local: &Path) -> StorageResult<String>;
 
-    /// Delete a file from storage
-    ///
-    /// # Arguments
-    /// * `path` - Relative path to the file to delete
-    async fn delete(&self, path: &str) -> StorageResult<()>;
+    /// 打开 locator 的内容读取流。
+    async fn read(&self, locator: &str) -> StorageResult<ContentStream>;
 
-    /// List files in a directory
-    ///
-    /// # Arguments
-    /// * `path` - Relative path to the directory
-    ///
-    /// # Returns
-    /// List of file paths in the directory
-    async fn list(&self, path: &str) -> StorageResult<Vec<String>>;
+    /// 删除 locator 对应内容；不存在视为成功。
+    async fn delete(&self, locator: &str) -> StorageResult<()>;
 
-    /// Check if a file exists
-    ///
-    /// # Arguments
-    /// * `path` - Relative path to the file
-    ///
-    /// # Returns
-    /// `true` if file exists, `false` otherwise
-    async fn exists(&self, path: &str) -> StorageResult<bool>;
+    /// 清空房间全部存储内容（房间回收）。
+    async fn purge_room(&self, room_id: i64) -> StorageResult<()>;
 }
 
-/// Opendal-based storage backend implementation
-///
-/// This implementation uses Opendal as the underlying storage engine,
-/// providing support for multiple storage services through a unified API.
+/// 本地文件系统后端。locator = 绝对路径。
+pub struct FsBackend {
+    root: PathBuf,
+}
+
+impl FsBackend {
+    pub fn new(root: PathBuf) -> Self {
+        Self { root }
+    }
+
+    fn absolute(&self, key: &str) -> PathBuf {
+        self.root.join(key)
+    }
+}
+
+#[async_trait]
+impl StorageBackend for FsBackend {
+    async fn exists_key(&self, key: &str) -> StorageResult<bool> {
+        Ok(tokio::fs::try_exists(self.absolute(key)).await?)
+    }
+
+    async fn store_file(&self, key: &str, local: &Path) -> StorageResult<String> {
+        let target = self.absolute(key);
+        if let Some(parent) = target.parent() {
+            tokio::fs::create_dir_all(parent).await?;
+        }
+        // 暂存区与正式目录同在 storage root 下，rename 原子且无跨盘问题。
+        tokio::fs::rename(local, &target).await?;
+        Ok(target.to_string_lossy().into_owned())
+    }
+
+    async fn read(&self, locator: &str) -> StorageResult<ContentStream> {
+        let file = match tokio::fs::File::open(locator).await {
+            Ok(file) => file,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Err(StorageError::NotFound(locator.to_string()));
+            }
+            Err(error) => return Err(error.into()),
+        };
+        Ok(Box::pin(
+            tokio_util::io::ReaderStream::new(file).map(|chunk| chunk.map_err(StorageError::from)),
+        ))
+    }
+
+    async fn delete(&self, locator: &str) -> StorageResult<()> {
+        match tokio::fs::remove_file(locator).await {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(error.into()),
+        }
+    }
+
+    async fn purge_room(&self, room_id: i64) -> StorageResult<()> {
+        match tokio::fs::remove_dir_all(self.root.join(room_id.to_string())).await {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(error.into()),
+        }
+    }
+}
+
+/// Opendal 后端（S3 兼容对象存储）。locator = 对象 key。
 pub struct OpendalBackend {
-    /// Opendal operator
-    operator: Operator,
+    operator: opendal::Operator,
 }
 
 impl OpendalBackend {
-    /// Create a new Opendal backend from configuration
-    ///
-    /// # Arguments
-    /// * `config` - Storage configuration
-    ///
-    /// # Returns
-    /// A new `OpendalBackend` instance
-    pub fn new(config: StorageConfig) -> StorageResult<Self> {
-        let operator = match config.storage_type {
-            StorageType::Fs => {
-                // Build filesystem operator
-                let builder = opendal::services::Fs::default().root(&config.root);
-
-                Operator::new(builder).map_err(StorageError::from)?
-            }
-            StorageType::S3 => {
-                // Build S3 operator
-                let s3_cfg = config.s3_config.ok_or_else(|| {
-                    StorageError::Other("S3 configuration is required for S3 storage".to_string())
-                })?;
-
-                let mut builder = opendal::services::S3::default()
-                    .root(&config.root)
-                    .endpoint(&s3_cfg.endpoint)
-                    .bucket(&s3_cfg.bucket)
-                    .access_key_id(&s3_cfg.access_key_id)
-                    .secret_access_key(&s3_cfg.secret_access_key);
-
-                if let Some(region) = s3_cfg.region {
-                    builder = builder.region(&region);
-                }
-
-                Operator::new(builder).map_err(StorageError::from)?
-            }
-        };
-
-        Ok(Self { operator })
+    /// 用给定 Operator 构造（生产走 S3，测试可注入任意 opendal 服务）。
+    pub fn from_operator(operator: opendal::Operator) -> Self {
+        Self { operator }
     }
 
-    /// Get the underlying Opendal operator
-    pub fn operator(&self) -> &Operator {
-        &self.operator
+    /// 构造 S3 兼容后端（AWS S3 / MinIO / Cloudflare R2）。
+    pub fn s3(config: &S3StorageConfig, root: &str) -> StorageResult<Self> {
+        if config.endpoint.trim().is_empty() || config.bucket.trim().is_empty() {
+            return Err(StorageError::Other(
+                "storage.s3.endpoint and storage.s3.bucket are required when backend = s3"
+                    .to_string(),
+            ));
+        }
+
+        let builder = opendal::services::S3::default()
+            .root(root)
+            .endpoint(&config.endpoint)
+            .bucket(&config.bucket)
+            .access_key_id(&config.access_key_id)
+            .secret_access_key(&config.secret_access_key);
+
+        let builder = if let Some(region) = &config.region {
+            builder.region(region)
+        } else {
+            builder
+        };
+
+        Ok(Self {
+            operator: opendal::Operator::new(builder)?,
+        })
     }
 }
 
 #[async_trait]
 impl StorageBackend for OpendalBackend {
-    async fn get(&self, path: &str) -> StorageResult<Vec<u8>> {
-        let bytes = self
-            .operator
-            .read(path)
-            .await
-            .map_err(StorageError::from)?
-            .to_vec();
-        Ok(bytes)
+    async fn exists_key(&self, key: &str) -> StorageResult<bool> {
+        Ok(self.operator.exists(key).await?)
     }
 
-    async fn put(&self, path: &str, data: Vec<u8>) -> StorageResult<()> {
+    async fn store_file(&self, key: &str, local: &Path) -> StorageResult<String> {
+        use tokio_util::compat::TokioAsyncReadCompatExt;
+
+        let file = tokio::fs::File::open(local).await?;
+        let mut writer = self.operator.writer(key).await?.into_futures_async_write();
+        futures::io::copy(&mut file.compat(), &mut writer)
+            .await
+            .map_err(StorageError::from)?;
+        futures::AsyncWriteExt::close(&mut writer)
+            .await
+            .map_err(StorageError::from)?;
+        Ok(key.to_string())
+    }
+
+    async fn read(&self, locator: &str) -> StorageResult<ContentStream> {
+        let reader = self.operator.reader(locator).await.map_err(|error| {
+            if error.kind() == opendal::ErrorKind::NotFound {
+                StorageError::NotFound(locator.to_string())
+            } else {
+                StorageError::Opendal(error)
+            }
+        })?;
+        let stream = reader.into_bytes_stream(..).await?;
+        Ok(Box::pin(
+            stream.map(|chunk| chunk.map_err(StorageError::from)),
+        ))
+    }
+
+    async fn delete(&self, locator: &str) -> StorageResult<()> {
+        self.operator.delete(locator).await?;
+        Ok(())
+    }
+
+    async fn purge_room(&self, room_id: i64) -> StorageResult<()> {
         self.operator
-            .write(path, data)
-            .await
-            .map(|_| ())
-            .map_err(StorageError::from)
-    }
-
-    async fn delete(&self, path: &str) -> StorageResult<()> {
-        self.operator.delete(path).await.map_err(StorageError::from)
-    }
-
-    async fn list(&self, path: &str) -> StorageResult<Vec<String>> {
-        let entries = self.operator.list(path).await.map_err(StorageError::from)?;
-
-        let files = entries
-            .into_iter()
-            .map(|entry| entry.path().to_string())
-            .collect();
-
-        Ok(files)
-    }
-
-    async fn exists(&self, path: &str) -> StorageResult<bool> {
-        self.operator.exists(path).await.map_err(StorageError::from)
+            .delete_with(&format!("{room_id}/"))
+            .recursive(true)
+            .await?;
+        Ok(())
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use tempfile::TempDir;
-
-    #[tokio::test]
-    async fn test_fs_storage() {
-        let temp_dir = TempDir::new().unwrap();
-        let root = temp_dir.path().to_str().unwrap().to_string();
-
-        let config = StorageConfig {
-            storage_type: StorageType::Fs,
-            root,
-            s3_config: None,
-        };
-
-        let backend = OpendalBackend::new(config).unwrap();
-
-        // Test put
-        backend
-            .put("test.txt", b"Hello, World!".to_vec())
-            .await
-            .unwrap();
-
-        // Test exists
-        assert!(backend.exists("test.txt").await.unwrap());
-
-        // Test get
-        let data = backend.get("test.txt").await.unwrap();
-        assert_eq!(data, b"Hello, World!");
-
-        // Test list
-        let files = backend.list("").await.unwrap();
-        assert!(files.contains(&"test.txt".to_string()));
-
-        // Test delete
-        backend.delete("test.txt").await.unwrap();
-        assert!(!backend.exists("test.txt").await.unwrap());
+/// 按部署配置选择存储后端。
+///
+/// 切换到对象存储后，新内容写入主后端；历史本地内容（locator 以 `/` 开头）
+/// 仍由本机 FS 后端解释，保持可读可删，无需迁移即可继续下载。
+pub fn from_config(
+    config: &crate::config::StorageConfig,
+) -> StorageResult<std::sync::Arc<dyn StorageBackend>> {
+    match &config.s3 {
+        Some(s3) => Ok(std::sync::Arc::new(RouterBackend::new(
+            OpendalBackend::s3(s3, "/")?,
+            FsBackend::new(config.root.clone()),
+        ))),
+        None => Ok(std::sync::Arc::new(FsBackend::new(config.root.clone()))),
     }
+}
+
+/// 双后端路由：locator 以 `/` 开头 = 历史 FS 绝对路径；其余 = 主后端的 key。
+pub struct RouterBackend {
+    primary: OpendalBackend,
+    local_fs: FsBackend,
+}
+
+impl RouterBackend {
+    pub fn new(primary: OpendalBackend, local_fs: FsBackend) -> Self {
+        Self { primary, local_fs }
+    }
+}
+
+#[async_trait]
+impl StorageBackend for RouterBackend {
+    async fn exists_key(&self, key: &str) -> StorageResult<bool> {
+        self.primary.exists_key(key).await
+    }
+
+    async fn store_file(&self, key: &str, local: &Path) -> StorageResult<String> {
+        self.primary.store_file(key, local).await
+    }
+
+    async fn read(&self, locator: &str) -> StorageResult<ContentStream> {
+        if locator.starts_with('/') {
+            self.local_fs.read(locator).await
+        } else {
+            self.primary.read(locator).await
+        }
+    }
+
+    async fn delete(&self, locator: &str) -> StorageResult<()> {
+        if locator.starts_with('/') {
+            self.local_fs.delete(locator).await
+        } else {
+            self.primary.delete(locator).await
+        }
+    }
+
+    async fn purge_room(&self, room_id: i64) -> StorageResult<()> {
+        self.primary.purge_room(room_id).await
+    }
+}
+
+/// 计算唯一 key：冲突时追加 (N)。文件名统一净化，杜绝路径逃逸。
+pub async fn unique_key(
+    backend: &dyn StorageBackend,
+    room_id: i64,
+    file_name: &str,
+) -> StorageResult<String> {
+    let safe_name = sanitize_filename::sanitize(file_name);
+    let base_key = format!("{room_id}/{safe_name}");
+    if !backend.exists_key(&base_key).await? {
+        return Ok(base_key);
+    }
+
+    let path = Path::new(&safe_name);
+    let stem = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or(&safe_name);
+    let extension = path.extension().and_then(|s| s.to_str()).unwrap_or("");
+
+    for counter in 1..1000 {
+        let candidate = if extension.is_empty() {
+            format!("{room_id}/{stem}({counter})")
+        } else {
+            format!("{room_id}/{stem}({counter}).{extension}")
+        };
+        if !backend.exists_key(&candidate).await? {
+            return Ok(candidate);
+        }
+    }
+
+    Err(StorageError::Other(
+        "Too many files with the same name".to_string(),
+    ))
 }

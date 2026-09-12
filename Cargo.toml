@@ -45,7 +45,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
 # === Async Runtime ===
 tokio = { version = "1", features = ["full"] }
-tokio-util = { version = "0.7", features = ["io", "rt"] }
+tokio-util = { version = "0.7", features = ["compat", "io", "rt"] }
 futures = "0.3"
 
 # === Web Framework ===
@@ -89,6 +89,7 @@ shadow-rs = { version = "2", features = ["no_std"] }
 merge = "0.2"
 smart-default = "0.7"
 fs4 = "1"
+bytes = "1"
 bytesize = { version = "2", features = ["serde"] }
 humantime = "2"
 humantime-serde = "1"

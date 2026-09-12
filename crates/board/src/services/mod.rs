@@ -43,7 +43,11 @@ pub struct Services {
 
 impl Services {
     /// 创建新的服务容器
-    pub fn new(config: &AppConfig, db_pool: Arc<DbPool>) -> Result<Self> {
+    pub fn new(
+        config: &AppConfig,
+        db_pool: Arc<DbPool>,
+        storage: Arc<dyn crate::storage::StorageBackend>,
+    ) -> Result<Self> {
         // 创建令牌服务
         let token_service = Arc::new(RoomTokenService::with_config(
             Arc::new(config.auth.jwt_secret.clone()),
@@ -85,7 +89,7 @@ impl Services {
         ));
         let room_lifecycle = Arc::new(RoomLifecycleService::new(
             room_lifecycle_repository,
-            config.storage.root.clone(),
+            storage,
         ));
         let room_password = Arc::new(RoomPasswordService);
         let access_code_limiter = Arc::new(AccessCodeLimiter::new());
@@ -135,7 +139,8 @@ mod tests {
         config.auth = AuthConfig::new("test-secret-key-for-unit-testing-123".to_string())?;
 
         // 创建服务
-        let services = Services::new(&config, db_pool)?;
+        let storage = crate::storage::from_config(&config.storage)?;
+        let services = Services::new(&config, db_pool, storage)?;
 
         // 验证服务创建成功
         assert!(!services.token_service.get_secret().is_empty());

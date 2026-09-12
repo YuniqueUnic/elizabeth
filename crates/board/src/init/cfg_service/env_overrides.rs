@@ -16,6 +16,7 @@ pub(super) fn apply_program_env_overrides(cfg: &mut configrs::Config) {
     apply_jwt_env_overrides(cfg);
     apply_room_env_overrides(cfg);
     apply_gc_env_overrides(cfg);
+    apply_storage_env_overrides(cfg);
     apply_middleware_env_overrides(cfg);
 }
 
@@ -111,6 +112,33 @@ fn apply_room_env_overrides(cfg: &mut configrs::Config) {
 fn apply_gc_env_overrides(cfg: &mut configrs::Config) {
     apply_env!(env_u64, "GC_INTERVAL_SECONDS", cfg.app.gc.interval_seconds);
     apply_env!(env_u32, "GC_BATCH_LIMIT", cfg.app.gc.batch_limit);
+}
+
+fn apply_storage_env_overrides(cfg: &mut configrs::Config) {
+    if let Some(backend) = env_string("STORAGE_BACKEND") {
+        cfg.app.storage.backend = match backend.trim().to_lowercase().as_str() {
+            "s3" => configrs::StorageBackendKind::S3,
+            _ => configrs::StorageBackendKind::Fs,
+        };
+    }
+    if cfg.app.storage.backend == configrs::StorageBackendKind::S3 {
+        let s3 = cfg
+            .app
+            .storage
+            .s3
+            .get_or_insert_with(configrs::S3StorageConfig::default);
+        apply_env!(env_string, "STORAGE_S3_ENDPOINT", s3.endpoint);
+        apply_env!(env_string, "STORAGE_S3_BUCKET", s3.bucket);
+        apply_env!(env_string, "STORAGE_S3_ACCESS_KEY_ID", s3.access_key_id);
+        apply_env!(
+            env_string,
+            "STORAGE_S3_SECRET_ACCESS_KEY",
+            s3.secret_access_key
+        );
+        if let Some(region) = env_string("STORAGE_S3_REGION") {
+            s3.region = Some(region);
+        }
+    }
 }
 
 fn apply_middleware_env_overrides(cfg: &mut configrs::Config) {

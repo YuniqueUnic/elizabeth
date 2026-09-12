@@ -123,6 +123,22 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
             } else {
                 cfg.app.upload.reservation_ttl_seconds
             },
+            s3: match cfg.app.storage.backend {
+                configrs::StorageBackendKind::S3 => {
+                    cfg.app
+                        .storage
+                        .s3
+                        .clone()
+                        .map(|s3| crate::config::S3StorageConfig {
+                            endpoint: s3.endpoint,
+                            bucket: s3.bucket,
+                            access_key_id: s3.access_key_id,
+                            secret_access_key: s3.secret_access_key,
+                            region: s3.region,
+                        })
+                }
+                configrs::StorageBackendKind::Fs => None,
+            },
         },
         room: RoomConfig::try_from(&cfg.app.room)?,
         auth: AuthConfig::new(cfg.app.jwt.secret.clone())

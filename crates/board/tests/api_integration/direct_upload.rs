@@ -88,7 +88,6 @@ async fn test_put_upload_returns_download_url_and_downloads_back() -> Result<()>
     let response = put_upload(&app, "direct-upload", "report.txt", Some(&token), payload).await?;
     assert_eq!(response.status(), StatusCode::OK);
     let json = body_json(response).await?;
-
     assert_eq!(json["current_size"], json!(payload.len() as i64));
     let uploaded = json["uploaded"].as_array().expect("uploaded array");
     assert_eq!(uploaded.len(), 1);

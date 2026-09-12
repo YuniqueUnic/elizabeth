@@ -8,6 +8,7 @@ use anyhow::Result;
 use crate::config::AppConfig;
 use crate::db::DbPool;
 use crate::services::Services;
+use crate::storage::{StorageBackend, from_config};
 use crate::websocket::{broadcaster::Broadcaster, connection::ConnectionManager};
 
 /// 应用程序状态
@@ -21,6 +22,8 @@ pub struct AppState {
     pub config: AppConfig,
     /// 服务容器
     pub services: Services,
+    /// 内容存储后端
+    pub storage: Arc<dyn StorageBackend>,
     /// WebSocket 连接管理器
     pub connection_manager: Arc<ConnectionManager>,
     /// WebSocket 广播器
@@ -35,8 +38,22 @@ impl AppState {
         // 验证配置
         config.validate()?;
 
+        // 按配置选择内容存储后端
+        let storage = from_config(&config.storage)?;
+
+        Self::with_storage(config, db_pool, storage)
+    }
+
+    /// 用显式指定的存储后端创建应用状态（测试注入用）。
+    pub fn with_storage(
+        config: AppConfig,
+        db_pool: Arc<DbPool>,
+        storage: Arc<dyn StorageBackend>,
+    ) -> Result<Self> {
+        config.validate()?;
+
         // 创建服务
-        let services = Services::new(&config, db_pool.clone())?;
+        let services = Services::new(&config, db_pool.clone(), storage.clone())?;
 
         // 创建 WebSocket 连接管理器
         let connection_manager = Arc::new(ConnectionManager::new());
@@ -49,6 +66,7 @@ impl AppState {
             db_pool,
             config,
             services,
+            storage,
             connection_manager,
             broadcaster,
             roles_cache,

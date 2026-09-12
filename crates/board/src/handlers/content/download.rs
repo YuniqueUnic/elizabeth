@@ -6,10 +6,9 @@ use axum::extract::{Path as AxumPath, Query, State};
 use axum::http::HeaderValue;
 use axum::http::header::{CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_TYPE};
 use axum::response::Response;
+use futures::StreamExt;
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
 use serde::Deserialize;
-use tokio::fs;
-use tokio_util::io::ReaderStream;
 
 use crate::authz::{Authz, Resource};
 use crate::errors::AppError;
@@ -119,26 +118,32 @@ pub async fn download_content_global(
         }
     }
 
-    serve_content_stream(content).await
+    serve_content_stream(&app_state, content).await
 }
 
-async fn serve_content_stream(content: RoomContent) -> Result<Response, AppError> {
-    let path = content
+async fn serve_content_stream(
+    app_state: &Arc<AppState>,
+    content: RoomContent,
+) -> Result<Response, AppError> {
+    let locator = content
         .path
         .ok_or_else(|| AppError::not_found("Content not stored on disk"))?;
 
-    let file = fs::File::open(&path)
-        .await
-        .map_err(|_| AppError::not_found("File missing on disk"))?;
-
     let file_name = content.file_name.clone().unwrap_or_else(|| {
-        Path::new(&path)
-            .file_name()
-            .map(|s| s.to_string_lossy().to_string())
-            .unwrap_or_else(|| "download.bin".to_string())
+        locator
+            .rsplit(['/', '\\'])
+            .next()
+            .unwrap_or("download.bin")
+            .to_string()
     });
 
-    let stream = ReaderStream::new(file);
+    let stream = app_state.storage.read(&locator).await.map_err(|error| {
+        if matches!(error, crate::storage::StorageError::NotFound(_)) {
+            AppError::not_found("File missing on disk")
+        } else {
+            AppError::internal(format!("Read content failed: {error}"))
+        }
+    })?;
     let body = Body::from_stream(stream);
     let mut response = Response::new(body);
     let disposition = HeaderValue::from_str(&format!("attachment; filename=\"{file_name}\""))
