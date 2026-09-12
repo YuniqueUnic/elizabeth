@@ -8,6 +8,8 @@ use crate::dto::{
     ChunkStatusInfo, ChunkUploadRequest, ChunkUploadResponse, ChunkedUploadPreparationRequest,
     ChunkedUploadPreparationResponse, CleanupResponse, CreateMessageRequest, CreateMessageResponse,
     CreateRoleRequest, CreateRoomRequest, CreateRoomResponse, CreateUrlContentRequest,
+    AdminConfigResponse, AdminRoomDetailResponse, AdminRoomListResponse, AdminRoomView,
+    AdminStatsResponse, AdminStorageResponse,
     CreateUrlContentResponse, DeleteContentRequest, DeleteContentResponse, DeleteRoleResponse,
     DeleteRoomResponse, FileMergeRequest, FileMergeResponse, FullRoomGcStatusView,
     IssueTokenRequest, IssueTokenResponse, LogoutRequest, MergedFileInfo, MessagePage,
@@ -104,6 +106,12 @@ pub fn export_ts_types_to(output_dir: &Path) -> Result<(), ts_rs::ExportError> {
 
     LogoutRequest::export_all(&output_dir_cfg)?;
     CleanupResponse::export_all(&output_dir_cfg)?;
+    AdminConfigResponse::export_all(&output_dir_cfg)?;
+    AdminRoomDetailResponse::export_all(&output_dir_cfg)?;
+    AdminRoomListResponse::export_all(&output_dir_cfg)?;
+    AdminRoomView::export_all(&output_dir_cfg)?;
+    AdminStatsResponse::export_all(&output_dir_cfg)?;
+    AdminStorageResponse::export_all(&output_dir_cfg)?;
     FullRoomGcStatusView::export_all(&output_dir_cfg)?;
     RunRoomGcResponse::export_all(&output_dir_cfg)?;
     Ok(())
@@ -178,6 +186,12 @@ pub fn exported_ts_type_names() -> &'static [&'static str] {
         "MergedFileInfo",
         "LogoutRequest",
         "CleanupResponse",
+        "AdminConfigResponse",
+        "AdminRoomDetailResponse",
+        "AdminRoomListResponse",
+        "AdminRoomView",
+        "AdminStatsResponse",
+        "AdminStorageResponse",
         "FullRoomGcStatusView",
         "RunRoomGcResponse",
     ]
