@@ -29,6 +29,7 @@ use crate::{
     repository::{
         IRoomContentRepository,
         room_chunk_upload_repository::{IRoomChunkUploadRepository, RoomChunkUploadRepository},
+        room_content_blob_repository::RoomContentBlobRepository,
         room_content_repository::RoomContentRepository,
         room_upload_reservation_repository::{
             IRoomUploadReservationRepository, RoomUploadReservationRepository,
@@ -109,14 +110,18 @@ pub async fn complete_file_merge(
         return Err(AppError::validation(upload_file_type_violation(&file.name)));
     }
 
-    let key = crate::storage::unique_key(app_state.storage.as_ref(), room_id, &file.name)
-        .await
-        .map_err(|e| AppError::internal(format!("生成存储路径失败：{}", e)))?;
-    let final_storage_path = app_state
-        .storage
-        .store_file(&key, &final_file_path)
-        .await
-        .map_err(|e| AppError::internal(format!("存储文件失败：{}", e)))?;
+    // 内容寻址落盘：分片协议全程携带 file_hash，合并校验通过即以哈希归并去重。
+    let blob_repo = RoomContentBlobRepository::new(app_state.db_pool.clone());
+    let final_storage_path = crate::handlers::content::upload::store_content_deduped(
+        &app_state,
+        &blob_repo,
+        room_id,
+        payload.final_hash.to_lowercase(),
+        &final_file_path,
+        file.size,
+    )
+    .await
+    .map_err(|e| AppError::internal(format!("存储文件失败：{}", e)))?;
 
     reservation_repository
         .consume_reservation(
@@ -142,6 +147,7 @@ pub async fn complete_file_merge(
         &verified.claims.jti,
         file,
         &final_storage_path,
+        &payload.final_hash.to_lowercase(),
     )
     .await?;
 
@@ -300,6 +306,7 @@ async fn create_content_record(
     owner_jti: &str,
     file: &UploadFileDescriptor,
     final_storage_path: &str,
+    hash: &str,
 ) -> Result<RoomContent, AppError> {
     repository
         .create(&build_room_content(
@@ -307,6 +314,7 @@ async fn create_content_record(
             owner_jti,
             file,
             final_storage_path,
+            hash,
         ))
         .await
         .map_err(|e| AppError::internal(format!("创建内容记录失败：{}", e)))
@@ -317,6 +325,7 @@ fn build_room_content(
     owner_jti: &str,
     file: &UploadFileDescriptor,
     final_storage_path: &str,
+    hash: &str,
 ) -> RoomContent {
     let now = chrono::Utc::now().naive_utc();
     RoomContent {
@@ -328,6 +337,7 @@ fn build_room_content(
         text: None,
         url: Some(file.name.clone()),
         path: Some(final_storage_path.to_string()),
+        hash: Some(hash.to_string()),
         file_name: Some(file.name.clone()),
         size: Some(file.size),
         mime_type: Some(

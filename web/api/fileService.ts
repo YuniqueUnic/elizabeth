@@ -167,11 +167,17 @@ export async function uploadFile(
     { token: authToken },
   );
 
+  // 秒传命中（服务端已建账）：跳过传输，直接使用返回的内容。
+  const instant = prepareResponse.instant_uploads?.[0];
+  if (prepareResponse.reservation_id == null && instant) {
+    return convertFile(instant);
+  }
+
   const formData = new FormData();
   formData.append("file", file);
 
   const uploadedContents = await xhrUpload<UploadContentResponse>(
-    `${API_BASE_URL}${API_ENDPOINTS.content.base(roomName)}?reservation_id=${prepareResponse.reservation_id}`,
+    `${API_BASE_URL}${API_ENDPOINTS.content.base(roomName)}?reservation_id=${prepareResponse.reservation_id ?? ""}`,
     formData,
     authToken,
     options?.abortSignal,

@@ -2,7 +2,7 @@ use tempfile::TempDir;
 
 use crate::config::S3StorageConfig;
 use crate::storage::{
-    FsBackend, OpendalBackend, RouterBackend, StorageBackend, from_config, unique_key,
+    FsBackend, OpendalBackend, RouterBackend, StorageBackend, from_config, presigned_key,
 };
 
 async fn write_local(path: &std::path::Path, contents: &[u8]) {
@@ -89,25 +89,6 @@ async fn opendal_backend_uses_object_keys_as_locators() {
 
     backend.purge_room(11).await.unwrap();
     assert!(!backend.exists_key("11/notes.txt").await.unwrap());
-}
-
-#[tokio::test]
-async fn unique_key_sanitizes_names_and_avoids_collisions() {
-    let root = TempDir::new().unwrap();
-    let backend = FsBackend::new(root.path().to_path_buf());
-
-    // 路径穿越形状的名字被净化为安全 key：不含分隔符、不指向父目录
-    let key = unique_key(&backend, 5, "../../etc/passwd").await.unwrap();
-    let name = key.strip_prefix("5/").unwrap();
-    assert!(!name.contains('/') && !name.contains('\\') && name != "..");
-
-    // 冲突时追加 (N)
-    let local = root.path().join("tmp.bin");
-    write_local(&local, b"1").await;
-    let first = unique_key(&backend, 5, "report.pdf").await.unwrap();
-    backend.store_file(&first, &local).await.unwrap();
-    let second = unique_key(&backend, 5, "report.pdf").await.unwrap();
-    assert_eq!(second, "5/report(1).pdf");
 }
 
 #[tokio::test]
@@ -244,4 +225,15 @@ async fn opendal_backend_presigns_offline_and_honors_base_url() {
         .unwrap();
     assert!(url.starts_with("https://cdn.example.com/"), "url: {url}");
     assert!(url.contains("X-Amz-Expires=300"), "url: {url}");
+}
+
+#[tokio::test]
+async fn presigned_key_is_room_scoped_and_server_generated() {
+    let first = presigned_key(9, "report.pdf");
+    let second = presigned_key(9, "report.pdf");
+    assert!(first.starts_with("9/"), "{first}");
+    assert!(first.ends_with("report.pdf"), "{first}");
+    assert_ne!(first, second, "每次签发的 uuid 段必须不同");
+    // 三段结构 {room_id}/{uuid}/{name}：uuid 段防客户端互覆
+    assert_eq!(first.split('/').count(), 3, "{first}");
 }

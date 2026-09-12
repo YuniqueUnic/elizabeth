@@ -1,4 +1,5 @@
 mod basic;
+mod content_dedup;
 mod content_flow;
 mod direct_upload;
 mod identity_codes;

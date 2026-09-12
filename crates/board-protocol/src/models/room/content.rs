@@ -29,9 +29,11 @@ pub struct RoomContent {
     #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
     pub room_id: i64,
     pub content_type: ContentType,
-    pub text: Option<String>,      // The text content
-    pub url: Option<String>,       // The URL to the content
+    pub text: Option<String>, // The text content
+    pub url: Option<String>,  // The URL to the content
     pub path: Option<String>, // The saved path to the content on server disk (UUID-based filename)
+    /// 内容 SHA-256（小写 hex）；存量内容与 presigned 直传为 NULL，删除按旧路径处理
+    pub hash: Option<String>,
     pub file_name: Option<String>, // The original file name (for display and download)
     #[cfg_attr(feature = "typescript-export", ts(type = "number | null"))]
     pub size: Option<i64>, // The size of the content, maybe the usize is better but the SQLite does not support u64
@@ -56,6 +58,7 @@ fn build_room_content_sqlite(row: &SqliteRow) -> Result<RoomContent, sqlx::Error
         text: row.try_get("text")?,
         url: row.try_get("url")?,
         path: row.try_get("path")?,
+        hash: row.try_get("hash")?,
         file_name: row.try_get("file_name")?,
         size: row.try_get("size")?,
         mime_type: row.try_get("mime_type")?,
@@ -75,6 +78,7 @@ fn build_room_content_pg(row: &PgRow) -> Result<RoomContent, sqlx::Error> {
         text: row.try_get("text")?,
         url: row.try_get("url")?,
         path: row.try_get("path")?,
+        hash: row.try_get("hash")?,
         file_name: row.try_get("file_name")?,
         size: row.try_get("size")?,
         mime_type: row.try_get("mime_type")?,
@@ -94,6 +98,7 @@ fn build_room_content_any(row: &AnyRow) -> Result<RoomContent, sqlx::Error> {
         text: row.try_get("text")?,
         url: row.try_get("url")?,
         path: row.try_get("path")?,
+        hash: row.try_get("hash")?,
         file_name: row.try_get("file_name")?,
         size: row.try_get("size")?,
         mime_type: row.try_get("mime_type")?,
@@ -145,6 +150,7 @@ impl RoomContent {
             text: None,
             url: None,
             path: None,
+            hash: None,
             file_name: None,
             size: None,
             mime_type: None,
@@ -176,6 +182,13 @@ impl RoomContent {
         self.updated_at = Utc::now().naive_utc();
         self.mime_type = Some(mime_type);
         self.size = Some(size);
+    }
+
+    /// 记录内容哈希与内容寻址 locator（引用计数由 blob 仓储维护）。
+    pub fn set_content_address(&mut self, hash: String, locator: String) {
+        self.hash = Some(hash);
+        self.path = Some(locator);
+        self.updated_at = Utc::now().naive_utc();
     }
 
     pub fn set_url(&mut self, url: String, mime_type: Option<String>) {

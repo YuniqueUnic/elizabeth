@@ -84,8 +84,9 @@ pub struct UploadPreparationRequest {
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
 #[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct UploadPreparationResponse {
-    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
-    pub reservation_id: i64,
+    /// 待传文件的预留 id；全部文件秒传命中时为 None（无传输环节）。
+    #[cfg_attr(feature = "typescript-export", ts(type = "number | null"))]
+    pub reservation_id: Option<i64>,
     #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
     pub reserved_size: i64,
     pub expires_at: NaiveDateTime,
@@ -99,6 +100,10 @@ pub struct UploadPreparationResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "typescript-export", ts(optional))]
     pub presigned_uploads: Option<Vec<PresignedUpload>>,
+    /// 秒传命中并已建账的内容（哈希与大小均匹配既有 blob）。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript-export", ts(optional))]
+    pub instant_uploads: Option<Vec<RoomContentView>>,
 }
 
 /// 单文件的预签名直传信息。URL 短时效，签发前已完成鉴权与配额校验。

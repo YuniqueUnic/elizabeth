@@ -20,11 +20,11 @@ use crate::models::{
     content::{ContentType, RoomContent},
 };
 use crate::repository::{
-    IRoomContentRepository, IRoomUploadReservationRepository, RoomContentRepository,
-    RoomUploadReservationRepository,
+    IRoomContentBlobRepository, IRoomContentRepository, IRoomRepository,
+    IRoomUploadReservationRepository, RoomContentBlob, RoomContentBlobRepository,
+    RoomContentRepository, RoomRepository, RoomUploadReservationRepository,
 };
 use crate::state::AppState;
-use crate::storage::unique_key;
 use crate::validation::RoomNameValidator;
 
 use super::{HandlerResult, room_id_or_error};
@@ -45,6 +45,8 @@ pub(super) struct TempUpload {
     pub(super) path: PathBuf,
     pub(super) size: i64,
     pub(super) mime: Option<String>,
+    /// 落盘时流式计算的内容 SHA-256（小写 hex）
+    pub(super) hash: String,
 }
 
 /// 预留上传失败的统一映射：容量超限 → 413，其余 → 500。
@@ -55,6 +57,55 @@ pub(super) fn map_reservation_error(e: anyhow::Error) -> AppError {
     } else {
         AppError::internal(format!("Reserve upload failed: {msg}"))
     }
+}
+
+/// 内容寻址落盘（per-room 去重）：命中既有 blob 则引用 +1 复用对象，
+/// 未命中则写入 `{room_id}/{hash}` 并建 blob 行（原子 upsert 防并发重复）。
+pub(crate) async fn store_content_deduped(
+    app_state: &Arc<AppState>,
+    blob_repo: &dyn IRoomContentBlobRepository,
+    room_id: i64,
+    hash: String,
+    temp_path: &Path,
+    size: i64,
+) -> Result<String, AppError> {
+    if let Some(blob) = blob_repo
+        .find_by_hash(room_id, &hash)
+        .await
+        .map_err(|e| AppError::internal(format!("Blob lookup failed: {e}")))?
+    {
+        blob_repo
+            .upsert_ref(RoomContentBlob {
+                id: None,
+                room_id,
+                hash: blob.hash.clone(),
+                locator: blob.locator.clone(),
+                size: blob.size,
+                ref_count: blob.ref_count,
+            })
+            .await
+            .map_err(|e| AppError::internal(format!("Blob ref update failed: {e}")))?;
+        return Ok(blob.locator);
+    }
+
+    let key = format!("{room_id}/{hash}");
+    let locator = app_state
+        .storage
+        .store_file(&key, temp_path)
+        .await
+        .map_err(|e| AppError::internal(format!("Store content failed: {e}")))?;
+    let blob = blob_repo
+        .upsert_ref(RoomContentBlob {
+            id: None,
+            room_id,
+            hash,
+            locator: locator.clone(),
+            size,
+            ref_count: 1,
+        })
+        .await
+        .map_err(|e| AppError::internal(format!("Blob register failed: {e}")))?;
+    Ok(blob.locator)
 }
 
 #[utoipa::path(
@@ -175,38 +226,135 @@ pub async fn prepare_upload(
             .ok_or_else(|| AppError::validation("Total size overflow"))?;
     }
 
+    // 秒传（per-room 去重）：携带的整文件哈希与大小都命中既有 blob 时，
+    // 跳过传输直接建内容记录；命中部分不计入预留。
+    let blob_repo = RoomContentBlobRepository::new(app_state.db_pool.clone());
+    let content_repo = RoomContentRepository::new(app_state.db_pool.clone());
+    let mut instant_uploads = Vec::new();
+    let mut instant_total: i64 = 0;
+    let mut pending_files = Vec::new();
+    for file in payload.files {
+        let hit = match (&file.file_hash, file.size > 0) {
+            (Some(hash), true) => blob_repo
+                .find_by_hash(room_id, hash)
+                .await
+                .map_err(|e| AppError::internal(format!("Blob lookup failed: {e}")))?
+                .filter(|blob| blob.size == file.size),
+            _ => None,
+        };
+        if let Some(blob) = hit {
+            blob_repo
+                .upsert_ref(RoomContentBlob {
+                    id: None,
+                    room_id,
+                    hash: blob.hash.clone(),
+                    locator: blob.locator.clone(),
+                    size: blob.size,
+                    ref_count: blob.ref_count,
+                })
+                .await
+                .map_err(|e| AppError::internal(format!("Blob ref update failed: {e}")))?;
+
+            let mut content = RoomContent {
+                id: None,
+                room_id,
+                content_type: ContentType::File,
+                text: None,
+                url: None,
+                path: None,
+                hash: None,
+                file_name: Some(file.name.clone()),
+                size: None,
+                mime_type: None,
+                sequence_number: 0,
+                created_by_jti: Some(verified.claims.jti.clone()),
+                hidden: false,
+                created_at: chrono::Utc::now().naive_utc(),
+                updated_at: chrono::Utc::now().naive_utc(),
+            };
+            content.set_path(
+                blob.locator.clone(),
+                ContentType::File,
+                file.size,
+                file.mime
+                    .clone()
+                    .unwrap_or_else(|| "application/octet-stream".to_string()),
+            );
+            content.hash = Some(blob.hash);
+            let saved = content_repo
+                .create(&content)
+                .await
+                .map_err(|e| AppError::internal(format!("Persist content failed: {e}")))?;
+            broadcast_content_created(app_state.clone(), name.clone(), saved.clone());
+            instant_uploads.push(RoomContentView::from(saved));
+            instant_total = instant_total
+                .checked_add(file.size)
+                .ok_or_else(|| AppError::validation("Total size overflow"))?;
+        } else {
+            pending_files.push(file);
+        }
+    }
+
+    if instant_total > 0 {
+        if !verified.room.can_add_content(instant_total) {
+            return Err(AppError::payload_too_large("Room size limit exceeded"));
+        }
+        verified.room.current_size += instant_total;
+        let room_repo = RoomRepository::new(app_state.db_pool.clone());
+        verified.room = room_repo
+            .update(&verified.room)
+            .await
+            .map_err(|e| AppError::internal(format!("Update room failed: {e}")))?;
+    }
+
     // presigned 模式：服务端为每个文件生成唯一对象 key 写入清单，
     // 预留成功后逐文件签发直传 URL；proxy 模式保持原语义。
     let presigned = app_state.transfer_mode() == crate::config::TransferMode::Presigned;
-    let mut files = payload.files;
+    let mut files = pending_files;
     if presigned {
         for file in &mut files {
             file.storage_key = Some(crate::storage::presigned_key(room_id, &file.name));
         }
     }
-    let manifest_json = serde_json::to_string(&files)
-        .map_err(|e| AppError::internal(format!("Serialize manifest failed: {e}")))?;
 
     let reservation_repo = RoomUploadReservationRepository::new(app_state.db_pool.clone());
     let ttl = app_state.upload_reservation_ttl();
 
-    let (reservation, updated_room) = reservation_repo
-        .reserve_upload(
-            &verified.room,
-            &verified.claims.jti,
-            &verified.claims.jti,
-            &manifest_json,
-            total_size,
-            ttl,
+    // 待传文件为空（全部秒传命中）时无需预留；expires_at 仅作占位回显。
+    let (reservation_id, reserved_size, expires_at, updated_room) = if files.is_empty() {
+        (None, 0, verified.room.updated_at, verified.room.clone())
+    } else {
+        let manifest_json = serde_json::to_string(&files)
+            .map_err(|e| AppError::internal(format!("Serialize manifest failed: {e}")))?;
+        let mut total_size: i64 = 0;
+        for file in &files {
+            total_size = total_size
+                .checked_add(file.size)
+                .ok_or_else(|| AppError::validation("Total size overflow"))?;
+        }
+        let (reservation, updated_room) = reservation_repo
+            .reserve_upload(
+                &verified.room,
+                &verified.claims.jti,
+                &verified.claims.jti,
+                &manifest_json,
+                total_size,
+                ttl,
+            )
+            .await
+            .map_err(map_reservation_error)?;
+        verified.room = updated_room.clone();
+        (
+            reservation.id,
+            reservation.reserved_size,
+            reservation.expires_at,
+            updated_room,
         )
-        .await
-        .map_err(map_reservation_error)?;
-
-    verified.room = updated_room.clone();
+    };
 
     let remaining_size = (updated_room.max_size - updated_room.current_size).max(0);
 
-    let presigned_uploads = if presigned {
+    let presigned_uploads = if presigned && !files.is_empty() {
         let ttl = app_state.presign_ttl();
         let expires_at =
             chrono::Utc::now().naive_utc() + chrono::Duration::seconds(ttl.as_secs() as i64);
@@ -234,15 +382,14 @@ pub async fn prepare_upload(
     };
 
     Ok(Json(UploadPreparationResponse {
-        reservation_id: reservation
-            .id
-            .ok_or_else(|| AppError::internal("Reservation id missing"))?,
-        reserved_size: reservation.reserved_size,
-        expires_at: reservation.expires_at,
+        reservation_id,
+        reserved_size,
+        expires_at,
         current_size: updated_room.current_size,
         remaining_size,
         max_size: updated_room.max_size,
         presigned_uploads,
+        instant_uploads: (!instant_uploads.is_empty()).then_some(instant_uploads),
     }))
 }
 
@@ -420,7 +567,7 @@ async fn stage_upload_field(
     }
 
     let file_path = storage_dir.join(format!("stage_{}", uuid::Uuid::new_v4()));
-    let size = write_field_to_file(&mut field, &file_path).await?;
+    let (size, hash) = write_field_to_file(&mut field, &file_path).await?;
 
     if size != expected.size {
         fs::remove_file(&file_path).await.ok();
@@ -439,22 +586,25 @@ async fn stage_upload_field(
         path: file_path,
         size,
         mime,
+        hash,
     })
 }
 
 pub(super) async fn write_field_to_file(
     field: &mut Field<'_>,
     file_path: &Path,
-) -> Result<i64, AppError> {
+) -> Result<(i64, String), AppError> {
     let mut temp_file = fs::File::create(file_path)
         .await
         .map_err(|e| AppError::internal(format!("Cannot create file: {e}")))?;
 
     let mut size: i64 = 0;
+    let mut hasher = sha2::Sha256::new();
     while let Some(chunk) = field.next().await {
         let chunk =
             chunk.map_err(|e| AppError::validation(format!("Read upload chunk failed: {e}")))?;
         size += chunk.len() as i64;
+        hasher.update(&chunk);
         temp_file
             .write_all(&chunk)
             .await
@@ -465,7 +615,8 @@ pub(super) async fn write_field_to_file(
         .await
         .map_err(|e| AppError::internal(format!("Flush file failed: {e}")))?;
 
-    Ok(size)
+    use sha2::Digest;
+    Ok((size, hex::encode(hasher.finalize())))
 }
 
 pub(super) async fn persist_staged_uploads(
@@ -476,29 +627,32 @@ pub(super) async fn persist_staged_uploads(
     owner_jti: &str,
     staged: &[TempUpload],
 ) -> Result<(Vec<RoomContentView>, i64), AppError> {
+    let blob_repo = RoomContentBlobRepository::new(app_state.db_pool.clone());
     let mut uploaded = Vec::new();
     let mut actual_total: i64 = 0;
 
     for temp in staged {
-        let key = match unique_key(app_state.storage.as_ref(), room_id, &temp.original_name).await {
-            Ok(key) => key,
-            Err(e) => {
-                cleanup_staged_uploads(staged).await;
-                return Err(AppError::internal(format!(
-                    "Resolve storage key failed: {e}"
-                )));
-            }
-        };
-        let locator = match app_state.storage.store_file(&key, &temp.path).await {
+        let locator = match store_content_deduped(
+            app_state,
+            &blob_repo,
+            room_id,
+            temp.hash.clone(),
+            &temp.path,
+            temp.size,
+        )
+        .await
+        {
             Ok(locator) => locator,
             Err(e) => {
                 cleanup_staged_uploads(staged).await;
-                return Err(AppError::internal(format!("Store content failed: {e}")));
+                return Err(e);
             }
         };
 
         let saved = match repository
-            .create(&build_file_content(room_id, owner_jti, temp, locator))
+            .create(&build_file_content(
+                room_id, owner_jti, temp, locator, &temp.hash,
+            ))
             .await
         {
             Ok(value) => value,
@@ -523,6 +677,7 @@ fn build_file_content(
     owner_jti: &str,
     temp: &TempUpload,
     locator: String,
+    hash: &str,
 ) -> RoomContent {
     let now = chrono::Utc::now().naive_utc();
     let mut content = RoomContent {
@@ -532,6 +687,7 @@ fn build_file_content(
         text: None,
         url: None,
         path: None,
+        hash: None,
         file_name: Some(temp.original_name.clone()),
         size: None,
         mime_type: None,
@@ -549,6 +705,7 @@ fn build_file_content(
             .clone()
             .unwrap_or_else(|| "application/octet-stream".to_string()),
     );
+    content.hash = Some(hash.to_string());
     content
 }
 

@@ -18,6 +18,7 @@ const CONTENT_SELECT_BASE: &str = r#"
         text,
         url,
         path,
+        hash,
         file_name,
         size,
         mime_type,
@@ -115,9 +116,9 @@ impl IRoomContentRepository for RoomContentRepository {
         let id: i64 = sqlx::query_scalar(
             r#"
             INSERT INTO room_contents
-                (room_id, content_type, text, url, path, file_name, size, mime_type, sequence_number, created_by_jti, hidden, created_at, updated_at)
+                (room_id, content_type, text, url, path, hash, file_name, size, mime_type, sequence_number, created_by_jti, hidden, created_at, updated_at)
             VALUES
-                ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
             RETURNING id
             "#,
         )
@@ -126,6 +127,7 @@ impl IRoomContentRepository for RoomContentRepository {
         .bind(&room_content.text)
         .bind(&room_content.url)
         .bind(&room_content.path)
+        .bind(&room_content.hash)
         .bind(&room_content.file_name)
         .bind(room_content.size)
         .bind(&room_content.mime_type)
@@ -167,6 +169,7 @@ impl IRoomContentRepository for RoomContentRepository {
         .bind(&room_content.text)
         .bind(&room_content.url)
         .bind(&room_content.path)
+        .bind(&room_content.hash)
         .bind(&room_content.file_name)
         .bind(room_content.size)
         .bind(&room_content.mime_type)

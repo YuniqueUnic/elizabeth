@@ -1,6 +1,7 @@
 pub mod download_policy_repository;
 pub mod room_access_repository;
 pub mod room_chunk_upload_repository;
+pub mod room_content_blob_repository;
 pub mod room_content_repository;
 pub mod room_identity_code_repository;
 pub mod room_lifecycle_repository;
@@ -13,6 +14,7 @@ pub mod room_upload_reservation_repository;
 pub use download_policy_repository::*;
 pub use room_access_repository::*;
 pub use room_chunk_upload_repository::*;
+pub use room_content_blob_repository::*;
 pub use room_content_repository::*;
 pub use room_identity_code_repository::*;
 pub use room_lifecycle_repository::*;

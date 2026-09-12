@@ -117,8 +117,8 @@ pub async fn put_content(
         .map_err(|e| AppError::internal(format!("Failed to prepare storage directory: {e}")))?;
     let file_path = scratch_dir.join(format!("stage_{}", uuid::Uuid::new_v4()));
 
-    let size = match write_body_to_file(body, &file_path).await {
-        Ok(size) => size,
+    let (size, hash) = match write_body_to_file(body, &file_path).await {
+        Ok(result) => result,
         Err(error) => {
             fs::remove_file(&file_path).await.ok();
             return Err(error);
@@ -143,6 +143,7 @@ pub async fn put_content(
         path: file_path,
         size,
         mime,
+        hash,
     }];
 
     let repository = RoomContentRepository::new(app_state.db_pool.clone());
@@ -171,17 +172,19 @@ pub async fn put_content(
     }))
 }
 
-async fn write_body_to_file(body: Body, file_path: &Path) -> Result<i64, AppError> {
+async fn write_body_to_file(body: Body, file_path: &Path) -> Result<(i64, String), AppError> {
     let mut file = fs::File::create(file_path)
         .await
         .map_err(|e| AppError::internal(format!("Cannot create file: {e}")))?;
 
     let mut size: i64 = 0;
+    let mut hasher = sha2::Sha256::new();
     let mut stream = body.into_data_stream();
     while let Some(chunk) = stream.next().await {
         let chunk =
             chunk.map_err(|e| AppError::validation(format!("Read upload body failed: {e}")))?;
         size += chunk.len() as i64;
+        hasher.update(&chunk);
         file.write_all(&chunk)
             .await
             .map_err(|e| AppError::internal(format!("Write file failed: {e}")))?;
@@ -190,7 +193,8 @@ async fn write_body_to_file(body: Body, file_path: &Path) -> Result<i64, AppErro
         .await
         .map_err(|e| AppError::internal(format!("Flush file failed: {e}")))?;
 
-    Ok(size)
+    use sha2::Digest;
+    Ok((size, hex::encode(hasher.finalize())))
 }
 
 fn content_length(headers: &HeaderMap) -> Result<i64, AppError> {
