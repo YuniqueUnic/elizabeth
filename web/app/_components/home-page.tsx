@@ -15,11 +15,10 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { createRoom } from "@/api/roomService";
 import { setRoomToken } from "@/lib/utils/api";
-import { ArrowRight, Copy, Eye, EyeOff, KeyRound, Lock, Plus } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, KeyRound, Lock, Plus } from "lucide-react";
+import { IdentityCodeDisclosure } from "@/components/room/identity-code-disclosure";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { useTranslations } from "next-intl";
-import { copyTextToClipboard } from "@/lib/utils/clipboard";
-import { ManualCopyDialog } from "@/components/manual-copy-dialog";
 
 export default function HomePage() {
   const t = useTranslations("home");
@@ -32,7 +31,6 @@ export default function HomePage() {
   const [adminIdentityCode, setAdminIdentityCode] = useState("");
   const [confirmAdminIdentityCode, setConfirmAdminIdentityCode] = useState("");
   const [createdIdentityCode, setCreatedIdentityCode] = useState<string | null>(null);
-  const [manualCopyValue, setManualCopyValue] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -340,22 +338,10 @@ export default function HomePage() {
             </div>
 
             {createdIdentityCode && (
-              <div className="space-y-2 border border-primary/40 bg-primary/5 p-3">
-                <Label>{t("createdIdentityCode")}</Label>
-                <div className="flex gap-2">
-                  <Input readOnly value={createdIdentityCode} onFocus={(event) => event.currentTarget.select()} className="font-mono text-xs" />
-                  <Button
-                    type="button"
-                    size="icon"
-                    title={t("copyIdentityCode")}
-                    onClick={() => void copyTextToClipboard(createdIdentityCode).catch(() => setManualCopyValue(createdIdentityCode))}
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">{t("createdIdentityCodeHint")}</p>
-                <Button type="button" data-testid="enter-room" className="w-full" onClick={() => router.push(`/${roomName.trim()}`)}>{t("enterRoom")}</Button>
-              </div>
+              <IdentityCodeDisclosure
+                code={createdIdentityCode}
+                onEnter={() => router.push(`/${roomName.trim()}`)}
+              />
             )}
 
             {error && (
@@ -389,11 +375,6 @@ export default function HomePage() {
                 {loading ? t("creating") : t("createRoom")}
               </Button>
             </div>
-            <ManualCopyDialog
-              open={manualCopyValue.length > 0}
-              value={manualCopyValue}
-              onOpenChange={(open) => !open && setManualCopyValue("")}
-            />
           </CardContent>
         </Card>
       </div>
