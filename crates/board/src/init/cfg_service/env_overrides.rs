@@ -245,6 +245,11 @@ fn apply_security_env_overrides(cfg: &mut configrs::Config) {
         "MIDDLEWARE_SECURITY_REFERRER_POLICY",
         cfg.app.middleware.security.referrer_policy
     );
+    apply_env!(
+        env_bool,
+        "MIDDLEWARE_SECURITY_DISALLOW_SEARCH_INDEXING",
+        cfg.app.middleware.security.disallow_search_indexing
+    );
 }
 
 fn apply_rate_limit_env_overrides(cfg: &mut configrs::Config) {

@@ -2,6 +2,7 @@ mod authz;
 mod cfg_service;
 mod chunk_temp_storage;
 mod db;
+mod robots_indexing;
 mod room_expiry;
 mod room_gc_service;
 mod room_policy;
