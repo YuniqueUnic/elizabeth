@@ -9,3 +9,4 @@ mod room_policy;
 mod rooms_issue_token;
 mod scheduler;
 mod secret_redaction;
+mod upload_file_policy;

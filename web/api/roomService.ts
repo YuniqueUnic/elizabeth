@@ -23,6 +23,7 @@ import type {
   UpdateRoleRequest,
   UpdateRoomSettingsRequest,
   IssueTokenResponse,
+  UploadFileTypePolicy,
 } from "../lib/types";
 import { backendRoomToRoomDetails as convertRoom } from "../lib/types";
 
@@ -234,6 +235,7 @@ export async function updateRoomSettings(
     ageSeconds?: number;
     maxViews?: number;
     maxSize?: number;
+    uploadFileType?: UploadFileTypePolicy;
   },
   token?: string,
 ): Promise<RoomDetails> {
@@ -267,6 +269,10 @@ export async function updateRoomSettings(
 
   if (settings.maxSize !== undefined) {
     payload.max_size = settings.maxSize;
+  }
+
+  if (settings.uploadFileType !== undefined) {
+    payload.upload_file_type = settings.uploadFileType;
   }
 
   const room = await api.put<BackendRoom>(

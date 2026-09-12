@@ -10,6 +10,7 @@ use crate::errors::AppError;
 use crate::handlers::{AuthToken, verify_room_token};
 use crate::models::Room;
 use crate::models::room::role::Capability;
+use crate::models::room::upload_file_policy::normalize_upload_file_type;
 use crate::repository::{
     IRoomRefreshTokenRepository, IRoomTokenRepository, RoomRefreshTokenRepository, RoomRepository,
     RoomTokenRepository,
@@ -207,6 +208,11 @@ fn apply_settings_payload(
 
     if let Some(max_size) = payload.max_size {
         room.max_size = max_size;
+    }
+
+    if let Some(policy) = payload.upload_file_type {
+        room.upload_file_type =
+            normalize_upload_file_type(policy).map_err(|e| AppError::validation(e.to_string()))?;
     }
     Ok(())
 }

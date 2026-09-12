@@ -133,6 +133,8 @@ impl RoomUploadReservationRepository {
                 CAST(created_at AS TEXT) as created_at,
                 CAST(updated_at AS TEXT) as updated_at,
                 default_role_key,
+                upload_file_type_mode,
+                upload_file_type_extensions,
                 roles_version
             FROM rooms
             WHERE id = $1

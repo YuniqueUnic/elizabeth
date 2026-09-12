@@ -2,6 +2,7 @@
 import type { Grant } from "./Grant";
 import type { RoomStatus } from "./RoomStatus";
 import type { RoomTokenClaims } from "./RoomTokenClaims";
+import type { UploadFileTypePolicy } from "./UploadFileTypePolicy";
 
 export type CreateRoomResponse = { token: string, claims: RoomTokenClaims, expires_at: string, capabilities: Array<Grant>, 
 /**
@@ -11,4 +12,8 @@ identity_code?: string, id: bigint, name: string, slug: string, status: RoomStat
 /**
  * 新成员默认加入的角色
  */
-default_role_key: string, password_protected: boolean, };
+default_role_key: string, 
+/**
+ * 上传文件类型策略（any/allow/deny + 扩展名列表）
+ */
+upload_file_type: UploadFileTypePolicy, password_protected: boolean, };

@@ -449,3 +449,130 @@ async fn test_chunked_upload_prepare_errors() -> Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn test_chunked_upload_file_type_policy_strict_semantics() -> Result<()> {
+    let (app, _pool) = create_test_app().await?;
+
+    let room_name = "chunked_file_type_room";
+
+    // 1. 创建房间并取 admin token
+    let create_response = app
+        .clone()
+        .oneshot(create_room_request(room_name, None))
+        .await?;
+    assert_eq!(create_response.status(), StatusCode::OK);
+    let create_body = axum::body::to_bytes(create_response.into_body(), usize::MAX).await?;
+    let create_json: serde_json::Value = serde_json::from_slice(&create_body)?;
+    let token = create_json["token"]
+        .as_str()
+        .expect("admin token")
+        .to_string();
+
+    // 2. 默认策略（any）下预检 + 上传分片成功
+    let file_data = "Hello, file type policy!";
+    let prepare_payload = json!({
+        "files": [{
+            "name": "test_file.txt",
+            "size": file_data.len(),
+            "mime": "text/plain",
+            "chunk_size": 1024
+        }]
+    });
+    let prepare_request = create_http_request(
+        Method::POST,
+        &format!(
+            "/api/v1/rooms/{}/uploads/chunks/prepare?token={}",
+            room_name, token
+        ),
+        Some(Body::from(prepare_payload.to_string())),
+    );
+    let prepare_response = app.clone().oneshot(prepare_request).await?;
+    assert_eq!(prepare_response.status(), StatusCode::OK);
+    let prepare_body = axum::body::to_bytes(prepare_response.into_body(), usize::MAX).await?;
+    let prepare_json: serde_json::Value = serde_json::from_slice(&prepare_body)?;
+    let upload_token = prepare_json["upload_token"]
+        .as_str()
+        .expect("upload token")
+        .to_string();
+    let reservation_id = prepare_json["reservation_id"]
+        .as_str()
+        .expect("reservation id")
+        .to_string();
+
+    let upload_request = single_chunk_request(room_name, &token, &upload_token, file_data)?;
+    let upload_response = app.clone().oneshot(upload_request).await?;
+    assert_eq!(upload_response.status(), StatusCode::OK);
+
+    // 3. 在途变更策略：deny txt（严格语义，complete 时拦截）
+    let settings_request = create_http_request(
+        Method::PUT,
+        &format!("/api/v1/rooms/{}/settings?token={}", room_name, token),
+        Some(Body::from(
+            json!({ "upload_file_type": { "mode": "deny", "extensions": ["txt"] } }).to_string(),
+        )),
+    );
+    let settings_response = app.clone().oneshot(settings_request).await?;
+    assert_eq!(settings_response.status(), StatusCode::OK);
+
+    // unhappy：complete 被拒且不产生内容
+    let mut hasher = Sha256::new();
+    hasher.update(file_data.as_bytes());
+    let final_hash = hex::encode(hasher.finalize());
+    let complete_payload = json!({ "reservation_id": reservation_id, "final_hash": final_hash });
+    let complete_request = create_http_request(
+        Method::POST,
+        &format!(
+            "/api/v1/rooms/{}/uploads/chunks/complete?token={}",
+            room_name, token
+        ),
+        Some(Body::from(complete_payload.to_string())),
+    );
+    let complete_response = app.clone().oneshot(complete_request).await?;
+    assert_eq!(complete_response.status(), StatusCode::BAD_REQUEST);
+    let complete_body = axum::body::to_bytes(complete_response.into_body(), usize::MAX).await?;
+    let complete_json: serde_json::Value = serde_json::from_slice(&complete_body)?;
+    assert_eq!(
+        complete_json["error"]["message"],
+        "Validation error: File type not allowed by room policy: test_file.txt"
+    );
+
+    let contents_request = create_http_request(
+        Method::GET,
+        &format!("/api/v1/rooms/{}/contents?token={}", room_name, token),
+        None,
+    );
+    let contents_response = app.clone().oneshot(contents_request).await?;
+    let contents_body = axum::body::to_bytes(contents_response.into_body(), usize::MAX).await?;
+    let contents_json: serde_json::Value = serde_json::from_slice(&contents_body)?;
+    assert!(
+        contents_json.as_array().expect("content list").is_empty(),
+        "rejected merge must not create content"
+    );
+
+    // 4. happy：策略恢复 any 后同一预留可重新完成合并
+    let settings_request = create_http_request(
+        Method::PUT,
+        &format!("/api/v1/rooms/{}/settings?token={}", room_name, token),
+        Some(Body::from(
+            json!({ "upload_file_type": { "mode": "any", "extensions": [] } }).to_string(),
+        )),
+    );
+    let settings_response = app.clone().oneshot(settings_request).await?;
+    assert_eq!(settings_response.status(), StatusCode::OK);
+
+    let retry_request = create_http_request(
+        Method::POST,
+        &format!(
+            "/api/v1/rooms/{}/uploads/chunks/complete?token={}",
+            room_name, token
+        ),
+        Some(Body::from(
+            json!({ "reservation_id": reservation_id, "final_hash": final_hash }).to_string(),
+        )),
+    );
+    let retry_response = app.clone().oneshot(retry_request).await?;
+    assert_eq!(retry_response.status(), StatusCode::OK);
+
+    Ok(())
+}

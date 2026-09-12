@@ -25,6 +25,7 @@ use crate::{
 
 use crate::authz::{Authz, Resource};
 use crate::models::room::role::Capability;
+use crate::models::room::upload_file_policy::upload_file_type_violation;
 
 use super::{AuthToken, VerifiedRoomToken, verify_room_token};
 type HandlerResult<T> = AppResult<Json<T>>;
@@ -95,6 +96,13 @@ pub async fn prepare_chunked_upload(
 
     if !room.can_add_content(total_reserved_size) {
         return Err(AppError::payload_too_large("房间空间不足"));
+    }
+
+    // 房间级上传文件类型策略（服务端强制）
+    for file in &payload.files {
+        if !room.upload_file_type.permits(&file.name) {
+            return Err(AppError::validation(upload_file_type_violation(&file.name)));
+        }
     }
 
     let upload_token = Uuid::new_v4().to_string();

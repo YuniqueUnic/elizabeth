@@ -17,6 +17,7 @@ use tokio::{
 
 use crate::authz::{Authz, Resource};
 use crate::models::room::role::Capability;
+use crate::models::room::upload_file_policy::upload_file_type_violation;
 use crate::{
     dto::chunked_upload::{FileMergeRequest, FileMergeResponse, MergedFileInfo},
     errors::{AppError, AppResult},
@@ -102,6 +103,12 @@ pub async fn complete_file_merge(
 
     let file_manifest = parse_file_manifest(&reservation.file_manifest)?;
     let file = first_manifest_file(&file_manifest)?;
+
+    // 严格语义：complete 时按当前策略重新校验，规则在途变更同样拦截
+    if !room.upload_file_type.permits(&file.name) {
+        return Err(AppError::validation(upload_file_type_violation(&file.name)));
+    }
+
     let storage_dir = storage_root.join(room_id.to_string());
     fs::create_dir_all(&storage_dir)
         .await

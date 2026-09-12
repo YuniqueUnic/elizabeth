@@ -102,6 +102,18 @@ export interface RoomSettings {
   maxViews: number;
 }
 
+export type UploadFileTypeMode = "any" | "allow" | "deny";
+
+export interface UploadFileTypePolicy {
+  mode: UploadFileTypeMode;
+  extensions: string[];
+}
+
+export const DEFAULT_UPLOAD_FILE_TYPE_POLICY: UploadFileTypePolicy = {
+  mode: "any",
+  extensions: [],
+};
+
 export interface RoomDetails {
   id: string;
   name: string;
@@ -112,6 +124,7 @@ export interface RoomDetails {
   maxTimesEntered: number;
   settings: RoomSettings;
   defaultRoleKey: string;
+  uploadFileType: UploadFileTypePolicy;
   createdAt: string;
 }
 
@@ -198,6 +211,10 @@ export function backendRoomToRoomDetails(room: BackendRoom): RoomDetails {
       maxViews: bigintToNumber(room.max_times_entered),
     },
     defaultRoleKey: room.default_role_key,
+    uploadFileType: {
+      mode: room.upload_file_type.mode,
+      extensions: room.upload_file_type.extensions,
+    },
     createdAt: room.created_at,
   };
 }

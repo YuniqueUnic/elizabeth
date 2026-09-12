@@ -53,6 +53,7 @@ import {
   handleMutationSuccess,
   isPermissionDeniedError,
 } from "@/lib/utils/mutations";
+import { parseFilePolicyViolation } from "@/lib/utils/api";
 import { usePathname } from "next/navigation";
 import { generateUUID } from "@/lib/utils/uuid";
 
@@ -71,6 +72,7 @@ function createTransfer(fileName: string, fileSize: number, direction: "upload" 
 
 export function RightSidebar() {
   const t = useTranslations("room");
+  const tErrors = useTranslations("errors");
   const currentRoomId = useAppStore((state) => state.currentRoomId);
   const selectedFiles = useAppStore((state) => state.selectedFiles);
   const clearFileSelection = useAppStore((state) => state.clearFileSelection);
@@ -186,12 +188,15 @@ export function RightSidebar() {
           (error?.message?.includes("空间不足") ||
             error?.message?.includes("limit exceeded") ||
             error?.message?.includes("容量")));
+      const policyViolationFile = parseFilePolicyViolation(error?.message);
       handleMutationError(error, toast, {
         title: isPermissionDeniedError(error)
           ? t("permissionDenied.title")
           : undefined,
         description: isPermissionDeniedError(error)
           ? t("permissionDenied.fileUpload")
+          : policyViolationFile
+          ? tErrors("backendFileTypeNotAllowed", { fileName: policyViolationFile })
           : isSizeError
           ? t("toast.uploadFailedSizeExceeded")
           : t("toast.uploadFailed"),

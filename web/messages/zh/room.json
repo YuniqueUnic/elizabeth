@@ -65,6 +65,22 @@
     "maxViews": {
       "label": "最大进入次数"
     },
+    "uploadFileType": {
+      "label": "上传文件类型",
+      "mode": {
+        "any": "不限制",
+        "allow": "仅允许列表内类型",
+        "deny": "拒绝列表内类型"
+      },
+      "extensionsLabel": "扩展名列表",
+      "extensionsPlaceholder": "例如：pdf, zip, png",
+      "extensionsHint": "逗号分隔，按扩展名匹配（不含点）。allow 仅允许列表内类型，deny 拒绝列表内类型。",
+      "errors": {
+        "empty": "allow/deny 模式至少需要填写一个扩展名",
+        "tooMany": "扩展名数量过多（最多 64 个）",
+        "invalid": "无效的扩展名：{extension}"
+      }
+    },
     "permissions": {
       "title": "房间权限",
       "hint": "预览是房间的基础权限；编辑、分享和管理权限彼此独立。",

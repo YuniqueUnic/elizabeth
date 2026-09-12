@@ -29,6 +29,7 @@ use super::{HandlerResult, ensure_room_storage, room_id_or_error};
 use crate::authz::{Authz, Resource};
 use crate::handlers::{AuthToken, verify_room_token};
 use crate::models::room::role::Capability;
+use crate::models::room::upload_file_policy::upload_file_type_violation;
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct UploadReservationQuery {
@@ -145,6 +146,9 @@ pub async fn prepare_upload(
                 "Duplicate file name {}",
                 file.name
             )));
+        }
+        if !verified.room.upload_file_type.permits(&file.name) {
+            return Err(AppError::validation(upload_file_type_violation(&file.name)));
         }
         total_size = total_size
             .checked_add(file.size)

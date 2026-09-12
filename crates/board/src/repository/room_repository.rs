@@ -27,6 +27,8 @@ const ROOM_SELECT_BASE: &str = r#"
         CAST(created_at AS TEXT) as created_at,
         CAST(updated_at AS TEXT) as updated_at,
         default_role_key,
+        upload_file_type_mode,
+        upload_file_type_extensions,
         roles_version
     FROM rooms
 "#;
@@ -123,6 +125,8 @@ impl RoomRepository {
             .ok_or_else(|| anyhow!("room id is required for policy update"))?;
         let mut tx = self.pool.begin().await?;
         let now = format_naive_datetime(Utc::now().naive_utc());
+        let upload_file_type_extensions = serde_json::to_string(&room.upload_file_type.extensions)
+            .map_err(|e| anyhow!("serialize upload file type extensions: {e}"))?;
         sqlx::query(
             r#"
             UPDATE rooms
@@ -131,8 +135,10 @@ impl RoomRepository {
                 max_times_entered = $3,
                 expire_at = $4,
                 default_role_key = $5,
-                updated_at = $6
-            WHERE id = $7
+                upload_file_type_mode = $6,
+                upload_file_type_extensions = $7,
+                updated_at = $8
+            WHERE id = $9
             "#,
         )
         .bind(&room.password)
@@ -140,6 +146,8 @@ impl RoomRepository {
         .bind(room.max_times_entered)
         .bind(format_optional_naive_datetime(room.expire_at))
         .bind(&room.default_role_key)
+        .bind(room.upload_file_type.mode.as_db_str())
+        .bind(upload_file_type_extensions)
         .bind(now)
         .bind(room_id)
         .execute(&mut *tx)
@@ -233,14 +241,17 @@ impl IRoomRepository for RoomRepository {
         let now = Utc::now().naive_utc();
         let now_str = format_naive_datetime(now);
         let expire_at = format_optional_naive_datetime(room.expire_at);
+        let upload_file_type_extensions = serde_json::to_string(&room.upload_file_type.extensions)
+            .map_err(|e| anyhow!("serialize upload file type extensions: {e}"))?;
 
         let inserted_id: Option<i64> = sqlx::query_scalar(
             r#"
             INSERT INTO rooms (
                 name, slug, password, status, max_size, current_size,
                 max_times_entered, current_times_entered, expire_at,
-                created_at, updated_at, default_role_key, roles_version
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                created_at, updated_at, default_role_key, upload_file_type_mode,
+                upload_file_type_extensions, roles_version
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
             ON CONFLICT DO NOTHING
             RETURNING id
             "#,
@@ -257,6 +268,8 @@ impl IRoomRepository for RoomRepository {
         .bind(now_str.clone())
         .bind(now_str.clone())
         .bind(&room.default_role_key)
+        .bind(room.upload_file_type.mode.as_db_str())
+        .bind(upload_file_type_extensions)
         .bind(room.roles_version)
         .fetch_optional(&mut *tx)
         .await?;
