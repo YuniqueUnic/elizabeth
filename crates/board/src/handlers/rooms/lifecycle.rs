@@ -179,7 +179,8 @@ pub async fn create(
         ("name" = String, Path, description = "房间名称")
     ),
     responses(
-        (status = 200, description = "房间信息；合法名称不存在时按部署默认配置创建", body = RoomView),
+        (status = 200, description = "房间信息", body = RoomView),
+        (status = 404, description = "房间不存在；创建房间必须走 POST 命令以完成 admin 凭据初始化"),
         (status = 410, description = "房间已过期"),
         (status = 403, description = "房间无法进入"),
         (status = 500, description = "服务器内部错误")
@@ -193,24 +194,9 @@ pub async fn find(
     RoomNameValidator::validate_identifier(&name)?;
 
     let repository = RoomRepository::new(app_state.db_pool.clone());
-    if let Some(room) = resolve_existing_room(&repository, &name).await? {
-        return Ok(room);
-    }
-
-    // Product contract: opening a valid room URL is a zero-step provisioning flow.
-    // Only a true miss reaches this command path; expired, closed, entry-limited, or
-    // reserved display names are resolved above and must never be silently replaced.
-    RoomNameValidator::validate(&name)?;
-    let room = new_room_with_defaults(&app_state, name.clone(), None).await?;
-    match repository
-        .create_if_absent(&room)
-        .await
-        .map_err(|e| AppError::internal(format!("Failed to auto-create room: {e}")))?
-    {
-        Some(created_room) => Ok(Json(RoomView::from(&created_room))),
-        None => resolve_existing_room(&repository, &name)
-            .await?
-            .ok_or_else(|| AppError::internal("Concurrent room creation could not be resolved")),
+    match resolve_existing_room(&repository, &name).await? {
+        Some(room) => Ok(room),
+        None => Err(AppError::room_not_found(&name)),
     }
 }
 
