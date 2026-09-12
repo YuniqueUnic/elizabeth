@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v1.1.0.html).
 
+## [1.9.0](https://github.com/YuniqueUnic/elizabeth/compare/v1.8.4...v1.9.0) (2026-09-12)
+
+
+### Features
+
+* **admin:** web 管理面板 /admin（登录 + 概览 + 房间管理 + 系统） ([#212](https://github.com/YuniqueUnic/elizabeth/issues/212)) ([ee48979](https://github.com/YuniqueUnic/elizabeth/commit/ee48979f39cfe5c2ccd273294d7fb776ea322fcb))
+* **admin:** 平台管理后台 API（房间管理 / dashboard / 存储 / 配置视图） ([#211](https://github.com/YuniqueUnic/elizabeth/issues/211)) ([349f056](https://github.com/YuniqueUnic/elizabeth/commit/349f056d54352453d20726e99b7fa6b1bde1170c))
+* **api:** CLI 友好上传：PUT 单命令上传 + download_url + docs/cli.md 速查 ([#207](https://github.com/YuniqueUnic/elizabeth/issues/207)) ([6b9b164](https://github.com/YuniqueUnic/elizabeth/commit/6b9b164a1cbe3ea9600defa5e816ed1d91591fb4))
+* **room:** 房间级上传文件类型策略（admin 可配置，服务端强制） ([#206](https://github.com/YuniqueUnic/elizabeth/issues/206)) ([4426a29](https://github.com/YuniqueUnic/elizabeth/commit/4426a29e76a94f712d180e12af0b83d2f0e89255)), closes [#199](https://github.com/YuniqueUnic/elizabeth/issues/199)
+* **seo:** serve robots.txt and X-Robots-Tag driven by indexing policy ([#204](https://github.com/YuniqueUnic/elizabeth/issues/204)) ([d21468d](https://github.com/YuniqueUnic/elizabeth/commit/d21468dda8aec9d15b0ac272784c937297c09c17)), closes [#202](https://github.com/YuniqueUnic/elizabeth/issues/202)
+* **storage:** 传输策略 proxy/presigned + 预签名直传直下 ([#209](https://github.com/YuniqueUnic/elizabeth/issues/209)) ([aaf9582](https://github.com/YuniqueUnic/elizabeth/commit/aaf9582a6945926f4ec52b98d81673b697678c81))
+* **storage:** 接入 opendal 存储运行链路，落地 S3/R2 后端 ([#208](https://github.com/YuniqueUnic/elizabeth/issues/208)) ([156ff57](https://github.com/YuniqueUnic/elizabeth/commit/156ff57c906932a8565023a5bfaf12f44a395bb8))
+* **upload:** 内容寻址去重与秒传，引用计数 GC ([#210](https://github.com/YuniqueUnic/elizabeth/issues/210)) ([b19366f](https://github.com/YuniqueUnic/elizabeth/commit/b19366f893dc82b74c0800776289a42440a45c5d))
+
 ## [1.8.4](https://github.com/YuniqueUnic/elizabeth/compare/v1.8.3...v1.8.4) (2026-09-12)
 
 
