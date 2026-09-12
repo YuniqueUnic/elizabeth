@@ -95,6 +95,22 @@ pub struct UploadPreparationResponse {
     pub remaining_size: i64,
     #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
     pub max_size: i64,
+    /// presigned 传输模式下逐文件的直传 URL；proxy 模式为 None。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript-export", ts(optional))]
+    pub presigned_uploads: Option<Vec<PresignedUpload>>,
+}
+
+/// 单文件的预签名直传信息。URL 短时效，签发前已完成鉴权与配额校验。
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
+pub struct PresignedUpload {
+    pub file_name: String,
+    /// 直传使用的 HTTP 方法（PUT）
+    pub method: String,
+    pub url: String,
+    pub expires_at: NaiveDateTime,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]

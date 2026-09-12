@@ -158,6 +158,18 @@ impl fmt::Debug for S3StorageConfig {
     }
 }
 
+/// 内容传输模式。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, SmartDefault, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TransferMode {
+    /// 上传下载一律经服务端代理，桶地址不出现在任何响应中（默认）。
+    #[default]
+    Proxy,
+    /// 服务端完成鉴权与配额校验后，签发短时效预签名 URL 直传/直下。
+    /// 仅 backend = s3 时可用。
+    Presigned,
+}
+
 #[derive(Merge, Debug, Clone, SmartDefault, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct StorageConfig {
@@ -172,6 +184,18 @@ pub struct StorageConfig {
     #[default(None)]
     #[merge(strategy = overwrite)]
     pub s3: Option<S3StorageConfig>,
+    /// 传输模式；默认 proxy。presigned 仅 backend = s3 时可用。
+    #[default(TransferMode::Proxy)]
+    #[merge(strategy = overwrite)]
+    pub transfer: TransferMode,
+    /// 预签名 URL 的自定义公网 base URL（CDN / 自定义域名）；缺省用 S3 endpoint。
+    #[default(None)]
+    #[merge(strategy = overwrite)]
+    pub presign_base_url: Option<String>,
+    /// 预签名 URL 有效期（秒），默认 300。
+    #[default(300)]
+    #[merge(strategy = overwrite)]
+    pub presign_ttl_seconds: u64,
 }
 
 /// 房间部署策略。

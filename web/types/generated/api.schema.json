@@ -995,6 +995,32 @@
         "next_sequence_number"
       ]
     },
+    "PresignedUpload": {
+      "description": "单文件的预签名直传信息。URL 短时效，签发前已完成鉴权与配额校验。",
+      "type": "object",
+      "properties": {
+        "expires_at": {
+          "type": "string",
+          "format": "partial-date-time"
+        },
+        "file_name": {
+          "type": "string"
+        },
+        "method": {
+          "description": "直传使用的 HTTP 方法（PUT）",
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "file_name",
+        "method",
+        "url",
+        "expires_at"
+      ]
+    },
     "PublicConfigResponse": {
       "type": "object",
       "properties": {
@@ -1967,6 +1993,13 @@
         "size": {
           "type": "integer",
           "format": "int64"
+        },
+        "storage_key": {
+          "description": "presigned 传输模式下由服务端生成的对象 key（服务端权威，客户端输入被忽略）。",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -2041,6 +2074,16 @@
         "max_size": {
           "type": "integer",
           "format": "int64"
+        },
+        "presigned_uploads": {
+          "description": "presigned 传输模式下逐文件的直传 URL；proxy 模式为 None。",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/PresignedUpload"
+          }
         },
         "remaining_size": {
           "type": "integer",

@@ -6,7 +6,7 @@ pub use configs::{
     AppConfig, CompressionConfig, CorsConfig, DatabaseConfig, DefaultRoomConfig, GcConfig,
     HumanDuration, JwtConfig, LoggingConfig, MiddlewareConfig, RateLimitConfig, RequestIdConfig,
     RoomConfig, RoomExpiryConfig, S3StorageConfig, SecurityConfig, ServerConfig,
-    StorageBackendKind, StorageConfig, TracingConfig, UploadConfig,
+    StorageBackendKind, StorageConfig, TracingConfig, TransferMode, UploadConfig,
 };
 pub use error::{ConfigError, Result};
 use merge::Merge;

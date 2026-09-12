@@ -118,6 +118,9 @@ async fn from_config_selects_backend_by_s3_presence() {
         root: root.path().to_path_buf(),
         upload_reservation_ttl_seconds: 600,
         s3: None,
+        transfer: crate::config::TransferMode::Proxy,
+        presign_base_url: None,
+        presign_ttl_seconds: 300,
     };
     assert!(from_config(&fs_config).is_ok());
 
@@ -148,6 +151,9 @@ async fn from_config_rejects_incomplete_s3_settings() {
             secret_access_key: String::new(), // pragma: allowlist secret
             region: None,
         }),
+        transfer: crate::config::TransferMode::Proxy,
+        presign_base_url: None,
+        presign_ttl_seconds: 300,
     };
     assert!(from_config(&config).is_err());
 }
@@ -188,4 +194,54 @@ async fn router_backend_serves_legacy_fs_locators_and_new_keys() {
         .await
         .concat();
     assert_eq!(bytes, b"new");
+}
+
+#[tokio::test]
+async fn from_config_rejects_presigned_transfer_without_s3_backend() {
+    let root = TempDir::new().unwrap();
+    let config = crate::config::StorageConfig {
+        root: root.path().to_path_buf(),
+        upload_reservation_ttl_seconds: 600,
+        s3: None,
+        transfer: crate::config::TransferMode::Presigned,
+        presign_base_url: None,
+        presign_ttl_seconds: 300,
+    };
+    assert!(from_config(&config).is_err());
+}
+
+#[tokio::test]
+async fn opendal_backend_presigns_offline_and_honors_base_url() {
+    let s3 = S3StorageConfig {
+        endpoint: "https://s3.test".to_string(),
+        bucket: "elizabeth".to_string(),
+        access_key_id: "key".to_string(),
+        secret_access_key: "secret".to_string(), // pragma: allowlist secret
+        region: Some("auto".to_string()),
+    };
+
+    // 预签名在本地完成签名，不发起网络请求
+    let backend = OpendalBackend::s3(&s3, "/", None).unwrap();
+    let url = backend
+        .presign_write("5/report.pdf", std::time::Duration::from_secs(300))
+        .await
+        .unwrap();
+    assert!(url.starts_with("https://s3.test/"));
+    assert!(url.contains("X-Amz-Expires=300"), "url: {url}");
+
+    let read_url = backend
+        .presign_read("5/report.pdf", std::time::Duration::from_secs(120))
+        .await
+        .unwrap();
+    assert!(read_url.starts_with("https://s3.test/"));
+    assert!(read_url.contains("X-Amz-Expires=120"), "url: {read_url}");
+
+    // 自定义公网 base URL 替换 scheme+host，保留签名参数
+    let cdn = OpendalBackend::s3(&s3, "/", Some("https://cdn.example.com".to_string())).unwrap();
+    let url = cdn
+        .presign_read("5/report.pdf", std::time::Duration::from_secs(300))
+        .await
+        .unwrap();
+    assert!(url.starts_with("https://cdn.example.com/"), "url: {url}");
+    assert!(url.contains("X-Amz-Expires=300"), "url: {url}");
 }

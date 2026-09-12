@@ -76,6 +76,44 @@ STORAGE_S3_REGION=auto
 - 备份：`backend: fs` 时备份存储目录；`backend: s3` 时由桶的版本化 /
   复制策略负责，服务器侧只需备份数据库。
 
+## 传输策略（proxy / presigned）
+
+`storage.transfer` 决定内容如何进出对象存储：
+
+- `proxy`（默认）：上传与下载一律经服务端代理，桶地址不出现在任何
+  响应中，鉴权与下载策略完全在服务端执行。
+- `presigned`（仅 `backend: s3` 可用）：服务端完成鉴权（房间 token、
+  下载票据、访问码）与配额校验后，签发短时效预签名 URL：
+  - 下载：`GET /api/v1/contents/{id}` 返回 302 跳转到直下 URL （`curl -L` /
+    `wget` 透明跟随）；
+  - 上传：prepare 响应携带逐文件直传 URL（`PUT`），直传完成后调用
+    `POST /api/v1/rooms/{name}/contents/presigned-commit` 提交，服务端
+    核对对象大小与清单一致后才落记录并核销预留。
+
+相关配置：
+
+```yaml
+app:
+  storage:
+    backend: s3
+    transfer: presigned
+    presign_base_url: https://cdn.example.com # 可选：CDN / 自定义域名
+    presign_ttl_seconds: 300 # 预签名有效期，默认 300 秒
+```
+
+环境变量：`STORAGE_TRANSFER=presigned`、`STORAGE_PRESIGN_BASE_URL`、
+`STORAGE_PRESIGN_TTL_SECONDS`。
+
+注意事项：
+
+- 预签名 URL 的签发永远发生在鉴权之后，桶凭据不出现在任何响应中； 无有效 token /
+  票据拿不到签名 URL。
+- S3 SigV4 会把 Host 绑入签名；`presign_base_url` 替换域名仅在签名不 绑定 Host
+  的部署（MinIO 配置 `domain`、透明签名代理）下可用，否则 保持缺省（使用 S3
+  endpoint）。
+- 历史 FS 内容（`/` 开头的 locator）无法预签名，下载自动回落为代理
+  传输；`backend: fs` 时禁止启用 presigned（启动即失败）。
+
 ## 详细版本
 
 - TLS/反向代理/云平台等：`DEPLOYMENT_FULL.md`

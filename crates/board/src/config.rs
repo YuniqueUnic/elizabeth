@@ -155,6 +155,23 @@ pub struct StorageConfig {
     pub upload_reservation_ttl_seconds: i64,
     /// S3/R2 连接配置；None = 本地文件系统后端。
     pub s3: Option<S3StorageConfig>,
+    /// 内容传输模式；presigned 仅 s3 后端可用（配置校验强制）。
+    pub transfer: TransferMode,
+    /// 预签名 URL 的自定义公网 base URL（CDN / 自定义域名）。
+    pub presign_base_url: Option<String>,
+    /// 预签名 URL 有效期（秒）。
+    pub presign_ttl_seconds: i64,
+}
+
+/// 内容传输模式。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum TransferMode {
+    /// 经服务端代理（默认），桶地址不出现在任何响应中。
+    #[default]
+    Proxy,
+    /// 鉴权后签发短时效预签名 URL 直传/直下；仅 s3 后端可用。
+    Presigned,
 }
 
 /// S3 兼容对象存储连接配置（backend = s3 时使用）。
@@ -176,6 +193,9 @@ impl Default for StorageConfig {
             root: PathBuf::from(DEFAULT_STORAGE_ROOT),
             upload_reservation_ttl_seconds: DEFAULT_UPLOAD_RESERVATION_TTL_SECONDS,
             s3: None,
+            transfer: TransferMode::Proxy,
+            presign_base_url: None,
+            presign_ttl_seconds: 300,
         }
     }
 }
