@@ -12,7 +12,6 @@ import { GlobalFilePreviewModal } from "@/components/files/global-file-preview-m
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAppStore } from "@/lib/store";
 import { RoomPasswordDialog } from "@/components/room/room-password-dialog";
-import { getRoomDetails } from "@/api/roomService";
 import { getAccessToken, hasValidToken, validateToken } from "@/api/authService";
 import { clearRoomToken, getRoomTokenString } from "@/lib/utils/api";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -22,13 +21,21 @@ import { useRoomEvents, type RoomUpdatePayload } from "@/lib/hooks/use-room-even
 import { resolveWebSocketUrl } from "@/lib/utils/ws";
 import { ContentType, parseContentType } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslations } from "next-intl";
 import { useRoomCapabilities } from "@/hooks/use-room-capabilities";
-import { getMyCapabilities } from "@/api/roomService";
+import { createRoom, getMyCapabilities, getRoomDetails } from "@/api/roomService";
 import { setRoomToken, getRoomToken } from "@/lib/utils/api";
 import { copyTextToClipboard } from "@/lib/utils/clipboard";
 import { ManualCopyDialog } from "@/components/manual-copy-dialog";
+import { IdentityCodeDisclosure } from "@/components/room/identity-code-disclosure";
 import {
   getContentNotificationKind,
   getContentNotificationSubject,
@@ -50,6 +57,92 @@ function roomUpdateNotificationAction(
   }
 
   return payload.reason;
+}
+
+/**
+ * 房间进入流程的显式状态机：loading → 校验本地凭据 →
+ * （房间缺失）开通/（已有房间）门禁或访客进入 → ready/error。
+ */
+type RoomEntryPhase =
+  | { kind: "loading" }
+  | { kind: "gate"; passwordProtected: boolean }
+  | { kind: "created"; identityCode: string }
+  | { kind: "ready" }
+  | { kind: "error"; message: string };
+
+function responseStatusOf(error: unknown): number | undefined {
+  const candidate: unknown =
+    (error as { response?: { status?: unknown } })?.response?.status ??
+    (error as { status?: unknown })?.status ??
+    (error as { code?: unknown })?.code;
+  if (typeof candidate === "number") return candidate;
+  if (
+    typeof candidate === "string" &&
+    Number.isFinite(Number(candidate))
+  ) {
+    return Number(candidate);
+  }
+  return undefined;
+}
+
+function isAuthenticationFailure(error: unknown, status: number | undefined): boolean {
+  const rawMessage: string =
+    typeof (error as { message?: unknown })?.message === "string"
+      ? (error as { message: string }).message
+      : "";
+  return (
+    status === 401 ||
+    status === 403 ||
+    (error as { code?: string })?.code === "AUTHENTICATION_FAILED" ||
+    /^Authentication failed:/i.test(rawMessage)
+  );
+}
+
+function entryErrorMessage(
+  error: unknown,
+  status: number | undefined,
+  tErrors: ReturnType<typeof useTranslations<"errors">>,
+): string {
+  const rawMessage: string =
+    typeof (error as { message?: unknown })?.message === "string"
+      ? (error as { message: string }).message
+      : "";
+  const message = rawMessage
+    .replace(/^Validation error:\s*/i, "")
+    .replace(/^Authentication failed:\s*/i, "");
+  const isValidationError =
+    status === 400 ||
+    (error as { code?: string })?.code === "VALIDATION_ERROR" ||
+    /^Validation error:/i.test(rawMessage);
+
+  if (isValidationError) {
+    // 后端校验文案 → 用户可读的本地化提示
+    const validationMessages: Record<string, string> = {
+      "Room identifier cannot be empty": tErrors("enterRoomName"),
+      "Room identifier must be between 3 and 150 characters":
+        tErrors("roomNameLength3to150"),
+      "Room identifier can only contain letters, numbers, underscores, and hyphens":
+        tErrors("backendRoomNameFormat"),
+      "Room name must be between 3 and 50 characters":
+        tErrors("backendRoomNameLength3to50"),
+      "Room name can only contain letters, numbers, underscores, and hyphens, and cannot start or end with underscore or hyphen":
+        tErrors("backendRoomNameFormat"),
+      "Room password must be between 4 and 100 characters":
+        tErrors("backendRoomPasswordLength4to100"),
+    };
+    return validationMessages[message] || message || tErrors("requestParameterError");
+  }
+
+  if (isAuthenticationFailure(error, status)) {
+    return tErrors("roomInaccessibleViaLink");
+  }
+  if (status === 410) {
+    return tErrors("roomExpired");
+  }
+  if (status === 404) {
+    return tErrors("roomNotFound");
+  }
+  return message || tErrors("cannotAccessRoom");
 }
 
 function RoomRealtimeSync({
@@ -220,15 +313,66 @@ export default function RoomPage() {
   // useParams() 返回编译期占位值（而非真实路径）的水合冲突问题
   const roomName = pathname.split("/").filter(Boolean)[0] ?? "";
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [needsPassword, setNeedsPassword] = useState(false);
-  const [tokenReady, setTokenReady] = useState(false);
+  const [entry, setEntry] = useState<RoomEntryPhase>({ kind: "loading" });
   const [manualCopyValue, setManualCopyValue] = useState("");
-  const wsToken = tokenReady ? getRoomTokenString(roomName) : null;
+  const wsToken = entry.kind === "ready" ? getRoomTokenString(roomName) : null;
 
   useEffect(() => {
     let isCancelled = false;
+
+    const enterExistingRoom = async () => {
+      try {
+        const room = await getRoomDetails(roomName, undefined, true);
+        if (isCancelled) return;
+
+        if (room.settings.passwordProtected) {
+          setEntry({ kind: "gate", passwordProtected: true });
+          return;
+        }
+        await getAccessToken(roomName);
+        if (!isCancelled) {
+          setEntry({ kind: "ready" });
+        }
+      } catch (err: unknown) {
+        if (isCancelled) return;
+        const status = responseStatusOf(err);
+        if (status === 404) {
+          await provisionDirectUrlRoom();
+          return;
+        }
+        setEntry({ kind: "error", message: entryErrorMessage(err, status, tErrors) });
+      }
+    };
+
+    // URL 直达一个不存在的合法房间名即零步开通：访问本身就是创建命令。
+    // 与首页创建共用同一条 POST 命令，创建者由此获得 admin 会话与
+    // 一次性 admin 身份码，而不是被静默降级为默认读者角色。
+    const provisionDirectUrlRoom = async () => {
+      try {
+        const created = await createRoom(roomName);
+        if (isCancelled) return;
+        setRoomToken(roomName, {
+          token: created.token,
+          expiresAt: created.expires_at,
+          capabilities: created.capabilities,
+          roleKey: created.claims.role,
+        });
+        if (!created.identity_code) {
+          setEntry({ kind: "ready" });
+          return;
+        }
+        setEntry({ kind: "created", identityCode: created.identity_code });
+      } catch (err: unknown) {
+        if (isCancelled) return;
+        const status = responseStatusOf(err);
+        if (status === 409) {
+          // 并发访问时房间已由先到者创建；回退为普通进入流程。
+          await enterExistingRoom();
+          return;
+        }
+        setEntry({ kind: "error", message: entryErrorMessage(err, status, tErrors) });
+      }
+    };
 
     const initRoom = async () => {
       if (!roomName) {
@@ -236,29 +380,16 @@ export default function RoomPage() {
         return;
       }
 
-      setLoading(true);
-      setError(null);
-      setNeedsPassword(false);
-      setTokenReady(false);
+      setEntry({ kind: "loading" });
       setRoomRedirectTarget(null);
-
-      // This logic runs every time the `roomName` in the URL changes.
-      // 1. Set the global room identifier.
       setCurrentRoomId(roomName);
 
-      // 2. Check for a valid, non-expired token for this identifier.
-      const hasToken = hasValidToken(roomName);
-      console.log(`[RoomPage] Checking token for ${roomName}:`, hasToken);
-
-      if (hasToken) {
+      // 1. 校验本地已保存的、未过期的凭据。
+      if (hasValidToken(roomName)) {
         try {
           await validateToken(roomName);
-          console.log(
-            `[RoomPage] Valid token verified for ${roomName}, skipping authentication`,
-          );
           if (!isCancelled) {
-            setLoading(false);
-            setTokenReady(true);
+            setEntry({ kind: "ready" });
           }
           return;
         } catch (err) {
@@ -270,100 +401,8 @@ export default function RoomPage() {
         }
       }
 
-      console.log(
-        `[RoomPage] No valid token for ${roomName}, initiating authentication`,
-      );
-
-      // 3. If no valid token, try to access the room to see if it's public,
-      //    password-protected, or requires a special slug.
-      try {
-        const room = await getRoomDetails(roomName, undefined, true);
-        if (isCancelled) return;
-
-        // At this point, the room exists. Check for password.
-        if (room.settings.passwordProtected && !hasValidToken(roomName)) {
-          setNeedsPassword(true);
-        } else if (!hasValidToken(roomName)) {
-          // No password, so we should be able to get a token directly.
-          await getAccessToken(roomName);
-          if (!isCancelled) {
-            setTokenReady(true);
-          }
-        }
-      } catch (err: any) {
-        if (isCancelled) return;
-
-        const statusCandidate =
-          err?.response?.status ?? err?.status ?? err?.code;
-        const status = typeof statusCandidate === "number"
-          ? statusCandidate
-          : typeof statusCandidate === "string" &&
-              Number.isFinite(Number(statusCandidate))
-          ? Number(statusCandidate)
-          : undefined;
-        const rawMessage: string =
-          typeof err?.message === "string" ? err.message : "";
-        const message = rawMessage
-          .replace(/^Validation error:\s*/i, "")
-          .replace(/^Authentication failed:\s*/i, "");
-        const isValidationError =
-          status === 400 ||
-          err?.code === "VALIDATION_ERROR" ||
-          /^Validation error:/i.test(rawMessage);
-        const isAuthenticationError =
-          status === 401 ||
-          status === 403 ||
-          err?.code === "AUTHENTICATION_FAILED" ||
-          /^Authentication failed:/i.test(rawMessage);
-
-        if (isValidationError) {
-          // Map backend validation errors to user-friendly Chinese messages
-          const validationMessages: Record<string, string> = {
-            "Room identifier cannot be empty":
-              tErrors("enterRoomName"),
-            "Room identifier must be between 3 and 150 characters":
-              tErrors("roomNameLength3to150"),
-            "Room identifier can only contain letters, numbers, underscores, and hyphens":
-              tErrors("backendRoomNameFormat"),
-            "Room name must be between 3 and 50 characters":
-              tErrors("backendRoomNameLength3to50"),
-            "Room name can only contain letters, numbers, underscores, and hyphens, and cannot start or end with underscore or hyphen":
-              tErrors("backendRoomNameFormat"),
-            "Room password must be between 4 and 100 characters":
-              tErrors("backendRoomPasswordLength4to100"),
-          };
-          setError(
-            validationMessages[message] || message || tErrors("requestParameterError"),
-          );
-          return;
-        }
-
-        if (isAuthenticationError) {
-          setError(
-            tErrors("roomInaccessibleViaLink"),
-          );
-          return;
-        }
-
-        if (status === 410) {
-          setError(tErrors("roomExpired"));
-          return;
-        }
-
-        if (status === 404) {
-          setError(tErrors("roomNotFound"));
-          return;
-        }
-
-        setError(
-          message ||
-            tErrors("cannotAccessRoom"),
-        );
-      } finally {
-        if (!isCancelled) {
-          setLoading(false);
-        }
-      }
+      // 2. 无本地凭据：查询房间并按状态进入。
+      await enterExistingRoom();
     };
 
     initRoom();
@@ -375,10 +414,8 @@ export default function RoomPage() {
 
   const handlePasswordSubmit = async (password: string) => {
     try {
-      setError(null);
       await getAccessToken(roomName, password);
-      setNeedsPassword(false);
-      setTokenReady(true);
+      setEntry({ kind: "ready" });
     } catch (err: any) {
       console.error("Password submission failed:", err);
       if (
@@ -397,7 +434,7 @@ export default function RoomPage() {
     router.push("/");
   };
 
-  if (loading) {
+  if (entry.kind === "loading") {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
@@ -408,24 +445,24 @@ export default function RoomPage() {
     );
   }
 
-  if (error) {
+  if (entry.kind === "error") {
     return (
       <div className="flex h-screen items-center justify-center bg-background p-4">
         <Alert variant="destructive" className="max-w-md">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>{t("errorTitle")}</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{entry.message}</AlertDescription>
         </Alert>
       </div>
     );
   }
 
-  if (needsPassword) {
+  if (entry.kind === "gate") {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <RoomPasswordDialog
           roomName={roomName}
-          open={needsPassword}
+          open
           onSubmit={handlePasswordSubmit}
           onCancel={handlePasswordCancel}
         />
@@ -433,24 +470,28 @@ export default function RoomPage() {
     );
   }
 
-  // If we are not loading, have no errors, and don't need a password,
-  // we can assume the room is accessible and render the main layout.
-  // The token check in `initRoom` or a successful password submission ensures this.
-  // Wait for tokenReady to be true before rendering child components.
-  if (!tokenReady) {
+  if (entry.kind === "created") {
     return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <LoadingSpinner className="h-12 w-12" />
-          <p className="text-muted-foreground">{t("preparingRoomAccess")}</p>
-        </div>
+      <div className="flex h-screen items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>{t("roomReadyTitle")}</CardTitle>
+            <CardDescription>{t("roomReadyDescription", { roomName })}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <IdentityCodeDisclosure
+              code={entry.identityCode}
+              onEnter={() => setEntry({ kind: "ready" })}
+            />
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background">
-      {tokenReady && wsToken && (
+      {wsToken && (
         <RoomRealtimeSync
           roomName={roomName}
           token={wsToken}
