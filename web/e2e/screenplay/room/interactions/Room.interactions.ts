@@ -343,6 +343,19 @@ export const EnterRoomPassword = (password: string) =>
     await RoomScreen.passwordDialogEnterRoomButton(page).click();
   });
 
+export const OpenIdentityRedeemDialog = () =>
+  Interaction.where(the`#actor opens the identity code redeem dialog`, async (actor) => {
+    const page = await nativePageFor(actor);
+    await RoomScreen.identityRedeemOpenButton(page).click();
+  });
+
+export const RedeemIdentityCode = (code: string) =>
+  Interaction.where(the`#actor redeems the identity code ${code}`, async (actor) => {
+    const page = await nativePageFor(actor);
+    await RoomScreen.identityRedeemInput(page).fill(code);
+    await RoomScreen.identityRedeemSubmitButton(page).click();
+  });
+
 export const EditLatestMessage = (content: string) =>
   Interaction.where(the`#actor edits the latest message`, async (actor) => {
     const page = await nativePageFor(actor);
