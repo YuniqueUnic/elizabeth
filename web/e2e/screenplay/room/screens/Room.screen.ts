@@ -330,6 +330,32 @@ export const RoomScreen = {
   redeemError: (page: Page): Locator =>
     RoomScreen.redeemDialog(page).locator("p.text-destructive"),
 
+  identityCodeDisclosure: (page: Page): Locator =>
+    page.getByTestId("identity-code-disclosure"),
+
+  disclosedIdentityCode: (page: Page): Locator =>
+    page.getByTestId("disclosed-identity-code"),
+
+  enterRoomAfterDisclosure: (page: Page): Locator =>
+    page.getByTestId("enter-room"),
+
+  identityRedeemOpenButton: (page: Page): Locator =>
+    page.getByRole("button", { name: tRoom("identity.redeemAction") }),
+
+  identityRedeemDialog: (page: Page): Locator =>
+    page.getByRole("dialog").filter({ hasText: tRoom("identity.redeemTitle") }),
+
+  identityRedeemInput: (page: Page): Locator =>
+    RoomScreen.identityRedeemDialog(page).getByTestId("identity-redeem-input"),
+
+  identityRedeemSubmitButton: (page: Page): Locator =>
+    RoomScreen.identityRedeemDialog(page).getByRole("button", {
+      name: tRoom("identity.redeemConfirm"),
+    }),
+
+  membersButton: (page: Page): Locator =>
+    page.getByRole("button", { name: tRoom("identity.managePermissions") }),
+
   editorContainer: (page: Page): Locator =>
     page.locator(".tiptap-editor-container").first(),
 
