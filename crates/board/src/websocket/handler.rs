@@ -2,8 +2,9 @@
 //!
 //! 处理 WebSocket 消息和认证
 
+use crate::authz::{Authz, Resource};
 use crate::handlers::verify_room_token;
-use crate::models::room::permission::RoomPermission;
+use crate::models::room::role::Capability;
 use crate::state::AppState;
 use crate::websocket::{
     connection::ConnectionManager,
@@ -33,14 +34,19 @@ impl MessageHandler {
         )
         .await
         .map_err(|error| WsError::InvalidToken(error.to_string()))?;
-        if !verified.room.permission.contains(RoomPermission::VIEW_ONLY)
-            || !verified
-                .claims
-                .as_permission()
-                .contains(RoomPermission::VIEW_ONLY)
-        {
-            return Err(WsError::PermissionDenied);
-        }
+
+        // WS 与 HTTP 共用 authz 判定：实时接收需要 msg.read。
+        let authz = Authz::for_claims(&self.app_state, &verified.room, &verified.claims)
+            .await
+            .map_err(|error| WsError::InvalidToken(error.to_string()))?;
+        authz
+            .require(
+                Capability::MsgRead,
+                &Resource::Room {
+                    room_id: verified.claims.room_id,
+                },
+            )
+            .map_err(|_| WsError::PermissionDenied)?;
 
         log::info!(
             "Token verified successfully for room_id: {}, room_name: {}",

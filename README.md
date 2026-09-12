@@ -17,14 +17,16 @@
 </div>
 
 <div align="center">
-  <p><strong>Elizabeth</strong> 是一个以房间为中心的实时文件共享与协作平台：在同一个入口里完成建房、消息同步、拖拽上传、图片 / PDF / 文本预览，以及链接邀请分享。</p>
+  <p><strong>Elizabeth</strong> 是一个以房间为中心的实时文件共享与协作平台：访问一个网址即可建房入职，消息、文件、链接在同一空间即时同步，权限、身份码与文件保护均可按房间独立治理。</p>
   <p>它采用 Rust + Next.js 技术栈构建，单容器即可交付 API、WebSocket 与嵌入式 SPA 前端；默认使用 SQLite，也可按需切换到 PostgreSQL。</p>
-  <img src="./elizabeth.room.png" width="720" alt="Elizabeth room UI" />
+  <br />
+  <img src="./docs/images/room-admin-zh.png" width="880" alt="Elizabeth 房间主界面（admin 视角）" />
+  <p><sub>房间主界面：左侧身份与常用配置、中部实时消息、右侧文件管理，三栏各司其职。</sub></p>
 </div>
 
 # Elizabeth
 
-房间驱动的实时文件共享与协作平台，聚合消息、上传、预览与分享链接于同一工作流。
+房间驱动的实时文件共享与协作平台，聚合消息、上传、预览、权限与分享链接于同一工作流。
 
 <div align="center">
 
@@ -38,30 +40,100 @@
 
 ---
 
-## 快速导航
+## 核心特性
 
-- **[Docker 快速开始](docs/DOCKER_QUICK_START.md)**：最快把 Elizabeth
-  跑起来的单机部署路径。
-- **[部署指南](docs/DEPLOYMENT.md)**：生产环境部署、反向代理与上线前准备。
-- **[API 指南](docs/API_GUIDE.md)**：核心 REST API、鉴权与内容接口概览。
-- **[WebSocket 指南](docs/WEBSOCKET_GUIDE.md)**：实时同步与信令传输入口。
-- **[架构说明](docs/ARCHITECTURE.md)**：后端、前端与存储层的整体设计。
+- **零步骤建房，房间即身份**：访问 `/房间名`
+  即自动创建房间并进入，首位创建者自动获得 admin
+  身份码；无需注册，一个身份码就是一个房间内的角色凭证。
+- **三级角色 × 细粒度能力**：内置 admin / editor / reader 三种系统角色，映射到
+  17 项能力（capability），每项能力支持 `any` / `own` 两种作用域；admin
+  还可以在"成员与权限"对话框中调整系统角色或新建自定义角色，变更对所有成员实时生效。
+- **身份码全生命周期治理**：admin 生成 editor / reader
+  身份码并分发给信任的人；成员可兑换身份码、admin
+  可轮换自己的凭证、吊销任意会话（对方立即断线）；editor 席位上限 10
+  个，吊销或过期自动释放。
+- **消息与文件的显示 / 隐藏**：拥有 `msg.visibility.manage` /
+  `file.visibility.manage`
+  能力的角色可以隐藏任意（或仅自己的）消息与文件；被隐藏的内容对无权限者完全不可见，直接访问返回
+  404，实时推送中也不会泄露正文。
+- **文件保护与下载策略**：拥有 `file.policy.manage`
+  能力的身份可为单个文件设置下载保护——无限制、固定访问码或一次性访问码，并可限制总下载次数；访问码支持随机/批量/自定义生成与导出。
+- **实时消息与富预览**：Markdown 渲染、代码高亮、图片预览、PDF
+  阅读器、文本查看与链接预览开箱即用；增删改通过 WebSocket
+  秒级同步给房间内所有人。
+- **单容器、单端口交付**：Rust 后端统一承载 API、WebSocket
+  与嵌入式前端静态资源，一条 `docker run` 即可部署。
+- **SQLite 默认，PostgreSQL 可切换**：开发期使用轻量 SQLite，生产环境通过
+  `DATABASE_URL` 平滑切换，migrations 自动选择执行。
+- **OpenAPI / Scalar 开箱即用**：自带交互式 API
+  文档，便于二次集成、联调与自动化。
+
+## 界面速览
+
+|                            成员与权限（身份码分发与会话治理）                            |                              成员与权限（角色能力矩阵）                              |
+| :--------------------------------------------------------------------------------------: | :----------------------------------------------------------------------------------: |
+| <img src="./docs/images/permissions-members-zh.png" width="100%" alt="成员身份码管理" /> | <img src="./docs/images/permissions-roles-zh.png" width="100%" alt="角色权限矩阵" /> |
+
+|                  editor 视角（可编辑消息，无 admin 配置区）                   |                首页（无需注册，创建 / 加入房间）                |
+| :---------------------------------------------------------------------------: | :-------------------------------------------------------------: |
+| <img src="./docs/images/room-editor-zh.png" width="100%" alt="editor 视角" /> | <img src="./docs/images/home-zh.png" width="100%" alt="首页" /> |
+
+> [!TIP]
+> English screenshots are embedded in the [English README](./README.en.md).
 
 ---
 
-## 核心能力
+## 快速导航
 
-- **Room-centric
-  协作模型**：所有消息、文件与实时互动都围绕房间展开，分享路径直接、上手成本低。
-- **单容器、单端口交付**：Rust 后端统一承载 API、WebSocket
-  与嵌入式前端静态资源，部署链路简单清晰。
-- **实时消息与多类型预览**：支持 Markdown、代码高亮、图片预览、PDF
-  阅读器、文本文件查看与链接预览。
-- **SQLite 默认，PostgreSQL 可切换**：开发期可用轻量 SQLite，生产环境可通过
-  `DATABASE_URL` 平滑切换至 PostgreSQL。
-- **OpenAPI / Scalar 开箱即用**：自带交互式 API
-  文档，便于二次集成、联调与自动化。
-- **安全基线完整**：内置 JWT 鉴权、房间权限控制与最小权限容器运行策略。
+| 文档                                          | 内容                                  |
+| :-------------------------------------------- | :------------------------------------ |
+| [Docker 快速开始](docs/DOCKER_QUICK_START.md) | 最快把 Elizabeth 跑起来的单机部署路径 |
+| [部署指南](docs/DEPLOYMENT.md)                | 生产环境部署、反向代理与上线前准备    |
+| [API 指南](docs/API_GUIDE.md)                 | 核心 REST API、鉴权与内容接口概览     |
+| [WebSocket 指南](docs/WEBSOCKET_GUIDE.md)     | 实时同步与信令传输入口                |
+| [架构说明](docs/ARCHITECTURE.md)              | 后端、前端与存储层的整体设计          |
+
+---
+
+## 权限与安全模型
+
+Elizabeth 以 **room
+为隔离单位**：每个房间拥有独立的角色矩阵、身份码会话与文件策略。
+
+### 角色
+
+| 角色       | 定位                | 默认能力（摘要）                                                                                               |
+| :--------- | :------------------ | :------------------------------------------------------------------------------------------------------------- |
+| **admin**  | 房间创建者 / 治理者 | 全部 17 项能力：房间分享与配置、角色管理、身份码签发与吊销、消息与文件的完整操作、下载策略、显隐控制、关闭房间 |
+| **editor** | 受信任的协作者      | 发送 / 编辑消息、上传 / 预览 / 下载文件；删除与显隐仅限自己发布的内容（`own` 作用域）                          |
+| **reader** | 只读访客            | 查看与复制消息、预览与下载文件（受下载策略约束）                                                               |
+
+每项能力都可单独配置为 `any`（全部内容）或
+`own`（仅自己创建的内容），也可以新建自定义角色承载更精确的授权组合。
+
+### 身份码生命周期
+
+1. **生成**：admin 在"成员与权限 → 成员身份码"中为 editor 签发身份码（席位上限
+   10），有效时长可按秒 / 分钟 / 小时 / 天 /
+   个月配置，到期自动失效且不会超过房间有效期。**admin
+   身份码跟随房间生命周期**（可在身份卡上一键轮换），创建房间的第一位用户即持有它。
+2. **分发**：通过任意渠道把身份码交给目标用户。
+3. **兑换**：接收者在房间内粘贴身份码即可获得对应角色，无需注册。
+4. **轮换**：admin 可随时更换自己的 admin 身份码，旧码立即失效。
+5. **吊销**：任意活跃会话可被吊销，对方连接立即断开；席位自动释放。
+
+角色或角色能力变更后，在线成员的能力快照会**实时刷新**，无需重新登录。
+
+### 文件保护与内容显隐
+
+- **下载策略**（`file.policy.manage`）：按文件独立配置——无限制（Off）/
+  固定访问码（Reusable）/ 一次性访问码（One
+  Time），并可限制总下载次数；访问码支持随机、批量、自定义（如
+  `VIP666`）、去重与导出
+  `.txt`。受保护文件需输入访问码解锁预览与下载，连续失败会被临时锁定。
+- **显示 / 隐藏**（`msg.visibility.manage` /
+  `file.visibility.manage`）：隐藏后的内容从无权限用户的列表与实时推送中消失，直接访问返回
+  404（不泄漏存在性）；`own` 作用域的角色只能隐藏 / 恢复自己发布的内容。
 
 ---
 
@@ -87,7 +159,7 @@ release-please 在 Release PR 中自动更新。
 <!-- x-release-please-start-version -->
 
 ```bash
-export ELIZABETH_VERSION=1.6.0
+export ELIZABETH_VERSION=1.8.4
 ```
 
 <!-- x-release-please-end -->
@@ -180,7 +252,7 @@ ${EDITOR:-nano} .env
 ELIZABETH_IMAGE=elizabeth:local docker compose up -d --build
 ```
 
-也可以只构建镜像，再复用“方式一”的 `docker run` 参数：
+也可以只构建镜像，再复用"方式一"的 `docker run` 参数：
 
 ```bash
 docker build \
@@ -300,27 +372,48 @@ docker compose up -d --no-build --remove-orphans
 
 ---
 
-## 质量门禁与本地开发
+## 本地开发与测试
 
-在本地参与 Rust 模块开发时，必须确保以下指令全部正常通过：
+### 后端（Rust）
 
 ```bash
-# 格式化代码风格
+just dev          # 构建嵌入式前端并启动本地服务（默认端口 4092）
+```
+
+参与 Rust 模块开发时，必须确保以下质量门禁全部通过：
+
+```bash
 cargo fmt --all
-
-# 静态检查 workspace 语法与编译正确性
 cargo check --workspace --all-targets --all-features
-
-# 运行 workspace 内部的所有自动化测试
 cargo test --workspace --all-features
-
-# Clippy 强静态类型质量门禁（不能包含任何警告或错误）
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 ```
 
 > [!TIP]
-> 如果本地装有 [just](https://github.com/casey/just)，您也可以直接使用命令
-> `just verify` 一键跑通上述所有的校验。
+> 如果本地装有 [just](https://github.com/casey/just)，也可以直接使用
+> `just verify` 一键跑通上述所有校验。
+
+### 前端（Next.js + Bun）
+
+```bash
+cd web
+bun install --frozen-lockfile
+bun run dev        # 开发服务器（代理 /api 到本地后端）
+bun run typecheck  # tsc --noEmit
+bun run lint       # eslint --max-warnings 0
+```
+
+### 端到端测试（Playwright + SerenityJS）
+
+`web/e2e` 下维护了一套 Screenplay 模式的 e2e 套件，覆盖权限边界（越权写入、绕过
+下载策略、吊销即断线、editor 席位上限）、显隐能力、实时协同与关键交互流，不只测
+happy path：
+
+```bash
+cd web
+bun run e2e:test     # 运行整套 e2e（自动拉起隔离的测试后端）
+bun run e2e:report   # 生成并查看 Serenity 报告
+```
 
 ---
 

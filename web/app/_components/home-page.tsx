@@ -14,8 +14,9 @@ import {
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { createRoom } from "@/api/roomService";
-import { getAccessToken } from "@/api/authService";
-import { ArrowRight, Eye, EyeOff, Lock, Plus } from "lucide-react";
+import { setRoomToken } from "@/lib/utils/api";
+import { ArrowRight, Eye, EyeOff, KeyRound, Lock, Plus } from "lucide-react";
+import { IdentityCodeDisclosure } from "@/components/room/identity-code-disclosure";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { useTranslations } from "next-intl";
 
@@ -27,6 +28,9 @@ export default function HomePage() {
   const [roomName, setRoomName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [adminIdentityCode, setAdminIdentityCode] = useState("");
+  const [confirmAdminIdentityCode, setConfirmAdminIdentityCode] = useState("");
+  const [createdIdentityCode, setCreatedIdentityCode] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -62,18 +66,34 @@ export default function HomePage() {
       return;
     }
 
+    if (adminIdentityCode && adminIdentityCode !== confirmAdminIdentityCode) {
+      setError(t("identityCodeMismatch"));
+      return;
+    }
+
+    if (!adminIdentityCode && confirmAdminIdentityCode) {
+      setError(t("enterIdentityCodeFirst"));
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
 
-      // Create room with optional password
-      await createRoom(trimmed, password || undefined);
+      const created = await createRoom(
+        trimmed,
+        password || undefined,
+        adminIdentityCode.trim() || undefined,
+      );
+      setRoomToken(trimmed, {
+        token: created.token,
+        expiresAt: created.expires_at,
+        capabilities: created.capabilities,
+        roleKey: created.claims.role,
+      });
 
-      // Get access token
-      await getAccessToken(trimmed, password || undefined);
-
-      // Navigate to room
-      router.push(`/${trimmed}`);
+      setCreatedIdentityCode(created.identity_code ?? null);
+      if (!created.identity_code) router.push(`/${trimmed}`);
     } catch (err: any) {
       if (err.message?.includes("409") || err.message?.includes("exists")) {
         setError(tErrors("roomNameAlreadyExists"));
@@ -283,6 +303,47 @@ export default function HomePage() {
               </div>
             </div>
 
+            <div className="space-y-2">
+              <Label htmlFor="admin-identity-code">
+                <div className="flex items-center gap-2">
+                  <KeyRound className="h-4 w-4" />
+                  <span>{t("adminIdentityCodeOptional")}</span>
+                </div>
+              </Label>
+              <Input
+                id="admin-identity-code"
+                type="password"
+                autoComplete="off"
+                value={adminIdentityCode}
+                onChange={(event) => {
+                  setAdminIdentityCode(event.target.value);
+                  setError(null);
+                }}
+                placeholder={t("adminIdentityCodeHint")}
+                disabled={loading}
+              />
+              <Input
+                id="confirm-admin-identity-code"
+                type="password"
+                autoComplete="off"
+                value={confirmAdminIdentityCode}
+                onChange={(event) => {
+                  setConfirmAdminIdentityCode(event.target.value);
+                  setError(null);
+                }}
+                placeholder={t("confirmAdminIdentityCode")}
+                disabled={loading || !adminIdentityCode}
+              />
+              <p className="text-xs text-muted-foreground">{t("adminIdentityCodeHint")}</p>
+            </div>
+
+            {createdIdentityCode && (
+              <IdentityCodeDisclosure
+                code={createdIdentityCode}
+                onEnter={() => router.push(`/${roomName.trim()}`)}
+              />
+            )}
+
             {error && (
               <Alert variant="destructive">
                 <AlertDescription>{error}</AlertDescription>
@@ -308,7 +369,7 @@ export default function HomePage() {
               </Button>
               <Button
                 onClick={handleCreateRoom}
-                disabled={loading || !roomName.trim()}
+                disabled={loading || !roomName.trim() || Boolean(createdIdentityCode)}
                 className="flex-1"
               >
                 {loading ? t("creating") : t("createRoom")}

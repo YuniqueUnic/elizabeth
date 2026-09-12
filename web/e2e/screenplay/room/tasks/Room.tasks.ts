@@ -1,5 +1,7 @@
-import { Task, the } from "@serenity-js/core";
+import { Interaction, Task, the } from "@serenity-js/core";
 import { Navigate } from "@serenity-js/web";
+
+import { nativePageFor } from "../../support/actor-page";
 
 import {
   CancelDialog,
@@ -11,10 +13,12 @@ import {
   ClickDownloadMessages,
   ClickMessageCopyButton,
   ClickMessageDeleteButton,
+  CloseFilePreviewDialog,
   CloseSettings,
   ConfirmDeleteAction,
   ConfirmDeleteAndDisable,
   ConfirmFileDeleteAction,
+  ConfigureFileDownloadPolicy,
   OpenSettings,
   ClickSaveMessages,
   ClickSend,
@@ -25,11 +29,17 @@ import {
   ConfirmPhysicalClose,
   AddLinkToRoom,
   DeleteFileNamed,
+  DropFileOntoEditor,
   EditLatestMessage,
   EnterMessage,
   EnterRoomPassword,
   OpenCloseRoomDialog,
   OpenFilePreviewNamed,
+  OpenIdentityRedeemDialog,
+  PasteFileIntoEditor,
+  PasteTextIntoEditor,
+  RedeemAccessCode,
+  RedeemIdentityCode,
   ResizeViewport,
   SaveRoomConfiguration,
   ScrollMessageListToBottom,
@@ -44,7 +54,9 @@ import {
   VerifyCloseRoomPassword,
   WaitForRoomToBeReady,
   WaitForSavingToComplete,
+  type DownloadPolicyInput,
 } from "../interactions/Room.interactions";
+import { RoomScreen } from "../screens/Room.screen";
 import type { UploadableFile } from "../../support/test-data";
 
 export const OpenRoom = (url: string) =>
@@ -52,6 +64,28 @@ export const OpenRoom = (url: string) =>
     the`#actor opens the room at ${url}`,
     Navigate.to(url),
     WaitForRoomToBeReady(),
+  );
+
+export const OpenUnprovisionedRoom = (url: string) =>
+  Task.where(
+    the`#actor opens an unprovisioned room at ${url}`,
+    Navigate.to(url),
+    Interaction.where(
+      the`#actor waits for the one-time identity code disclosure`,
+      async (actor) => {
+        const page = await nativePageFor(actor);
+        await RoomScreen.identityCodeDisclosure(page).waitFor({
+          state: "visible",
+          timeout: 30_000,
+        });
+      },
+    ),
+  );
+
+export const VisitRoomUrl = (url: string) =>
+  Task.where(
+    the`#actor visits ${url} without waiting for the room UI`,
+    Navigate.to(url),
   );
 
 export const SendMessage = (content: string) =>
@@ -235,6 +269,28 @@ export const UnlockProtectedRoom = (password: string) =>
     WaitForRoomToBeReady(),
   );
 
+export const EnterRoomAfterDisclosure = () =>
+  Task.where(
+    the`#actor enters the room after the identity code disclosure`,
+    Interaction.where(the`#actor acknowledges the disclosed identity code`, async (actor) => {
+      const page = await nativePageFor(actor);
+      await RoomScreen.enterRoomAfterDisclosure(page).click();
+    }),
+    WaitForRoomToBeReady(),
+  );
+
+export const RedeemIdentityCodeInRoom = (code: string) =>
+  Task.where(
+    the`#actor upgrades the session with the identity code ${code}`,
+    OpenIdentityRedeemDialog(),
+    RedeemIdentityCode(code),
+    Interaction.where(the`#actor waits for the reloaded session`, async (actor) => {
+      const page = await nativePageFor(actor);
+      await page.waitForLoadState("load").catch(() => {});
+      await WaitForRoomToBeReady().performAs(actor);
+    }),
+  );
+
 export const UpdateLatestMessage = (content: string) =>
   Task.where(
     the`#actor updates the latest message`,
@@ -327,4 +383,43 @@ export const ToggleSettingInOpenDialog = (testid: string) =>
   Task.where(
     the`#actor toggles a setting in the open settings dialog`,
     ToggleSetting(testid),
+  );
+
+export const ConfigureDownloadPolicy = (
+  fileName: string,
+  policy: DownloadPolicyInput,
+) =>
+  Task.where(
+    the`#actor configures the download policy of ${fileName}`,
+    ConfigureFileDownloadPolicy(fileName, policy),
+  );
+
+export const RedeemFileAccessCode = (code: string) =>
+  Task.where(
+    the`#actor redeems the file access code ${code}`,
+    RedeemAccessCode(code),
+  );
+
+export const CloseFilePreview = () =>
+  Task.where(
+    the`#actor closes the file preview`,
+    CloseFilePreviewDialog(),
+  );
+
+export const PasteIntoComposer = (text: string) =>
+  Task.where(
+    the`#actor pastes text into the message composer`,
+    PasteTextIntoEditor(text),
+  );
+
+export const PasteFileIntoComposer = (file: UploadableFile) =>
+  Task.where(
+    the`#actor pastes ${file.name} into the message composer`,
+    PasteFileIntoEditor(file),
+  );
+
+export const DropFileIntoComposer = (file: UploadableFile) =>
+  Task.where(
+    the`#actor drops ${file.name} into the message composer`,
+    DropFileOntoEditor(file),
   );

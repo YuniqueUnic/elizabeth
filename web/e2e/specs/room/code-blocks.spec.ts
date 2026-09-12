@@ -4,7 +4,7 @@ import { uniqueRoomName } from "../../screenplay/support/test-data";
 import { RoomScreen } from "../../screenplay/room/screens/Room.screen";
 import {
   OpenRoom,
-  SendMessage,
+  PasteIntoComposer,
 } from "../../screenplay/room/tasks/Room.tasks";
 
 test.describe("Room message code blocks", () => {
@@ -23,9 +23,8 @@ test.describe("Room message code blocks", () => {
     actor,
     page,
   }) => {
-    await actor.attemptsTo(
-      SendMessage("```javascript\nconst answer = 42;\n```"),
-    );
+    await actor.attemptsTo(PasteIntoComposer("```javascript\nconst answer = 42;\n```"));
+    await RoomScreen.sendButton(page).click();
 
     const latestMessage = RoomScreen.messageContents(page).last();
     await expect(latestMessage.locator("[data-testid='shiki-code-block']")).toBeVisible();
@@ -102,5 +101,75 @@ test.describe("Room message code blocks", () => {
     await expect(latestMessage.locator("pre.shiki code.shiki-code")).toBeVisible();
     await expect(latestMessage.locator("code.shiki-code span[style*='color']").first()).toBeVisible();
     await expect(latestMessage).toContainText("toolbar");
+  });
+
+  test("renders plain text followed by code block without content duplication", async ({
+    actor,
+    page,
+  }) => {
+    await actor.attemptsTo(PasteIntoComposer("基本文本，没有样式\n```\ncode block 样式的内容；比如\n- 文本内容\n1. 各种各样的\n```"));
+    await RoomScreen.sendButton(page).click();
+
+    const latestMessage = RoomScreen.messageContents(page).last();
+    await expect(latestMessage.locator("[data-testid='shiki-code-block']")).toBeVisible();
+    await expect(latestMessage.locator("pre.shiki code.shiki-code")).toBeVisible();
+
+    const text = await latestMessage.innerText();
+    const count = (text.match(/code block 样式的内容/g) || []).length;
+    expect(count).toBe(1);
+    await expect(latestMessage).toContainText("基本文本，没有样式");
+    await expect(latestMessage).toContainText("1. 各种各样的");
+  });
+
+  test("keeps pasted fenced code intact in the editor and the message without duplication", async ({
+    actor,
+    page,
+  }) => {
+    const markdown =
+      "基本文本，没有样式\n```\ncode block 样式的内容；比如\n- 文本内容\n1. 各种各样的\n```";
+
+    await actor.attemptsTo(PasteIntoComposer(markdown));
+
+    // 编辑器内立即解析为结构化代码块，而不是含反引号的普通段落，且内容不重复
+    const editor = RoomScreen.messageInput(page);
+    await expect(editor.locator("pre code")).toContainText("code block 样式的内容");
+    const editorText = await editor.innerText();
+    expect((editorText.match(/code block 样式的内容/g) || []).length).toBe(1);
+    await expect(editor).toContainText("基本文本，没有样式");
+
+    await RoomScreen.sendButton(page).click();
+
+    const latestMessage = RoomScreen.messageContents(page).last();
+    await expect(latestMessage.locator("[data-testid='shiki-code-block']")).toBeVisible();
+    const messageText = await latestMessage.innerText();
+    expect((messageText.match(/code block 样式的内容/g) || []).length).toBe(1);
+    await expect(latestMessage).toContainText("基本文本，没有样式");
+  });
+
+  test("keeps Enter inside a code block from sending the message", async ({
+    actor,
+    page,
+  }) => {
+    await RoomScreen.codeBlockToolbarButton(page).click();
+    const editor = RoomScreen.messageInput(page);
+    await expect(editor).toBeFocused();
+    await expect(editor.locator("pre")).toBeVisible();
+
+    await editor.pressSequentially("first line");
+    await editor.press("Enter");
+    await editor.pressSequentially("second line");
+
+    // 代码块内的 Enter 是代码内换行，不允许触发快捷发送
+    await expect(RoomScreen.messageContents(page)).toHaveCount(0);
+    await expect(editor).toContainText("first line");
+    await expect(editor).toContainText("second line");
+
+    await RoomScreen.sendButton(page).click();
+
+    const latestMessage = RoomScreen.messageContents(page).last();
+    const shikiBlock = latestMessage.locator("[data-testid='shiki-code-block']");
+    await expect(shikiBlock).toBeVisible();
+    await expect(shikiBlock).toContainText("first line");
+    await expect(shikiBlock).toContainText("second line");
   });
 });

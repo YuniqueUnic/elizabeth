@@ -179,7 +179,7 @@ impl RoomLifecycleRepository {
         let sql = format!(
             "SELECT id, slug FROM rooms WHERE {predicate} ORDER BY updated_at ASC LIMIT $2"
         );
-        let rows = sqlx::query(&sql)
+        let rows = sqlx::query(sqlx::AssertSqlSafe(sql))
             .bind(format_naive_datetime(now))
             .bind(i64::from(limit))
             .fetch_all(&*self.pool)
@@ -203,7 +203,8 @@ impl RoomLifecycleRepository {
                    CAST(expire_at AS TEXT) AS expire_at,
                    CAST(created_at AS TEXT) AS created_at,
                    CAST(updated_at AS TEXT) AS updated_at,
-                   permission
+                   default_role_key,
+                   roles_version
             FROM rooms WHERE id = $1
             "#,
         )
@@ -237,7 +238,10 @@ impl RoomLifecycleRepository {
             "room_access_logs",
         ] {
             let sql = format!("DELETE FROM {table} WHERE room_id = $1");
-            sqlx::query(&sql).bind(room_id).execute(&mut *tx).await?;
+            sqlx::query(sqlx::AssertSqlSafe(sql))
+                .bind(room_id)
+                .execute(&mut *tx)
+                .await?;
         }
         let deleted = sqlx::query("DELETE FROM rooms WHERE id = $1")
             .bind(room_id)

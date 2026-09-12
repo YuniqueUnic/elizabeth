@@ -179,6 +179,30 @@ fn get_room_identifier_regex() -> &'static Regex {
     REGEX.get_or_init(|| Regex::new(r"^[a-zA-Z0-9][a-zA-Z0-9_-]*[a-zA-Z0-9]$").unwrap())
 }
 
+/// 角色 key 验证器（自定义角色）
+pub struct RoleKeyValidator;
+
+impl RoleKeyValidator {
+    /// 规则：
+    /// - 长度：2-32 字符
+    /// - 小写字母、数字、下划线和连字符（与系统角色 key 风格一致）
+    pub fn validate(key: &str) -> AppResult<()> {
+        if key.len() < 2 || key.len() > 32 {
+            return Err(AppError::validation(
+                "Role key must be between 2 and 32 characters",
+            ));
+        }
+        static REGEX: OnceLock<Regex> = OnceLock::new();
+        let re = REGEX.get_or_init(|| Regex::new(r"^[a-z0-9_-]+$").unwrap());
+        if !re.is_match(key) {
+            return Err(AppError::validation(
+                "Role key can only contain lowercase letters, numbers, underscores, and hyphens",
+            ));
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

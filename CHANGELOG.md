@@ -6,6 +6,48 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v1.1.0.html).
 
+## [1.8.4](https://github.com/YuniqueUnic/elizabeth/compare/v1.8.3...v1.8.4) (2026-09-12)
+
+
+### Bug Fixes
+
+* **room:** complete admin provisioning when a room URL is opened directly ([#194](https://github.com/YuniqueUnic/elizabeth/issues/194)) ([0402e0f](https://github.com/YuniqueUnic/elizabeth/commit/0402e0f7c4dff02b469c9002205b47f2748f7bfa)), closes [#189](https://github.com/YuniqueUnic/elizabeth/issues/189)
+
+## [1.8.3](https://github.com/YuniqueUnic/elizabeth/compare/v1.8.2...v1.8.3) (2026-09-07)
+
+
+### Bug Fixes
+
+* **identity:** manage custom role identity codes ([#183](https://github.com/YuniqueUnic/elizabeth/issues/183)) ([65fa7d0](https://github.com/YuniqueUnic/elizabeth/commit/65fa7d076201b58c913e5e1e2fa6c76e29a1959d))
+
+## [1.8.2](https://github.com/YuniqueUnic/elizabeth/compare/v1.8.1...v1.8.2) (2026-09-07)
+
+
+### Bug Fixes
+
+* **identity:** handle rooms without expiry for admin identity codes ([#179](https://github.com/YuniqueUnic/elizabeth/issues/179)) ([ce4a589](https://github.com/YuniqueUnic/elizabeth/commit/ce4a5892fbf1e7696763dc51b6a02df8e2e729c2))
+
+## [1.8.1](https://github.com/YuniqueUnic/elizabeth/compare/v1.8.0...v1.8.1) (2026-09-07)
+
+
+### Bug Fixes
+
+* **identity:** replace JWT-as-identity-code with room-bound custom identity codes ([#177](https://github.com/YuniqueUnic/elizabeth/issues/177)) ([5765687](https://github.com/YuniqueUnic/elizabeth/commit/576568783cc34463059edae6874db724e28e64a1))
+
+## [1.8.0](https://github.com/YuniqueUnic/elizabeth/compare/v1.7.0...v1.8.0) (2026-09-07)
+
+
+### Features
+
+* **identity:** admin codes follow room lifetime; editor codes accept configurable ttl ([#174](https://github.com/YuniqueUnic/elizabeth/issues/174)) ([6180503](https://github.com/YuniqueUnic/elizabeth/commit/61805034aef5afc48c74f35388c7ed8ba640d43d))
+
+## [1.7.0](https://github.com/YuniqueUnic/elizabeth/compare/v1.6.0...v1.7.0) (2026-09-06)
+
+
+### Features
+
+* content visibility, permissions UX overhaul, e2e hardening, and README rebuild ([#172](https://github.com/YuniqueUnic/elizabeth/issues/172)) ([e8643a2](https://github.com/YuniqueUnic/elizabeth/commit/e8643a28d93bbdf4c71d38245bad90370f8ef43f))
+
 ## [1.6.0](https://github.com/YuniqueUnic/elizabeth/compare/v1.5.3...v1.6.0) (2026-09-02)
 
 

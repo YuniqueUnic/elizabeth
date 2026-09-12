@@ -4,6 +4,7 @@ use sha2::{Digest, Sha256};
 use sqlx::{FromRow, Row, any::AnyRow, postgres::PgRow, sqlite::SqliteRow};
 use utoipa::ToSchema;
 
+use crate::models::room::role::Grant;
 use crate::models::room::row_utils::{read_datetime_from_any, read_optional_datetime_from_any};
 
 /// 房间刷新令牌数据模型
@@ -209,6 +210,10 @@ pub struct RefreshTokenResponse {
     pub access_token_expires_at: NaiveDateTime,
     /// 刷新令牌过期时间
     pub refresh_token_expires_at: NaiveDateTime,
+    /// 刷新后的角色 key（角色归属随 refresh 旋转刷新）
+    pub role: String,
+    /// 签发时解析得到的能力快照（非判定依据；判定以 DB room_roles 实时为准）
+    pub capabilities: Vec<Grant>,
 }
 
 /// 令牌黑名单条目结构

@@ -136,6 +136,7 @@ fn settings_request(age_seconds: i64) -> UpdateRoomSettingsRequest {
         age_seconds: Some(age_seconds),
         max_times_entered: None,
         max_size: None,
+        default_role_key: None,
     }
 }
 

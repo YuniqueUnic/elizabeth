@@ -2,15 +2,19 @@ use std::sync::Arc;
 
 use axum::Json;
 use axum::extract::{Path, State};
+use axum::http::HeaderMap;
 
 use super::shared::HandlerResult;
+use crate::authz::{Authz, Resource, load_role_table};
 use crate::dto::rooms::{
-    IssueTokenRequest, IssueTokenResponse, RevokeTokenResponse, RoomTokenView,
-    ValidateTokenRequest, ValidateTokenResponse, VerifyRoomPasswordRequest,
+    IssueTokenRequest, IssueTokenResponse, MyCapabilitiesResponse, RevokeTokenResponse,
+    RoomTokenView, ValidateTokenRequest, ValidateTokenResponse, VerifyRoomPasswordRequest,
     VerifyRoomPasswordResponse,
 };
 use crate::errors::AppError;
+use crate::handlers::admin::validate_admin_credential;
 use crate::handlers::{AuthToken, verify_room_token};
+use crate::models::room::role::{Capability, ROLE_ADMIN};
 use crate::models::{Room, RoomStatus, RoomToken};
 use crate::repository::{
     IRoomRepository, IRoomTokenRepository, RoomAccessRepository, RoomRepository,
@@ -19,9 +23,11 @@ use crate::repository::{
 use crate::state::AppState;
 use crate::validation::{RoomNameValidator, TokenValidator};
 
-struct TokenIssueRoom {
+struct TokenIssueContext {
     room: Room,
     previous_jti: Option<String>,
+    /// 续签场景下的请求者（匿名进房为 None）
+    requester: Option<crate::handlers::VerifiedRoomToken>,
 }
 
 /// 签发房间访问凭证
@@ -42,28 +48,116 @@ struct TokenIssueRoom {
 )]
 pub async fn issue_token(
     Path(name): Path<String>,
+    headers: HeaderMap,
     State(app_state): State<Arc<AppState>>,
     Json(payload): Json<IssueTokenRequest>,
 ) -> HandlerResult<IssueTokenResponse> {
     RoomNameValidator::validate_identifier(&name)?;
+    let admin_bootstrap = validate_admin_credential(
+        headers
+            .get("X-Elizabeth-Admin-Token")
+            .and_then(|value| value.to_str().ok()),
+    )
+    .is_ok();
 
-    let TokenIssueRoom {
+    let TokenIssueContext {
         mut room,
         previous_jti,
+        requester,
     } = resolve_token_issue_room(&app_state, &name, &payload).await?;
     let should_increment_view_count = previous_jti.is_none();
     ensure_token_issue_allowed(&room, should_increment_view_count)?;
 
+    // 角色解析：请求角色必须存在于房间矩阵；非默认角色需要 RoomRolesManage 能力。
+    let room_id = room
+        .id
+        .ok_or_else(|| AppError::internal("Room id missing"))?;
+    let role_table = load_role_table(
+        &app_state.roles_cache,
+        &app_state.db_pool,
+        room_id,
+        room.roles_version,
+    )
+    .await?;
+    let requested_role = payload
+        .role
+        .as_deref()
+        .map(str::trim)
+        .filter(|r| !r.is_empty());
+    let role_key = match requested_role {
+        Some(requested) => {
+            if !role_table.contains_key(requested) {
+                return Err(AppError::validation(
+                    "Requested role does not exist in this room",
+                ));
+            }
+            if requested != room.default_role_key {
+                if let Some(verified) = requester.as_ref() {
+                    let authz = Authz::for_claims(&app_state, &room, &verified.claims).await?;
+                    authz.require(Capability::RoomRolesManage, &Resource::Room { room_id })?;
+                } else if !admin_bootstrap {
+                    return Err(AppError::permission_denied(
+                        "Joining with a non-default role requires room.roles.manage or admin credential",
+                    ));
+                }
+            }
+            requested.to_string()
+        }
+        None => requester
+            .as_ref()
+            .and_then(|verified| verified.record.role_key.clone())
+            .or_else(|| {
+                requester
+                    .as_ref()
+                    .map(|verified| verified.claims.role.clone())
+            })
+            .unwrap_or_else(|| room.default_role_key.clone()),
+    };
+
+    // 身份码有效时长：admin 跟随房间生命周期；其他角色可由签发者配置，
+    // 缺省用部署配置的默认 TTL。实际过期时间由 expiration_for 统一封顶到房间过期。
+    let requested_ttl = if role_key == ROLE_ADMIN {
+        crate::services::token::room_lifetime_ttl()
+    } else if let Some(secs) = payload.expires_in_secs {
+        if !(crate::services::token::MIN_IDENTITY_TTL_SECONDS
+            ..=crate::services::token::MAX_IDENTITY_TTL_SECONDS)
+            .contains(&secs)
+        {
+            return Err(AppError::validation(format!(
+                "expires_in_secs must be between {} and {} seconds",
+                crate::services::token::MIN_IDENTITY_TTL_SECONDS,
+                crate::services::token::MAX_IDENTITY_TTL_SECONDS
+            )));
+        }
+        chrono::Duration::seconds(secs)
+    } else {
+        app_state.token_service().get_ttl()
+    };
+
+    let previous_jti = requester.as_ref().and_then(|verified| {
+        let current_role = verified
+            .record
+            .role_key
+            .as_deref()
+            .unwrap_or(verified.claims.role.as_str());
+        (current_role == role_key).then(|| verified.record.jti.clone())
+    });
+
     let (token, claims) = app_state
         .token_service()
-        .issue(&room)
+        .issue_with_ttl(&room, &role_key, requested_ttl)
         .map_err(|e| AppError::authentication(e.to_string()))?;
-    let record = RoomToken::new(claims.room_id, claims.jti.clone(), claims.expires_at());
+    let record = RoomToken::new(
+        claims.room_id,
+        claims.jti.clone(),
+        &role_key,
+        claims.expires_at(),
+    );
     let prepared_refresh = if payload.with_refresh_token {
         Some(
             app_state
                 .refresh_token_service()
-                .prepare_refresh_token(&room, claims.jti.clone())
+                .prepare_refresh_token(&room, &role_key, claims.jti.clone())
                 .map_err(|e| AppError::internal(format!("Failed to issue refresh token: {e}")))?,
         )
     } else {
@@ -90,7 +184,13 @@ pub async fn issue_token(
             )
             .await
     }
-    .map_err(|e| AppError::internal(format!("Failed to persist room access grant: {e}")))?;
+    .map_err(|e| {
+        if e.to_string().contains("maximum active editor identities") {
+            AppError::conflict("Maximum active editor identities reached")
+        } else {
+            AppError::internal(format!("Failed to persist room access grant: {e}"))
+        }
+    })?;
 
     if !granted {
         return Err(AppError::authentication("Room cannot be entered"));
@@ -108,6 +208,7 @@ pub async fn issue_token(
         token,
         expires_at: claims.expires_at(),
         claims,
+        capabilities: role_table.grants(&role_key).unwrap_or_default().to_vec(),
         refresh_token,
         refresh_token_expires_at: refresh_expires_at,
     }))
@@ -153,6 +254,7 @@ pub async fn validate_token(
     responses(
         (status = 200, description = "凭证列表", body = [RoomTokenView]),
         (status = 401, description = "凭证无效或已撤销"),
+        (status = 403, description = "缺少 room.roles.manage 能力"),
         (status = 404, description = "房间不存在")
     ),
     tag = "rooms"
@@ -165,15 +267,12 @@ pub async fn list_tokens(
     RoomNameValidator::validate_identifier(&name)?;
 
     let verified = verify_room_token(app_state.clone(), &name, &token).await?;
-    if !verified.room.permission.can_delete() || !verified.claims.as_permission().can_delete() {
-        return Err(AppError::permission_denied(
-            "Session management requires room administration permission",
-        ));
-    }
+    let authz = Authz::for_claims(&app_state, &verified.room, &verified.claims).await?;
     let room_id = verified
         .room
         .id
         .ok_or_else(|| AppError::internal("Room id missing"))?;
+    authz.require(Capability::RoomRolesManage, &Resource::Room { room_id })?;
 
     let token_repo = RoomTokenRepository::new(app_state.db_pool.clone());
     let tokens = token_repo
@@ -196,6 +295,7 @@ pub async fn list_tokens(
     responses(
         (status = 200, description = "撤销结果", body = RevokeTokenResponse),
         (status = 401, description = "凭证无效或已撤销"),
+        (status = 403, description = "缺少 room.roles.manage 能力"),
         (status = 404, description = "房间不存在")
     ),
     tag = "rooms"
@@ -208,15 +308,12 @@ pub async fn revoke_token(
     RoomNameValidator::validate_identifier(&name)?;
 
     let verified = verify_room_token(app_state.clone(), &name, &token).await?;
-    if !verified.room.permission.can_delete() || !verified.claims.as_permission().can_delete() {
-        return Err(AppError::permission_denied(
-            "Session management requires room administration permission",
-        ));
-    }
+    let authz = Authz::for_claims(&app_state, &verified.room, &verified.claims).await?;
     let room_id = verified
         .room
         .id
         .ok_or_else(|| AppError::internal("Room id missing"))?;
+    authz.require(Capability::RoomRolesManage, &Resource::Room { room_id })?;
 
     let token_repo = RoomTokenRepository::new(app_state.db_pool.clone());
     let target = token_repo
@@ -245,13 +342,14 @@ async fn resolve_token_issue_room(
     app_state: &Arc<AppState>,
     name: &str,
     payload: &IssueTokenRequest,
-) -> Result<TokenIssueRoom, AppError> {
+) -> Result<TokenIssueContext, AppError> {
     if let Some(token) = payload.token.as_deref() {
         TokenValidator::validate_token_format(token)?;
         let verified = verify_room_token(app_state.clone(), name, token).await?;
-        Ok(TokenIssueRoom {
+        Ok(TokenIssueContext {
             previous_jti: Some(verified.record.jti.clone()),
-            room: verified.room,
+            room: verified.room.clone(),
+            requester: Some(verified),
         })
     } else {
         let repository = RoomRepository::new(app_state.db_pool.clone());
@@ -264,9 +362,10 @@ async fn resolve_token_issue_room(
             return Err(AppError::room_expired(name));
         }
         validate_room_password(app_state, &room, payload).await?;
-        Ok(TokenIssueRoom {
+        Ok(TokenIssueContext {
             room,
             previous_jti: None,
+            requester: None,
         })
     }
 }
@@ -339,6 +438,8 @@ pub async fn verify_password(
         password: Some(payload.password),
         token: None,
         with_refresh_token: false,
+        role: None,
+        expires_in_secs: None,
     };
     validate_room_password(&app_state, &room, &request).await?;
     Ok(Json(VerifyRoomPasswordResponse { valid: true }))
@@ -354,4 +455,49 @@ fn broadcast_user_joined(app_state: Arc<AppState>, room_name: String, user_id: S
             log::warn!("Failed to broadcast user joined event: {}", e);
         }
     });
+}
+
+/// 查询当前会话的实时能力快照。
+///
+/// 角色矩阵变更后，客户端收到 roles_changed 事件即调用本端点刷新本地
+/// TokenInfo.capabilities，使 UI 门禁与服务端实时矩阵保持一致（无需重登/轮换）。
+#[utoipa::path(
+    get,
+    path = "/api/v1/rooms/{name}/capabilities",
+    params(
+        ("name" = String, Path, description = "房间名称"),
+        ("token" = String, Query, description = "任一有效房间 token")
+    ),
+    responses(
+        (status = 200, description = "当前会话能力", body = MyCapabilitiesResponse),
+        (status = 401, description = "token 无效或已撤销"),
+        (status = 404, description = "房间不存在")
+    ),
+    tag = "rooms"
+)]
+pub async fn my_capabilities(
+    Path(name): Path<String>,
+    AuthToken(token): AuthToken,
+    State(app_state): State<Arc<AppState>>,
+) -> HandlerResult<MyCapabilitiesResponse> {
+    RoomNameValidator::validate_identifier(&name)?;
+
+    let verified = verify_room_token(app_state.clone(), &name, &token).await?;
+    let room_id = verified
+        .room
+        .id
+        .ok_or_else(|| AppError::internal("Room id missing"))?;
+    let role_table = load_role_table(
+        &app_state.roles_cache,
+        &app_state.db_pool,
+        room_id,
+        verified.room.roles_version,
+    )
+    .await?;
+
+    let role = verified.claims.role.clone();
+    Ok(Json(MyCapabilitiesResponse {
+        capabilities: role_table.grants(&role).unwrap_or_default().to_vec(),
+        role,
+    }))
 }

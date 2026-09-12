@@ -27,9 +27,13 @@ async fn test_room_token_and_content_flow() -> Result<()> {
     );
     let create_response = app.clone().oneshot(create_request).await?;
     assert_eq!(create_response.status(), StatusCode::OK);
+    let create_body = axum::body::to_bytes(create_response.into_body(), usize::MAX).await?;
+    let create_json: serde_json::Value = serde_json::from_slice(&create_body)?;
+    let admin_token = create_json["token"].as_str().expect("admin token");
+    assert_eq!(create_json["claims"]["role"], "admin");
 
-    // 签发 token
-    let issue_payload = json!({ "password": "secret" });
+    // 签发 editor token using the creator identity
+    let issue_payload = json!({ "token": admin_token, "role": "editor" });
     let issue_request = create_http_request(
         Method::POST,
         &format!("/api/v1/rooms/{}/tokens", room_name),

@@ -135,10 +135,10 @@ export const RoomScreen = {
     page.getByRole("combobox").first(),
 
   roomPasswordInput: (page: Page): Locator =>
-    page.locator("aside").first().locator("#password"),
+    page.locator("aside").first().locator("#room-password"),
 
   maxViewsInput: (page: Page): Locator =>
-    page.locator("aside").first().locator("#max-views"),
+    page.locator("aside").first().locator("#room-max-views"),
 
   saveRoomConfigButton: (page: Page): Locator =>
     page.locator("aside").first().getByRole("button", {
@@ -277,6 +277,88 @@ export const RoomScreen = {
   filePreviewIframe: (page: Page): Locator =>
     page.locator("dialog iframe, [role='dialog'] iframe"),
 
+  filePreviewCloseButton: (page: Page): Locator =>
+    RoomScreen.filePreviewDialog(page).locator('button[title="Close"]'),
+
+  // Download policy & access code protection
+  filePolicySettingsButton: (page: Page, fileName: string): Locator =>
+    RoomScreen.fileCards(page)
+      .filter({ has: page.getByText(fileName, { exact: true }) })
+      .first()
+      .locator(`button[title='${tRoom("downloadPolicy.settingsTitle")}']`),
+
+  fileProtectedBadge: (page: Page, fileName: string): Locator =>
+    RoomScreen.fileCards(page)
+      .filter({ has: page.getByText(fileName, { exact: true }) })
+      .first()
+      .getByText(tRoom("downloadPolicy.protectedBadge")),
+
+  downloadPolicyDialog: (page: Page): Locator =>
+    page.getByRole("dialog").filter({ hasText: tRoom("downloadPolicy.title") }),
+
+  downloadPolicyModeSelect: (page: Page): Locator =>
+    RoomScreen.downloadPolicyDialog(page).getByRole("combobox").first(),
+
+  downloadPolicySaveButton: (page: Page): Locator =>
+    RoomScreen.downloadPolicyDialog(page).getByRole("button", {
+      name: tRoom("downloadPolicy.save"),
+    }),
+
+  reusableCodeInput: (page: Page): Locator =>
+    RoomScreen.downloadPolicyDialog(page).getByPlaceholder(
+      tRoom("downloadPolicy.reusableCodePlaceholder"),
+    ),
+
+  oneTimeCodesTextarea: (page: Page): Locator =>
+    RoomScreen.downloadPolicyDialog(page).getByPlaceholder(
+      tRoom("downloadPolicy.oneTimeCodesPlaceholder"),
+    ),
+
+  redeemDialog: (page: Page): Locator =>
+    page.getByRole("dialog").filter({ hasText: tRoom("downloadPolicy.redeemTitle") }),
+
+  redeemCodeInput: (page: Page): Locator =>
+    RoomScreen.redeemDialog(page).getByPlaceholder(
+      tRoom("downloadPolicy.accessCodePlaceholder"),
+    ),
+
+  redeemSubmitButton: (page: Page): Locator =>
+    RoomScreen.redeemDialog(page).getByRole("button", {
+      name: tRoom("downloadPolicy.redeemSubmit"),
+    }),
+
+  redeemError: (page: Page): Locator =>
+    RoomScreen.redeemDialog(page).locator("p.text-destructive"),
+
+  identityCodeDisclosure: (page: Page): Locator =>
+    page.getByTestId("identity-code-disclosure"),
+
+  disclosedIdentityCode: (page: Page): Locator =>
+    page.getByTestId("disclosed-identity-code"),
+
+  enterRoomAfterDisclosure: (page: Page): Locator =>
+    page.getByTestId("enter-room"),
+
+  identityRedeemOpenButton: (page: Page): Locator =>
+    page.getByRole("button", { name: tRoom("identity.redeemAction") }),
+
+  identityRedeemDialog: (page: Page): Locator =>
+    page.getByRole("dialog").filter({ hasText: tRoom("identity.redeemTitle") }),
+
+  identityRedeemInput: (page: Page): Locator =>
+    RoomScreen.identityRedeemDialog(page).getByTestId("identity-redeem-input"),
+
+  identityRedeemSubmitButton: (page: Page): Locator =>
+    RoomScreen.identityRedeemDialog(page).getByRole("button", {
+      name: tRoom("identity.redeemConfirm"),
+    }),
+
+  membersButton: (page: Page): Locator =>
+    page.getByRole("button", { name: tRoom("identity.managePermissions") }),
+
+  editorContainer: (page: Page): Locator =>
+    page.locator(".tiptap-editor-container").first(),
+
   toast: (page: Page): Locator =>
     page.locator(
       "[data-state='open'][data-swipe-direction], [data-state='open'][data-sonner-toast], [data-state='open'][role='status'], [data-state='open'][role='alert']",
@@ -312,7 +394,7 @@ export const RoomScreen = {
       | "updated"
       | "deleted"
       | "address_changed"
-      | "permissions_changed"
+      | "roles_changed"
       | "settings_changed",
   ): Locator =>
     page.getByTestId(`setting-desktop-notification-${kind}-${action}`),

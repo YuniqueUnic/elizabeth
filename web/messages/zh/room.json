@@ -41,7 +41,7 @@
   },
   "config": {
     "title": "房间配置",
-    "adminOnly": "只有房间管理员（拥有删除权限）可以修改房间配置",
+    "adminOnly": "只有拥有 room.settings.update 能力的身份才能修改当前房间配置",
     "adminSaveOnly": "只有房间管理员可以保存配置",
     "expiry": {
       "label": "过期时间",
@@ -128,6 +128,195 @@
     "warningTitle": "警告",
     "jwtRefreshFail": "密码已更新，但 JWT 刷新失败。请刷新页面重新登录。"
   },
+  "identity": {
+    "title": "我的身份",
+    "roleAdmin": "管理员",
+    "roleEditor": "编辑者",
+    "roleReader": "读者",
+    "roleCustom": "自定义",
+    "codeLabel": "房间身份码",
+    "copy": "复制身份码",
+    "copied": "已复制",
+    "copyFailed": "复制失败，请手动复制",
+    "rotate": "轮换身份码",
+    "rotating": "轮换中...",
+    "rotateSuccessTitle": "身份码已轮换",
+    "rotateSuccessDescription": "旧身份码已立即失效，请使用新身份码。",
+    "rotateFailed": "轮换失败，请重试",
+    "managePermissions": "成员与权限",
+    "editorHint": "你以编辑者身份进入，身份码由房间管理员分发。",
+    "readerHint": "你以读者身份进入，仅可查看房间内容。",
+    "customHint": "你的身份由房间管理员分配，具体权限以角色设置为准。",
+    "redeemAction": "使用身份码",
+    "redeemTitle": "使用身份码进入",
+    "redeemDescription": "粘贴房间管理员分发的身份码，将以对应身份进入本房间。",
+    "redeemInvalid": "身份码无效或已过期",
+    "redeeming": "验证中...",
+    "redeemConfirm": "进入房间",
+    "redeemCancel": "取消"
+  },
+  "members": {
+    "title": "成员与权限",
+    "description": "以本房间为隔离单位，管理成员身份码与角色权限。",
+    "tabMembers": "成员身份码",
+    "tabRoles": "角色权限",
+    "loading": "加载中...",
+    "createCode": "创建身份码",
+    "createCodeHint": "设置身份码与角色；明文仅显示一次，请在关闭面板前复制。",
+    "roleLabel": "角色",
+    "codeInputLabel": "身份码",
+    "generateCode": "生成随机身份码",
+    "issuedCodeLabel": "新的{role}身份码（仅显示一次）",
+    "issuedCodeHint": "请立即复制并通过安全渠道分发。",
+    "currentCode": "当前身份码",
+    "currentCodeSessionEnded": "当前会话已结束",
+    "currentCodeSessionEndedHint": "此身份码已替换或禁用。请复制上方新身份码，然后重新兑换进入房间。",
+    "returnToRedeem": "使用身份码重新进入",
+    "replace": "替换",
+    "replacementCodeLabel": "新的身份码",
+    "saveCode": "保存身份码",
+    "updateFailed": "无法更新身份码",
+    "cancel": "取消",
+    "adminLifetimeHint": "管理员身份码始终随房间生命周期到期。",
+    "identityCodes": "身份码列表",
+    "identityCodesHint": "禁用后身份码无法兑换；重置会撤销其所有活跃会话。",
+    "noIdentityCodes": "暂无身份码",
+    "disabled": "已禁用",
+    "codeCreated": "创建于 {time}",
+    "codeExpires": "过期于 {time}",
+    "disable": "禁用",
+    "disableSuccess": "身份码已禁用",
+    "disableFailed": "无法禁用身份码",
+    "issuing": "生成中...",
+    "issueFailed": "生成失败",
+    "sessions": "活跃会话",
+    "sessionsHint": "房间内全部有效身份，吊销后对方会立即断开连接。",
+    "sessionCurrent": "当前",
+    "sessionCreated": "签发 {time}",
+    "sessionExpires": "过期 {time}",
+    "revoke": "吊销",
+    "revoking": "吊销中...",
+    "revokeSuccess": "已吊销该会话",
+    "revokeFailed": "吊销失败",
+    "noSessions": "暂无活跃会话",
+    "validator": "校验身份码",
+    "validatorHint": "粘贴任意身份码，确认其角色与有效性。",
+    "validatorPlaceholder": "粘贴身份码",
+    "validate": "校验",
+    "validating": "校验中...",
+    "invalidFormat": "身份码格式不正确",
+    "invalid": "身份码无效或已过期",
+    "validRole": "有效 · 角色：{role}",
+    "durationLabel": "有效期",
+    "durationHint": "身份码到期自动失效，最长不超过房间有效期；admin 身份码始终跟随房间生命周期。",
+    "invalidDuration": "请输入大于 0 的有效时长",
+    "unitSecond": "秒",
+    "unitMinute": "分钟",
+    "unitHour": "小时",
+    "unitDay": "天",
+    "unitMonth": "个月",
+    "issuedTokenExpires": "有效期至 {time}"
+  },
+  "roles": {
+    "title": "角色权限",
+    "loading": "正在加载角色矩阵...",
+    "forbidden": "当前身份无权管理房间角色。",
+    "newRole": "新建角色",
+    "roleKey": "角色 key",
+    "roleKeyPlaceholder": "例如：moderator",
+    "displayName": "显示名称",
+    "displayNamePlaceholder": "角色名称",
+    "save": "保存角色",
+    "saving": "保存中...",
+    "delete": "删除角色",
+    "deleting": "删除中...",
+    "off": "关闭",
+    "any": "任意",
+    "own": "仅自己",
+    "systemBadge": "系统",
+    "defaultBadge": "默认加入",
+    "adminWarning": "修改管理员权限可能影响你自己对房间的控制能力，请谨慎操作。",
+    "immediateEffect": "保存后立即对全房会话生效。",
+    "saveSuccess": "角色已保存",
+    "deleteSuccess": "角色已删除",
+    "saveFailed": "无法保存角色",
+    "deleteFailed": "无法删除角色",
+    "deleteDefaultRoleConflict": "该角色是默认加入角色，请先在房间设置中修改默认角色。",
+    "groups": {
+      "room": "房间管理",
+      "msg": "消息",
+      "file": "文件"
+    },
+    "caps": {
+      "room": {
+        "share": {
+          "label": "分享房间"
+        },
+        "settings": {
+          "update": {
+            "label": "修改房间设置"
+          }
+        },
+        "roles": {
+          "manage": {
+            "label": "管理成员与角色"
+          }
+        },
+        "delete": {
+          "label": "关闭房间"
+        }
+      },
+      "msg": {
+        "read": {
+          "label": "查看消息"
+        },
+        "send": {
+          "label": "发送消息"
+        },
+        "copy": {
+          "label": "复制消息"
+        },
+        "edit": {
+          "label": "编辑消息"
+        },
+        "delete": {
+          "label": "删除消息"
+        },
+        "visibility": {
+          "manage": {
+            "label": "控制消息显隐"
+          }
+        }
+      },
+      "file": {
+        "list": {
+          "label": "查看文件列表"
+        },
+        "preview": {
+          "label": "预览文件"
+        },
+        "download": {
+          "label": "下载文件"
+        },
+        "upload": {
+          "label": "上传文件"
+        },
+        "delete": {
+          "label": "删除文件"
+        },
+        "policy": {
+          "manage": {
+            "label": "管理下载策略"
+          }
+        },
+        "visibility": {
+          "manage": {
+            "label": "控制文件显隐"
+          }
+        }
+      }
+    }
+  },
   "passwordDialog": {
     "title": "房间已加密",
     "description": "房间 {roomName} 需要密码才能访问",
@@ -208,7 +397,14 @@
     "delete": "删除",
     "messageNumber": "消息 #{number}",
     "userLabel": "用户:",
-    "timeLabel": "时间:"
+    "timeLabel": "时间:",
+    "hidden": "已隐藏",
+    "hide": "隐藏消息",
+    "show": "取消隐藏",
+    "hideSuccess": "消息已隐藏",
+    "showSuccess": "消息已恢复显示",
+    "visibilityFailed": "操作失败，请重试",
+    "hiddenHint": "仅管理成员可见，普通成员看不到这条消息"
   },
   "messageInput": {
     "editingBanner": "正在编辑消息",
@@ -271,7 +467,10 @@
     "downloadSelected": "下载选中文件"
   },
   "fileCard": {
-    "deleteFile": "删除文件"
+    "deleteFile": "删除文件",
+    "hidden": "已隐藏",
+    "hide": "隐藏文件",
+    "show": "取消隐藏"
   },
   "fileDeleteConfirm": {
     "fileType": "文件",

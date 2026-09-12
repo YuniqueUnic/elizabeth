@@ -24,6 +24,8 @@ interface MessageListProps {
   editingMessageId: string | null;
   canEdit: boolean;
   canDelete: boolean;
+  canToggleMessageVisibility: (message: Message) => boolean;
+  onToggleVisibility: (message: Message) => void;
 }
 
 export function MessageList(
@@ -39,6 +41,8 @@ export function MessageList(
     editingMessageId,
     canEdit,
     canDelete,
+    canToggleMessageVisibility,
+    onToggleVisibility,
   }:
     MessageListProps,
 ) {
@@ -258,6 +262,8 @@ export function MessageList(
                     isEditing={editingMessageId === message.id}
                     canEdit={canEdit}
                     canDelete={canDelete}
+                    canToggleVisibility={canToggleMessageVisibility(message)}
+                    onToggleVisibility={onToggleVisibility}
                   />
                 ))
               )}

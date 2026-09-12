@@ -11,6 +11,7 @@ import type {
   RoomView as GeneratedRoomView,
   RoomContentView as GeneratedRoomContentView,
   IssueTokenResponse as GeneratedIssueTokenResponse,
+  CreateRoomResponse as GeneratedCreateRoomResponse,
   UploadPreparationResponse as GeneratedUploadPreparationResponse,
   ValidateTokenResponse as GeneratedValidateTokenResponse,
 } from '../types/generated/api.types';
@@ -58,19 +59,18 @@ export function parseContentType(
   return typeMap[backendType.type] ?? ContentType.File;
 }
 
-/**
- * Room permission bits (backend uses bitflags)
- * - READ = 1
- * - EDIT = 2
- * - SHARE = 4
- * - DELETE = 8
- */
-export type RoomPermission = "read" | "edit" | "share" | "delete";
+/** Backend room role and capability contracts. */
+export type { Capability, Grant, RoleDefinition } from '../types/generated/api.types';
+import type { Capability, Grant, RoleDefinition } from '../types/generated/api.types';
 
-/**
- * Backend Room response
- */
+/** 每个房间最多同时有效的 Editor 身份码数量（与后端 MAX_EDITOR_TOKENS 一致）。 */
+export const MAX_EDITOR_TOKENS = 10;
+
 export type BackendRoom = GeneratedRoomView;
+export type CreateRoomResponse = GeneratedCreateRoomResponse;
+export type RoomRole = RoleDefinition;
+export type RoomGrant = Grant;
+export type RoomCapability = Capability;
 
 /**
  * Backend RoomContent response
@@ -111,7 +111,7 @@ export interface RoomDetails {
   timesEntered: number;
   maxTimesEntered: number;
   settings: RoomSettings;
-  permissions: RoomPermission[];
+  defaultRoleKey: string;
   createdAt: string;
 }
 
@@ -126,6 +126,8 @@ export interface Message {
   isNew?: boolean;
   isDirty?: boolean;
   isPendingDelete?: boolean;
+  hidden?: boolean;
+  createdByJti?: string;
   originalContent?: string;
   sequence_number?: number;
 }
@@ -152,6 +154,8 @@ export interface FileItem {
   createdAt?: string;
   uploadedAt?: string;
   sequence_number?: number;
+  hidden?: boolean;
+  createdByJti?: string;
 }
 
 /**
@@ -161,6 +165,8 @@ export interface TokenInfo {
   token: string;
   expiresAt: string;
   refreshToken?: string;
+  capabilities?: RoomGrant[];
+  roleKey?: string;
 }
 
 /**
@@ -174,47 +180,8 @@ function bigintToNumber(value: bigint | number): number {
   return typeof value === "bigint" ? Number(value) : value;
 }
 
-// ============================================================================
-// Permission Utilities
-// ============================================================================
-
 /**
- * Convert backend permission bits to frontend permission strings
- */
-export function parsePermissions(bits: number | string): RoomPermission[] {
-  // Handle string representation (e.g., "VIEW_ONLY | EDITABLE | SHARE | DELETE")
-  if (typeof bits === "string") {
-    const perms: RoomPermission[] = [];
-    if (bits.includes("VIEW_ONLY") || bits.includes("1")) perms.push("read");
-    if (bits.includes("EDITABLE") || bits.includes("2")) perms.push("edit");
-    if (bits.includes("SHARE") || bits.includes("4")) perms.push("share");
-    if (bits.includes("DELETE") || bits.includes("8")) perms.push("delete");
-    return perms;
-  }
-
-  // Handle numeric bit flags
-  const perms: RoomPermission[] = [];
-  if (bits & 1) perms.push("read");
-  if (bits & 2) perms.push("edit");
-  if (bits & 4) perms.push("share");
-  if (bits & 8) perms.push("delete");
-  return perms;
-}
-
-/**
- * Convert frontend permission strings to backend permission bits
- */
-export function encodePermissions(perms: RoomPermission[]): number {
-  let bits = 0;
-  if (perms.includes("read")) bits |= 1;
-  if (perms.includes("edit")) bits |= 2;
-  if (perms.includes("share")) bits |= 4;
-  if (perms.includes("delete")) bits |= 8;
-  return bits;
-}
-
-/**
- * Convert backend Room to frontend RoomDetails
+ * Convert backend Room to frontend RoomDetails.
  */
 export function backendRoomToRoomDetails(room: BackendRoom): RoomDetails {
   return {
@@ -230,7 +197,7 @@ export function backendRoomToRoomDetails(room: BackendRoom): RoomDetails {
       passwordProtected: room.password_protected,
       maxViews: bigintToNumber(room.max_times_entered),
     },
-    permissions: parsePermissions(room.permission),
+    defaultRoleKey: room.default_role_key,
     createdAt: room.created_at,
   };
 }
@@ -254,6 +221,8 @@ export function backendContentToMessage(content: BackendRoomContent): Message {
     updatedAt: content.updated_at,
     fileName: content.file_name || undefined,
     sequence_number: content.sequence_number,
+    hidden: content.hidden,
+    createdByJti: content.created_by_jti || undefined,
   };
 }
 
@@ -295,5 +264,7 @@ export function backendContentToFileItem(
     createdAt: content.created_at,
     uploadedAt: content.created_at,
     sequence_number: content.sequence_number,
+    hidden: content.hidden,
+    createdByJti: content.created_by_jti || undefined,
   };
 }

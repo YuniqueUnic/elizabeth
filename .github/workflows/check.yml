@@ -165,6 +165,8 @@ jobs:
         run: ./target/debug/board run &
         env:
           JWT_SECRET: ci-test-secret-at-least-32-characters-long # pragma: allowlist secret
+          # e2e fixture 通过平台引导凭证补签身份码；与 playwright 配置的默认值一致
+          ELIZABETH_ADMIN_TOKEN: elizabeth-test-admin
 
       - name: Wait for backend
         run: |

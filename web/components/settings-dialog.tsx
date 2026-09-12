@@ -154,6 +154,7 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
     setDesktopNotificationPermission,
     desktopNotificationTypes,
     setDesktopNotificationType,
+    currentRoomId,
   } = useAppStore();
 
   useEffect(() => {

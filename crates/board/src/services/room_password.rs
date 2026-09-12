@@ -1,8 +1,5 @@
 use anyhow::{Context, Result};
-use argon2::{
-    Argon2, PasswordHash, PasswordHasher, PasswordVerifier,
-    password_hash::{SaltString, rand_core::OsRng},
-};
+use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use sqlx::Row;
 
 use crate::db::DbPool;
@@ -27,9 +24,8 @@ impl RoomPasswordService {
 }
 
 fn hash_password(password: &str) -> Result<String> {
-    let salt = SaltString::generate(&mut OsRng);
     Argon2::default()
-        .hash_password(password.as_bytes(), &salt)
+        .hash_password(password.as_bytes())
         .map(|hash| hash.to_string())
         .map_err(|error| anyhow::anyhow!("failed to hash room password: {error}"))
 }

@@ -10,9 +10,10 @@ use sha2::{Digest, Sha256};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+use crate::authz::{Authz, Resource};
 use crate::errors::AppError;
 use crate::handlers::{AuthToken, verify_room_token};
-use crate::models::permission::RoomPermission;
+use crate::models::room::role::Capability;
 use crate::repository::{
     DownloadPolicyRepository, IDownloadPolicyRepository, IRoomContentRepository,
     RoomContentRepository,
@@ -20,8 +21,6 @@ use crate::repository::{
 use crate::state::AppState;
 use crate::validation::{RoomNameValidator, TokenValidator};
 use board_protocol::models::room::{DownloadPolicyMode, FileAccessCode, FileDownloadPolicy};
-
-use super::{ContentPermission, ensure_permission};
 
 #[utoipa::path(
     get,
@@ -48,11 +47,7 @@ pub async fn get_policy(
     RoomNameValidator::validate_identifier(&name)?;
     TokenValidator::validate_token_format(&token)?;
     let verified = verify_room_token(app_state.clone(), &name, &token).await?;
-    ensure_permission(
-        &verified.claims,
-        verified.room.permission.can_view(),
-        ContentPermission::View,
-    )?;
+    let authz = Authz::for_claims(&app_state, &verified.room, &verified.claims).await?;
 
     let content_repo = RoomContentRepository::new(app_state.db_pool.clone());
     let content = content_repo
@@ -64,6 +59,14 @@ pub async fn get_policy(
     if content.room_id != verified.room.id.unwrap() {
         return Err(AppError::not_found("Content not found in this room"));
     }
+    authz.require(
+        Capability::FilePreview,
+        &Resource::Content {
+            room_id: content.room_id,
+            content_type: content.content_type,
+            created_by_jti: content.created_by_jti.as_deref(),
+        },
+    )?;
 
     let policy_repo = DownloadPolicyRepository::new(app_state.db_pool.clone());
     let policy = policy_repo
@@ -164,11 +167,7 @@ pub async fn set_policy(
 ) -> Result<Json<PolicyResponse>, AppError> {
     TokenValidator::validate_token_format(&token)?;
     let verified = verify_room_token(app_state.clone(), &name, &token).await?;
-    ensure_permission(
-        &verified.claims,
-        verified.room.permission.can_edit(),
-        ContentPermission::Delete,
-    )?;
+    let authz = Authz::for_claims(&app_state, &verified.room, &verified.claims).await?;
 
     let content_repo = RoomContentRepository::new(app_state.db_pool.clone());
     let content = content_repo
@@ -180,6 +179,14 @@ pub async fn set_policy(
     if content.room_id != verified.room.id.unwrap() {
         return Err(AppError::not_found("Content not found in this room"));
     }
+    authz.require(
+        Capability::FilePolicyManage,
+        &Resource::Content {
+            room_id: content.room_id,
+            content_type: content.content_type,
+            created_by_jti: content.created_by_jti.as_deref(),
+        },
+    )?;
 
     let policy_repo = DownloadPolicyRepository::new(app_state.db_pool.clone());
 
@@ -332,11 +339,7 @@ pub async fn generate_codes(
 
     TokenValidator::validate_token_format(&token)?;
     let verified = verify_room_token(app_state.clone(), &name, &token).await?;
-    ensure_permission(
-        &verified.claims,
-        verified.room.permission.can_edit(),
-        ContentPermission::Delete,
-    )?;
+    let authz = Authz::for_claims(&app_state, &verified.room, &verified.claims).await?;
 
     let content_repo = RoomContentRepository::new(app_state.db_pool.clone());
     let content = content_repo
@@ -348,6 +351,14 @@ pub async fn generate_codes(
     if content.room_id != verified.room.id.unwrap() {
         return Err(AppError::not_found("Content not found in this room"));
     }
+    authz.require(
+        Capability::FilePolicyManage,
+        &Resource::Content {
+            room_id: content.room_id,
+            content_type: content.content_type,
+            created_by_jti: content.created_by_jti.as_deref(),
+        },
+    )?;
 
     let policy_repo = DownloadPolicyRepository::new(app_state.db_pool.clone());
     let policy = policy_repo
@@ -413,11 +424,7 @@ pub async fn redeem_code(
 ) -> Result<Json<RedeemResponse>, AppError> {
     TokenValidator::validate_token_format(&token)?;
     let verified = verify_room_token(app_state.clone(), &name, &token).await?;
-    ensure_permission(
-        &verified.claims,
-        verified.room.permission.can_view(),
-        ContentPermission::View,
-    )?;
+    let authz = Authz::for_claims(&app_state, &verified.room, &verified.claims).await?;
 
     let client_ip = headers
         .get("x-forwarded-for")
@@ -444,6 +451,15 @@ pub async fn redeem_code(
     if content.room_id != verified.room.id.unwrap() {
         return Err(AppError::not_found("Content not found in this room"));
     }
+    // 兑换即为了下载；卡密/次数等 Resource Policy 校验仍在其后。
+    authz.require(
+        Capability::FileDownload,
+        &Resource::Content {
+            room_id: content.room_id,
+            content_type: content.content_type,
+            created_by_jti: content.created_by_jti.as_deref(),
+        },
+    )?;
 
     let policy_repo = DownloadPolicyRepository::new(app_state.db_pool.clone());
 

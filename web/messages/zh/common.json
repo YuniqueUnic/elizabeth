@@ -52,7 +52,8 @@
       "room": {
         "address_changed": "房间地址已变更",
         "permissions_changed": "房间权限已更新",
-        "settings_changed": "房间配置已更新"
+        "settings_changed": "房间配置已更新",
+        "roles_changed": "成员角色已变更"
       }
     },
     "summary": {
@@ -72,14 +73,16 @@
       "room": {
         "address_changed": "房间地址已变更",
         "permissions_changed": "房间权限已更新",
-        "settings_changed": "房间配置已更新"
+        "settings_changed": "房间配置已更新",
+        "roles_changed": "成员角色已变更"
       }
     },
     "roomUpdateSubject": {
       "addressChanged": "房间地址已变更：{path}",
       "address_changed": "房间地址已变更",
       "permissions_changed": "房间权限已更新",
-      "settings_changed": "房间配置已更新"
+      "settings_changed": "房间配置已更新",
+      "roles_changed": "成员角色已变更"
     }
   },
   "copySelectedMessages": "复制选中消息",
@@ -106,6 +109,8 @@
   "loadingRoom": "正在加载房间...",
   "errorTitle": "错误",
   "preparingRoomAccess": "正在准备房间访问...",
+  "roomReadyTitle": "房间已创建",
+  "roomReadyDescription": "房间 {roomName} 已就绪。请先保存下方的一次性管理员身份码，它是恢复管理员身份的唯一凭据。",
   "roomAddressChanged": "房间地址已变更",
   "roomRedirectedToast": "该房间已切换到新的地址，请跳转继续。",
   "roomRedirectDescription": "该房间已切换到新的地址：{path}。为继续使用，请跳转到新地址并重新登录。",

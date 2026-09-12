@@ -20,4 +20,8 @@ max_times_entered?: number | null,
 /**
  * 最大容量限制（可选，单位：字节）
  */
-max_size?: number | null, };
+max_size?: number | null, 
+/**
+ * 新成员默认加入角色（可选；必须存在于本房角色集）
+ */
+default_role_key?: string, };

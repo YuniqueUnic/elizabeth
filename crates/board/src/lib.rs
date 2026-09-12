@@ -1,4 +1,5 @@
 #![allow(unused_imports, unused_variables, dead_code)]
+pub mod authz;
 mod chunk_temp_storage;
 pub mod cmd;
 pub mod config;
@@ -10,7 +11,6 @@ mod init;
 pub mod middleware;
 pub use board_protocol::dto;
 pub use board_protocol::models;
-pub mod permissions;
 pub mod repository;
 pub mod route;
 mod scheduler;
@@ -203,7 +203,9 @@ async fn apply_sqlite_journal_mode(
         SqliteJournalMode::Wal => "WAL",
     };
     let statement = format!("PRAGMA journal_mode = {pragma_value}");
-    sqlx::query(&statement).execute(pool).await?;
+    sqlx::query(sqlx::AssertSqlSafe(statement))
+        .execute(pool)
+        .await?;
     Ok(())
 }
 

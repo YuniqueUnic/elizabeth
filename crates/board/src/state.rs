@@ -25,6 +25,8 @@ pub struct AppState {
     pub connection_manager: Arc<ConnectionManager>,
     /// WebSocket 广播器
     pub broadcaster: Arc<Broadcaster>,
+    /// 房间角色矩阵缓存（键：room_id，失效：rooms.roles_version）
+    pub roles_cache: Arc<crate::authz::RoleTableCache>,
 }
 
 impl AppState {
@@ -42,12 +44,14 @@ impl AppState {
         // 创建 WebSocket 广播器
         let broadcaster = Arc::new(Broadcaster::new(connection_manager.clone()));
 
+        let roles_cache = services.roles_cache.clone();
         Ok(Self {
             db_pool,
             config,
             services,
             connection_manager,
             broadcaster,
+            roles_cache,
         })
     }
 

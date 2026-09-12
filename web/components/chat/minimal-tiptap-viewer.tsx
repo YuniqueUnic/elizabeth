@@ -3,6 +3,7 @@
 import {
   useEditor,
   EditorContent,
+  NodeViewContent,
   NodeViewWrapper,
   ReactNodeViewRenderer,
   type NodeViewProps,
@@ -21,6 +22,7 @@ import {
   DEFAULT_CODE_BLOCK_LANGUAGE,
   normalizeCodeBlockLanguage,
 } from "./code-block-language";
+import { setMarkdownToEditor } from "./editor/helpers";
 
 const lowlight = createLowlight(common);
 
@@ -31,8 +33,12 @@ function ShikiCodeBlockView({ node }: NodeViewProps) {
       : DEFAULT_CODE_BLOCK_LANGUAGE;
 
   return (
-    <NodeViewWrapper className="not-prose w-full max-w-full min-w-0 overflow-hidden" contentEditable={false}>
+    <NodeViewWrapper
+      className="not-prose w-full max-w-full min-w-0 overflow-hidden"
+      contentEditable={false}
+    >
       <CodeHighlighter code={node.textContent} language={language} />
+      <NodeViewContent className="hidden" />
     </NodeViewWrapper>
   );
 }
@@ -72,7 +78,12 @@ export function MinimalTiptapViewer({ content, className, onFileClick }: Minimal
         lowlight,
         defaultLanguage: DEFAULT_CODE_BLOCK_LANGUAGE,
       }),
-      Markdown,
+      Markdown.configure({
+        markedOptions: {
+          gfm: true,
+          breaks: true,
+        },
+      }),
       ImageAuth.configure({
         HTMLAttributes: {
           class: "max-w-sm max-h-64 object-contain rounded-md border border-border cursor-zoom-in",
@@ -146,7 +157,7 @@ export function MinimalTiptapViewer({ content, className, onFileClick }: Minimal
   // Update content when it changes
   useEffect(() => {
     if (editor && !editor.isDestroyed) {
-      editor.commands.setContent(content, { contentType: "markdown" });
+      setMarkdownToEditor(editor, content);
     }
   }, [content, editor]);
 

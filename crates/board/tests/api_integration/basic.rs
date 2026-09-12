@@ -134,7 +134,7 @@ async fn test_find_room_api() -> Result<()> {
     assert_eq!(created["password_protected"], false);
     assert_eq!(created["max_size"], 50 * 1024 * 1024);
     assert_eq!(created["max_times_entered"], 100);
-    assert_eq!(created["permission"], 15);
+    assert_eq!(created["default_role_key"], "reader");
 
     // 查找房间
     let find_request = Request::builder()
@@ -160,9 +160,9 @@ async fn test_find_room_api() -> Result<()> {
 async fn test_find_nonexistent_room() -> Result<()> {
     let (app, pool) = create_test_app().await?;
 
-    // Product contract: a valid missing room URL is a zero-step room creation flow.
-    // Do not change this back to 404 or pre-create the room in this test: both the
-    // browser direct-link UX and the deployment-defined creation defaults depend on it.
+    // Product contract: GET is a pure query. Room creation is a POST command so
+    // that every provisioned room completes the admin identity-code initialization;
+    // the browser implements zero-step provisioning on top of that command.
     let request = Request::builder()
         .method(Method::GET)
         .uri("/api/v1/rooms/nonexistent")
@@ -170,44 +170,71 @@ async fn test_find_nonexistent_room() -> Result<()> {
         .body(Body::empty())?;
 
     let response = app.clone().oneshot(request).await?;
-    assert_eq!(response.status(), StatusCode::OK);
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await?;
-    let room: serde_json::Value = serde_json::from_slice(&body)?;
-    let room_id = room["id"].as_i64().expect("room id");
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
-    assert_eq!(room["name"], "nonexistent");
-    assert_eq!(room["slug"], "nonexistent");
-    assert_eq!(room["password_protected"], false);
-    assert_eq!(room["max_size"], 50 * 1024 * 1024);
-    assert_eq!(room["max_times_entered"], 100);
-    assert_eq!(room["permission"], 15);
+    let room_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM rooms WHERE name = $1")
+        .bind("nonexistent")
+        .fetch_one(pool.as_ref())
+        .await?;
+    assert_eq!(room_count, 0);
 
-    let created_at = room["created_at"]
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_direct_url_provisioning_via_create_command() -> Result<()> {
+    let (app, _pool) = create_test_app().await?;
+
+    let create_request = Request::builder()
+        .method(Method::POST)
+        .uri("/api/v1/rooms/nonexistent")
+        .header("content-type", "application/json")
+        .body(Body::from("{}"))?;
+
+    let create_response = app.clone().oneshot(create_request).await?;
+    assert_eq!(create_response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(create_response.into_body(), usize::MAX).await?;
+    let created: serde_json::Value = serde_json::from_slice(&body)?;
+
+    // The command path must hand the visitor the creator credentials: an admin
+    // session plus the one-time admin identity code.
+    assert_eq!(created["claims"]["role"], "admin");
+    assert!(created["token"].as_str().is_some());
+    let identity_code = created["identity_code"]
+        .as_str()
+        .expect("identity code disclosed once");
+    assert!(!identity_code.is_empty());
+
+    // Direct-URL provisioning and explicit creation share the deployment defaults.
+    // RoomView is flattened into the create response.
+    assert_eq!(created["password_protected"], false);
+    assert_eq!(created["max_size"], 50 * 1024 * 1024);
+    assert_eq!(created["max_times_entered"], 100);
+    assert_eq!(created["default_role_key"], "reader");
+
+    let created_at = created["created_at"]
         .as_str()
         .expect("created_at")
         .parse::<chrono::NaiveDateTime>()?;
-    let expire_at = room["expire_at"]
+    let expire_at = created["expire_at"]
         .as_str()
         .expect("expire_at")
         .parse::<chrono::NaiveDateTime>()?;
     let lifetime = expire_at.signed_duration_since(created_at).num_seconds();
     assert!((7199..=7200).contains(&lifetime));
 
-    let second_request = Request::builder()
-        .method(Method::GET)
-        .uri("/api/v1/rooms/nonexistent")
-        .body(Body::empty())?;
-    let second_response = app.oneshot(second_request).await?;
-    assert_eq!(second_response.status(), StatusCode::OK);
-    let second_body = axum::body::to_bytes(second_response.into_body(), usize::MAX).await?;
-    let second_room: serde_json::Value = serde_json::from_slice(&second_body)?;
-    assert_eq!(second_room["id"], room_id);
+    // The disclosed code redeems into the admin role.
+    let redeem = Request::builder()
+        .method(Method::POST)
+        .uri("/api/v1/rooms/nonexistent/identity-codes/redeem")
+        .header("content-type", "application/json")
+        .body(Body::from(format!(r#"{{"code":"{identity_code}"}}"#)))?;
 
-    let room_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM rooms WHERE name = $1")
-        .bind("nonexistent")
-        .fetch_one(pool.as_ref())
-        .await?;
-    assert_eq!(room_count, 1);
+    let redeem_response = app.oneshot(redeem).await?;
+    assert_eq!(redeem_response.status(), StatusCode::OK);
+    let redeem_body = axum::body::to_bytes(redeem_response.into_body(), usize::MAX).await?;
+    let redeemed: serde_json::Value = serde_json::from_slice(&redeem_body)?;
+    assert_eq!(redeemed["claims"]["role"], "admin");
 
     Ok(())
 }
@@ -221,8 +248,21 @@ async fn test_find_missing_long_identifier_does_not_bypass_creation_name_rules()
         .uri(format!("/api/v1/rooms/{name}"))
         .body(Body::empty())?;
 
-    let response = app.oneshot(request).await?;
-    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let response = app.clone().oneshot(request).await?;
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    let room_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM rooms")
+        .fetch_one(pool.as_ref())
+        .await?;
+    assert_eq!(room_count, 0);
+
+    // Creation name rules live on the command path.
+    let create_request = Request::builder()
+        .method(Method::POST)
+        .uri(format!("/api/v1/rooms/{name}"))
+        .header("content-type", "application/json")
+        .body(Body::from("{}"))?;
+    let create_response = app.oneshot(create_request).await?;
+    assert_eq!(create_response.status(), StatusCode::BAD_REQUEST);
     let room_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM rooms")
         .fetch_one(pool.as_ref())
         .await?;
@@ -233,11 +273,15 @@ async fn test_find_missing_long_identifier_does_not_bypass_creation_name_rules()
 #[tokio::test]
 async fn test_concurrent_direct_url_requests_converge_on_one_room() -> Result<()> {
     let (app, pool) = create_test_app().await?;
+    // Direct-URL provisioning fans out to concurrent create commands when the
+    // room is missing; create_if_absent must converge on a single room and a
+    // single admin identity code instead of double-provisioning.
     let request = || {
         Request::builder()
-            .method(Method::GET)
+            .method(Method::POST)
             .uri("/api/v1/rooms/concurrent-direct")
-            .body(Body::empty())
+            .header("content-type", "application/json")
+            .body(Body::from("{}"))
             .expect("request")
     };
 
@@ -247,14 +291,20 @@ async fn test_concurrent_direct_url_requests_converge_on_one_room() -> Result<()
     );
     let left = left?;
     let right = right?;
-    assert_eq!(left.status(), StatusCode::OK);
-    assert_eq!(right.status(), StatusCode::OK);
-
-    let left: serde_json::Value =
-        serde_json::from_slice(&axum::body::to_bytes(left.into_body(), usize::MAX).await?)?;
-    let right: serde_json::Value =
-        serde_json::from_slice(&axum::body::to_bytes(right.into_body(), usize::MAX).await?)?;
-    assert_eq!(left["id"], right["id"]);
+    let statuses = [left.status(), right.status()];
+    assert!(
+        statuses.contains(&StatusCode::OK) && statuses.contains(&StatusCode::CONFLICT),
+        "expected one 200 and one 409, got {statuses:?}"
+    );
+    let (created_response, _) = if left.status() == StatusCode::OK {
+        (left, right)
+    } else {
+        (right, left)
+    };
+    let created: serde_json::Value = serde_json::from_slice(
+        &axum::body::to_bytes(created_response.into_body(), usize::MAX).await?,
+    )?;
+    assert_eq!(created["claims"]["role"], "admin");
 
     let room_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM rooms WHERE name = $1")
         .bind("concurrent-direct")
@@ -269,24 +319,13 @@ async fn test_delete_room_api() -> Result<()> {
     let (app, pool) = create_test_app().await?;
 
     // 先创建一个房间
-    let create_request = create_room_request("delete_test", None);
+    let create_request = create_room_request("delete_test", Some("secret123"));
 
     let create_response = app.clone().oneshot(create_request).await?;
     assert_eq!(create_response.status(), StatusCode::OK);
-
-    // 获取具有删除权限的 token
-    let token_payload = json!({});
-    let token_request = create_http_request(
-        Method::POST,
-        "/api/v1/rooms/delete_test/tokens",
-        Some(Body::from(token_payload.to_string())),
-    );
-
-    let token_response = app.clone().oneshot(token_request).await?;
-    assert_eq!(token_response.status(), StatusCode::OK);
-    let token_body = axum::body::to_bytes(token_response.into_body(), usize::MAX).await?;
-    let token_json: serde_json::Value = serde_json::from_slice(&token_body)?;
-    let token = token_json["token"].as_str().unwrap().to_string();
+    let create_body = axum::body::to_bytes(create_response.into_body(), usize::MAX).await?;
+    let create_json: serde_json::Value = serde_json::from_slice(&create_body)?;
+    let token = create_json["token"].as_str().unwrap().to_string();
 
     // 删除房间（需要提供 token）
     let delete_request = create_http_request(
@@ -308,18 +347,18 @@ async fn test_delete_room_api() -> Result<()> {
             .contains("deleted successfully")
     );
 
-    // 先直接查询存储，避免 GET 的自动创建产品契约掩盖删除结果。
+    // 先直接查询存储，避免掩盖删除结果。
     let count_after_delete: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM rooms WHERE name = $1")
         .bind("delete_test")
         .fetch_one(pool.as_ref())
         .await?;
     assert_eq!(count_after_delete, 0);
 
-    // 删除后再次直接访问属于真实 miss，因此会创建一个新的默认房间。
+    // 删除后再次访问属于真实 miss；GET 是纯查询，不会重建房间。
     let find_request = create_http_request(Method::GET, "/api/v1/rooms/delete_test", None);
 
     let find_response = app.clone().oneshot(find_request).await?;
-    assert_eq!(find_response.status(), StatusCode::OK);
+    assert_eq!(find_response.status(), StatusCode::NOT_FOUND);
 
     Ok(())
 }
@@ -383,19 +422,8 @@ async fn test_complete_crud_workflow() -> Result<()> {
     assert_eq!(find_json["id"].as_i64().unwrap(), room_id);
     assert_eq!(find_json["name"].as_str().unwrap(), room_name);
 
-    // 3. 获取具有删除权限的 token
-    let token_payload = json!({ "password": "secret123" });
-    let token_request = create_http_request(
-        Method::POST,
-        &format!("/api/v1/rooms/{}/tokens", room_name),
-        Some(Body::from(token_payload.to_string())),
-    );
-
-    let token_response = app.clone().oneshot(token_request).await?;
-    assert_eq!(token_response.status(), StatusCode::OK);
-    let token_body = axum::body::to_bytes(token_response.into_body(), usize::MAX).await?;
-    let token_json: serde_json::Value = serde_json::from_slice(&token_body)?;
-    let token = token_json["token"].as_str().unwrap().to_string();
+    // 3. 使用创建响应中的 admin 身份码删除房间
+    let token = create_json["token"].as_str().unwrap().to_string();
 
     // 4. 删除房间（需要 token）
     let delete_request = create_http_request(
@@ -407,7 +435,7 @@ async fn test_complete_crud_workflow() -> Result<()> {
     let delete_response = app.clone().oneshot(delete_request).await?;
     assert_eq!(delete_response.status(), StatusCode::OK);
 
-    // 5. 直接验证持久层已删除；GET miss 会按产品契约重新创建。
+    // 5. 直接验证持久层已删除；GET 是纯查询，不会重建房间。
     let count_after_delete: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM rooms WHERE name = $1")
         .bind(room_name)
         .fetch_one(pool.as_ref())
@@ -417,12 +445,8 @@ async fn test_complete_crud_workflow() -> Result<()> {
     let verify_request =
         create_http_request(Method::GET, &format!("/api/v1/rooms/{}", room_name), None);
 
-    let verify_response = app.clone().oneshot(verify_request).await?;
-    assert_eq!(verify_response.status(), StatusCode::OK);
-    let verify_body = axum::body::to_bytes(verify_response.into_body(), usize::MAX).await?;
-    let recreated: serde_json::Value = serde_json::from_slice(&verify_body)?;
-    assert_ne!(recreated["id"].as_i64(), Some(room_id));
-    assert_eq!(recreated["password_protected"], false);
+    let verify_response = app.oneshot(verify_request).await?;
+    assert_eq!(verify_response.status(), StatusCode::NOT_FOUND);
 
     Ok(())
 }

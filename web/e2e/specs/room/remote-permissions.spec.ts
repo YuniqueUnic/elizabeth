@@ -1,61 +1,67 @@
 import { expect, test } from "../../screenplay/fixtures/screenplay.fixture";
 import type { ProvisionedRoom } from "../../screenplay/support/constants";
-import { tCommon } from "../../screenplay/support/i18n";
+import { tCommon, tRoom } from "../../screenplay/support/i18n";
 import { uniqueRoomName } from "../../screenplay/support/test-data";
 import {
   DraftMessageText,
-  PermissionState,
   UnsavedBadgeCount,
 } from "../../screenplay/room/questions/Room.questions";
 import { RoomScreen } from "../../screenplay/room/screens/Room.screen";
 import {
   OpenRoom,
   SendCurrentDraft,
-  SetRoomPermissions,
   TrySaveMessages,
 } from "../../screenplay/room/tasks/Room.tasks";
+import { CallElizabethApi } from "../../screenplay/abilities/CallElizabethApi.ability";
+import type { CapabilityGrant } from "../../screenplay/abilities/CallElizabethApi.ability";
+
+const READER_FULL: CapabilityGrant[] = [
+  { capability: "msg.read", scope: "any" },
+  { capability: "msg.send", scope: "any" },
+  { capability: "msg.copy", scope: "any" },
+  { capability: "msg.edit", scope: "any" },
+  { capability: "msg.delete", scope: "any" },
+  { capability: "msg.visibility.manage", scope: "any" },
+  { capability: "file.list", scope: "any" },
+  { capability: "file.preview", scope: "any" },
+  { capability: "file.download", scope: "any" },
+];
+
+const READER_READONLY: CapabilityGrant[] = [
+  { capability: "msg.read", scope: "any" },
+  { capability: "msg.copy", scope: "any" },
+  { capability: "file.list", scope: "any" },
+  { capability: "file.preview", scope: "any" },
+  { capability: "file.download", scope: "any" },
+];
 
 test.describe("Remote room permission downgrades", () => {
   let room: ProvisionedRoom;
+  let api: CallElizabethApi;
+  let adminToken: string;
 
-  test.beforeEach(async ({ actor, provisionRoom }) => {
+  test.beforeEach(async ({ actor, provisionRoom, request }) => {
     room = await provisionRoom({
       actor,
       roomName: uniqueRoomName("screenplay-remote-permissions"),
     });
+    api = CallElizabethApi.using(request);
+    adminToken = room.tokenInfo!.token;
 
     await actor.attemptsTo(OpenRoom(room.url));
   });
 
-  test("keeps the current user's local draft while blocking cloud save after edit/delete are revoked", async ({
-    actor,
+  test("role matrix changes apply live: reader regains and loses save rights without rejoining", async ({
     createActor,
   }) => {
     const remoteUser = await createActor("remote permission downgraded user");
     await remoteUser.actor.attemptsTo(OpenRoom(room.url));
 
+    // 初始 reader 无编辑权：草稿保留在本地，保存被拒
     const draft = `Local draft after remote downgrade ${Date.now()}`;
     await RoomScreen.messageInput(remoteUser.page).fill(draft);
     await expect.poll(async () => remoteUser.actor.answer(DraftMessageText()))
       .toContain(draft);
-
-    await actor.attemptsTo(SetRoomPermissions({ delete: false, edit: false }));
-
-    await expect.poll(
-      async () => remoteUser.actor.answer(PermissionState("edit")),
-      { timeout: 15_000 },
-    ).toBe(false);
-    await expect.poll(
-      async () => remoteUser.actor.answer(PermissionState("delete")),
-      { timeout: 15_000 },
-    ).toBe(false);
-
-    await expect(RoomScreen.messageInput(remoteUser.page)).toBeVisible();
-    await expect.poll(async () => remoteUser.actor.answer(DraftMessageText()))
-      .toContain(draft);
-    await expect(RoomScreen.fileUploadButton(remoteUser.page)).toBeDisabled();
-    await expect(RoomScreen.fileAddLinkButton(remoteUser.page)).toBeDisabled();
-    await expect(RoomScreen.fileUploadZone(remoteUser.page)).toHaveCount(0);
 
     await remoteUser.actor.attemptsTo(SendCurrentDraft());
     await expect.poll(async () => remoteUser.actor.answer(UnsavedBadgeCount()))
@@ -67,5 +73,49 @@ test.describe("Remote room permission downgrades", () => {
     );
     await expect.poll(async () => remoteUser.actor.answer(UnsavedBadgeCount()))
       .toBeGreaterThan(0);
+
+    // 提升为可编辑 → 保存成功，草稿落库
+    // can.edit 的可见信号：文件管理侧栏出现上传入口
+    expect(
+      await api.updateRole(room.name, "reader", READER_FULL, "Reader", adminToken),
+    ).toBe(200);
+    await expect
+      .poll(
+        () =>
+          remoteUser.page.getByText(tRoom("fileUploadZone.dragOrClick")).count(),
+        { timeout: 15_000 },
+      )
+      .toBeGreaterThan(0);
+
+    await remoteUser.actor.attemptsTo(TrySaveMessages());
+    await expect.poll(async () => remoteUser.actor.answer(UnsavedBadgeCount()))
+      .toBe(0);
+    await expect(RoomScreen.messageItems(remoteUser.page).filter({ hasText: draft })).toBeVisible();
+
+    // 远端再降级 → 本地权限位实时翻转，新保存再次被拒且草稿不丢
+    expect(
+      await api.updateRole(room.name, "reader", READER_READONLY, "Reader", adminToken),
+    ).toBe(200);
+    await expect
+      .poll(
+        () =>
+          remoteUser.page.getByText(tRoom("fileUploadZone.dragOrClick")).count(),
+        { timeout: 15_000 },
+      )
+      .toBe(0);
+
+    await RoomScreen.messageInput(remoteUser.page).fill(`${draft} - after downgrade`);
+    await remoteUser.actor.attemptsTo(SendCurrentDraft());
+    await expect.poll(async () => remoteUser.actor.answer(UnsavedBadgeCount()))
+      .toBeGreaterThan(0);
+
+    await remoteUser.actor.attemptsTo(TrySaveMessages());
+    await expect(RoomScreen.toast(remoteUser.page)).toContainText(
+      tCommon("permissionDenied.messageSaveEdit"),
+    );
+    // 待保存内容保留在本地消息列表，不丢失
+    await expect(
+      RoomScreen.messageItems(remoteUser.page).filter({ hasText: "after downgrade" }),
+    ).toBeVisible();
   });
 });

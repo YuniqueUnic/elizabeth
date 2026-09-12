@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use super::token::RoomTokenClaims;
+use crate::models::room::role::Grant;
 use crate::models::{Room, RoomStatus, RoomToken};
 
 #[derive(Debug, Default, Deserialize, ToSchema)]
@@ -12,6 +13,77 @@ pub struct CreateRoomRequest {
     /// 可选房间密码。密码只在请求边界出现，不会在房间响应中回显。
     #[cfg_attr(feature = "typescript-export", ts(optional))]
     pub password: Option<String>,
+    /// 创建者 admin 身份码；未提供时由服务端生成一次性随机身份码。
+    #[cfg_attr(feature = "typescript-export", ts(optional))]
+    pub admin_identity_code: Option<String>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
+pub struct CreateRoomResponse {
+    #[serde(flatten)]
+    pub room: RoomView,
+    pub token: String,
+    pub claims: RoomTokenClaims,
+    pub expires_at: NaiveDateTime,
+    pub capabilities: Vec<Grant>,
+    /// 创建时仅回显一次的 admin 身份码。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript-export", ts(optional))]
+    pub identity_code: Option<String>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct CreateRoomIdentityCodeRequest {
+    pub code: String,
+    pub role: String,
+    pub expires_in_secs: Option<i64>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct UpdateRoomIdentityCodeRequest {
+    /// 提供时重置身份码，明文仅在本次响应中返回。
+    pub code: Option<String>,
+    pub expires_in_secs: Option<i64>,
+    #[serde(default)]
+    pub disable: bool,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct RedeemRoomIdentityCodeRequest {
+    pub code: String,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
+pub struct RoomIdentityCodeView {
+    pub id: i64,
+    pub role: String,
+    pub expires_at: NaiveDateTime,
+    pub revoked_at: Option<NaiveDateTime>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+    /// 当前有效会话是否由此身份码兑换而来。
+    pub is_current: bool,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct CreateRoomIdentityCodeResponse {
+    #[serde(flatten)]
+    pub identity_code: RoomIdentityCodeView,
+    /// 只在创建或重置时回显一次，数据库中仅保存 Argon2 hash。
+    pub code: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct UpdateRoomIdentityCodeResponse {
+    #[serde(flatten)]
+    pub identity_code: RoomIdentityCodeView,
+    /// 仅在重置时回显一次。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -29,7 +101,8 @@ pub struct RoomView {
     pub expire_at: Option<NaiveDateTime>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
-    pub permission: u8,
+    /// 新成员默认加入的角色
+    pub default_role_key: String,
     pub password_protected: bool,
 }
 
@@ -47,7 +120,7 @@ impl From<&Room> for RoomView {
             expire_at: room.expire_at,
             created_at: room.created_at,
             updated_at: room.updated_at,
-            permission: room.permission.bits(),
+            default_role_key: room.default_role_key.clone(),
             password_protected: room.password.is_some(),
         }
     }
@@ -80,6 +153,16 @@ pub struct IssueTokenRequest {
     /// 是否请求刷新令牌对
     #[serde(default)]
     pub with_refresh_token: bool,
+    /// 请求加入的角色；缺省 = 房间默认角色。
+    /// 指定非默认角色需要 `room.roles.manage` 能力（匿名进房者只能拿默认角色）。
+    #[cfg_attr(feature = "typescript-export", ts(optional))]
+    pub role: Option<String>,
+    /// 身份码有效时长（秒）；仅对非默认角色生效，缺省 = 部署配置的默认 TTL。
+    /// 下限 60 秒，上限 10 年，实际有效期不会超过房间自身的过期时间。
+    /// admin 角色忽略此字段：admin 身份码始终跟随房间生命周期。
+    #[cfg_attr(feature = "typescript-export", ts(optional))]
+    #[serde(default)]
+    pub expires_in_secs: Option<i64>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -89,6 +172,8 @@ pub struct IssueTokenResponse {
     pub token: String,
     pub claims: RoomTokenClaims,
     pub expires_at: NaiveDateTime,
+    /// 签发时解析得到的能力快照（非判定依据；判定以 DB room_roles 实时为准）
+    pub capabilities: Vec<Grant>,
     /// 刷新令牌（仅在请求时返回）
     #[serde(skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "typescript-export", ts(optional))]
@@ -116,18 +201,6 @@ pub struct ValidateTokenResponse {
 #[derive(Debug, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
 #[cfg_attr(feature = "typescript-export", ts(export))]
-pub struct UpdateRoomPermissionRequest {
-    #[serde(default)]
-    pub edit: bool,
-    #[serde(default)]
-    pub share: bool,
-    #[serde(default)]
-    pub delete: bool,
-}
-
-#[derive(Debug, Deserialize, ToSchema)]
-#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct UpdateRoomSettingsRequest {
     /// 新房间密码。字段缺失表示保持当前密码不变。
     #[cfg_attr(feature = "typescript-export", ts(optional))]
@@ -148,9 +221,21 @@ pub struct UpdateRoomSettingsRequest {
     #[cfg_attr(feature = "typescript-export", ts(type = "number | null"))]
     #[cfg_attr(feature = "typescript-export", ts(optional))]
     pub max_size: Option<i64>,
+    /// 新成员默认加入角色（可选；必须存在于本房角色集）
+    #[cfg_attr(feature = "typescript-export", ts(optional))]
+    pub default_role_key: Option<String>,
 }
 
-#[derive(Debug, Serialize, ToSchema)]
+/// 当前会话的实时能力快照（角色矩阵变更后客户端刷新用）。
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
+pub struct MyCapabilitiesResponse {
+    pub role: String,
+    pub capabilities: Vec<Grant>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
 #[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct RevokeTokenResponse {
@@ -169,6 +254,9 @@ pub struct DeleteRoomResponse {
 #[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct RoomTokenView {
     pub jti: String,
+    /// 会话绑定的角色
+    #[cfg_attr(feature = "typescript-export", ts(optional))]
+    pub role_key: Option<String>,
     pub expires_at: NaiveDateTime,
     pub revoked_at: Option<NaiveDateTime>,
     pub created_at: NaiveDateTime,
@@ -178,6 +266,7 @@ impl From<RoomToken> for RoomTokenView {
     fn from(value: RoomToken) -> Self {
         Self {
             jti: value.jti,
+            role_key: value.role_key,
             expires_at: value.expires_at,
             revoked_at: value.revoked_at,
             created_at: value.created_at,

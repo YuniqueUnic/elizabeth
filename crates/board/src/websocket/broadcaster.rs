@@ -41,7 +41,11 @@ impl Broadcaster {
         self.manager.broadcast_to_room(room_name, message).await
     }
 
-    /// 广播内容更新事件
+    /// 广播内容更新事件。
+    ///
+    /// 事件广播到全房间，隐藏内容不得经由 payload 泄漏正文：
+    /// hidden = true 时省略 text/file_name，客户端收到后只需失效查询缓存，
+    /// 可见性过滤由各自的列表接口按能力完成。
     pub async fn broadcast_content_updated(
         &self,
         room_name: &str,
@@ -51,8 +55,10 @@ impl Broadcaster {
             "content_id": content.id,
             "room_name": room_name,
             "content_type": content.content_type,
-            "text": content.text,
-            "file_name": content.file_name,
+            "text": if content.hidden { None } else { content.text.clone() },
+            "file_name": if content.hidden { None } else { content.file_name.clone() },
+            "hidden": content.hidden,
+            "created_by_jti": content.created_by_jti,
             "sequence_number": content.sequence_number,
             "created_at": content.created_at,
             "updated_at": content.updated_at,

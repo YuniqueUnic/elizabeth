@@ -161,7 +161,7 @@ test.describe("Room settings integration", () => {
       .toHaveAttribute("aria-expanded", "true");
     await expect(RoomScreen.settingDesktopNotificationType(page, "room", "address_changed"))
       .toBeVisible();
-    await expect(RoomScreen.settingDesktopNotificationType(page, "room", "permissions_changed"))
+    await expect(RoomScreen.settingDesktopNotificationType(page, "room", "roles_changed"))
       .toBeVisible();
     await expect(RoomScreen.settingDesktopNotificationType(page, "room", "settings_changed"))
       .toBeVisible();

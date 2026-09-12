@@ -14,7 +14,9 @@ use crate::repository::{
 use crate::state::AppState;
 use crate::validation::RoomNameValidator;
 
-use super::{ContentPermission, HandlerResult, ensure_permission, room_id_or_error};
+use super::{HandlerResult, room_id_or_error};
+use crate::authz::{Authz, Resource};
+use crate::models::room::role::Capability;
 
 #[utoipa::path(
     post,
@@ -56,14 +58,17 @@ pub async fn create_url_content(
     }
 
     let mut verified = verify_room_token(app_state.clone(), &name, &token).await?;
-    ensure_permission(
-        &verified.claims,
-        verified.room.permission.can_edit(),
-        ContentPermission::Edit,
-    )?;
+    let authz = Authz::for_claims(&app_state, &verified.room, &verified.claims).await?;
 
     let room_id = room_id_or_error(&verified.claims)?;
-    let content = build_url_content(room_id, display_name, url, payload.description);
+    authz.require(Capability::FileUpload, &Resource::Room { room_id })?;
+    let content = build_url_content(
+        room_id,
+        &verified.claims.jti,
+        display_name,
+        url,
+        payload.description,
+    );
     let content_size = content.size.unwrap_or(0);
     if !verified.room.can_add_content(content_size) {
         return Err(AppError::payload_too_large("Room size limit exceeded"));
@@ -91,6 +96,7 @@ pub async fn create_url_content(
 
 fn build_url_content(
     room_id: i64,
+    owner_jti: &str,
     display_name: &str,
     url: &str,
     description: Option<String>,
@@ -102,6 +108,7 @@ fn build_url_content(
         .sequence_number(0)
         .now(now)
         .build();
+    content.created_by_jti = Some(owner_jti.to_string());
     content.file_name = Some(display_name.to_string());
     content.text = description
         .map(|description| description.trim().to_string())

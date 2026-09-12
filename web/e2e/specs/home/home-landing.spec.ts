@@ -5,9 +5,10 @@ import {
   NavigateBackFromJoinForm,
   VisitHomePage,
 } from "../../screenplay/home/tasks/Home.tasks";
-import { CurrentRoomName } from "../../screenplay/room/questions/Room.questions";
+import { CurrentRoomName, DisclosedIdentityCode } from "../../screenplay/room/questions/Room.questions";
 import { RoomScreen } from "../../screenplay/room/screens/Room.screen";
-import { OpenRoom } from "../../screenplay/room/tasks/Room.tasks";
+import { OpenRoom, OpenUnprovisionedRoom } from "../../screenplay/room/tasks/Room.tasks";
+import { EnterRoomAfterDisclosure } from "../../screenplay/room/tasks/Room.tasks";
 import { API_BASE_URL } from "../../screenplay/support/constants";
 import { uniqueRoomName } from "../../screenplay/support/test-data";
 
@@ -30,20 +31,25 @@ test.describe("Home landing", () => {
     expect(await actor.answer(CurrentRoomName())).toBe(roomName);
   });
 
-  // Product contract: keep this room unprovisioned. Opening a valid missing
-  // room URL must create it with the deployment defaults. Pre-creating the
-  // room here would silently remove coverage for the zero-step creation UX.
-  test("creates a missing room when its URL is opened directly", async ({
+  // Product contract: opening a valid missing room URL provisions the room
+  // through the create command. The creator receives an admin session and the
+  // one-time admin identity code instead of a silent default-role session.
+  test("provisions a missing room with admin credentials when its URL is opened", async ({
     actor,
     page,
   }) => {
     const roomName = uniqueRoomName("screenplay-direct-room");
 
-    await actor.attemptsTo(
-      OpenRoom(`/${roomName}`),
-    );
+    await actor.attemptsTo(OpenUnprovisionedRoom(`/${roomName}`));
+
+    await expect(RoomScreen.identityCodeDisclosure(page)).toBeVisible();
+    const disclosedCode = await actor.answer(DisclosedIdentityCode());
+    expect(disclosedCode).not.toBe("");
+
+    await actor.attemptsTo(EnterRoomAfterDisclosure());
 
     await expect(RoomScreen.messageInput(page)).toBeVisible();
+    await expect(RoomScreen.membersButton(page)).toBeVisible();
     expect(await actor.answer(CurrentRoomName())).toBe(roomName);
 
     const response = await page.request.get(
@@ -57,7 +63,7 @@ test.describe("Home landing", () => {
       password_protected: false,
       max_size: 50 * 1024 * 1024,
       max_times_entered: 100,
-      permission: 15,
+      default_role_key: "reader",
     });
     const lifetimeSeconds = Math.round(
       (Date.parse(room.expire_at) - Date.parse(room.created_at)) / 1000,

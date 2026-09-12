@@ -22,6 +22,8 @@ const CONTENT_SELECT_BASE: &str = r#"
         size,
         mime_type,
         sequence_number,
+        created_by_jti,
+        hidden,
         CAST(created_at AS TEXT) as created_at,
         CAST(updated_at AS TEXT) as updated_at
     FROM room_contents
@@ -76,7 +78,7 @@ impl RoomContentRepository {
         E: sqlx::Executor<'e, Database = Any>,
     {
         let sql = format!("{CONTENT_SELECT_BASE} WHERE id = $1");
-        let content = sqlx::query_as::<_, RoomContent>(&sql)
+        let content = sqlx::query_as::<_, RoomContent>(sqlx::AssertSqlSafe(sql))
             .bind(content_id)
             .fetch_optional(executor)
             .await?;
@@ -113,9 +115,9 @@ impl IRoomContentRepository for RoomContentRepository {
         let id: i64 = sqlx::query_scalar(
             r#"
             INSERT INTO room_contents
-                (room_id, content_type, text, url, path, file_name, size, mime_type, sequence_number, created_at, updated_at)
+                (room_id, content_type, text, url, path, file_name, size, mime_type, sequence_number, created_by_jti, hidden, created_at, updated_at)
             VALUES
-                ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
             RETURNING id
             "#,
         )
@@ -128,6 +130,8 @@ impl IRoomContentRepository for RoomContentRepository {
         .bind(room_content.size)
         .bind(&room_content.mime_type)
         .bind(room_content.sequence_number)
+        .bind(&room_content.created_by_jti)
+        .bind(room_content.hidden)
         .bind(now_str.clone())
         .bind(now_str)
         .fetch_one(&mut *tx)
@@ -154,8 +158,8 @@ impl IRoomContentRepository for RoomContentRepository {
             UPDATE room_contents SET
                 room_id = $1, content_type = $2, text = $3,
                 url = $4, path = $5, file_name = $6, size = $7, mime_type = $8,
-                sequence_number = $9, updated_at = $10
-            WHERE id = $11
+                sequence_number = $9, hidden = $10, updated_at = $11
+            WHERE id = $12
             "#,
         )
         .bind(room_content.room_id)
@@ -167,6 +171,7 @@ impl IRoomContentRepository for RoomContentRepository {
         .bind(room_content.size)
         .bind(&room_content.mime_type)
         .bind(room_content.sequence_number)
+        .bind(room_content.hidden)
         .bind(now_str)
         .bind(content_id)
         .execute(&mut *tx)
@@ -181,7 +186,7 @@ impl IRoomContentRepository for RoomContentRepository {
         let sql = format!(
             "{CONTENT_SELECT_BASE} WHERE room_id = $1 ORDER BY sequence_number ASC, id ASC"
         );
-        let rows = sqlx::query_as::<_, RoomContent>(&sql)
+        let rows = sqlx::query_as::<_, RoomContent>(sqlx::AssertSqlSafe(sql))
             .bind(room_id)
             .fetch_all(&*self.pool)
             .await?;
@@ -202,7 +207,7 @@ impl IRoomContentRepository for RoomContentRepository {
                    AND (sequence_number < $3 OR (sequence_number = $3 AND id < $4)) \
                  ORDER BY sequence_number DESC, id DESC LIMIT $5"
             );
-            sqlx::query_as::<_, RoomContent>(&sql)
+            sqlx::query_as::<_, RoomContent>(sqlx::AssertSqlSafe(sql))
                 .bind(room_id)
                 .bind(ContentType::Text)
                 .bind(cursor.sequence_number)
@@ -216,7 +221,7 @@ impl IRoomContentRepository for RoomContentRepository {
                  WHERE room_id = $1 AND content_type = $2 \
                  ORDER BY sequence_number DESC, id DESC LIMIT $3"
             );
-            sqlx::query_as::<_, RoomContent>(&sql)
+            sqlx::query_as::<_, RoomContent>(sqlx::AssertSqlSafe(sql))
                 .bind(room_id)
                 .bind(ContentType::Text)
                 .bind(fetch_limit)
@@ -263,7 +268,7 @@ impl IRoomContentRepository for RoomContentRepository {
         }
         sql.push(')');
 
-        let mut query = sqlx::query(&sql).bind(room_id);
+        let mut query = sqlx::query(sqlx::AssertSqlSafe(sql)).bind(room_id);
         for id in content_ids {
             query = query.bind(id);
         }

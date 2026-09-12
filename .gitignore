@@ -52,3 +52,7 @@ web/.next/
 crates/board/web-out/
 .playwright-mcp
 .ace-tool/
+.zcode/
+app.db.bkp*
+dev-assets/
+web/dev-assets/
