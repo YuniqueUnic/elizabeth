@@ -84,7 +84,7 @@ STORAGE_S3_REGION=auto
   响应中，鉴权与下载策略完全在服务端执行。
 - `presigned`（仅 `backend: s3` 可用）：服务端完成鉴权（房间 token、
   下载票据、访问码）与配额校验后，签发短时效预签名 URL：
-  - 下载：`GET /api/v1/contents/{id}` 返回 302 跳转到直下 URL （`curl -L` /
+  - 下载：`GET /api/v1/contents/{id}` 返回 302 跳转到直下 URL（`curl -L` /
     `wget` 透明跟随）；
   - 上传：prepare 响应携带逐文件直传 URL（`PUT`），直传完成后调用
     `POST /api/v1/rooms/{name}/contents/presigned-commit` 提交，服务端
@@ -106,7 +106,7 @@ app:
 
 注意事项：
 
-- 预签名 URL 的签发永远发生在鉴权之后，桶凭据不出现在任何响应中； 无有效 token /
+- 预签名 URL 的签发永远发生在鉴权之后，桶凭据不出现在任何响应中；无有效 token /
   票据拿不到签名 URL。
 - S3 SigV4 会把 Host 绑入签名；`presign_base_url` 替换域名仅在签名不 绑定 Host
   的部署（MinIO 配置 `domain`、透明签名代理）下可用，否则 保持缺省（使用 S3

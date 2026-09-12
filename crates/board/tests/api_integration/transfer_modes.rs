@@ -99,7 +99,7 @@ async fn test_proxy_mode_never_exposes_presign_urls() -> Result<()> {
     // 存储后端里的内容也不应通过任何 API 泄漏直链
     assert!(
         !uploaded.to_string().contains("s3.internal.test"),
-        "上传响应不得包含存储地址: {uploaded}"
+        "上传响应不得包含存储地址：{uploaded}"
     );
     Ok(())
 }
@@ -134,11 +134,11 @@ async fn test_presigned_upload_download_direct_flow() -> Result<()> {
     let url = presigned[0]["url"].as_str().expect("presign url");
     assert!(
         url.starts_with("https://cdn.example.com/"),
-        "自定义 base URL 应生效: {url}"
+        "自定义 base URL 应生效：{url}"
     );
     assert!(
         url.contains("X-Amz-Expires=300"),
-        "签名 URL 必须携带过期时间: {url}"
+        "签名 URL 必须携带过期时间：{url}"
     );
     let key = url
         .split("https://cdn.example.com/")
@@ -152,7 +152,7 @@ async fn test_presigned_upload_download_direct_flow() -> Result<()> {
             .unwrap()
             .chars()
             .all(|c| c.is_ascii_digit()),
-        "key 必须以数字房间 id 为前缀: {key}"
+        "key 必须以数字房间 id 为前缀：{key}"
     );
     let reservation_id = prepared["reservation_id"].as_i64().expect("reservation id");
 
