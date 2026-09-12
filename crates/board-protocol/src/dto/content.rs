@@ -16,6 +16,9 @@ pub struct RoomContentView {
     pub text: Option<String>,
     pub file_name: Option<String>,
     pub url: Option<String>,
+    /// 文件内容的相对下载路径（如 "/api/v1/contents/42"）。
+    /// 未包含任何凭据：房间 token 与下载票据仍由调用方按下载策略附加。
+    pub download_url: Option<String>,
     #[cfg_attr(feature = "typescript-export", ts(type = "number | null"))]
     pub size: Option<i64>,
     pub mime_type: Option<String>,
@@ -48,6 +51,8 @@ impl From<RoomContent> for RoomContentView {
             text: value.text,
             file_name,
             url: value.url,
+            download_url: (value.content_type == ContentType::File)
+                .then(|| format!("/api/v1/contents/{}", value.id.unwrap_or_default())),
             size: value.size,
             mime_type: value.mime_type,
             sequence_number: value.sequence_number,

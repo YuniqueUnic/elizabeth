@@ -29,18 +29,30 @@ use super::{HandlerResult, ensure_room_storage, room_id_or_error};
 use crate::authz::{Authz, Resource};
 use crate::handlers::{AuthToken, verify_room_token};
 use crate::models::room::role::Capability;
-use crate::models::room::upload_file_policy::upload_file_type_violation;
+use crate::models::room::upload_file_policy::{
+    is_safe_upload_file_name, upload_file_type_violation,
+};
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct UploadReservationQuery {
     pub reservation_id: i64,
 }
 
-struct TempUpload {
-    original_name: String,
-    path: PathBuf,
-    size: i64,
-    mime: Option<String>,
+pub(super) struct TempUpload {
+    pub(super) original_name: String,
+    pub(super) path: PathBuf,
+    pub(super) size: i64,
+    pub(super) mime: Option<String>,
+}
+
+/// 预留上传失败的统一映射：容量超限 → 413，其余 → 500。
+pub(super) fn map_reservation_error(e: anyhow::Error) -> AppError {
+    let msg = e.to_string();
+    if msg.to_lowercase().contains("limit exceeded") {
+        AppError::payload_too_large("Room size limit exceeded")
+    } else {
+        AppError::internal(format!("Reserve upload failed: {msg}"))
+    }
 }
 
 #[utoipa::path(
@@ -141,6 +153,12 @@ pub async fn prepare_upload(
                 file.name
             )));
         }
+        if !is_safe_upload_file_name(&file.name) {
+            return Err(AppError::validation(format!(
+                "Invalid file name: {}",
+                file.name
+            )));
+        }
         if !names.insert(file.name.clone()) {
             return Err(AppError::validation(format!(
                 "Duplicate file name {}",
@@ -171,14 +189,7 @@ pub async fn prepare_upload(
             ttl,
         )
         .await
-        .map_err(|e| {
-            let msg = e.to_string();
-            if msg.to_lowercase().contains("limit exceeded") {
-                AppError::payload_too_large("Room size limit exceeded")
-            } else {
-                AppError::internal(format!("Reserve upload failed: {msg}"))
-            }
-        })?;
+        .map_err(map_reservation_error)?;
 
     verified.room = updated_room.clone();
 
@@ -389,7 +400,7 @@ async fn stage_upload_field(
     })
 }
 
-fn unique_upload_path(storage_dir: &Path, file_name: &str) -> Result<PathBuf, AppError> {
+pub(super) fn unique_upload_path(storage_dir: &Path, file_name: &str) -> Result<PathBuf, AppError> {
     let safe_file_name = sanitize_filename::sanitize(file_name);
     let mut final_filename = safe_file_name.clone();
     let mut counter = 1;
@@ -443,7 +454,7 @@ async fn write_field_to_file(field: &mut Field<'_>, file_path: &Path) -> Result<
     Ok(size)
 }
 
-async fn persist_staged_uploads(
+pub(super) async fn persist_staged_uploads(
     repository: &RoomContentRepository,
     app_state: &Arc<AppState>,
     room_name: &str,
@@ -517,7 +528,7 @@ fn broadcast_content_created(app_state: Arc<AppState>, room_name: String, conten
     });
 }
 
-async fn consume_upload_reservation(
+pub(super) async fn consume_upload_reservation(
     reservation_repo: &RoomUploadReservationRepository,
     reservation_id: i64,
     room_id: i64,

@@ -82,6 +82,20 @@ pub fn extension_of(file_name: &str) -> Option<String> {
 pub const MAX_UPLOAD_FILE_TYPE_EXTENSIONS: usize = 64;
 pub const MAX_UPLOAD_FILE_TYPE_EXTENSION_LEN: usize = 16;
 
+/// 上传文件名长度上限，取各平台文件系统单段路径的字节上限。
+pub const MAX_UPLOAD_FILE_NAME_LEN: usize = 255;
+
+/// 上传文件名是否可以安全落盘：拒绝空名、路径分隔符、目录指代与控制字符，
+/// 防止存储路径逃逸出房间目录。'/' 与 '\' 在多平台上一律视为分隔符。
+pub fn is_safe_upload_file_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= MAX_UPLOAD_FILE_NAME_LEN
+        && !name.contains(['/', '\\'])
+        && name != "."
+        && name != ".."
+        && !name.chars().any(char::is_control)
+}
+
 /// 扩展名列表校验失败。Display 产出稳定的英文消息，前端按前缀映射到 i18n。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UploadFilePolicyError {

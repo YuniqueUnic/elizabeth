@@ -32,9 +32,10 @@ pub use role::{
 };
 pub use token::RoomToken;
 pub use upload_file_policy::{
-    MAX_UPLOAD_FILE_TYPE_EXTENSION_LEN, MAX_UPLOAD_FILE_TYPE_EXTENSIONS, UploadFilePolicyError,
-    UploadFileTypeMode, UploadFileTypePolicy, extension_of, normalize_upload_file_extensions,
-    normalize_upload_file_type, upload_file_type_violation,
+    MAX_UPLOAD_FILE_NAME_LEN, MAX_UPLOAD_FILE_TYPE_EXTENSION_LEN, MAX_UPLOAD_FILE_TYPE_EXTENSIONS,
+    UploadFilePolicyError, UploadFileTypeMode, UploadFileTypePolicy, extension_of,
+    is_safe_upload_file_name, normalize_upload_file_extensions, normalize_upload_file_type,
+    upload_file_type_violation,
 };
 pub use upload_reservation::{RoomUploadReservation, UploadFileDescriptor, UploadStatus};
 
