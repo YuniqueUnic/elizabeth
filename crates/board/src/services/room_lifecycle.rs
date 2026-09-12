@@ -38,14 +38,17 @@ pub struct FullRoomGcStatus {
 #[derive(Clone)]
 pub struct RoomLifecycleService {
     repository: Arc<RoomLifecycleRepository>,
-    storage_root: PathBuf,
+    storage: Arc<dyn crate::storage::StorageBackend>,
 }
 
 impl RoomLifecycleService {
-    pub fn new(repository: Arc<RoomLifecycleRepository>, storage_root: PathBuf) -> Self {
+    pub fn new(
+        repository: Arc<RoomLifecycleRepository>,
+        storage: Arc<dyn crate::storage::StorageBackend>,
+    ) -> Self {
         Self {
             repository,
-            storage_root,
+            storage,
         }
     }
 
@@ -174,29 +177,13 @@ impl RoomLifecycleService {
     }
 
     async fn purge_room(&self, room_id: i64) -> Result<bool> {
-        for path in self.repository.list_content_paths(room_id).await? {
-            remove_file_if_present(Path::new(&path)).await?;
-        }
-        remove_dir_if_present(&self.storage_root.join(room_id.to_string())).await?;
+        self.storage
+            .purge_room(room_id)
+            .await
+            .with_context(|| format!("failed to purge storage for room {room_id}"))?;
         self.repository
             .delete_room_graph(room_id)
             .await
             .context("failed to delete room persistence graph")
-    }
-}
-
-async fn remove_file_if_present(path: &Path) -> Result<()> {
-    match tokio::fs::remove_file(path).await {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error).with_context(|| format!("failed to remove {}", path.display())),
-    }
-}
-
-async fn remove_dir_if_present(path: &Path) -> Result<()> {
-    match tokio::fs::remove_dir_all(path).await {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error).with_context(|| format!("failed to remove {}", path.display())),
     }
 }

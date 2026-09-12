@@ -4,4 +4,5 @@ mod direct_upload;
 mod identity_codes;
 mod message_pagination;
 mod roles;
+mod storage_backends;
 mod tokens;

@@ -111,12 +111,67 @@ impl fmt::Debug for JwtConfig {
     }
 }
 
+/// 内容存储后端类型。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, SmartDefault, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StorageBackendKind {
+    /// 本地文件系统（默认）
+    #[default]
+    Fs,
+    /// S3 兼容对象存储（AWS S3 / MinIO / Cloudflare R2）
+    S3,
+}
+
+/// S3 兼容对象存储连接配置。
+#[derive(Merge, Clone, SmartDefault, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
+pub struct S3StorageConfig {
+    #[default(String::new())]
+    #[merge(strategy = overwrite_not_empty_string)]
+    pub endpoint: String,
+    #[default(String::new())]
+    #[merge(strategy = overwrite_not_empty_string)]
+    pub bucket: String,
+    #[default(String::new())]
+    #[merge(strategy = overwrite_not_empty_string)]
+    pub access_key_id: String,
+    #[default(String::new())]
+    #[merge(strategy = overwrite_not_empty_string)]
+    pub secret_access_key: String, // pragma: allowlist secret
+    #[default(None)]
+    #[merge(strategy = overwrite)]
+    pub region: Option<String>,
+}
+
+impl fmt::Debug for S3StorageConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("S3StorageConfig")
+            .field("endpoint", &self.endpoint)
+            .field("bucket", &self.bucket)
+            .field("access_key_id", &self.access_key_id)
+            .field(
+                "secret_access_key",
+                &secret_for_debug(&self.secret_access_key),
+            )
+            .field("region", &self.region)
+            .finish()
+    }
+}
+
 #[derive(Merge, Debug, Clone, SmartDefault, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct StorageConfig {
     #[default("storage/rooms")]
     #[merge(strategy = overwrite_not_empty_string)]
     pub root: String, // pragma: allowlist secret
+    /// 内容存储后端；默认本地文件系统。
+    #[default(StorageBackendKind::Fs)]
+    #[merge(strategy = overwrite)]
+    pub backend: StorageBackendKind,
+    /// S3/R2 连接配置；backend = s3 时必填。
+    #[default(None)]
+    #[merge(strategy = overwrite)]
+    pub s3: Option<S3StorageConfig>,
 }
 
 /// 房间部署策略。
@@ -455,6 +510,7 @@ mod tests {
             },
             storage: StorageConfig {
                 root: "/tmp/storage".into(),
+                ..Default::default()
             },
             room: RoomConfig {
                 defaults: DefaultRoomConfig {

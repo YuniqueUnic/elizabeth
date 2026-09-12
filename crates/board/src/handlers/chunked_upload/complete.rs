@@ -109,15 +109,14 @@ pub async fn complete_file_merge(
         return Err(AppError::validation(upload_file_type_violation(&file.name)));
     }
 
-    let storage_dir = storage_root.join(room_id.to_string());
-    fs::create_dir_all(&storage_dir)
+    let key = crate::storage::unique_key(app_state.storage.as_ref(), room_id, &file.name)
         .await
-        .map_err(|e| AppError::internal(format!("创建存储目录失败：{}", e)))?;
-
-    let final_storage_path = unique_storage_path(&storage_dir, &file.name)?;
-    fs::rename(&final_file_path, &final_storage_path)
+        .map_err(|e| AppError::internal(format!("生成存储路径失败：{}", e)))?;
+    let final_storage_path = app_state
+        .storage
+        .store_file(&key, &final_file_path)
         .await
-        .map_err(|e| AppError::internal(format!("移动文件失败：{}", e)))?;
+        .map_err(|e| AppError::internal(format!("存储文件失败：{}", e)))?;
 
     reservation_repository
         .consume_reservation(
@@ -293,36 +292,6 @@ fn first_manifest_file(
     file_manifest
         .first()
         .ok_or_else(|| AppError::internal("文件清单为空"))
-}
-
-fn unique_storage_path(storage_dir: &StdPath, file_name: &str) -> Result<String, AppError> {
-    let safe_file_name = sanitize_filename::sanitize(file_name);
-    let mut final_filename = safe_file_name.clone();
-    let mut counter = 1;
-    let mut final_storage_path = storage_dir.join(&final_filename);
-
-    while final_storage_path.exists() {
-        let path = StdPath::new(&safe_file_name);
-        let stem = path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or(&safe_file_name);
-        let extension = path.extension().and_then(|s| s.to_str()).unwrap_or("");
-
-        final_filename = if extension.is_empty() {
-            format!("{}({})", stem, counter)
-        } else {
-            format!("{}({}).{}", stem, counter, extension)
-        };
-        final_storage_path = storage_dir.join(&final_filename);
-        counter += 1;
-
-        if counter > 1000 {
-            return Err(AppError::internal("Too many files with the same name"));
-        }
-    }
-
-    Ok(final_storage_path.to_string_lossy().into_owned())
 }
 
 async fn create_content_record(

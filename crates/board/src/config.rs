@@ -153,6 +153,21 @@ impl Default for ServerConfig {
 pub struct StorageConfig {
     pub root: PathBuf,
     pub upload_reservation_ttl_seconds: i64,
+    /// S3/R2 连接配置；None = 本地文件系统后端。
+    pub s3: Option<S3StorageConfig>,
+}
+
+/// S3 兼容对象存储连接配置（backend = s3 时使用）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct S3StorageConfig {
+    /// 服务端点，如 "https://s3.us-east-1.amazonaws.com" 或 R2 的账户端点
+    pub endpoint: String,
+    /// 存储桶名
+    pub bucket: String,
+    pub access_key_id: String,
+    pub secret_access_key: String,
+    /// 区域；R2 通常填 "auto"
+    pub region: Option<String>,
 }
 
 impl Default for StorageConfig {
@@ -160,6 +175,7 @@ impl Default for StorageConfig {
         Self {
             root: PathBuf::from(DEFAULT_STORAGE_ROOT),
             upload_reservation_ttl_seconds: DEFAULT_UPLOAD_RESERVATION_TTL_SECONDS,
+            s3: None,
         }
     }
 }

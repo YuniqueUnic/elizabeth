@@ -23,9 +23,10 @@ use crate::repository::{
     RoomUploadReservationRepository,
 };
 use crate::state::AppState;
+use crate::storage::unique_key;
 use crate::validation::RoomNameValidator;
 
-use super::{HandlerResult, ensure_room_storage, room_id_or_error};
+use super::{HandlerResult, room_id_or_error};
 use crate::authz::{Authz, Resource};
 use crate::handlers::{AuthToken, verify_room_token};
 use crate::models::room::role::Capability;
@@ -275,11 +276,13 @@ pub async fn upload_contents(
 
     let expected_map = build_expected_manifest(expected_files)?;
 
-    let storage_dir = ensure_room_storage(app_state.storage_root().as_ref(), room_id)
+    let scratch_dir =
+        crate::chunk_temp_storage::reservation_dir(app_state.storage_root(), query.reservation_id);
+    tokio::fs::create_dir_all(&scratch_dir)
         .await
         .map_err(|e| AppError::internal(format!("Failed to prepare storage directory: {e}")))?;
 
-    let staged = stage_multipart_uploads(multipart, &expected_map, &storage_dir).await?;
+    let staged = stage_multipart_uploads(multipart, &expected_map, &scratch_dir).await?;
 
     let repository = RoomContentRepository::new(app_state.db_pool.clone());
     let (uploaded, actual_total) = persist_staged_uploads(
@@ -378,7 +381,7 @@ async fn stage_upload_field(
         )));
     }
 
-    let file_path = unique_upload_path(storage_dir, &file_name)?;
+    let file_path = storage_dir.join(format!("stage_{}", uuid::Uuid::new_v4()));
     let size = write_field_to_file(&mut field, &file_path).await?;
 
     if size != expected.size {
@@ -388,7 +391,8 @@ async fn stage_upload_field(
         )));
     }
 
-    let mime = mime_guess::from_path(&file_path)
+    // mime 按原始文件名推断；暂存文件名是随机的，不含扩展名信息。
+    let mime = mime_guess::from_path(&file_name)
         .first_raw()
         .map(|m| m.to_string());
 
@@ -400,38 +404,10 @@ async fn stage_upload_field(
     })
 }
 
-pub(super) fn unique_upload_path(storage_dir: &Path, file_name: &str) -> Result<PathBuf, AppError> {
-    let safe_file_name = sanitize_filename::sanitize(file_name);
-    let mut final_filename = safe_file_name.clone();
-    let mut counter = 1;
-    let mut file_path = storage_dir.join(&final_filename);
-
-    while file_path.exists() {
-        let path = Path::new(&safe_file_name);
-        let stem = path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or(&safe_file_name);
-        let extension = path.extension().and_then(|s| s.to_str()).unwrap_or("");
-
-        final_filename = if extension.is_empty() {
-            format!("{}({})", stem, counter)
-        } else {
-            format!("{}({}).{}", stem, counter, extension)
-        };
-
-        file_path = storage_dir.join(&final_filename);
-        counter += 1;
-
-        if counter > 1000 {
-            return Err(AppError::internal("Too many files with the same name"));
-        }
-    }
-
-    Ok(file_path)
-}
-
-async fn write_field_to_file(field: &mut Field<'_>, file_path: &Path) -> Result<i64, AppError> {
+pub(super) async fn write_field_to_file(
+    field: &mut Field<'_>,
+    file_path: &Path,
+) -> Result<i64, AppError> {
     let mut temp_file = fs::File::create(file_path)
         .await
         .map_err(|e| AppError::internal(format!("Cannot create file: {e}")))?;
@@ -466,8 +442,25 @@ pub(super) async fn persist_staged_uploads(
     let mut actual_total: i64 = 0;
 
     for temp in staged {
+        let key = match unique_key(app_state.storage.as_ref(), room_id, &temp.original_name).await {
+            Ok(key) => key,
+            Err(e) => {
+                cleanup_staged_uploads(staged).await;
+                return Err(AppError::internal(format!(
+                    "Resolve storage key failed: {e}"
+                )));
+            }
+        };
+        let locator = match app_state.storage.store_file(&key, &temp.path).await {
+            Ok(locator) => locator,
+            Err(e) => {
+                cleanup_staged_uploads(staged).await;
+                return Err(AppError::internal(format!("Store content failed: {e}")));
+            }
+        };
+
         let saved = match repository
-            .create(&build_file_content(room_id, owner_jti, temp))
+            .create(&build_file_content(room_id, owner_jti, temp, locator))
             .await
         {
             Ok(value) => value,
@@ -487,7 +480,12 @@ pub(super) async fn persist_staged_uploads(
     Ok((uploaded, actual_total))
 }
 
-fn build_file_content(room_id: i64, owner_jti: &str, temp: &TempUpload) -> RoomContent {
+fn build_file_content(
+    room_id: i64,
+    owner_jti: &str,
+    temp: &TempUpload,
+    locator: String,
+) -> RoomContent {
     let now = chrono::Utc::now().naive_utc();
     let mut content = RoomContent {
         id: None,
@@ -506,7 +504,7 @@ fn build_file_content(room_id: i64, owner_jti: &str, temp: &TempUpload) -> RoomC
         updated_at: now,
     };
     content.set_path(
-        temp.path.to_string_lossy().to_string(),
+        locator,
         ContentType::File,
         temp.size,
         temp.mime

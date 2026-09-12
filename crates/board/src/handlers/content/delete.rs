@@ -77,7 +77,7 @@ pub async fn delete_contents(
         )?;
     }
 
-    let freed_size = remove_content_files(&contents).await;
+    let freed_size = remove_content_files(app_state.storage.as_ref(), &contents).await;
     let ids: Vec<i64> = contents.iter().filter_map(|content| content.id).collect();
 
     repository
@@ -116,11 +116,14 @@ fn collect_target_contents(contents: Vec<RoomContent>, target_ids: &[i64]) -> Ve
         .collect()
 }
 
-async fn remove_content_files(contents: &[RoomContent]) -> i64 {
+async fn remove_content_files(
+    storage: &dyn crate::storage::StorageBackend,
+    contents: &[RoomContent],
+) -> i64 {
     let mut freed_size = 0;
     for content in contents {
         if let Some(path) = &content.path {
-            tokio::fs::remove_file(path).await.ok();
+            storage.delete(path).await.ok();
         }
         freed_size += content.size.unwrap_or(0);
     }

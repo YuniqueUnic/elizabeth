@@ -27,9 +27,8 @@ use crate::validation::RoomNameValidator;
 
 use super::upload::{
     TempUpload, consume_upload_reservation, map_reservation_error, persist_staged_uploads,
-    unique_upload_path,
 };
-use super::{HandlerResult, ensure_room_storage, room_id_or_error};
+use super::{HandlerResult, room_id_or_error};
 
 /// 单命令整文件上传：`curl -T file "$BASE/api/v1/rooms/{name}/files/{filename}"`。
 /// 内部复用预留上传流程：按 Content-Length 预留 → 流式落盘 → 校验实际大小 → 持久化并核销。
@@ -109,10 +108,13 @@ pub async fn put_content(
         .id
         .ok_or_else(|| AppError::internal("Reservation id missing"))?;
 
-    let storage_dir = ensure_room_storage(app_state.storage_root().as_ref(), room_id)
+    // 暂存到预留目录：失败路径由预留清理任务兜底，成功后经后端原子转正。
+    let scratch_dir =
+        crate::chunk_temp_storage::reservation_dir(app_state.storage_root(), reservation_id);
+    tokio::fs::create_dir_all(&scratch_dir)
         .await
         .map_err(|e| AppError::internal(format!("Failed to prepare storage directory: {e}")))?;
-    let file_path = unique_upload_path(&storage_dir, &filename)?;
+    let file_path = scratch_dir.join(format!("stage_{}", uuid::Uuid::new_v4()));
 
     let size = match write_body_to_file(body, &file_path).await {
         Ok(size) => size,
