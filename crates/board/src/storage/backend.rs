@@ -389,38 +389,3 @@ pub fn presigned_key(room_id: i64, file_name: &str) -> String {
     let safe_name = sanitize_filename::sanitize(file_name);
     format!("{room_id}/{}/{safe_name}", uuid::Uuid::new_v4().simple())
 }
-
-/// 计算唯一 key：冲突时追加 (N)。文件名统一净化，杜绝路径逃逸。
-pub async fn unique_key(
-    backend: &dyn StorageBackend,
-    room_id: i64,
-    file_name: &str,
-) -> StorageResult<String> {
-    let safe_name = sanitize_filename::sanitize(file_name);
-    let base_key = format!("{room_id}/{safe_name}");
-    if !backend.exists_key(&base_key).await? {
-        return Ok(base_key);
-    }
-
-    let path = Path::new(&safe_name);
-    let stem = path
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or(&safe_name);
-    let extension = path.extension().and_then(|s| s.to_str()).unwrap_or("");
-
-    for counter in 1..1000 {
-        let candidate = if extension.is_empty() {
-            format!("{room_id}/{stem}({counter})")
-        } else {
-            format!("{room_id}/{stem}({counter}).{extension}")
-        };
-        if !backend.exists_key(&candidate).await? {
-            return Ok(candidate);
-        }
-    }
-
-    Err(StorageError::Other(
-        "Too many files with the same name".to_string(),
-    ))
-}

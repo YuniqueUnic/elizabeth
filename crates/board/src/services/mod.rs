@@ -90,6 +90,9 @@ impl Services {
         let room_lifecycle = Arc::new(RoomLifecycleService::new(
             room_lifecycle_repository,
             storage,
+            Arc::new(crate::repository::RoomContentBlobRepository::new(
+                db_pool.clone(),
+            )),
         ));
         let room_password = Arc::new(RoomPasswordService);
         let access_code_limiter = Arc::new(AccessCodeLimiter::new());

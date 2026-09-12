@@ -142,6 +142,7 @@ fn create_test_content() -> RoomContent {
         text: Some("test content".to_string()),
         url: None,
         path: None,
+        hash: None,
         file_name: None,
         size: None,
         mime_type: None,

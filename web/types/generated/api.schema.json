@@ -1276,6 +1276,13 @@
             "null"
           ]
         },
+        "hash": {
+          "description": "内容 SHA-256（小写 hex）；存量内容与 presigned 直传为 NULL，删除按旧路径处理",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "hidden": {
           "description": "对外可见性：hidden 的内容对缺少对应 visibility.manage 能力的身份不可见",
           "type": "boolean"
@@ -2071,6 +2078,16 @@
           "type": "string",
           "format": "partial-date-time"
         },
+        "instant_uploads": {
+          "description": "秒传命中并已建账的内容（哈希与大小均匹配既有 blob）。",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/RoomContentView"
+          }
+        },
         "max_size": {
           "type": "integer",
           "format": "int64"
@@ -2090,7 +2107,11 @@
           "format": "int64"
         },
         "reservation_id": {
-          "type": "integer",
+          "description": "待传文件的预留 id；全部文件秒传命中时为 None（无传输环节）。",
+          "type": [
+            "integer",
+            "null"
+          ],
           "format": "int64"
         },
         "reserved_size": {
@@ -2099,7 +2120,6 @@
         }
       },
       "required": [
-        "reservation_id",
         "reserved_size",
         "expires_at",
         "current_size",

@@ -172,6 +172,7 @@ fn build_presigned_content(
         text: None,
         url: None,
         path: None,
+        hash: None,
         file_name: Some(file.name.clone()),
         size: None,
         mime_type: None,

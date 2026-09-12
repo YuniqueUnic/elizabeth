@@ -39,16 +39,19 @@ pub struct FullRoomGcStatus {
 pub struct RoomLifecycleService {
     repository: Arc<RoomLifecycleRepository>,
     storage: Arc<dyn crate::storage::StorageBackend>,
+    blob_repository: Arc<dyn crate::repository::IRoomContentBlobRepository>,
 }
 
 impl RoomLifecycleService {
     pub fn new(
         repository: Arc<RoomLifecycleRepository>,
         storage: Arc<dyn crate::storage::StorageBackend>,
+        blob_repository: Arc<dyn crate::repository::IRoomContentBlobRepository>,
     ) -> Self {
         Self {
             repository,
             storage,
+            blob_repository,
         }
     }
 
@@ -177,6 +180,10 @@ impl RoomLifecycleService {
     }
 
     async fn purge_room(&self, room_id: i64) -> Result<bool> {
+        self.blob_repository
+            .delete_by_room(room_id)
+            .await
+            .context("failed to delete room blob references")?;
         self.storage
             .purge_room(room_id)
             .await
