@@ -1,6 +1,7 @@
 use board_protocol::models::room::upload_file_policy::{
-    UploadFilePolicyError, UploadFileTypeMode, UploadFileTypePolicy, extension_of,
-    normalize_upload_file_extensions, normalize_upload_file_type, upload_file_type_violation,
+    MAX_UPLOAD_FILE_NAME_LEN, UploadFilePolicyError, UploadFileTypeMode, UploadFileTypePolicy,
+    extension_of, is_safe_upload_file_name, normalize_upload_file_extensions,
+    normalize_upload_file_type, upload_file_type_violation,
 };
 
 #[test]
@@ -111,4 +112,28 @@ fn violation_message_carries_the_file_name() {
         upload_file_type_violation("evil.exe"),
         "File type not allowed by room policy: evil.exe"
     );
+}
+
+#[test]
+fn safe_file_name_accepts_ordinary_names() {
+    assert!(is_safe_upload_file_name("report.pdf"));
+    assert!(is_safe_upload_file_name("笔记 v2 (最终).md"));
+    assert!(is_safe_upload_file_name("a.b.c.txt"));
+    assert!(is_safe_upload_file_name(
+        &"x".repeat(MAX_UPLOAD_FILE_NAME_LEN)
+    ));
+}
+
+#[test]
+fn safe_file_name_rejects_path_escape_shapes() {
+    assert!(!is_safe_upload_file_name(""));
+    assert!(!is_safe_upload_file_name("."));
+    assert!(!is_safe_upload_file_name(".."));
+    assert!(!is_safe_upload_file_name("a/b.txt"));
+    assert!(!is_safe_upload_file_name("a\\b.txt"));
+    assert!(!is_safe_upload_file_name("../escape.txt"));
+    assert!(!is_safe_upload_file_name("line\nbreak.txt"));
+    assert!(!is_safe_upload_file_name(
+        &"x".repeat(MAX_UPLOAD_FILE_NAME_LEN + 1)
+    ));
 }

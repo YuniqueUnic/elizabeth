@@ -14,6 +14,7 @@
 
 - `API_GUIDE.md`：HTTP API 简版（建议先看）
 - `API_GUIDE_FULL.md`：HTTP API 详细版
+- `cli.md`：CLI / curl 速查（命令行建房 → 发消息 → 上传 → 下载完整工作流）
 - `WEBSOCKET_GUIDE.md`：WebSocket 简版（建议先看）
 - `WEBSOCKET_GUIDE_FULL.md`：WebSocket 详细版
 

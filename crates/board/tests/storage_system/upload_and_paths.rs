@@ -116,11 +116,43 @@ async fn test_storage_paths() -> Result<()> {
     let (app, pool) = create_test_app().await?;
     let room_name = "storage_path_test_room";
     let session = create_room_and_issue_session(&app, room_name, None).await?;
+
+    // 路径穿越形状的文件名在预留边界即被拒绝，不产生任何落盘内容。
+    let prepare = app
+        .clone()
+        .oneshot(create_request(
+            Method::POST,
+            &format!(
+                "/api/v1/rooms/{room_name}/contents/prepare?token={}",
+                session.token
+            ),
+            Some(Body::from(
+                json!({
+                    "files": [{
+                        "name": "../unsafe.txt",
+                        "size": 4,
+                        "mime": "text/plain"
+                    }]
+                })
+                .to_string(),
+            )),
+        ))
+        .await?;
+    assert_eq!(prepare.status(), StatusCode::BAD_REQUEST);
+    let stored: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM room_contents WHERE room_id = (SELECT id FROM rooms WHERE name = $1)",
+    )
+    .bind(room_name)
+    .fetch_one(pool.as_ref())
+    .await?;
+    assert_eq!(stored, 0, "traversal-shaped upload must not persist");
+
+    // 普通文件名落在存储根目录内。
     let uploaded = upload_file(
         &app,
         room_name,
         &session.token,
-        "../unsafe.txt",
+        "safe.txt",
         "text/plain",
         b"safe",
     )
@@ -132,7 +164,6 @@ async fn test_storage_paths() -> Result<()> {
         .await?;
     let storage_root = std::env::temp_dir();
     assert!(path.starts_with(storage_root.to_string_lossy().as_ref()));
-    assert!(!path.ends_with("../unsafe.txt"));
     assert!(tokio::fs::try_exists(path).await?);
     Ok(())
 }

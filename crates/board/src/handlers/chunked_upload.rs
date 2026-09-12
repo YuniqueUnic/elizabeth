@@ -25,7 +25,9 @@ use crate::{
 
 use crate::authz::{Authz, Resource};
 use crate::models::room::role::Capability;
-use crate::models::room::upload_file_policy::upload_file_type_violation;
+use crate::models::room::upload_file_policy::{
+    is_safe_upload_file_name, upload_file_type_violation,
+};
 
 use super::{AuthToken, VerifiedRoomToken, verify_room_token};
 type HandlerResult<T> = AppResult<Json<T>>;
@@ -68,8 +70,8 @@ pub async fn prepare_chunked_upload(
 
     // 验证每个文件的信息
     for file in &payload.files {
-        if file.name.is_empty() {
-            return Err(AppError::validation("文件名不能为空"));
+        if !is_safe_upload_file_name(&file.name) {
+            return Err(AppError::validation(format!("文件名不合法：{}", file.name)));
         }
         if file.size <= 0 {
             return Err(AppError::validation("文件大小必须大于 0"));

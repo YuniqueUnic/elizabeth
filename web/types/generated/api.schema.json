@@ -1331,6 +1331,13 @@
             "null"
           ]
         },
+        "download_url": {
+          "description": "文件内容的相对下载路径（如 \"/api/v1/contents/42\"）。\n未包含任何凭据：房间 token 与下载票据仍由调用方按下载策略附加。",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "file_name": {
           "type": [
             "string",
