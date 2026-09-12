@@ -1706,6 +1706,10 @@
         "updated_at": {
           "type": "string",
           "format": "partial-date-time"
+        },
+        "upload_file_type": {
+          "description": "上传文件类型策略（any/allow/deny + 扩展名列表）",
+          "$ref": "#/$defs/UploadFileTypePolicy"
         }
       },
       "required": [
@@ -1720,6 +1724,7 @@
         "created_at",
         "updated_at",
         "default_role_key",
+        "upload_file_type",
         "password_protected"
       ]
     },
@@ -1893,6 +1898,17 @@
             "null"
           ],
           "default": null
+        },
+        "upload_file_type": {
+          "description": "上传文件类型策略（可选；any 模式忽略扩展名列表，allow/deny 模式要求列表非空）",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UploadFileTypePolicy"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },
@@ -1949,6 +1965,45 @@
       "required": [
         "name",
         "size"
+      ]
+    },
+    "UploadFileTypeMode": {
+      "description": "房间上传文件类型策略模式",
+      "oneOf": [
+        {
+          "description": "不限制上传文件类型",
+          "type": "string",
+          "const": "any"
+        },
+        {
+          "description": "仅允许列出的扩展名",
+          "type": "string",
+          "const": "allow"
+        },
+        {
+          "description": "拒绝列出的扩展名",
+          "type": "string",
+          "const": "deny"
+        }
+      ]
+    },
+    "UploadFileTypePolicy": {
+      "description": "房间级上传文件类型策略。扩展名统一为小写、不含点（如 \"pdf\"）。",
+      "type": "object",
+      "properties": {
+        "extensions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mode": {
+          "$ref": "#/$defs/UploadFileTypeMode"
+        }
+      },
+      "required": [
+        "mode",
+        "extensions"
       ]
     },
     "UploadPreparationRequest": {

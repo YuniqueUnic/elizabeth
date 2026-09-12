@@ -10,6 +10,7 @@
   "backendRoomNameLength3to50": "Room name must be between 3 and 50 characters.",
   "backendRoomNameFormat": "Room name can only contain letters, numbers, underscores, and hyphens, and cannot start or end with underscore or hyphen.",
   "backendRoomPasswordLength4to100": "Room password must be between 4 and 100 characters.",
+  "backendFileTypeNotAllowed": "File type not allowed by room policy: {fileName}",
   "requestParameterError": "Request parameter error, please check your input.",
   "roomInaccessibleViaLink": "Room cannot be accessed via this link: it may have expired, reached the maximum number of entries, or switched to a private address (please use a new share link).",
   "roomExpired": "This room has expired and can no longer be accessed.",

@@ -15,6 +15,7 @@ pub mod refresh_token;
 pub mod role;
 pub mod row_utils;
 pub mod token;
+pub mod upload_file_policy;
 pub mod upload_reservation;
 
 pub use chunk_upload::{ChunkStatus, RoomChunkUpload};
@@ -30,6 +31,11 @@ pub use role::{
     parse_grant, parse_grants_json,
 };
 pub use token::RoomToken;
+pub use upload_file_policy::{
+    MAX_UPLOAD_FILE_TYPE_EXTENSION_LEN, MAX_UPLOAD_FILE_TYPE_EXTENSIONS, UploadFilePolicyError,
+    UploadFileTypeMode, UploadFileTypePolicy, extension_of, normalize_upload_file_extensions,
+    normalize_upload_file_type, upload_file_type_violation,
+};
 pub use upload_reservation::{RoomUploadReservation, UploadFileDescriptor, UploadStatus};
 
 #[derive(
@@ -79,9 +85,19 @@ pub struct Room {
     pub updated_at: NaiveDateTime,
     /// 新成员默认加入的角色（必须存在于本房角色集）
     pub default_role_key: String,
+    /// 上传文件类型策略（any/allow/deny + 扩展名列表）
+    pub upload_file_type: UploadFileTypePolicy,
     /// 角色矩阵版本号：每次角色写路径 +1，用作 RoleTable 缓存失效
     #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
     pub roles_version: i64,
+}
+
+/// 上传文件类型扩展名在 DB 中以 JSON 数字符串存储，读取时严格解析。
+fn parse_upload_file_extensions(raw: String) -> Result<Vec<String>, sqlx::Error> {
+    serde_json::from_str(&raw).map_err(|e| sqlx::Error::ColumnDecode {
+        index: "upload_file_type_extensions".to_string(),
+        source: Box::new(e),
+    })
 }
 
 fn build_room_from_sqlite(row: &SqliteRow) -> Result<Room, sqlx::Error> {
@@ -99,6 +115,10 @@ fn build_room_from_sqlite(row: &SqliteRow) -> Result<Room, sqlx::Error> {
         created_at: row.try_get("created_at")?,
         updated_at: row.try_get("updated_at")?,
         default_role_key: row.try_get("default_role_key")?,
+        upload_file_type: UploadFileTypePolicy {
+            mode: UploadFileTypeMode::from(row.try_get::<String, _>("upload_file_type_mode")?),
+            extensions: parse_upload_file_extensions(row.try_get("upload_file_type_extensions")?)?,
+        },
         roles_version: row.try_get("roles_version")?,
     })
 }
@@ -118,6 +138,10 @@ fn build_room_from_pg(row: &PgRow) -> Result<Room, sqlx::Error> {
         created_at: row.try_get("created_at")?,
         updated_at: row.try_get("updated_at")?,
         default_role_key: row.try_get("default_role_key")?,
+        upload_file_type: UploadFileTypePolicy {
+            mode: UploadFileTypeMode::from(row.try_get::<String, _>("upload_file_type_mode")?),
+            extensions: parse_upload_file_extensions(row.try_get("upload_file_type_extensions")?)?,
+        },
         roles_version: row.try_get("roles_version")?,
     })
 }
@@ -137,6 +161,10 @@ fn build_room_from_any(row: &AnyRow) -> Result<Room, sqlx::Error> {
         created_at: read_datetime_from_any(row, "created_at")?,
         updated_at: read_datetime_from_any(row, "updated_at")?,
         default_role_key: row.try_get("default_role_key")?,
+        upload_file_type: UploadFileTypePolicy {
+            mode: UploadFileTypeMode::from(row.try_get::<String, _>("upload_file_type_mode")?),
+            extensions: parse_upload_file_extensions(row.try_get("upload_file_type_extensions")?)?,
+        },
         roles_version: row.try_get("roles_version")?,
     })
 }
@@ -176,6 +204,7 @@ impl Room {
             created_at: now,
             updated_at: now,
             default_role_key: ROOM_DEFAULT_ROLE_KEY.to_string(),
+            upload_file_type: UploadFileTypePolicy::default(),
             roles_version: 1,
         }
     }

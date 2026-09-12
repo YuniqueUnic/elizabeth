@@ -7,7 +7,7 @@ import {
   FileNames,
 } from "../../screenplay/room/questions/Room.questions";
 import { RoomScreen } from "../../screenplay/room/screens/Room.screen";
-import { tRoom } from "../../screenplay/support/i18n";
+import { tErrors, tRoom } from "../../screenplay/support/i18n";
 import {
   AddRoomLink,
   CancelFileDelete,
@@ -24,6 +24,7 @@ import {
   UploadRoomFiles,
 } from "../../screenplay/room/tasks/Room.tasks";
 import {
+  binaryFile,
   markdownFile,
   pdfFile,
   pngFile,
@@ -90,6 +91,55 @@ test.describe("Room files and preview modal", () => {
     await actor.attemptsTo(OpenRoom(room.url));
 
     await expect(RoomScreen.fileEmptyState(page)).toBeVisible();
+  });
+
+  test("enforces the room upload file type policy", async ({ actor, page }) => {
+    // 配置 allow 策略：仅允许 pdf / png
+    await RoomScreen.uploadFileTypeModeSelect(page).click();
+    await RoomScreen.uploadFileTypeOption(page, "allow").click();
+    await RoomScreen.uploadFileTypeExtensionsInput(page).fill("pdf, png");
+    const settingsSaved = page.waitForResponse(
+      (response) =>
+        response.url().includes("/settings") && response.request().method() === "PUT",
+    );
+    await RoomScreen.saveRoomConfigButton(page).click();
+    await settingsSaved;
+
+    // happy path：白名单内文件上传成功
+    await actor.attemptsTo(UploadRoomFiles(pngFile("pixel.png")));
+    await expect.poll(async () => (await actor.answer(FileNames())).join("|"))
+      .toContain("pixel.png");
+
+    // unhappy path：白名单外文件被服务端拒绝，并展示本地化错误
+    const rejectedUpload = page.waitForResponse(
+      (response) =>
+        response.url().includes("/contents") && response.request().method() === "POST",
+    );
+    await RoomScreen.fileInput(page).setInputFiles([
+      binaryFile("evil.exe", "application/x-msdownload", Buffer.from("MZ")),
+    ]);
+    const rejectedResponse = await rejectedUpload;
+    expect(rejectedResponse.status()).toBe(400);
+    expect(await rejectedResponse.text()).toContain("File type not allowed by room policy");
+    await expect(
+      page
+        .getByText(tErrors("backendFileTypeNotAllowed", { fileName: "evil.exe" }))
+        .first(),
+    ).toBeVisible();
+
+    // happy path：恢复 any 后同一类型可上传
+    await RoomScreen.uploadFileTypeModeSelect(page).click();
+    await RoomScreen.uploadFileTypeOption(page, "any").click();
+    const resetSaved = page.waitForResponse(
+      (response) =>
+        response.url().includes("/settings") && response.request().method() === "PUT",
+    );
+    await RoomScreen.saveRoomConfigButton(page).click();
+    await resetSaved;
+
+    await actor.attemptsTo(UploadRoomFiles(binaryFile("run.exe", "application/x-msdownload", Buffer.from("MZ"))));
+    await expect.poll(async () => (await actor.answer(FileNames())).join("|"))
+      .toContain("run.exe");
   });
 
   test("uploads files, hides the empty state, and supports selecting all files", async ({

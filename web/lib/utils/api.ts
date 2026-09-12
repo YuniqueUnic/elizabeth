@@ -281,6 +281,22 @@ export class APIError extends Error {
   }
 }
 
+/**
+ * 后端房间文件类型策略拒绝消息的稳定前缀（upload_file_type_violation）。
+ * 返回被拒绝的文件名；非该类错误返回 null。
+ */
+export const FILE_TYPE_POLICY_ERROR_PREFIX = "File type not allowed by room policy: ";
+const VALIDATION_ERROR_PREFIX = "Validation error: ";
+
+export function parseFilePolicyViolation(message?: string): string | null {
+  if (!message) return null;
+  const stripped = message.startsWith(VALIDATION_ERROR_PREFIX)
+    ? message.slice(VALIDATION_ERROR_PREFIX.length)
+    : message;
+  if (!stripped.startsWith(FILE_TYPE_POLICY_ERROR_PREFIX)) return null;
+  return stripped.slice(FILE_TYPE_POLICY_ERROR_PREFIX.length);
+}
+
 // ============================================================================
 // Request Configuration
 // ============================================================================

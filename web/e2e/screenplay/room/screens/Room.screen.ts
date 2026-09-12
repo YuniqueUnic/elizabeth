@@ -140,6 +140,15 @@ export const RoomScreen = {
   maxViewsInput: (page: Page): Locator =>
     page.locator("aside").first().locator("#room-max-views"),
 
+  uploadFileTypeModeSelect: (page: Page): Locator =>
+    page.getByTestId("upload-file-type-mode"),
+
+  uploadFileTypeOption: (page: Page, mode: string): Locator =>
+    page.getByRole("option", { name: tRoom(`config.uploadFileType.mode.${mode}`) }),
+
+  uploadFileTypeExtensionsInput: (page: Page): Locator =>
+    page.locator("aside").first().locator("#upload-file-type-extensions"),
+
   saveRoomConfigButton: (page: Page): Locator =>
     page.locator("aside").first().getByRole("button", {
       name: tRoom("config.save.saveConfig"),

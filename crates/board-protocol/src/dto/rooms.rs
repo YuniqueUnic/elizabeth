@@ -4,6 +4,7 @@ use utoipa::ToSchema;
 
 use super::token::RoomTokenClaims;
 use crate::models::room::role::Grant;
+use crate::models::room::upload_file_policy::UploadFileTypePolicy;
 use crate::models::{Room, RoomStatus, RoomToken};
 
 #[derive(Debug, Default, Deserialize, ToSchema)]
@@ -103,6 +104,8 @@ pub struct RoomView {
     pub updated_at: NaiveDateTime,
     /// 新成员默认加入的角色
     pub default_role_key: String,
+    /// 上传文件类型策略（any/allow/deny + 扩展名列表）
+    pub upload_file_type: UploadFileTypePolicy,
     pub password_protected: bool,
 }
 
@@ -121,6 +124,7 @@ impl From<&Room> for RoomView {
             created_at: room.created_at,
             updated_at: room.updated_at,
             default_role_key: room.default_role_key.clone(),
+            upload_file_type: room.upload_file_type.clone(),
             password_protected: room.password.is_some(),
         }
     }
@@ -224,6 +228,9 @@ pub struct UpdateRoomSettingsRequest {
     /// 新成员默认加入角色（可选；必须存在于本房角色集）
     #[cfg_attr(feature = "typescript-export", ts(optional))]
     pub default_role_key: Option<String>,
+    /// 上传文件类型策略（可选；any 模式忽略扩展名列表，allow/deny 模式要求列表非空）
+    #[cfg_attr(feature = "typescript-export", ts(optional))]
+    pub upload_file_type: Option<UploadFileTypePolicy>,
 }
 
 /// 当前会话的实时能力快照（角色矩阵变更后客户端刷新用）。

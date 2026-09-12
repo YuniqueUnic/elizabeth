@@ -18,6 +18,7 @@ import { getRoomDetails } from "@/api/roomService";
 import type { FileItem } from "@/lib/types";
 import { useRoomCapabilities } from "@/hooks/use-room-capabilities";
 import { isPermissionDeniedError } from "@/lib/utils/mutations";
+import { parseFilePolicyViolation } from "@/lib/utils/api";
 import { registerComposerEditor, unregisterComposerEditor } from "@/lib/composer-editor";
 import { cn } from "@/lib/utils";
 import { generateUUID } from "@/lib/utils/uuid";
@@ -75,6 +76,7 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
   ) {
     const { toast } = useToast();
     const t = useTranslations("room.messageInput");
+    const tErrors = useTranslations("errors");
     const queryClient = useQueryClient();
     const { resolvedTheme } = useTheme();
     const roomName = useAppStore((state) => state.currentRoomId);
@@ -414,6 +416,7 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
                 (error?.message?.includes("空间不足") ||
                   error?.message?.includes("limit exceeded") ||
                   error?.message?.includes("容量")));
+            const policyViolationFile = parseFilePolicyViolation(error?.message);
 
             toast({
               title: isPermissionDeniedError(error)
@@ -421,6 +424,8 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
                 : t("uploadFailed"),
               description: isPermissionDeniedError(error)
                 ? t("uploadPermissionDenied")
+                : policyViolationFile
+                ? tErrors("backendFileTypeNotAllowed", { fileName: policyViolationFile })
                 : isSizeError
                 ? t("uploadFailedSizeExceeded")
                 : error.message || t("uploadFailedDescription"),
@@ -429,7 +434,7 @@ export const MinimalTiptapEditor = forwardRef<MinimalTiptapEditorMethods, Minima
           }
         }
       },
-      [roomName, editor, can.edit, addTransfer, updateTransferStatus, removeTransfer, queryClient, toast, isSourceMode, value, onChange, roomDetails, t]
+      [roomName, editor, can.edit, addTransfer, updateTransferStatus, removeTransfer, queryClient, toast, isSourceMode, value, onChange, roomDetails, t, tErrors]
     );
 
     useEffect(() => {

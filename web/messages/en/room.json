@@ -65,6 +65,22 @@
     "maxViews": {
       "label": "Maximum Entries"
     },
+    "uploadFileType": {
+      "label": "Upload file types",
+      "mode": {
+        "any": "No restriction",
+        "allow": "Allow only listed types",
+        "deny": "Deny listed types"
+      },
+      "extensionsLabel": "Extension list",
+      "extensionsPlaceholder": "e.g. pdf, zip, png",
+      "extensionsHint": "Comma-separated, matched by extension (no dot). Allow mode only permits listed types; deny mode rejects them.",
+      "errors": {
+        "empty": "allow/deny mode requires at least one extension",
+        "tooMany": "Too many extensions (max 64)",
+        "invalid": "Invalid extension: {extension}"
+      }
+    },
     "permissions": {
       "title": "Room Permissions",
       "hint": "Preview is always available; Edit, Share, and Manage are independent permissions.",

@@ -137,6 +137,7 @@ fn settings_request(age_seconds: i64) -> UpdateRoomSettingsRequest {
         max_times_entered: None,
         max_size: None,
         default_role_key: None,
+        upload_file_type: None,
     }
 }
 

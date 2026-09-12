@@ -41,6 +41,7 @@ fn create_test_room(name: &str) -> Room {
         created_at: now,
         updated_at: now,
         default_role_key: "reader".to_string(),
+        upload_file_type: Default::default(),
         roles_version: 1,
     }
 }
