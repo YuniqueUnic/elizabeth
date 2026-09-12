@@ -8,6 +8,7 @@ const messageModules = {
     errors: () => import("./zh/errors.json").then((m) => m.default),
     settings: () => import("./zh/settings.json").then((m) => m.default),
     help: () => import("./zh/help.json").then((m) => m.default),
+    admin: () => import("./zh/admin.json").then((m) => m.default),
   },
   en: {
     common: () => import("./en/common.json").then((m) => m.default),
@@ -16,6 +17,7 @@ const messageModules = {
     errors: () => import("./en/errors.json").then((m) => m.default),
     settings: () => import("./en/settings.json").then((m) => m.default),
     help: () => import("./en/help.json").then((m) => m.default),
+    admin: () => import("./en/admin.json").then((m) => m.default),
   },
 } as const;
 
@@ -23,13 +25,14 @@ export type MessageNamespace = keyof (typeof messageModules)["zh"];
 
 export async function loadMessages(locale: Locale) {
   const mods = messageModules[locale];
-  const [common, home, room, errors, settings, help] = await Promise.all([
+  const [common, home, room, errors, settings, help, admin] = await Promise.all([
     mods.common(),
     mods.home(),
     mods.room(),
     mods.errors(),
     mods.settings(),
     mods.help(),
+    mods.admin(),
   ]);
-  return { common, home, room, errors, settings, help };
+  return { common, home, room, errors, settings, help, admin };
 }

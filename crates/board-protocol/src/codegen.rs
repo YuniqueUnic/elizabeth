@@ -5,15 +5,17 @@ use ts_rs::TS;
 
 #[cfg(feature = "typescript-export")]
 use crate::dto::{
-    ChunkStatusInfo, ChunkUploadRequest, ChunkUploadResponse, ChunkedUploadPreparationRequest,
-    ChunkedUploadPreparationResponse, CleanupResponse, CreateMessageRequest, CreateMessageResponse,
-    CreateRoleRequest, CreateRoomRequest, CreateRoomResponse, CreateUrlContentRequest,
-    CreateUrlContentResponse, DeleteContentRequest, DeleteContentResponse, DeleteRoleResponse,
-    DeleteRoomResponse, FileMergeRequest, FileMergeResponse, FullRoomGcStatusView,
-    IssueTokenRequest, IssueTokenResponse, LogoutRequest, MergedFileInfo, MessagePage,
-    MyCapabilitiesResponse, PublicConfigResponse, PublicRoomConfig, PublicRoomExpiryConfig,
-    ReservedFileInfo, RevokeTokenResponse, RoleDefinition, RoomContentView, RoomIdentityCodeView,
-    RoomTokenClaims, RoomTokenView, RoomView, RunRoomGcResponse, TokenType, UpdateContentRequest,
+    AdminConfigResponse, AdminRoomDetailResponse, AdminRoomListResponse, AdminRoomView,
+    AdminStatsResponse, AdminStorageResponse, ChunkStatusInfo, ChunkUploadRequest,
+    ChunkUploadResponse, ChunkedUploadPreparationRequest, ChunkedUploadPreparationResponse,
+    CleanupResponse, CreateMessageRequest, CreateMessageResponse, CreateRoleRequest,
+    CreateRoomRequest, CreateRoomResponse, CreateUrlContentRequest, CreateUrlContentResponse,
+    DeleteContentRequest, DeleteContentResponse, DeleteRoleResponse, DeleteRoomResponse,
+    FileMergeRequest, FileMergeResponse, FullRoomGcStatusView, IssueTokenRequest,
+    IssueTokenResponse, LogoutRequest, MergedFileInfo, MessagePage, MyCapabilitiesResponse,
+    PublicConfigResponse, PublicRoomConfig, PublicRoomExpiryConfig, ReservedFileInfo,
+    RevokeTokenResponse, RoleDefinition, RoomContentView, RoomIdentityCodeView, RoomTokenClaims,
+    RoomTokenView, RoomView, RunRoomGcResponse, TokenType, UpdateContentRequest,
     UpdateContentResponse, UpdateRoleRequest, UpdateRoomSettingsRequest, UploadContentResponse,
     UploadPreparationRequest, UploadPreparationResponse, UploadStatusQuery, UploadStatusResponse,
     ValidateTokenRequest, ValidateTokenResponse, VerifyRoomPasswordRequest,
@@ -104,6 +106,12 @@ pub fn export_ts_types_to(output_dir: &Path) -> Result<(), ts_rs::ExportError> {
 
     LogoutRequest::export_all(&output_dir_cfg)?;
     CleanupResponse::export_all(&output_dir_cfg)?;
+    AdminConfigResponse::export_all(&output_dir_cfg)?;
+    AdminRoomDetailResponse::export_all(&output_dir_cfg)?;
+    AdminRoomListResponse::export_all(&output_dir_cfg)?;
+    AdminRoomView::export_all(&output_dir_cfg)?;
+    AdminStatsResponse::export_all(&output_dir_cfg)?;
+    AdminStorageResponse::export_all(&output_dir_cfg)?;
     FullRoomGcStatusView::export_all(&output_dir_cfg)?;
     RunRoomGcResponse::export_all(&output_dir_cfg)?;
     Ok(())
@@ -178,6 +186,12 @@ pub fn exported_ts_type_names() -> &'static [&'static str] {
         "MergedFileInfo",
         "LogoutRequest",
         "CleanupResponse",
+        "AdminConfigResponse",
+        "AdminRoomDetailResponse",
+        "AdminRoomListResponse",
+        "AdminRoomView",
+        "AdminStatsResponse",
+        "AdminStorageResponse",
         "FullRoomGcStatusView",
         "RunRoomGcResponse",
     ]

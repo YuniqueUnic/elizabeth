@@ -153,3 +153,13 @@ export const TOKEN_CONFIG = {
   storageKey: "elizabeth_tokens",
   refreshBeforeExpiry: 5 * 60 * 1000, // Refresh 5 minutes before expiry
 } as const;
+
+// 平台管理后台（issue #196）；鉴权始终在服务端（X-Elizabeth-Admin-Token）
+export const ADMIN_ENDPOINTS = {
+  stats: "/api/v1/admin/stats",
+  rooms: "/api/v1/admin/rooms",
+  roomDetail: (name: string) => `/api/v1/admin/rooms/${encodeURIComponent(name)}`,
+  roomDelete: (name: string) => `/api/v1/admin/rooms/${encodeURIComponent(name)}`,
+  storage: "/api/v1/admin/storage",
+  config: "/api/v1/admin/config",
+} as const;
