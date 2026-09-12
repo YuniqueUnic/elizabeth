@@ -79,7 +79,7 @@ regex = "1"
 mime_guess = "2.0"
 sanitize-filename = "0.6"
 url = "2"
-opendal = { version = "0.58.2", features = ["services-fs", "services-s3"] }
+opendal = { version = "0.59.1", features = ["services-fs", "services-s3"] }
 rust-embed = { version = "8", features = ["mime-guess", "include-exclude"] }
 
 # === Build Tools ===
