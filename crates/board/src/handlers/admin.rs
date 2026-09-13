@@ -7,19 +7,21 @@ use serde::Deserialize;
 use utoipa::ToSchema;
 
 use crate::dto::{
-    AdminConfigResponse, AdminRoomDetailResponse, AdminRoomListResponse, AdminRoomView,
-    AdminStatsResponse, AdminStorageResponse, DeleteRoomResponse, FullRoomGcStatusView,
-    RunRoomGcResponse, UpdateRuntimeConfigRequest,
+    AdminConfigResponse, AdminCredentialUpdateRequest, AdminCredentialView,
+    AdminMintIdentityCodeRequest, AdminRoomDetailResponse, AdminRoomListResponse, AdminRoomView,
+    AdminStatsResponse, AdminStorageResponse, CreateRoomIdentityCodeResponse, DeleteRoomResponse,
+    FullRoomGcStatusView, RunRoomGcResponse, UpdateRoomSettingsRequest, UpdateRuntimeConfigRequest,
 };
 use crate::errors::{AppError, AppResult};
+use crate::handlers::rooms::identity_codes::validate_identity_code;
 use crate::repository::{AdminConsoleRepository, IRoomRepository, RoomRepository};
+use crate::services::GuardScope;
 use crate::state::AppState;
 
 type HandlerResult<T> = Result<Json<T>, AppError>;
 
 const DEFAULT_ADMIN_LIMIT: u32 = 100;
 const MAX_ADMIN_LIMIT: u32 = 1000;
-const ADMIN_TOKEN_ENV: &str = "ELIZABETH_ADMIN_TOKEN";
 const ADMIN_TOKEN_HEADER: &str = "X-Elizabeth-Admin-Token";
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -27,27 +29,45 @@ pub struct AdminLimitQuery {
     pub limit: Option<u32>,
 }
 
-pub(crate) fn validate_admin_credential(provided: Option<&str>) -> AppResult<()> {
-    let expected = std::env::var(ADMIN_TOKEN_ENV).unwrap_or_default();
-    if expected.trim().is_empty() {
-        return Err(AppError::authorization(format!(
-            "Admin API disabled (set {ADMIN_TOKEN_ENV})"
-        )));
-    }
+/// 管理凭证校验 + 防爆破：失败按客户端累计，超阈值锁定（与房间密码/身份码同一守卫）。
+/// 引导补签（issue_token）等内部路径也复用本函数；未携带管理头的请求
+/// （普通用户流）只做凭证判定，不计入防爆破失败。
+pub(crate) fn ensure_admin(app_state: &AppState, headers: &HeaderMap) -> AppResult<()> {
+    let Some(provided) = headers
+        .get(ADMIN_TOKEN_HEADER)
+        .and_then(|value| value.to_str().ok())
+    else {
+        return app_state.admin_credential.verify(None);
+    };
 
-    if provided.unwrap_or("") != expected {
-        return Err(AppError::authorization("Invalid admin token"));
-    }
+    let client = crate::client_ip(headers);
+    app_state
+        .attempt_guard()
+        .check(GuardScope::AdminLogin, client)?;
 
-    Ok(())
+    match app_state.admin_credential.verify(Some(provided)) {
+        Ok(()) => {
+            app_state
+                .attempt_guard()
+                .record_success(GuardScope::AdminLogin, client);
+            Ok(())
+        }
+        Err(error) => {
+            app_state
+                .attempt_guard()
+                .record_failure(GuardScope::AdminLogin, client);
+            Err(error)
+        }
+    }
 }
 
-fn ensure_admin(headers: &HeaderMap) -> AppResult<()> {
-    validate_admin_credential(
-        headers
-            .get(ADMIN_TOKEN_HEADER)
-            .and_then(|value| value.to_str().ok()),
-    )
+/// 管理 API 是否可用：配置了环境引导凭证或运行时轮换凭证即视为启用。
+fn admin_api_enabled(app_state: &AppState) -> bool {
+    app_state.admin_credential.source() == "runtime-override"
+        || !std::env::var(crate::state::ADMIN_TOKEN_ENV)
+            .unwrap_or_default()
+            .trim()
+            .is_empty()
 }
 
 fn clamp_limit(limit: Option<u32>) -> u32 {
@@ -73,7 +93,7 @@ pub async fn list_full_unbounded_rooms(
     Query(query): Query<AdminLimitQuery>,
     State(app_state): State<Arc<AppState>>,
 ) -> HandlerResult<Vec<FullRoomGcStatusView>> {
-    ensure_admin(&headers)?;
+    ensure_admin(&app_state, &headers)?;
     let limit = clamp_limit(query.limit);
 
     let rooms = app_state
@@ -119,7 +139,7 @@ pub async fn run_room_gc(
     Query(query): Query<AdminLimitQuery>,
     State(app_state): State<Arc<AppState>>,
 ) -> HandlerResult<RunRoomGcResponse> {
-    ensure_admin(&headers)?;
+    ensure_admin(&app_state, &headers)?;
     let limit = clamp_limit(query.limit);
 
     let report = app_state
@@ -152,7 +172,7 @@ pub async fn admin_stats(
     headers: HeaderMap,
     State(app_state): State<Arc<AppState>>,
 ) -> HandlerResult<AdminStatsResponse> {
-    ensure_admin(&headers)?;
+    ensure_admin(&app_state, &headers)?;
     let repo = AdminConsoleRepository::new(app_state.db_pool.clone());
 
     let (rooms_total, rooms_open, rooms_protected) = repo
@@ -207,7 +227,7 @@ pub async fn admin_list_rooms(
     Query(query): Query<AdminRoomListQuery>,
     State(app_state): State<Arc<AppState>>,
 ) -> HandlerResult<AdminRoomListResponse> {
-    ensure_admin(&headers)?;
+    ensure_admin(&app_state, &headers)?;
     let limit = query.limit.unwrap_or(50).clamp(1, 500);
     let offset = query.offset.unwrap_or(0).max(0);
     let repo = AdminConsoleRepository::new(app_state.db_pool.clone());
@@ -231,6 +251,7 @@ pub async fn admin_list_rooms(
             max_size: row.max_size,
             current_times_entered: row.current_times_entered,
             max_times_entered: row.max_times_entered,
+            default_role_key: row.default_role_key,
             expire_at: row.expire_at,
             created_at: row.created_at,
             updated_at: row.updated_at,
@@ -263,12 +284,19 @@ pub async fn admin_room_detail(
     AxumPath(name): AxumPath<String>,
     State(app_state): State<Arc<AppState>>,
 ) -> HandlerResult<AdminRoomDetailResponse> {
-    ensure_admin(&headers)?;
+    ensure_admin(&app_state, &headers)?;
+    Ok(Json(room_detail_response(&app_state, &name).await?))
+}
+
+async fn room_detail_response(
+    app_state: &AppState,
+    name: &str,
+) -> AppResult<AdminRoomDetailResponse> {
     let room = RoomRepository::new(app_state.db_pool.clone())
-        .find_by_name(&name)
+        .find_by_name(name)
         .await
         .map_err(|e| AppError::internal(format!("Database error: {e}")))?
-        .ok_or_else(|| AppError::room_not_found(&name))?;
+        .ok_or_else(|| AppError::room_not_found(name))?;
     let room_id = room
         .id
         .ok_or_else(|| AppError::internal("Room id missing"))?;
@@ -280,17 +308,17 @@ pub async fn admin_room_detail(
             .await
             .map_err(|e| AppError::internal(format!("Failed to count room assets: {e}")))?;
         let all = repo
-            .list_rooms(Some(&name), 1, 0)
+            .list_rooms(Some(name), 1, 0)
             .await
             .map_err(|e| AppError::internal(format!("Failed to load room: {e}")))?;
         let view = all
             .into_iter()
             .find(|row| row.id == room_id)
-            .ok_or_else(|| AppError::room_not_found(&name))?;
+            .ok_or_else(|| AppError::room_not_found(name))?;
         (counts, view)
     };
 
-    Ok(Json(AdminRoomDetailResponse {
+    Ok(AdminRoomDetailResponse {
         room: AdminRoomView {
             id: room_stats.id,
             name: room_stats.name,
@@ -301,6 +329,7 @@ pub async fn admin_room_detail(
             max_size: room_stats.max_size,
             current_times_entered: room_stats.current_times_entered,
             max_times_entered: room_stats.max_times_entered,
+            default_role_key: room_stats.default_role_key,
             expire_at: room_stats.expire_at,
             created_at: room_stats.created_at,
             updated_at: room_stats.updated_at,
@@ -308,7 +337,7 @@ pub async fn admin_room_detail(
         },
         blob_count: content_count.0,
         token_count: content_count.1,
-    }))
+    })
 }
 
 /// 房间管理：删除（平台运维语义，绕过房间 token；含存储与引用清理）
@@ -328,7 +357,7 @@ pub async fn admin_delete_room(
     AxumPath(name): AxumPath<String>,
     State(app_state): State<Arc<AppState>>,
 ) -> HandlerResult<DeleteRoomResponse> {
-    ensure_admin(&headers)?;
+    ensure_admin(&app_state, &headers)?;
     let room = RoomRepository::new(app_state.db_pool.clone())
         .find_by_name(&name)
         .await
@@ -366,7 +395,7 @@ pub async fn admin_storage(
     headers: HeaderMap,
     State(app_state): State<Arc<AppState>>,
 ) -> HandlerResult<AdminStorageResponse> {
-    ensure_admin(&headers)?;
+    ensure_admin(&app_state, &headers)?;
     let repo = AdminConsoleRepository::new(app_state.db_pool.clone());
     let (_, _, _, logical, physical, blob_count) = repo
         .content_stats()
@@ -414,24 +443,11 @@ pub async fn admin_config(
     headers: HeaderMap,
     State(app_state): State<Arc<AppState>>,
 ) -> HandlerResult<AdminConfigResponse> {
-    ensure_admin(&headers)?;
-    let config = &app_state.config;
-    let storage = &config.storage;
-    let admin_api_enabled = !std::env::var(ADMIN_TOKEN_ENV)
-        .unwrap_or_default()
-        .trim()
-        .is_empty();
-
-    Ok(Json(build_admin_config_response(
-        &app_state,
-        admin_api_enabled,
-    )))
+    ensure_admin(&app_state, &headers)?;
+    Ok(Json(build_admin_config_response(&app_state)))
 }
 
-fn build_admin_config_response(
-    app_state: &AppState,
-    admin_api_enabled: bool,
-) -> AdminConfigResponse {
+fn build_admin_config_response(app_state: &AppState) -> AdminConfigResponse {
     let config = &app_state.config;
     let storage = &config.storage;
     AdminConfigResponse {
@@ -457,7 +473,7 @@ fn build_admin_config_response(
         jwt_ttl_seconds: config.auth.ttl_seconds,
         jwt_refresh_ttl_seconds: config.auth.refresh_ttl_seconds,
         upload_reservation_ttl_seconds: storage.upload_reservation_ttl_seconds,
-        admin_api_enabled,
+        admin_api_enabled: admin_api_enabled(app_state),
         dedup_scope: if storage.global_dedup {
             "global"
         } else {
@@ -467,11 +483,16 @@ fn build_admin_config_response(
         runtime_disallow_search_indexing: app_state.runtime.disallow_search_indexing(),
         runtime_room_default_max_size: app_state.runtime.room_default_max_size(),
         runtime_room_default_max_times_entered: app_state.runtime.room_default_max_times_entered(),
+        runtime_session_ttl_seconds: app_state.runtime.session_ttl_seconds(),
+        runtime_upload_reservation_ttl_seconds: app_state.runtime.upload_reservation_ttl_seconds(),
+        runtime_room_default_role_key: app_state.runtime.room_default_role_key(),
+        admin_token_source: app_state.admin_credential.source().to_string(),
     }
 }
 
-/// 运行时可写配置更新（白名单：robots 开关、新房间默认容量/进入次数）。
-/// 覆盖仅存活于进程内，重启回退到配置文件值；room 字段传 0 表示清除覆盖。
+/// 运行时可写配置更新（白名单：robots 开关、新房间默认容量/进入次数/角色、
+/// 会话有效期、上传预留有效期）。覆盖仅存活于进程内，重启回退到配置文件值；
+/// 数值字段传 0 表示清除覆盖，角色字段传空串表示清除覆盖。
 #[utoipa::path(
     put,
     path = "/api/v1/admin/config/runtime",
@@ -488,11 +509,15 @@ pub async fn admin_update_runtime_config(
     State(app_state): State<Arc<AppState>>,
     Json(payload): Json<UpdateRuntimeConfigRequest>,
 ) -> HandlerResult<AdminConfigResponse> {
-    ensure_admin(&headers)?;
+    ensure_admin(&app_state, &headers)?;
 
     const MIN_ROOM_MAX_SIZE: i64 = 1024 * 1024; // 1 MiB
     const MAX_ROOM_MAX_SIZE: i64 = 1024 * 1024 * 1024 * 1024; // 1 TiB
     const MAX_ROOM_TIMES_ENTERED: i64 = 1_000_000_000;
+    const MIN_SESSION_TTL: i64 = 300; // 5 min
+    const MAX_SESSION_TTL: i64 = 7 * 24 * 3600;
+    const MIN_RESERVATION_TTL: i64 = 60;
+    const MAX_RESERVATION_TTL: i64 = 24 * 3600;
 
     if let Some(size) = payload.room_default_max_size {
         if size != 0 && !(MIN_ROOM_MAX_SIZE..=MAX_ROOM_MAX_SIZE).contains(&size) {
@@ -510,16 +535,147 @@ pub async fn admin_update_runtime_config(
         }
         app_state.runtime.set_room_default_max_times_entered(times);
     }
+    if let Some(ttl) = payload.session_ttl_seconds {
+        if ttl != 0 && !(MIN_SESSION_TTL..=MAX_SESSION_TTL).contains(&ttl) {
+            return Err(AppError::validation(format!(
+                "session_ttl_seconds must be 0 (reset) or within {MIN_SESSION_TTL}..{MAX_SESSION_TTL}"
+            )));
+        }
+        app_state.runtime.set_session_ttl_seconds(ttl);
+    }
+    if let Some(ttl) = payload.upload_reservation_ttl_seconds {
+        if ttl != 0 && !(MIN_RESERVATION_TTL..=MAX_RESERVATION_TTL).contains(&ttl) {
+            return Err(AppError::validation(format!(
+                "upload_reservation_ttl_seconds must be 0 (reset) or within {MIN_RESERVATION_TTL}..{MAX_RESERVATION_TTL}"
+            )));
+        }
+        app_state.runtime.set_upload_reservation_ttl_seconds(ttl);
+    }
+    if let Some(role) = payload.room_default_role_key {
+        let trimmed = role.trim();
+        if trimmed.is_empty() {
+            app_state.runtime.set_room_default_role_key(None);
+        } else if !board_protocol::models::room::role::is_system_role_key(trimmed) {
+            return Err(AppError::validation(
+                "room_default_role_key must be one of the system roles: admin, editor, reader",
+            ));
+        } else {
+            app_state
+                .runtime
+                .set_room_default_role_key(Some(trimmed.to_owned()));
+        }
+    }
     if let Some(disallow) = payload.disallow_search_indexing {
         app_state.runtime.set_disallow_search_indexing(disallow);
     }
 
-    let admin_api_enabled = !std::env::var(ADMIN_TOKEN_ENV)
-        .unwrap_or_default()
-        .trim()
-        .is_empty();
-    Ok(Json(build_admin_config_response(
+    Ok(Json(build_admin_config_response(&app_state)))
+}
+
+/// 轮换平台管理 API 凭证（进程内覆盖，重启回退环境引导值；凭证不回显）。
+#[utoipa::path(
+    put,
+    path = "/api/v1/admin/credential",
+    request_body = AdminCredentialUpdateRequest,
+    responses(
+        (status = 200, description = "轮换成功", body = AdminCredentialView),
+        (status = 400, description = "凭证强度不足"),
+        (status = 403, description = "未授权")
+    ),
+    tag = "admin"
+)]
+pub async fn admin_update_credential(
+    headers: HeaderMap,
+    State(app_state): State<Arc<AppState>>,
+    Json(payload): Json<AdminCredentialUpdateRequest>,
+) -> HandlerResult<AdminCredentialView> {
+    ensure_admin(&app_state, &headers)?;
+
+    const MIN_ADMIN_TOKEN_LEN: usize = 12;
+    let token = payload.token.trim();
+    if token.len() < MIN_ADMIN_TOKEN_LEN || token.chars().any(char::is_whitespace) {
+        return Err(AppError::validation(format!(
+            "admin token must be at least {MIN_ADMIN_TOKEN_LEN} characters without whitespace"
+        )));
+    }
+    app_state.admin_credential.rotate(token.to_owned());
+
+    Ok(Json(AdminCredentialView {
+        admin_token_source: app_state.admin_credential.source().to_string(),
+    }))
+}
+
+/// 房间管理：更新房间设置（平台运维语义；复用房间设置校验与落库核心）。
+#[utoipa::path(
+    put,
+    path = "/api/v1/admin/rooms/{name}",
+    params(("name" = String, Path, description = "房间名称")),
+    request_body = UpdateRoomSettingsRequest,
+    responses(
+        (status = 200, description = "更新成功", body = AdminRoomDetailResponse),
+        (status = 400, description = "请求参数错误"),
+        (status = 403, description = "未授权"),
+        (status = 404, description = "房间不存在")
+    ),
+    tag = "admin"
+)]
+pub async fn admin_update_room(
+    headers: HeaderMap,
+    AxumPath(name): AxumPath<String>,
+    State(app_state): State<Arc<AppState>>,
+    Json(payload): Json<UpdateRoomSettingsRequest>,
+) -> HandlerResult<AdminRoomDetailResponse> {
+    ensure_admin(&app_state, &headers)?;
+    let room = RoomRepository::new(app_state.db_pool.clone())
+        .find_by_name(&name)
+        .await
+        .map_err(|e| AppError::internal(format!("Database error: {e}")))?
+        .ok_or_else(|| AppError::room_not_found(&name))?;
+    crate::handlers::rooms::settings::apply_room_settings_update(&app_state, room, payload).await?;
+    Ok(Json(room_detail_response(&app_state, &name).await?))
+}
+
+/// 房间管理：铸造房间身份码（code 缺省时服务端生成；admin 角色跟随房间过期）。
+#[utoipa::path(
+    post,
+    path = "/api/v1/admin/rooms/{name}/identity-codes",
+    params(("name" = String, Path, description = "房间名称")),
+    request_body = AdminMintIdentityCodeRequest,
+    responses(
+        (status = 200, description = "铸造成功，明文 code 仅此一次返回", body = CreateRoomIdentityCodeResponse),
+        (status = 400, description = "请求参数错误"),
+        (status = 403, description = "未授权"),
+        (status = 404, description = "房间不存在")
+    ),
+    tag = "admin"
+)]
+pub async fn admin_mint_identity_code(
+    headers: HeaderMap,
+    AxumPath(name): AxumPath<String>,
+    State(app_state): State<Arc<AppState>>,
+    Json(payload): Json<AdminMintIdentityCodeRequest>,
+) -> HandlerResult<CreateRoomIdentityCodeResponse> {
+    ensure_admin(&app_state, &headers)?;
+    let room = RoomRepository::new(app_state.db_pool.clone())
+        .find_by_name(&name)
+        .await
+        .map_err(|e| AppError::internal(format!("Database error: {e}")))?
+        .ok_or_else(|| AppError::room_not_found(&name))?;
+    let requested_code = match payload.code.as_deref().map(str::trim) {
+        None | Some("") => None,
+        Some(code) => Some(validate_identity_code(code)?),
+    };
+    let (identity_code, code) = crate::handlers::rooms::identity_codes::mint_identity_code(
         &app_state,
-        admin_api_enabled,
-    )))
+        &room,
+        &payload.role,
+        requested_code,
+        payload.expires_in_secs,
+        None,
+    )
+    .await?;
+    Ok(Json(CreateRoomIdentityCodeResponse {
+        identity_code,
+        code,
+    }))
 }

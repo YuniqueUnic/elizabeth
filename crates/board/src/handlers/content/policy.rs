@@ -18,6 +18,7 @@ use crate::repository::{
     DownloadPolicyRepository, IDownloadPolicyRepository, IRoomContentRepository,
     RoomContentRepository,
 };
+use crate::services::GuardScope;
 use crate::state::AppState;
 use crate::validation::{RoomNameValidator, TokenValidator};
 use board_protocol::models::room::{DownloadPolicyMode, FileAccessCode, FileDownloadPolicy};
@@ -426,20 +427,12 @@ pub async fn redeem_code(
     let verified = verify_room_token(app_state.clone(), &name, &token).await?;
     let authz = Authz::for_claims(&app_state, &verified.room, &verified.claims).await?;
 
-    let client_ip = headers
-        .get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|s| s.split(',').next())
-        .map(|s| s.trim())
-        .or_else(|| headers.get("x-real-ip").and_then(|v| v.to_str().ok()))
-        .unwrap_or("client");
-
-    let client_key = format!("{}:{}", client_ip, verified.claims.jti);
+    let client_key = format!("{}:{}", crate::client_ip(&headers), verified.claims.jti);
 
     // 1. Check anti-brute-force rate limit before processing
     app_state
-        .access_code_limiter()
-        .check_rate_limit(content_id, &client_key)?;
+        .attempt_guard()
+        .check(GuardScope::AccessCode(content_id), &client_key)?;
 
     let content_repo = RoomContentRepository::new(app_state.db_pool.clone());
     let content = content_repo
@@ -479,8 +472,8 @@ pub async fn redeem_code(
 
     if !redeemed {
         let (failed_count, lockout_secs) = app_state
-            .access_code_limiter()
-            .record_failure(content_id, &client_key);
+            .attempt_guard()
+            .record_failure(GuardScope::AccessCode(content_id), &client_key);
         if let Some(secs) = lockout_secs {
             return Err(AppError::too_many_requests(format!(
                 "Too many failed attempts ({} attempts). Access temporarily locked for {} seconds.",
@@ -497,8 +490,8 @@ pub async fn redeem_code(
 
     // Success -> clear failed attempts
     app_state
-        .access_code_limiter()
-        .record_success(content_id, &client_key);
+        .attempt_guard()
+        .record_success(GuardScope::AccessCode(content_id), &client_key);
 
     // Generate ticket
     let exp = Utc::now() + Duration::seconds(120);

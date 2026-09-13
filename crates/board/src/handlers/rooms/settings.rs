@@ -6,7 +6,7 @@ use axum::extract::{Path, State};
 use super::shared::{HandlerResult, room_info_from_room};
 use crate::authz::{Authz, Resource, load_role_table};
 use crate::dto::rooms::{RoomView, UpdateRoomSettingsRequest};
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use crate::handlers::{AuthToken, verify_room_token};
 use crate::models::Room;
 use crate::models::room::role::Capability;
@@ -53,10 +53,24 @@ pub async fn update_room_settings(
     authz.require(Capability::RoomSettingsUpdate, &Resource::Room { room_id })?;
 
     let repo = RoomRepository::new(app_state.db_pool.clone());
-    let mut room = verified.room;
+    let room = verified.room;
+    let updated_room = apply_room_settings_update(&app_state, room, payload).await?;
+
+    Ok(Json(RoomView::from(&updated_room)))
+}
+
+/// 房间设置更新的共享核心：校验、应用、落库、密码变更时吊销会话并断开连接。
+/// 房间级 settings 端点与平台管理端点（绕过房间 token）共用，保证语义一致。
+pub(crate) async fn apply_room_settings_update(
+    app_state: &AppState,
+    room: Room,
+    payload: UpdateRoomSettingsRequest,
+) -> AppResult<Room> {
+    let repo = RoomRepository::new(app_state.db_pool.clone());
+    let mut room = room;
     validate_settings_payload(&payload, app_state.room_expiry_policy())?;
     validate_policy_not_below_usage(&room, &payload)?;
-    validate_default_role_key(&app_state, &room, &payload).await?;
+    validate_default_role_key(app_state, &room, &payload).await?;
 
     let password_changed = payload.password.is_some() || payload.remove_password == Some(true);
     let password = payload.password.clone();
@@ -83,9 +97,9 @@ pub async fn update_room_settings(
         .map_err(|e| AppError::internal(format!("Failed to update room settings: {e}")))?;
 
     if password_changed {
-        revoke_room_sessions(&app_state, updated_room.id.unwrap_or_default()).await?;
+        revoke_room_sessions(app_state, updated_room.id.unwrap_or_default()).await?;
     }
-    broadcast_settings_update(&app_state, &updated_room).await;
+    broadcast_settings_update(app_state, &updated_room).await;
     if password_changed {
         app_state
             .connection_manager
@@ -93,7 +107,7 @@ pub async fn update_room_settings(
             .await;
     }
 
-    Ok(Json(RoomView::from(&updated_room)))
+    Ok(updated_room)
 }
 
 /// 默认加入角色必须存在于本房角色集（Room Gate 语义：新成员以此为入场角色）。

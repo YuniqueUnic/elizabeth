@@ -12,7 +12,6 @@ use crate::dto::rooms::{
     VerifyRoomPasswordResponse,
 };
 use crate::errors::AppError;
-use crate::handlers::admin::validate_admin_credential;
 use crate::handlers::{AuthToken, verify_room_token};
 use crate::models::room::role::{Capability, ROLE_ADMIN};
 use crate::models::{Room, RoomStatus, RoomToken};
@@ -53,18 +52,14 @@ pub async fn issue_token(
     Json(payload): Json<IssueTokenRequest>,
 ) -> HandlerResult<IssueTokenResponse> {
     RoomNameValidator::validate_identifier(&name)?;
-    let admin_bootstrap = validate_admin_credential(
-        headers
-            .get("X-Elizabeth-Admin-Token")
-            .and_then(|value| value.to_str().ok()),
-    )
-    .is_ok();
+    // 平台管理凭证可作为引导补签通道；失败同样计入防爆破锁定。
+    let admin_bootstrap = crate::handlers::admin::ensure_admin(&app_state, &headers).is_ok();
 
     let TokenIssueContext {
         mut room,
         previous_jti,
         requester,
-    } = resolve_token_issue_room(&app_state, &name, &payload).await?;
+    } = resolve_token_issue_room(&app_state, &name, &payload, &headers).await?;
     let should_increment_view_count = previous_jti.is_none();
     ensure_token_issue_allowed(&room, should_increment_view_count)?;
 
@@ -131,7 +126,7 @@ pub async fn issue_token(
         }
         chrono::Duration::seconds(secs)
     } else {
-        app_state.token_service().get_ttl()
+        app_state.session_ttl()
     };
 
     let previous_jti = requester.as_ref().and_then(|verified| {
@@ -342,6 +337,7 @@ async fn resolve_token_issue_room(
     app_state: &Arc<AppState>,
     name: &str,
     payload: &IssueTokenRequest,
+    headers: &HeaderMap,
 ) -> Result<TokenIssueContext, AppError> {
     if let Some(token) = payload.token.as_deref() {
         TokenValidator::validate_token_format(token)?;
@@ -361,7 +357,7 @@ async fn resolve_token_issue_room(
         if room.is_expired() {
             return Err(AppError::room_expired(name));
         }
-        validate_room_password(app_state, &room, payload).await?;
+        validate_room_password(app_state, &room, payload, headers).await?;
         Ok(TokenIssueContext {
             room,
             previous_jti: None,
@@ -374,21 +370,42 @@ async fn validate_room_password(
     app_state: &AppState,
     room: &Room,
     payload: &IssueTokenRequest,
+    headers: &HeaderMap,
 ) -> Result<(), AppError> {
-    if let Some(encoded_hash) = room.password.as_ref() {
-        let password = payload
-            .password
-            .clone()
-            .ok_or_else(|| AppError::authentication("Invalid room password"))?;
-        let valid = app_state
-            .room_password_service()
-            .verify(password, encoded_hash.clone())
-            .await
-            .map_err(|e| AppError::internal(format!("Failed to verify room password: {e}")))?;
-        if !valid {
-            return Err(AppError::authentication("Invalid room password"));
+    use crate::services::GuardScope;
+
+    let Some(encoded_hash) = room.password.as_ref() else {
+        return Ok(());
+    };
+    let room_id = room
+        .id
+        .ok_or_else(|| AppError::internal("Room id missing"))?;
+    let client_key = crate::client_ip(headers).to_owned();
+    app_state
+        .attempt_guard()
+        .check(GuardScope::RoomPassword(room_id), &client_key)?;
+    let Some(password) = payload.password.clone() else {
+        return Err(AppError::authentication("Invalid room password"));
+    };
+    let valid = app_state
+        .room_password_service()
+        .verify(password, encoded_hash.clone())
+        .await
+        .map_err(|e| AppError::internal(format!("Failed to verify room password: {e}")))?;
+    if !valid {
+        let (failed_count, lockout_secs) = app_state
+            .attempt_guard()
+            .record_failure(GuardScope::RoomPassword(room_id), &client_key);
+        if lockout_secs.is_some() {
+            return Err(AppError::too_many_requests(format!(
+                "Too many failed attempts ({failed_count}). Room password verification temporarily locked."
+            )));
         }
+        return Err(AppError::authentication("Invalid room password"));
     }
+    app_state
+        .attempt_guard()
+        .record_success(GuardScope::RoomPassword(room_id), &client_key);
     Ok(())
 }
 
@@ -421,6 +438,7 @@ fn ensure_token_issue_allowed(room: &Room, increment_view_count: bool) -> Result
 )]
 pub async fn verify_password(
     Path(name): Path<String>,
+    headers: HeaderMap,
     State(app_state): State<Arc<AppState>>,
     Json(payload): Json<VerifyRoomPasswordRequest>,
 ) -> HandlerResult<VerifyRoomPasswordResponse> {
@@ -441,7 +459,7 @@ pub async fn verify_password(
         role: None,
         expires_in_secs: None,
     };
-    validate_room_password(&app_state, &room, &request).await?;
+    validate_room_password(&app_state, &room, &request, &headers).await?;
     Ok(Json(VerifyRoomPasswordResponse { valid: true }))
 }
 

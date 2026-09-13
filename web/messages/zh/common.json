@@ -127,5 +127,6 @@
   "manualCopyShortcut": "在公网 HTTP 页面中，Chrome 可能禁用自动复制；手动选择文本复制仍可使用。",
   "manualCopySelectAll": "全选",
   "manualCopyClose": "完成",
-  "adminEntry": "管理"
+  "adminEntry": "管理",
+  "copy": "复制"
 }

@@ -1,13 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Copy } from "lucide-react";
+
+import { CopyButton } from "@/components/copy-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { copyTextToClipboard } from "@/lib/utils/clipboard";
-import { ManualCopyDialog } from "@/components/manual-copy-dialog";
 
 /**
  * 一次性身份码披露面板：创建者唯一一次看到 admin 身份码的地方。
@@ -21,7 +19,6 @@ export function IdentityCodeDisclosure({
   onEnter: () => void;
 }) {
   const t = useTranslations("home");
-  const [manualCopyValue, setManualCopyValue] = useState("");
 
   return (
     <div
@@ -37,26 +34,12 @@ export function IdentityCodeDisclosure({
           className="font-mono text-xs"
           data-testid="disclosed-identity-code"
         />
-        <Button
-          type="button"
-          size="icon"
-          title={t("copyIdentityCode")}
-          onClick={() =>
-            void copyTextToClipboard(code).catch(() => setManualCopyValue(code))
-          }
-        >
-          <Copy className="h-4 w-4" />
-        </Button>
+        <CopyButton value={code} label={t("copyIdentityCode")} />
       </div>
       <p className="text-xs text-muted-foreground">{t("createdIdentityCodeHint")}</p>
       <Button type="button" className="w-full" onClick={onEnter} data-testid="enter-room">
         {t("enterRoom")}
       </Button>
-      <ManualCopyDialog
-        open={manualCopyValue.length > 0}
-        value={manualCopyValue}
-        onOpenChange={(open) => !open && setManualCopyValue("")}
-      />
     </div>
   );
 }

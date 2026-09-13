@@ -41,6 +41,8 @@ export function AdminPanel() {
   const [stats, setStats] = useState<AdminStatsResponse | null>(null);
   const [storage, setStorage] = useState<AdminStorageResponse | null>(null);
   const [config, setConfig] = useState<AdminConfigResponse | null>(null);
+  // 递增触发房间管理列表重新加载（刷新按钮 / 删除后）
+  const [roomsRefreshKey, setRoomsRefreshKey] = useState(0);
 
   const reportError = useCallback(
     (message: string) => {
@@ -149,11 +151,15 @@ export function AdminPanel() {
             variant="outline"
             size="sm"
             onClick={() => {
+              if (tab === "rooms") {
+                setRoomsRefreshKey((key) => key + 1);
+                return;
+              }
               refreshStats(adminToken).catch(reportError);
               loadSystem(adminToken).catch(reportError);
             }}
           >
-            {t("nav.dashboard")}
+            {t("nav.refresh")}
           </Button>
           <Button variant="ghost" size="sm" onClick={handleLogout}>
             {t("nav.logout")}
@@ -167,10 +173,14 @@ export function AdminPanel() {
       {tab === "rooms" ? (
         <AdminRooms
           adminToken={adminToken}
+          refreshKey={roomsRefreshKey}
           onError={reportError}
           onDeleted={(name) => {
             toast({ description: t("rooms.deleted", { name }) });
             refreshStats(adminToken).catch(reportError);
+          }}
+          onSaved={() => {
+            toast({ description: t("rooms.saved") });
           }}
         />
       ) : null}
@@ -183,6 +193,13 @@ export function AdminPanel() {
           onSaved={(updated) => {
             setConfig(updated);
             toast({ description: t("system.saved") });
+          }}
+          onCredentialRotated={(newToken) => {
+            // 轮换成功即切换本会话凭证并刷新配置视图，避免持有已轮换的旧值
+            sessionStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, newToken);
+            setState({ status: "ready", adminToken: newToken });
+            loadSystem(newToken).catch(reportError);
+            toast({ description: t("system.credentialRotated") });
           }}
         />
       ) : null}

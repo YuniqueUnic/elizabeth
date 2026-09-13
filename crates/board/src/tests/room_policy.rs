@@ -93,6 +93,7 @@ async fn password_verification_does_not_consume_quota_or_create_tokens() -> anyh
 
     let _response = verify_password(
         Path(room.slug.clone()),
+        axum::http::HeaderMap::new(),
         State(state.clone()),
         Json(VerifyRoomPasswordRequest {
             password: "correct-password".to_string(),

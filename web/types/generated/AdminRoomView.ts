@@ -4,4 +4,8 @@ import type { RoomStatus } from "./RoomStatus";
 /**
  * 管理视图的房间条目
  */
-export type AdminRoomView = { id: number, name: string, slug: string, status: RoomStatus, password_protected: boolean, current_size: number, max_size: number, current_times_entered: number, max_times_entered: number, expire_at: string | null, created_at: string, updated_at: string, content_count: number, };
+export type AdminRoomView = { id: number, name: string, slug: string, status: RoomStatus, password_protected: boolean, current_size: number, max_size: number, current_times_entered: number, max_times_entered: number, 
+/**
+ * 新成员入场角色（房间角色矩阵中的系统角色 key）
+ */
+default_role_key: string, expire_at: string | null, created_at: string, updated_at: string, content_count: number, };

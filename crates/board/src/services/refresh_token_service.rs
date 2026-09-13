@@ -26,6 +26,8 @@ pub struct PreparedRefreshToken {
 pub struct RefreshTokenService {
     base_service: RoomTokenService,
     refresh_ttl: Duration,
+    /// 访问令牌 TTL 的配置文件基线；运行时白名单覆盖优先（0 = 未覆盖）。
+    access_ttl_baseline: Duration,
     enable_rotation: bool,
     db_pool: Arc<DbPool>,
     roles_cache: Arc<RoleTableCache>,
@@ -34,6 +36,7 @@ pub struct RefreshTokenService {
     access_token_repository: Arc<RoomTokenRepository>,
     refresh_token_repository: Arc<dyn IRoomRefreshTokenRepository + Send + Sync>,
     blacklist_repository: Arc<dyn ITokenBlacklistRepository + Send + Sync>,
+    runtime: Arc<crate::state::RuntimeConfigOverrides>,
 }
 
 impl RefreshTokenService {
@@ -49,8 +52,10 @@ impl RefreshTokenService {
         access_token_repository: Arc<RoomTokenRepository>,
         refresh_token_repository: Arc<dyn IRoomRefreshTokenRepository + Send + Sync>,
         blacklist_repository: Arc<dyn ITokenBlacklistRepository + Send + Sync>,
+        runtime: Arc<crate::state::RuntimeConfigOverrides>,
     ) -> Self {
         Self {
+            access_ttl_baseline: base_service.get_ttl(),
             base_service,
             refresh_ttl,
             enable_rotation,
@@ -61,6 +66,15 @@ impl RefreshTokenService {
             access_token_repository,
             refresh_token_repository,
             blacklist_repository,
+            runtime,
+        }
+    }
+
+    /// 访问令牌签发 TTL：运行时白名单覆盖优先，回退配置文件基线。
+    fn access_ttl(&self) -> Duration {
+        match self.runtime.session_ttl_seconds() {
+            0 => self.access_ttl_baseline,
+            secs => Duration::seconds(secs),
         }
     }
 
@@ -133,7 +147,9 @@ impl RefreshTokenService {
         let role_key = self
             .resolve_role_key(&stored.access_token_jti, &claims.role, &room)
             .await?;
-        let (access_token, access_claims) = self.base_service.issue(&room, &role_key)?;
+        let (access_token, access_claims) =
+            self.base_service
+                .issue_with_ttl(&room, &role_key, self.access_ttl())?;
         let access_record = RoomToken::new(
             stored.room_id,
             access_claims.jti.clone(),

@@ -3,7 +3,10 @@
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 
-import { updateRuntimeConfig } from "@/api/adminService";
+import {
+  updateAdminCredential,
+  updateRuntimeConfig,
+} from "@/api/adminService";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +18,8 @@ import type {
   AdminStorageResponse,
 } from "@/types/generated/api.types";
 
+const RUNTIME_ROLE_KEYS = ["admin", "editor", "reader"] as const;
+
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-4 py-1.5">
@@ -24,19 +29,22 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-/** 系统 tab（容器组件）：只读配置展示 + 运行时可写白名单编辑。 */
+/** 系统 tab（容器组件）：存储状态 + 运行时可写白名单 + 管理凭证轮换 + 只读配置展示。 */
 export function AdminSystem({
   storage,
   config,
   adminToken,
   onError,
   onSaved,
+  onCredentialRotated,
 }: {
   storage: AdminStorageResponse;
   config: AdminConfigResponse;
   adminToken: string;
   onError: (message: string) => void;
   onSaved: (updated: AdminConfigResponse) => void;
+  /** 凭证轮换成功后同步父级会话（sessionStorage + 请求头），避免持有已轮换的旧值 */
+  onCredentialRotated: (newToken: string) => void;
 }) {
   const t = useTranslations("admin");
   const [saving, setSaving] = useState(false);
@@ -50,6 +58,21 @@ export function AdminSystem({
       ? String(config.runtime_room_default_max_times_entered)
       : "",
   );
+  const [sessionTtl, setSessionTtl] = useState(
+    config.runtime_session_ttl_seconds > 0
+      ? String(config.runtime_session_ttl_seconds)
+      : "",
+  );
+  const [reservationTtl, setReservationTtl] = useState(
+    config.runtime_upload_reservation_ttl_seconds > 0
+      ? String(config.runtime_upload_reservation_ttl_seconds)
+      : "",
+  );
+  const [defaultRole, setDefaultRole] = useState(
+    config.runtime_room_default_role_key ?? "",
+  );
+  const [newAdminToken, setNewAdminToken] = useState("");
+  const [rotating, setRotating] = useState(false);
 
   async function saveRuntime() {
     setSaving(true);
@@ -57,6 +80,10 @@ export function AdminSystem({
       const updated = await updateRuntimeConfig(adminToken, {
         room_default_max_size: maxSize === "" ? 0 : Number(maxSize),
         room_default_max_times_entered: maxTimes === "" ? 0 : Number(maxTimes),
+        session_ttl_seconds: sessionTtl === "" ? 0 : Number(sessionTtl),
+        upload_reservation_ttl_seconds:
+          reservationTtl === "" ? 0 : Number(reservationTtl),
+        room_default_role_key: defaultRole,
       });
       onSaved(updated);
     } catch (error) {
@@ -80,9 +107,26 @@ export function AdminSystem({
     }
   }
 
+  async function rotateCredential() {
+    if (newAdminToken === "") return;
+    setRotating(true);
+    try {
+      await updateAdminCredential(adminToken, newAdminToken);
+      onCredentialRotated(newAdminToken);
+      setNewAdminToken("");
+    } catch (error) {
+      onError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setRotating(false);
+    }
+  }
+
+  const numeric = (value: string) => /^\d+$/.test(value) || value === "";
   const invalid =
-    maxSize !== "" && (!/^\d+$/.test(maxSize) || Number(maxSize) < 0) ||
-    maxTimes !== "" && (!/^\d+$/.test(maxTimes) || Number(maxTimes) < 0);
+    !numeric(maxSize) ||
+    !numeric(maxTimes) ||
+    !numeric(sessionTtl) ||
+    !numeric(reservationTtl);
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -167,25 +211,77 @@ export function AdminSystem({
                   : t("system.searchIndexingAllowed")}
               </Button>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="admin-runtime-max-size">{t("system.runtimeMaxSize")}</Label>
-              <Input
-                id="admin-runtime-max-size"
-                inputMode="numeric"
-                placeholder={String(config.room_default_max_size)}
-                value={maxSize}
-                onChange={(event) => setMaxSize(event.target.value)}
-              />
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-2">
+                <Label htmlFor="admin-runtime-max-size">{t("system.runtimeMaxSize")}</Label>
+                <Input
+                  id="admin-runtime-max-size"
+                  inputMode="numeric"
+                  placeholder={String(config.room_default_max_size)}
+                  value={maxSize}
+                  onChange={(event) => setMaxSize(event.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="admin-runtime-max-times">{t("system.runtimeMaxTimes")}</Label>
+                <Input
+                  id="admin-runtime-max-times"
+                  inputMode="numeric"
+                  placeholder={String(config.room_default_max_times_entered)}
+                  value={maxTimes}
+                  onChange={(event) => setMaxTimes(event.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="admin-runtime-session-ttl">
+                  {t("system.runtimeSessionTtl")}
+                </Label>
+                <Input
+                  id="admin-runtime-session-ttl"
+                  inputMode="numeric"
+                  placeholder={String(config.jwt_ttl_seconds)}
+                  value={sessionTtl}
+                  onChange={(event) => setSessionTtl(event.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="admin-runtime-reservation-ttl">
+                  {t("system.runtimeReservationTtl")}
+                </Label>
+                <Input
+                  id="admin-runtime-reservation-ttl"
+                  inputMode="numeric"
+                  placeholder={String(config.upload_reservation_ttl_seconds)}
+                  value={reservationTtl}
+                  onChange={(event) => setReservationTtl(event.target.value)}
+                />
+              </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="admin-runtime-max-times">{t("system.runtimeMaxTimes")}</Label>
-              <Input
-                id="admin-runtime-max-times"
-                inputMode="numeric"
-                placeholder={String(config.room_default_max_times_entered)}
-                value={maxTimes}
-                onChange={(event) => setMaxTimes(event.target.value)}
-              />
+              <Label htmlFor="admin-runtime-default-role">
+                {t("system.runtimeDefaultRole")}
+              </Label>
+              <select
+                id="admin-runtime-default-role"
+                data-testid="admin-runtime-default-role"
+                className="border-input bg-background h-9 w-full rounded-md border px-2 text-sm"
+                value={defaultRole}
+                onChange={(event) => setDefaultRole(event.target.value)}
+              >
+                <option value="">
+                  {t("system.runtimeDefaultRoleFollow", {
+                    role: config.room_default_role_key,
+                  })}
+                </option>
+                {RUNTIME_ROLE_KEYS.map((role) => (
+                  <option key={role} value={role}>
+                    {role}
+                  </option>
+                ))}
+              </select>
+              <p className="text-muted-foreground text-xs">
+                {t("system.runtimeDefaultRoleHint")}
+              </p>
             </div>
             <div className="flex items-center justify-between gap-4">
               <p className="text-muted-foreground text-xs">{t("system.runtimeHint")}</p>
@@ -198,6 +294,44 @@ export function AdminSystem({
                 {t("system.save")}
               </Button>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("system.credentialTitle")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Row
+              label={t("system.credentialSource")}
+              value={
+                <Badge variant="secondary" data-testid="admin-credential-source">
+                  {config.admin_token_source}
+                </Badge>
+              }
+            />
+            <div className="space-y-2">
+              <Label htmlFor="admin-credential-new">{t("system.credentialNew")}</Label>
+              <Input
+                id="admin-credential-new"
+                type="password"
+                data-testid="admin-credential-new"
+                placeholder={t("system.credentialPlaceholder")}
+                value={newAdminToken}
+                onChange={(event) => setNewAdminToken(event.target.value)}
+              />
+              <p className="text-muted-foreground text-xs">
+                {t("system.credentialHint")}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              data-testid="admin-rotate-credential"
+              disabled={rotating || newAdminToken === ""}
+              onClick={() => void rotateCredential()}
+            >
+              {t("system.credentialRotate")}
+            </Button>
           </CardContent>
         </Card>
 
@@ -221,6 +355,10 @@ export function AdminSystem({
             />
             <Row label={t("system.defaultRole")} value={config.room_default_role_key} />
             <Row label={t("system.jwtTtl")} value={`${config.jwt_ttl_seconds}s`} />
+            <Row
+              label={t("system.jwtRefreshTtl")}
+              value={`${config.jwt_refresh_ttl_seconds}s`}
+            />
             <Row
               label={t("system.reservationTtl")}
               value={`${config.upload_reservation_ttl_seconds}s`}

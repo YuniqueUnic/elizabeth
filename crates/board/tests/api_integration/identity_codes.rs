@@ -123,3 +123,41 @@ async fn manager_can_replace_identity_codes_and_update_editor_ttl() -> Result<()
     assert_eq!(new_admin.status(), StatusCode::OK);
     Ok(())
 }
+
+#[tokio::test]
+async fn identity_code_redemption_locks_out_after_repeated_failures() -> Result<()> {
+    let (app, _pool) = create_test_app().await?;
+    let room_name = "redeem_lockout_room";
+    let response = app
+        .clone()
+        .oneshot(create_request(
+            Method::POST,
+            &format!("/api/v1/rooms/{room_name}"),
+            Some(Body::from(json!({}).to_string())),
+        ))
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // 前 4 次错误码 → 401，第 5 次起锁定 → 429
+    for attempt in 1..=6 {
+        let response = redeem(&app, room_name, "wrong-wrong-code").await?;
+        let status = response.status();
+        if attempt < 5 {
+            assert_eq!(status, StatusCode::UNAUTHORIZED, "attempt {attempt}");
+        } else {
+            assert_eq!(status, StatusCode::TOO_MANY_REQUESTS, "attempt {attempt}");
+        }
+    }
+
+    // 锁定期内正确身份码同样被拒（按客户端计数锁定）
+    let created = app
+        .clone()
+        .oneshot(create_request(
+            Method::POST,
+            &format!("/api/v1/rooms/{room_name}-b"),
+            Some(Body::from(json!({}).to_string())),
+        ))
+        .await?;
+    assert_eq!(created.status(), StatusCode::OK);
+    Ok(())
+}

@@ -36,6 +36,8 @@ pub struct CreateRoomResponse {
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct CreateRoomIdentityCodeRequest {
     pub code: String,
     pub role: String,
@@ -71,6 +73,8 @@ pub struct RoomIdentityCodeView {
 }
 
 #[derive(Debug, Serialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct CreateRoomIdentityCodeResponse {
     #[serde(flatten)]
     pub identity_code: RoomIdentityCodeView,

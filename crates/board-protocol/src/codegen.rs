@@ -5,21 +5,22 @@ use ts_rs::TS;
 
 #[cfg(feature = "typescript-export")]
 use crate::dto::{
-    AdminConfigResponse, AdminRoomDetailResponse, AdminRoomListResponse, AdminRoomView,
+    AdminConfigResponse, AdminCredentialUpdateRequest, AdminCredentialView,
+    AdminMintIdentityCodeRequest, AdminRoomDetailResponse, AdminRoomListResponse, AdminRoomView,
     AdminStatsResponse, AdminStorageResponse, ChunkStatusInfo, ChunkUploadRequest,
     ChunkUploadResponse, ChunkedUploadPreparationRequest, ChunkedUploadPreparationResponse,
     CleanupResponse, CreateMessageRequest, CreateMessageResponse, CreateRoleRequest,
-    CreateRoomRequest, CreateRoomResponse, CreateUrlContentRequest, CreateUrlContentResponse,
-    DeleteContentRequest, DeleteContentResponse, DeleteRoleResponse, DeleteRoomResponse,
-    FileMergeRequest, FileMergeResponse, FullRoomGcStatusView, IssueTokenRequest,
-    IssueTokenResponse, LogoutRequest, MergedFileInfo, MessagePage, MyCapabilitiesResponse,
-    PublicConfigResponse, PublicRoomConfig, PublicRoomExpiryConfig, ReservedFileInfo,
-    RevokeTokenResponse, RoleDefinition, RoomContentView, RoomIdentityCodeView, RoomTokenClaims,
-    RoomTokenView, RoomView, RunRoomGcResponse, TokenType, UpdateContentRequest,
-    UpdateContentResponse, UpdateRoleRequest, UpdateRoomSettingsRequest, UploadContentResponse,
-    UploadPreparationRequest, UploadPreparationResponse, UploadStatusQuery, UploadStatusResponse,
-    ValidateTokenRequest, ValidateTokenResponse, VerifyRoomPasswordRequest,
-    VerifyRoomPasswordResponse,
+    CreateRoomIdentityCodeRequest, CreateRoomIdentityCodeResponse, CreateRoomRequest,
+    CreateRoomResponse, CreateUrlContentRequest, CreateUrlContentResponse, DeleteContentRequest,
+    DeleteContentResponse, DeleteRoleResponse, DeleteRoomResponse, FileMergeRequest,
+    FileMergeResponse, FullRoomGcStatusView, IssueTokenRequest, IssueTokenResponse, LogoutRequest,
+    MergedFileInfo, MessagePage, MyCapabilitiesResponse, PublicConfigResponse, PublicRoomConfig,
+    PublicRoomExpiryConfig, ReservedFileInfo, RevokeTokenResponse, RoleDefinition, RoomContentView,
+    RoomIdentityCodeView, RoomTokenClaims, RoomTokenView, RoomView, RunRoomGcResponse, TokenType,
+    UpdateContentRequest, UpdateContentResponse, UpdateRoleRequest, UpdateRoomSettingsRequest,
+    UpdateRuntimeConfigRequest, UploadContentResponse, UploadPreparationRequest,
+    UploadPreparationResponse, UploadStatusQuery, UploadStatusResponse, ValidateTokenRequest,
+    ValidateTokenResponse, VerifyRoomPasswordRequest, VerifyRoomPasswordResponse,
 };
 #[cfg(feature = "typescript-export")]
 use crate::models::content::{ContentType, RoomContent};
@@ -112,8 +113,14 @@ pub fn export_ts_types_to(output_dir: &Path) -> Result<(), ts_rs::ExportError> {
     AdminRoomView::export_all(&output_dir_cfg)?;
     AdminStatsResponse::export_all(&output_dir_cfg)?;
     AdminStorageResponse::export_all(&output_dir_cfg)?;
+    AdminCredentialUpdateRequest::export_all(&output_dir_cfg)?;
+    AdminCredentialView::export_all(&output_dir_cfg)?;
+    AdminMintIdentityCodeRequest::export_all(&output_dir_cfg)?;
+    UpdateRuntimeConfigRequest::export_all(&output_dir_cfg)?;
     FullRoomGcStatusView::export_all(&output_dir_cfg)?;
     RunRoomGcResponse::export_all(&output_dir_cfg)?;
+    CreateRoomIdentityCodeRequest::export_all(&output_dir_cfg)?;
+    CreateRoomIdentityCodeResponse::export_all(&output_dir_cfg)?;
     Ok(())
 }
 
@@ -192,8 +199,14 @@ pub fn exported_ts_type_names() -> &'static [&'static str] {
         "AdminRoomView",
         "AdminStatsResponse",
         "AdminStorageResponse",
+        "AdminCredentialUpdateRequest",
+        "AdminCredentialView",
+        "AdminMintIdentityCodeRequest",
+        "UpdateRuntimeConfigRequest",
         "FullRoomGcStatusView",
         "RunRoomGcResponse",
+        "CreateRoomIdentityCodeRequest",
+        "CreateRoomIdentityCodeResponse",
     ]
 }
 
