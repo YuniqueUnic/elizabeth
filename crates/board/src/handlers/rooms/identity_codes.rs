@@ -11,7 +11,7 @@ use crate::dto::rooms::{
     RedeemRoomIdentityCodeRequest, RoomIdentityCodeView, UpdateRoomIdentityCodeRequest,
     UpdateRoomIdentityCodeResponse,
 };
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use crate::handlers::{AuthToken, verify_room_token};
 use crate::models::room::role::{Capability, ROLE_ADMIN};
 use crate::models::{Room, RoomIdentityCode, RoomToken};
@@ -22,6 +22,7 @@ use crate::repository::{
 use crate::services::token::{MAX_IDENTITY_TTL_SECONDS, MIN_IDENTITY_TTL_SECONDS};
 use crate::state::AppState;
 use crate::validation::RoomNameValidator;
+use uuid::Uuid;
 
 #[utoipa::path(
     post,
@@ -38,13 +39,43 @@ pub async fn create_identity_code(
     Json(payload): Json<CreateRoomIdentityCodeRequest>,
 ) -> HandlerResult<CreateRoomIdentityCodeResponse> {
     let manager = require_manager(&app_state, &name, &token).await?;
-    let room = manager.room;
-    let room_id = manager.room_id;
-    let creator_jti = manager.jti;
     let code = validate_identity_code(&payload.code)?;
-    let role_key = payload.role.trim();
-    ensure_role_exists(&app_state, &room, room_id, role_key).await?;
-    let expires_at = identity_code_expiry(&app_state, &room, role_key, payload.expires_in_secs)?;
+    let (identity_code, code) = mint_identity_code(
+        &app_state,
+        &manager.room,
+        &payload.role,
+        Some(code),
+        payload.expires_in_secs,
+        Some(manager.jti),
+    )
+    .await?;
+    Ok(Json(CreateRoomIdentityCodeResponse {
+        identity_code,
+        code,
+    }))
+}
+
+/// 铸造一条房间身份码：校验角色存在、按角色规则计算过期、Argon2 落库。
+/// `requested_code = None` 时由服务端生成随机码；明文仅在返回值中出现一次。
+/// 房间级创建与平台管理端点共用本核心。
+pub(crate) async fn mint_identity_code(
+    app_state: &AppState,
+    room: &Room,
+    role_key: &str,
+    requested_code: Option<String>,
+    expires_in_secs: Option<i64>,
+    created_by_jti: Option<String>,
+) -> AppResult<(RoomIdentityCodeView, String)> {
+    let room_id = room
+        .id
+        .ok_or_else(|| AppError::internal("Room id missing"))?;
+    let role_key = role_key.trim();
+    ensure_role_exists(app_state, room, room_id, role_key).await?;
+    let expires_at = identity_code_expiry(app_state, room, role_key, expires_in_secs)?;
+    let code = match requested_code {
+        Some(code) => code,
+        None => Uuid::new_v4().simple().to_string()[..12].to_owned(),
+    };
     let hash = app_state
         .room_password_service()
         .hash(code.clone())
@@ -59,16 +90,13 @@ pub async fn create_identity_code(
             role_key: role_key.to_owned(),
             expires_at,
             revoked_at: None,
-            created_by_jti: Some(creator_jti),
+            created_by_jti,
             created_at: now,
             updated_at: now,
         })
         .await
         .map_err(|e| AppError::internal(format!("Failed to create identity code: {e}")))?;
-    Ok(Json(CreateRoomIdentityCodeResponse {
-        identity_code: code_view(created, None),
-        code,
-    }))
+    Ok((code_view(created, None), code))
 }
 
 #[utoipa::path(
@@ -189,9 +217,12 @@ pub async fn update_identity_code(
 )]
 pub async fn redeem_identity_code(
     Path(name): Path<String>,
+    headers: axum::http::HeaderMap,
     State(app_state): State<Arc<AppState>>,
     Json(payload): Json<RedeemRoomIdentityCodeRequest>,
 ) -> HandlerResult<IssueTokenResponse> {
+    use crate::services::GuardScope;
+
     RoomNameValidator::validate_identifier(&name)?;
     let code = validate_identity_code(&payload.code)?;
     let room = RoomRepository::new(app_state.db_pool.clone())
@@ -208,13 +239,35 @@ pub async fn redeem_identity_code(
     let room_id = room
         .id
         .ok_or_else(|| AppError::internal("Room id missing"))?;
+    let client_key = crate::client_ip(&headers).to_owned();
+    app_state
+        .attempt_guard()
+        .check(GuardScope::IdentityCode(room_id), &client_key)?;
     let now = Utc::now().naive_utc();
     let code_repo = RoomIdentityCodeRepository::new(app_state.db_pool.clone());
     let codes = code_repo
         .list_by_room(room_id)
         .await
         .map_err(|e| AppError::internal(format!("Failed to load identity codes: {e}")))?;
-    let identity_code = find_matching_identity_code(&app_state, code, codes, now).await?;
+    let identity_code = match find_matching_identity_code(&app_state, code, codes, now).await {
+        Ok(matched) => {
+            app_state
+                .attempt_guard()
+                .record_success(GuardScope::IdentityCode(room_id), &client_key);
+            matched
+        }
+        Err(error) => {
+            let (failed_count, lockout_secs) = app_state
+                .attempt_guard()
+                .record_failure(GuardScope::IdentityCode(room_id), &client_key);
+            if lockout_secs.is_some() {
+                return Err(AppError::too_many_requests(format!(
+                    "Too many failed attempts ({failed_count} attempts). Identity code redemption temporarily locked."
+                )));
+            }
+            return Err(error);
+        }
+    };
     ensure_role_exists(&app_state, &room, room_id, &identity_code.role_key).await?;
     let ttl = identity_code.expires_at - now;
     let (token, claims) = app_state
@@ -328,8 +381,7 @@ pub(crate) fn identity_code_expiry(
             .expire_at
             .unwrap_or_else(|| Utc::now().naive_utc() + Duration::days(365 * 100)));
     }
-    let seconds =
-        requested_secs.unwrap_or_else(|| app_state.token_service().get_ttl().num_seconds());
+    let seconds = requested_secs.unwrap_or_else(|| app_state.session_ttl().num_seconds());
     if !(MIN_IDENTITY_TTL_SECONDS..=MAX_IDENTITY_TTL_SECONDS).contains(&seconds) {
         return Err(AppError::validation(format!(
             "expires_in_secs must be between {MIN_IDENTITY_TTL_SECONDS} and {MAX_IDENTITY_TTL_SECONDS} seconds"

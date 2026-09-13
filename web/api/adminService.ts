@@ -2,10 +2,13 @@ import { ADMIN_ENDPOINTS } from "../lib/config";
 import { api } from "../lib/utils/api";
 import type {
   AdminConfigResponse,
+  AdminCredentialView,
+  AdminMintIdentityCodeRequest,
   AdminRoomDetailResponse,
   AdminRoomListResponse,
   AdminStatsResponse,
   AdminStorageResponse,
+  CreateRoomIdentityCodeResponse,
 } from "../types/generated/api.types";
 
 /**
@@ -83,11 +86,58 @@ export function updateRuntimeConfig(
     disallow_search_indexing?: boolean;
     room_default_max_size?: number;
     room_default_max_times_entered?: number;
+    session_ttl_seconds?: number;
+    upload_reservation_ttl_seconds?: number;
+    room_default_role_key?: string;
   },
 ): Promise<AdminConfigResponse> {
   return api.put<AdminConfigResponse>(
     ADMIN_ENDPOINTS.runtimeConfig,
     update,
+    adminOptions(adminToken),
+  );
+}
+
+/** 平台运维语义的房间设置更新（复用房间设置校验，服务端强制）。 */
+export function updateAdminRoom(
+  adminToken: string,
+  name: string,
+  update: {
+    max_size?: number;
+    max_times_entered?: number;
+    default_role_key?: string;
+    password?: string;
+    remove_password?: boolean;
+  },
+): Promise<AdminRoomDetailResponse> {
+  return api.put<AdminRoomDetailResponse>(
+    ADMIN_ENDPOINTS.roomUpdate(name),
+    update,
+    adminOptions(adminToken),
+  );
+}
+
+/** 铸造房间身份码；code 留空由服务端生成，明文仅此一次返回。 */
+export function mintAdminIdentityCode(
+  adminToken: string,
+  name: string,
+  mint: AdminMintIdentityCodeRequest,
+): Promise<CreateRoomIdentityCodeResponse> {
+  return api.post<CreateRoomIdentityCodeResponse>(
+    ADMIN_ENDPOINTS.roomIdentityCodes(name),
+    mint,
+    adminOptions(adminToken),
+  );
+}
+
+/** 轮换平台管理凭证（进程内覆盖，重启回退环境引导值）。 */
+export function updateAdminCredential(
+  adminToken: string,
+  token: string,
+): Promise<AdminCredentialView> {
+  return api.put<AdminCredentialView>(
+    ADMIN_ENDPOINTS.credential,
+    { token },
     adminOptions(adminToken),
   );
 }

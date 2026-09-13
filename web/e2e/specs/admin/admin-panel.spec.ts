@@ -77,7 +77,7 @@ test.describe("Admin panel", () => {
     // 精确搜索命中
     await page.getByLabel(tAdmin("rooms.searchPlaceholder")).fill(roomName);
     await page.getByRole("button", { name: tAdmin("rooms.search") }).click();
-    await expect(page.getByRole("button", { name: roomName })).toBeVisible();
+    await expect(page.getByText(roomName)).toBeVisible();
 
     // 无匹配 → 空态
     await page.getByLabel(tAdmin("rooms.searchPlaceholder")).fill("no-such-room-xyz");
@@ -87,7 +87,8 @@ test.describe("Admin panel", () => {
     // 回到目标房间并打开详情
     await page.getByLabel(tAdmin("rooms.searchPlaceholder")).fill(roomName);
     await page.getByRole("button", { name: tAdmin("rooms.search") }).click();
-    await page.getByRole("button", { name: roomName }).first().click();
+    const configRow = page.locator("div.border-t", { hasText: roomName }).first();
+    await configRow.getByTestId("admin-room-configure").click();
     await expect(page.getByText(tAdmin("rooms.detailTokens"))).toBeVisible();
     await page.keyboard.press("Escape");
 
@@ -99,7 +100,7 @@ test.describe("Admin panel", () => {
       .getByRole("dialog")
       .getByRole("button", { name: tAdmin("rooms.cancel") })
       .click();
-    await expect(page.getByRole("button", { name: roomName }).first()).toBeVisible();
+    await expect(page.getByText(roomName)).toBeVisible();
 
     // 删除确认：房间从列表消失
     await row.getByRole("button", { name: tAdmin("rooms.delete") }).click();
@@ -173,6 +174,67 @@ test.describe("Admin panel", () => {
     await page.getByLabel(tAdmin("system.runtimeMaxTimes")).fill("0");
     await page.getByTestId("admin-save-runtime").click();
     await expect(page.getByText(tAdmin("system.saved"), { exact: true }).first()).toBeVisible();
+  });
+
+  test("lists existing rooms without search, edits settings, mints a code", async ({
+    page,
+    request,
+  }) => {
+    const roomName = uniqueRoomName("admin-list");
+    await createRoomViaApi(request, roomName);
+
+    await gotoAdmin(page);
+    await login(page, ADMIN_BOOTSTRAP_TOKEN);
+    await page.getByRole("button", { name: tAdmin("nav.rooms") }).click();
+
+    // 默认列出已有房间，无需先搜索
+    await expect(page.getByText(roomName)).toBeVisible();
+
+    // 行内「配置」按钮打开配置对话框 → 设置 tab 修改进入次数上限
+    const configRow = page.locator("div.border-t", { hasText: roomName }).first();
+    await configRow.getByTestId("admin-room-configure").click();
+    await page.getByRole("tab", { name: tAdmin("rooms.tabSettings") }).click();
+    await page.getByLabel(tAdmin("rooms.maxTimes")).fill("5");
+    await page.getByTestId("admin-room-save").click();
+    await expect(page.getByText(tAdmin("rooms.saved")).first()).toBeVisible();
+
+    // 身份码 tab：铸造 editor 身份码，明文仅此一次展示，可复制
+    await page.getByRole("tab", { name: tAdmin("rooms.tabIdentity") }).click();
+    await page.getByTestId("admin-room-mint").click();
+    const minted = page.getByTestId("minted-code");
+    await expect(minted).toBeVisible();
+    const code = await minted.locator("code").textContent();
+    expect(code?.length).toBeGreaterThanOrEqual(6);
+    await page.keyboard.press("Escape");
+  });
+
+  test("rotates the admin credential and re-logs in", async ({ page }) => {
+    await gotoAdmin(page);
+    await login(page, ADMIN_BOOTSTRAP_TOKEN);
+    await page.getByRole("button", { name: tAdmin("nav.system") }).click();
+
+    // 轮换后本会话自动切换凭证，来源标记为运行时覆盖
+    await page.getByTestId("admin-credential-new").fill("rotated-e2e-admin-token");
+    await page.getByTestId("admin-rotate-credential").click();
+    await expect(page.getByTestId("admin-credential-source")).toHaveText(
+      "runtime-override",
+    );
+
+    // 旧凭证已失效，新凭证可登录（退出前处于系统 tab，重登后先切回概览）
+    await page.getByRole("button", { name: tAdmin("nav.logout") }).click();
+    await login(page, ADMIN_BOOTSTRAP_TOKEN);
+    await expect(page.getByText(tAdmin("login.invalid")).first()).toBeVisible();
+    await login(page, "rotated-e2e-admin-token");
+    await page.getByRole("button", { name: tAdmin("nav.dashboard") }).click();
+    await expect(page.getByText(tAdmin("stats.roomsTotal"))).toBeVisible();
+
+    // 轮换回原凭证，保持环境对后续用例可用
+    await page.getByRole("button", { name: tAdmin("nav.system") }).click();
+    await page.getByTestId("admin-credential-new").fill(ADMIN_BOOTSTRAP_TOKEN);
+    await page.getByTestId("admin-rotate-credential").click();
+    await expect(page.getByTestId("admin-credential-source")).toHaveText(
+      "runtime-override",
+    );
   });
 
   test("links to the panel from the home page entry", async ({ page }) => {

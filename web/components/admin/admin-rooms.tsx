@@ -1,8 +1,9 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
 
+import { CopyButton } from "@/components/copy-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,7 +15,22 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { deleteAdminRoom, getAdminRoomDetail, listAdminRooms } from "@/api/adminService";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  deleteAdminRoom,
+  getAdminRoomDetail,
+  listAdminRooms,
+  mintAdminIdentityCode,
+  updateAdminRoom,
+} from "@/api/adminService";
 import { formatFileSize } from "@/lib/utils/format";
 import type {
   AdminRoomDetailResponse,
@@ -22,6 +38,7 @@ import type {
 } from "@/types/generated/api.types";
 
 const PAGE_SIZE = 20;
+const ROLE_KEYS = ["admin", "editor", "reader"] as const;
 
 function StatusBadge({ status }: { status: AdminRoomView["status"] }) {
   const t = useTranslations("admin");
@@ -36,15 +53,20 @@ function StatusBadge({ status }: { status: AdminRoomView["status"] }) {
   );
 }
 
-/** 房间管理（容器组件）：搜索、分页、详情与删除的数据与副作用。 */
+/** 房间管理（容器组件）：默认列表、搜索、分页、配置与删除的数据与副作用。 */
 export function AdminRooms({
   adminToken,
+  refreshKey,
   onError,
   onDeleted,
+  onSaved,
 }: {
   adminToken: string;
+  /** 递增值触发列表重新加载（面板刷新按钮） */
+  refreshKey: number;
   onError: (message: string) => void;
   onDeleted: (name: string) => void;
+  onSaved: () => void;
 }) {
   const t = useTranslations("admin");
   const [query, setQuery] = useState("");
@@ -56,21 +78,30 @@ export function AdminRooms({
   const [pendingDelete, setPendingDelete] = useState<AdminRoomView | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  async function load(nextOffset: number, search = query) {
-    try {
-      const result = await listAdminRooms(adminToken, {
-        q: search || undefined,
-        limit: PAGE_SIZE,
-        offset: nextOffset,
-      });
-      setRooms(result.rooms);
-      setTotal(result.total);
-      setOffset(nextOffset);
-      setLoaded(true);
-    } catch (error) {
-      onError(error instanceof Error ? error.message : String(error));
-    }
-  }
+  const load = useCallback(
+    async (nextOffset: number, search = query) => {
+      try {
+        const result = await listAdminRooms(adminToken, {
+          q: search || undefined,
+          limit: PAGE_SIZE,
+          offset: nextOffset,
+        });
+        setRooms(result.rooms);
+        setTotal(result.total);
+        setOffset(nextOffset);
+        setLoaded(true);
+      } catch (error) {
+        onError(error instanceof Error ? error.message : String(error));
+      }
+    },
+    [adminToken, onError, query],
+  );
+
+  // 默认列出已有房间；refreshKey 变化（含首次挂载）时重新加载
+  useEffect(() => {
+    void load(0, "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey]);
 
   async function confirmDelete() {
     if (!pendingDelete) return;
@@ -87,7 +118,7 @@ export function AdminRooms({
     }
   }
 
-  async function openDetail(room: AdminRoomView) {
+  async function openConfig(room: AdminRoomView) {
     try {
       setDetail(await getAdminRoomDetail(adminToken, room.name));
     } catch (error) {
@@ -133,13 +164,7 @@ export function AdminRooms({
             key={room.id}
             className="grid grid-cols-2 gap-2 border-t px-4 py-3 text-sm sm:grid-cols-[2fr_1fr_1fr_1fr_1fr_2fr_auto] sm:items-center"
           >
-            <button
-              type="button"
-              className="text-left font-medium underline-offset-4 hover:underline"
-              onClick={() => void openDetail(room)}
-            >
-              {room.name}
-            </button>
+            <span className="font-medium">{room.name}</span>
             <StatusBadge status={room.status} />
             <span>
               {room.password_protected
@@ -153,13 +178,23 @@ export function AdminRooms({
                 ? new Date(room.expire_at).toLocaleString()
                 : t("rooms.never")}
             </span>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => setPendingDelete(room)}
-            >
-              {t("rooms.delete")}
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void openConfig(room)}
+                data-testid="admin-room-configure"
+              >
+                {t("rooms.configure")}
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setPendingDelete(room)}
+              >
+                {t("rooms.delete")}
+              </Button>
+            </div>
           </div>
         ))}
         {loaded && rooms.length === 0 ? (
@@ -193,30 +228,17 @@ export function AdminRooms({
         </div>
       </div>
 
-      <Dialog open={detail !== null} onOpenChange={(open) => !open && setDetail(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {t("rooms.detailTitle")}: {detail?.name}
-            </DialogTitle>
-            <DialogDescription>{detail?.slug}</DialogDescription>
-          </DialogHeader>
-          {detail ? (
-            <dl className="grid grid-cols-2 gap-2 text-sm">
-              <dt>{t("rooms.contents")}</dt>
-              <dd className="tabular-nums">{detail.content_count}</dd>
-              <dt>{t("rooms.detailBlobs")}</dt>
-              <dd className="tabular-nums">{detail.blob_count}</dd>
-              <dt>{t("rooms.detailTokens")}</dt>
-              <dd className="tabular-nums">{detail.token_count}</dd>
-              <dt>{t("rooms.size")}</dt>
-              <dd>{formatFileSize(detail.current_size)}</dd>
-              <dt>{t("rooms.created")}</dt>
-              <dd>{new Date(detail.created_at).toLocaleString()}</dd>
-            </dl>
-          ) : null}
-        </DialogContent>
-      </Dialog>
+      <RoomConfigDialog
+        detail={detail}
+        adminToken={adminToken}
+        onClose={() => setDetail(null)}
+        onError={onError}
+        onSaved={(updated) => {
+          setDetail(updated);
+          onSaved();
+          void load(offset);
+        }}
+      />
 
       <Dialog
         open={pendingDelete !== null}
@@ -246,5 +268,303 @@ export function AdminRooms({
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+/** 房间配置对话框（展示组件）：概览 / 设置 / 身份码 三个分区。 */
+function RoomConfigDialog({
+  detail,
+  adminToken,
+  onClose,
+  onError,
+  onSaved,
+}: {
+  detail: AdminRoomDetailResponse | null;
+  adminToken: string;
+  onClose: () => void;
+  onError: (message: string) => void;
+  onSaved: (detail: AdminRoomDetailResponse) => void;
+}) {
+  const t = useTranslations("admin");
+  const [maxSize, setMaxSize] = useState("");
+  const [maxTimes, setMaxTimes] = useState("");
+  const [defaultRole, setDefaultRole] = useState("");
+  const [password, setPassword] = useState("");
+  const [removePassword, setRemovePassword] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [mintRole, setMintRole] = useState<(typeof ROLE_KEYS)[number]>("editor");
+  const [mintCode, setMintCode] = useState("");
+  const [mintedCode, setMintedCode] = useState<string | null>(null);
+  const [minting, setMinting] = useState(false);
+
+  useEffect(() => {
+    if (detail) {
+      setMaxSize("");
+      setMaxTimes("");
+      setDefaultRole("");
+      setPassword("");
+      setRemovePassword(false);
+      setMintRole("editor");
+      setMintCode("");
+      setMintedCode(null);
+    }
+  }, [detail]);
+
+  if (!detail) return null;
+
+  async function saveSettings() {
+    if (!detail || saving) return;
+    setSaving(true);
+    try {
+      const update: Parameters<typeof updateAdminRoom>[2] = {};
+      if (maxSize !== "") update.max_size = Number(maxSize);
+      if (maxTimes !== "") update.max_times_entered = Number(maxTimes);
+      if (defaultRole !== "") update.default_role_key = defaultRole;
+      if (removePassword) {
+        update.remove_password = true;
+      } else if (password !== "") {
+        update.password = password;
+      }
+      const updated = await updateAdminRoom(adminToken, detail.name, update);
+      onSaved(updated);
+    } catch (error) {
+      onError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function mint() {
+    if (!detail || minting) return;
+    setMinting(true);
+    try {
+      const result = await mintAdminIdentityCode(adminToken, detail.name, {
+        code: mintCode || undefined,
+        role: mintRole,
+      });
+      setMintedCode(result.code);
+      setMintCode("");
+    } catch (error) {
+      onError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setMinting(false);
+    }
+  }
+
+  const hasSettingChanges =
+    maxSize !== "" ||
+    maxTimes !== "" ||
+    defaultRole !== "" ||
+    password !== "" ||
+    removePassword;
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>
+            {t("rooms.detailTitle")}: {detail.name}
+          </DialogTitle>
+          <DialogDescription>{detail.slug}</DialogDescription>
+        </DialogHeader>
+
+        <Tabs defaultValue="overview">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="overview">{t("rooms.tabOverview")}</TabsTrigger>
+            <TabsTrigger value="settings">{t("rooms.tabSettings")}</TabsTrigger>
+            <TabsTrigger value="identity">{t("rooms.tabIdentity")}</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="mt-3">
+            <dl className="grid grid-cols-2 gap-2 text-sm">
+              <dt className="text-muted-foreground">{t("rooms.contents")}</dt>
+              <dd className="tabular-nums">{detail.content_count}</dd>
+              <dt className="text-muted-foreground">{t("rooms.detailBlobs")}</dt>
+              <dd className="tabular-nums">{detail.blob_count}</dd>
+              <dt className="text-muted-foreground">{t("rooms.detailTokens")}</dt>
+              <dd className="tabular-nums">{detail.token_count}</dd>
+              <dt className="text-muted-foreground">{t("rooms.size")}</dt>
+              <dd>
+                {formatFileSize(detail.current_size)} /{" "}
+                {formatFileSize(detail.max_size)}
+              </dd>
+              <dt className="text-muted-foreground">
+                {t("rooms.overviewEntries")}
+              </dt>
+              <dd className="tabular-nums">
+                {detail.current_times_entered} / {detail.max_times_entered}
+              </dd>
+              <dt className="text-muted-foreground">{t("rooms.defaultRole")}</dt>
+              <dd>{detail.default_role_key}</dd>
+              <dt className="text-muted-foreground">{t("rooms.created")}</dt>
+              <dd>{new Date(detail.created_at).toLocaleString()}</dd>
+              <dt className="text-muted-foreground">{t("rooms.expire")}</dt>
+              <dd>
+                {detail.expire_at
+                  ? new Date(detail.expire_at).toLocaleString()
+                  : t("rooms.never")}
+              </dd>
+            </dl>
+          </TabsContent>
+
+          <TabsContent value="settings" className="mt-3 space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="admin-room-max-size">{t("rooms.maxSize")}</Label>
+                <Input
+                  id="admin-room-max-size"
+                  inputMode="numeric"
+                  placeholder={String(detail.max_size)}
+                  value={maxSize}
+                  onChange={(event) => setMaxSize(event.target.value)}
+                />
+                <p className="text-muted-foreground text-xs">
+                  {t("rooms.capacityCurrent", {
+                    size: formatFileSize(detail.max_size),
+                    bytes: detail.max_size,
+                  })}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="admin-room-max-times">
+                  {t("rooms.maxTimes")}
+                </Label>
+                <Input
+                  id="admin-room-max-times"
+                  inputMode="numeric"
+                  placeholder={String(detail.max_times_entered)}
+                  value={maxTimes}
+                  onChange={(event) => setMaxTimes(event.target.value)}
+                />
+                <p className="text-muted-foreground text-xs">
+                  {t("rooms.maxTimesCurrent", {
+                    count: detail.max_times_entered,
+                  })}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label>{t("rooms.defaultRole")}</Label>
+              <Select
+                value={defaultRole || detail.default_role_key}
+                onValueChange={(value) =>
+                  setDefaultRole(value === detail.default_role_key ? "" : value)
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ROLE_KEYS.map((role) => (
+                    <SelectItem key={role} value={role}>
+                      {role}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-muted-foreground text-xs">
+                {t("rooms.roleCurrent", { role: detail.default_role_key })}
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="admin-room-password">
+                {t("rooms.passwordSet")}
+              </Label>
+              <Input
+                id="admin-room-password"
+                type="password"
+                placeholder={t("rooms.passwordPlaceholder")}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                disabled={removePassword}
+              />
+              {detail.password_protected ? (
+                <label className="text-muted-foreground flex items-center gap-2 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={removePassword}
+                    onChange={(event) => {
+                      setRemovePassword(event.target.checked);
+                      if (event.target.checked) setPassword("");
+                    }}
+                  />
+                  {t("rooms.passwordRemove")}
+                </label>
+              ) : (
+                <p className="text-muted-foreground text-xs">
+                  {t("rooms.passwordAbsent")}
+                </p>
+              )}
+            </div>
+
+            <p className="text-muted-foreground text-xs">
+              {t("rooms.settingsHint")}
+            </p>
+            <Button
+              size="sm"
+              disabled={!hasSettingChanges || saving}
+              onClick={() => void saveSettings()}
+              data-testid="admin-room-save"
+            >
+              {t("rooms.saveSettings")}
+            </Button>
+          </TabsContent>
+
+          <TabsContent value="identity" className="mt-3 space-y-3">
+            {mintedCode ? (
+              <div
+                className="flex items-center gap-2 border border-primary/40 bg-primary/5 rounded-md p-2"
+                data-testid="minted-code"
+              >
+                <code className="flex-1 font-mono text-xs break-all">
+                  {mintedCode}
+                </code>
+                <CopyButton value={mintedCode} label={t("rooms.copyMinted")} />
+              </div>
+            ) : (
+              <p className="text-muted-foreground text-xs">
+                {t("rooms.mintHint")}
+              </p>
+            )}
+            <div className="space-y-1">
+              <Label>{t("rooms.mintRole")}</Label>
+              <Select value={mintRole} onValueChange={(v) => setMintRole(v as (typeof ROLE_KEYS)[number])}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ROLE_KEYS.map((role) => (
+                    <SelectItem key={role} value={role}>
+                      {role}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="admin-mint-code">{t("rooms.mintCode")}</Label>
+              <Input
+                id="admin-mint-code"
+                className="font-mono text-xs"
+                placeholder={t("rooms.mintCodePlaceholder")}
+                value={mintCode}
+                onChange={(event) => setMintCode(event.target.value)}
+              />
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={minting || mintedCode !== null}
+              onClick={() => void mint()}
+              data-testid="admin-room-mint"
+            >
+              {t("rooms.mintButton")}
+            </Button>
+          </TabsContent>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
   );
 }

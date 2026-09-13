@@ -2,6 +2,7 @@
 ///
 /// 重构后的 AppState，职责更加清晰，依赖关系更加明确
 use std::sync::Arc;
+use std::sync::RwLock;
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 
 use anyhow::Result;
@@ -12,7 +13,10 @@ use crate::services::Services;
 use crate::storage::{StorageBackend, from_config};
 use crate::websocket::{broadcaster::Broadcaster, connection::ConnectionManager};
 
-/// 运行时可写配置覆盖（issue #196 明确安全的小集合）。
+/// 平台管理 API 凭证的环境变量名。
+pub const ADMIN_TOKEN_ENV: &str = "ELIZABETH_ADMIN_TOKEN";
+
+/// 运行时可写配置覆盖（管理白名单）。
 /// 仅存活于进程内，重启后回到配置文件值——configrs 始终是唯一配置源。
 /// 经 Arc 共享：所有 AppState 克隆看到同一份覆盖。
 #[derive(Debug)]
@@ -23,6 +27,12 @@ pub struct RuntimeConfigOverrides {
     room_default_max_size: AtomicI64,
     /// 0 = 未覆盖，回退配置文件默认值
     room_default_max_times_entered: AtomicI64,
+    /// 0 = 未覆盖，回退配置文件默认值（访问令牌有效期，秒）
+    session_ttl_seconds: AtomicI64,
+    /// 0 = 未覆盖，回退配置文件默认值（上传预留有效期，秒）
+    upload_reservation_ttl_seconds: AtomicI64,
+    /// None = 未覆盖，回退配置文件默认值（新房间默认加入角色）
+    room_default_role_key: RwLock<Option<String>>,
 }
 
 impl Default for RuntimeConfigOverrides {
@@ -32,6 +42,9 @@ impl Default for RuntimeConfigOverrides {
             disallow_search_indexing: AtomicBool::new(true),
             room_default_max_size: AtomicI64::new(0),
             room_default_max_times_entered: AtomicI64::new(0),
+            session_ttl_seconds: AtomicI64::new(0),
+            upload_reservation_ttl_seconds: AtomicI64::new(0),
+            room_default_role_key: RwLock::new(None),
         }
     }
 }
@@ -64,6 +77,93 @@ impl RuntimeConfigOverrides {
         self.room_default_max_times_entered
             .store(value, Ordering::Relaxed);
     }
+
+    /// 访问令牌有效期（秒）；0 表示未覆盖。
+    pub fn session_ttl_seconds(&self) -> i64 {
+        self.session_ttl_seconds.load(Ordering::Relaxed)
+    }
+
+    pub fn set_session_ttl_seconds(&self, value: i64) {
+        self.session_ttl_seconds.store(value, Ordering::Relaxed);
+    }
+
+    /// 上传预留有效期（秒）；0 表示未覆盖。
+    pub fn upload_reservation_ttl_seconds(&self) -> i64 {
+        self.upload_reservation_ttl_seconds.load(Ordering::Relaxed)
+    }
+
+    pub fn set_upload_reservation_ttl_seconds(&self, value: i64) {
+        self.upload_reservation_ttl_seconds
+            .store(value, Ordering::Relaxed);
+    }
+
+    /// 新房间默认加入角色；None 表示未覆盖。
+    pub fn room_default_role_key(&self) -> Option<String> {
+        self.room_default_role_key
+            .read()
+            .ok()
+            .and_then(|guard| guard.clone())
+    }
+
+    pub fn set_room_default_role_key(&self, value: Option<String>) {
+        if let Ok(mut guard) = self.room_default_role_key.write() {
+            *guard = value;
+        }
+    }
+}
+
+/// 平台管理 API 凭证：环境变量为引导值，支持运行时轮换（进程内覆盖，重启回退环境值）。
+#[derive(Debug, Default)]
+pub struct AdminCredential {
+    runtime_token: RwLock<Option<String>>,
+}
+
+impl AdminCredential {
+    /// 轮换管理凭证；空串或纯空白视为无效，调用方负责先校验强度。
+    pub fn rotate(&self, token: String) {
+        if let Ok(mut guard) = self.runtime_token.write() {
+            *guard = Some(token);
+        }
+    }
+
+    /// 当前凭证来源：运行时覆盖或环境变量引导值。
+    pub fn source(&self) -> &'static str {
+        let overridden = self
+            .runtime_token
+            .read()
+            .ok()
+            .is_some_and(|guard| guard.is_some());
+        if overridden {
+            "runtime-override"
+        } else {
+            "env"
+        }
+    }
+
+    /// 校验请求携带的管理凭证。未配置任何凭证时整个管理 API 关闭。
+    pub fn verify(&self, provided: Option<&str>) -> Result<(), crate::errors::AppError> {
+        use crate::errors::AppError;
+
+        let expected = self
+            .runtime_token
+            .read()
+            .ok()
+            .and_then(|guard| guard.clone())
+            .or_else(|| {
+                std::env::var(ADMIN_TOKEN_ENV)
+                    .ok()
+                    .map(|value| value.trim().to_owned())
+                    .filter(|value| !value.is_empty())
+            });
+
+        match expected {
+            None => Err(AppError::authorization(format!(
+                "Admin API disabled (set {ADMIN_TOKEN_ENV})"
+            ))),
+            Some(expected) if provided == Some(expected.as_str()) => Ok(()),
+            _ => Err(AppError::authorization("Invalid admin token")),
+        }
+    }
 }
 
 /// 应用程序状态
@@ -81,6 +181,8 @@ pub struct AppState {
     pub storage: Arc<dyn StorageBackend>,
     /// 运行时可写配置覆盖（进程内，重启回退到配置文件）
     pub runtime: Arc<RuntimeConfigOverrides>,
+    /// 平台管理 API 凭证（环境引导 + 运行时轮换）
+    pub admin_credential: Arc<AdminCredential>,
     /// WebSocket 连接管理器
     pub connection_manager: Arc<ConnectionManager>,
     /// WebSocket 广播器
@@ -116,7 +218,7 @@ impl AppState {
         config.validate()?;
 
         // 创建服务
-        let services = Services::new(&config, db_pool.clone(), storage.clone())?;
+        let services = Services::new(&config, db_pool.clone(), storage.clone(), runtime.clone())?;
 
         // 创建 WebSocket 连接管理器
         let connection_manager = Arc::new(ConnectionManager::new());
@@ -131,6 +233,7 @@ impl AppState {
             services,
             storage,
             runtime,
+            admin_credential: Arc::new(AdminCredential::default()),
             connection_manager,
             broadcaster,
             roles_cache,
@@ -171,8 +274,8 @@ impl AppState {
         &self.services.room_password
     }
 
-    pub fn access_code_limiter(&self) -> &crate::services::AccessCodeLimiter {
-        &self.services.access_code_limiter
+    pub fn attempt_guard(&self) -> &crate::services::AttemptGuard {
+        &self.services.attempt_guard
     }
 
     /// 便捷方法：获取存储根目录
@@ -185,9 +288,21 @@ impl AppState {
         self.config.storage.global_dedup
     }
 
-    /// 便捷方法：获取上传预留 TTL
+    /// 便捷方法：获取上传预留 TTL（运行时白名单覆盖优先）。
     pub fn upload_reservation_ttl(&self) -> chrono::Duration {
-        chrono::Duration::seconds(self.config.storage.upload_reservation_ttl_seconds)
+        let seconds = match self.runtime.upload_reservation_ttl_seconds() {
+            0 => self.config.storage.upload_reservation_ttl_seconds,
+            secs => secs,
+        };
+        chrono::Duration::seconds(seconds)
+    }
+
+    /// 访问令牌签发 TTL（运行时白名单覆盖优先，回退配置文件值）。
+    pub fn session_ttl(&self) -> chrono::Duration {
+        match self.runtime.session_ttl_seconds() {
+            0 => self.services.token_service.get_ttl(),
+            secs => chrono::Duration::seconds(secs),
+        }
     }
 
     /// 内容传输模式

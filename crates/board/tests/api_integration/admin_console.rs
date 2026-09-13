@@ -351,3 +351,300 @@ async fn test_admin_runtime_config_update_roundtrip() -> Result<()> {
     set_admin_env(None);
     Ok(())
 }
+
+#[tokio::test]
+#[serial]
+async fn test_admin_runtime_config_extended_fields() -> Result<()> {
+    set_admin_env(Some(ADMIN_TOKEN));
+    let (app, _pool) = create_test_app().await?;
+
+    // 会话有效期 / 预留有效期 / 默认角色：合法覆盖
+    let response = app
+        .clone()
+        .oneshot(admin_request_with_body(
+            Method::PUT,
+            "/api/v1/admin/config/runtime",
+            json!({
+                "session_ttl_seconds": 3600,
+                "upload_reservation_ttl_seconds": 600,
+                "room_default_role_key": "editor"
+            }),
+        )?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    let config = body_json(response).await?;
+    assert_eq!(config["runtime_session_ttl_seconds"], 3600);
+    assert_eq!(config["runtime_upload_reservation_ttl_seconds"], 600);
+    assert_eq!(config["runtime_room_default_role_key"], "editor");
+
+    // 越界值被拒绝
+    for (field, value) in [
+        ("session_ttl_seconds", json!(1)),
+        ("session_ttl_seconds", json!(999_999_999)),
+        ("upload_reservation_ttl_seconds", json!(1)),
+        ("room_default_role_key", json!("superuser")),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(admin_request_with_body(
+                Method::PUT,
+                "/api/v1/admin/config/runtime",
+                json!({ field: value }),
+            )?)
+            .await?;
+        assert_eq!(
+            response.status(),
+            StatusCode::BAD_REQUEST,
+            "{field}={value}"
+        );
+    }
+
+    // 传 0 / 空串清除覆盖
+    let response = app
+        .clone()
+        .oneshot(admin_request_with_body(
+            Method::PUT,
+            "/api/v1/admin/config/runtime",
+            json!({
+                "session_ttl_seconds": 0,
+                "upload_reservation_ttl_seconds": 0,
+                "room_default_role_key": ""
+            }),
+        )?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    let config = body_json(response).await?;
+    assert_eq!(config["runtime_session_ttl_seconds"], 0);
+    assert_eq!(config["runtime_upload_reservation_ttl_seconds"], 0);
+    assert!(config["runtime_room_default_role_key"].is_null());
+
+    // 会话有效期覆盖影响新签发的访问令牌
+    let response = app
+        .clone()
+        .oneshot(admin_request_with_body(
+            Method::PUT,
+            "/api/v1/admin/config/runtime",
+            json!({ "session_ttl_seconds": 3600 }),
+        )?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    // 建房令牌跟随房间生命周期；会话有效期作用于新建会话（issue_token 默认 TTL）
+    let _ = create_room(&app, "runtime-ttl-room").await?;
+    let issue = Request::builder()
+        .method(Method::POST)
+        .uri("/api/v1/rooms/runtime-ttl-room/tokens")
+        .header("content-type", "application/json")
+        .body(Body::from(json!({}).to_string()))?;
+    let issue_response = app.clone().oneshot(issue).await?;
+    assert_eq!(issue_response.status(), StatusCode::OK);
+    let room_token = body_json(issue_response).await?["token"]
+        .as_str()
+        .expect("issued token")
+        .to_string();
+    let claims = decode_jwt_claims(&room_token);
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_secs() as i64;
+    let exp = claims["exp"].as_i64().expect("exp claim");
+    assert!(
+        (3500..=3600).contains(&(exp - now)),
+        "expected ~3600s session ttl, delta = {}",
+        exp - now
+    );
+    Ok(())
+}
+
+fn admin_request_with_body(method: Method, uri: &str, body: Value) -> Result<Request<Body>> {
+    let builder = Request::builder()
+        .method(method)
+        .uri(uri)
+        .header(ADMIN_HEADER, ADMIN_TOKEN)
+        .header("content-type", "application/json");
+    Ok(builder.body(Body::from(body.to_string()))?)
+}
+
+fn decode_jwt_claims(token: &str) -> Value {
+    let payload = token.split('.').nth(1).expect("jwt payload");
+    let bytes = decode_base64url(payload).expect("valid base64url payload");
+    serde_json::from_slice(&bytes).expect("jwt claims json")
+}
+
+/// 无依赖的 base64url（无 padding）解码，仅供测试断言 JWT claims。
+fn decode_base64url(input: &str) -> Result<Vec<u8>, &'static str> {
+    fn value_of(byte: u8) -> Result<u32, &'static str> {
+        match byte {
+            b'A'..=b'Z' => Ok((byte - b'A') as u32),
+            b'a'..=b'z' => Ok((byte - b'a' + 26) as u32),
+            b'0'..=b'9' => Ok((byte - b'0' + 52) as u32),
+            b'-' => Ok(62),
+            b'_' => Ok(63),
+            _ => Err("invalid base64url character"),
+        }
+    }
+    let mut output = Vec::new();
+    let mut buffer = 0u32;
+    let mut bits = 0u32;
+    for byte in input.bytes() {
+        buffer = (buffer << 6) | value_of(byte)?;
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            output.push((buffer >> bits) as u8);
+        }
+    }
+    Ok(output)
+}
+
+#[tokio::test]
+#[serial]
+async fn test_admin_credential_rotation() -> Result<()> {
+    set_admin_env(Some(ADMIN_TOKEN));
+    let (app, _pool) = create_test_app().await?;
+
+    // 强度不足被拒绝
+    let response = app
+        .clone()
+        .oneshot(admin_request_with_body(
+            Method::PUT,
+            "/api/v1/admin/credential",
+            json!({ "token": "short" }),
+        )?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    // 轮换后旧凭证失效、新凭证生效
+    let response = app
+        .clone()
+        .oneshot(admin_request_with_body(
+            Method::PUT,
+            "/api/v1/admin/credential",
+            json!({ "token": "rotated-admin-token-123" }),
+        )?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = body_json(response).await?;
+    assert_eq!(body["admin_token_source"], "runtime-override");
+
+    let old_response = app
+        .clone()
+        .oneshot(admin_request(Method::GET, "/api/v1/admin/stats")?)
+        .await?;
+    assert_eq!(old_response.status(), StatusCode::FORBIDDEN);
+
+    let mut new_request = admin_request(Method::GET, "/api/v1/admin/config")?;
+    new_request
+        .headers_mut()
+        .insert(ADMIN_HEADER, "rotated-admin-token-123".parse()?);
+    let new_response = app.clone().oneshot(new_request).await?;
+    assert_eq!(new_response.status(), StatusCode::OK);
+    let config = body_json(new_response).await?;
+    assert_eq!(config["admin_token_source"], "runtime-override");
+    Ok(())
+}
+
+#[tokio::test]
+#[serial]
+async fn test_admin_login_lockout_after_repeated_failures() -> Result<()> {
+    set_admin_env(Some(ADMIN_TOKEN));
+    let (app, _pool) = create_test_app().await?;
+
+    for _ in 0..5 {
+        let request = Request::builder()
+            .method(Method::GET)
+            .uri("/api/v1/admin/stats")
+            .header(ADMIN_HEADER, "definitely-wrong-token")
+            .body(Body::empty())?;
+        let response = app.clone().oneshot(request).await?;
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    }
+
+    // 第 6 次即使凭证正确也进入锁定（按客户端计数）
+    let response = app
+        .clone()
+        .oneshot(admin_request(Method::GET, "/api/v1/admin/stats")?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+    Ok(())
+}
+
+#[tokio::test]
+#[serial]
+async fn test_admin_updates_room_settings_and_mints_identity_code() -> Result<()> {
+    set_admin_env(Some(ADMIN_TOKEN));
+    let (app, _pool) = create_test_app().await?;
+    create_room(&app, "admin-editable-room").await?;
+
+    // 更新进入次数 + 设置房间密码
+    let response = app
+        .clone()
+        .oneshot(admin_request_with_body(
+            Method::PUT,
+            "/api/v1/admin/rooms/admin-editable-room",
+            json!({ "max_times_entered": 7, "password": "new-room-pass" }),
+        )?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    let detail = body_json(response).await?;
+    assert_eq!(detail["max_times_entered"], 7);
+    assert_eq!(detail["password_protected"], true);
+
+    // 铸造 editor 身份码：明文仅此一次返回，且可成功兑换
+    let response = app
+        .clone()
+        .oneshot(admin_request_with_body(
+            Method::POST,
+            "/api/v1/admin/rooms/admin-editable-room/identity-codes",
+            json!({ "code": "", "role": "editor" }),
+        )?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    let minted = body_json(response).await?;
+    // 响应按 serde(flatten) 平铺
+    assert_eq!(minted["role"], "editor");
+    let code = minted["code"].as_str().expect("minted code").to_string();
+    assert!(!code.is_empty());
+
+    let redeemed = redeem_code(&app, "admin-editable-room", &code).await?;
+    assert_eq!(
+        redeemed.status(),
+        StatusCode::OK,
+        "redeem failed: {}",
+        body_json(redeemed).await?
+    );
+
+    // admin 角色码跟随房间生命周期，不接受自定义时长
+    let response = app
+        .clone()
+        .oneshot(admin_request_with_body(
+            Method::POST,
+            "/api/v1/admin/rooms/admin-editable-room/identity-codes",
+            json!({ "code": "", "role": "admin", "expires_in_secs": 600 }),
+        )?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    // 未知房间 → 404
+    let response = app
+        .clone()
+        .oneshot(admin_request_with_body(
+            Method::PUT,
+            "/api/v1/admin/rooms/no-such-room",
+            json!({ "max_times_entered": 7 }),
+        )?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    Ok(())
+}
+
+async fn redeem_code(
+    app: &axum::Router,
+    room_name: &str,
+    code: &str,
+) -> Result<axum::response::Response> {
+    let request = Request::builder()
+        .method(Method::POST)
+        .uri(format!("/api/v1/rooms/{room_name}/identity-codes/redeem"))
+        .header("content-type", "application/json")
+        .body(Body::from(json!({ "code": code }).to_string()))?;
+    Ok(app.clone().oneshot(request).await?)
+}

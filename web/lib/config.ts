@@ -159,8 +159,12 @@ export const ADMIN_ENDPOINTS = {
   stats: "/api/v1/admin/stats",
   rooms: "/api/v1/admin/rooms",
   roomDetail: (name: string) => `/api/v1/admin/rooms/${encodeURIComponent(name)}`,
+  roomUpdate: (name: string) => `/api/v1/admin/rooms/${encodeURIComponent(name)}`,
   roomDelete: (name: string) => `/api/v1/admin/rooms/${encodeURIComponent(name)}`,
+  roomIdentityCodes: (name: string) =>
+    `/api/v1/admin/rooms/${encodeURIComponent(name)}/identity-codes`,
   storage: "/api/v1/admin/storage",
   config: "/api/v1/admin/config",
   runtimeConfig: "/api/v1/admin/config/runtime",
+  credential: "/api/v1/admin/credential",
 } as const;

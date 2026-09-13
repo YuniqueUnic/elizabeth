@@ -18,7 +18,10 @@ pub(crate) fn apply_room_defaults(room: &mut Room, app_state: &AppState) -> Resu
         0 => defaults.max_times_entered,
         times => times,
     };
-    room.default_role_key = defaults.default_role_key.clone();
+    room.default_role_key = app_state
+        .runtime
+        .room_default_role_key()
+        .unwrap_or_else(|| defaults.default_role_key.clone());
     room.expire_at = Some(
         app_state
             .room_expiry_policy()

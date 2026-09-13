@@ -7,6 +7,7 @@ pub mod constants;
 pub mod db;
 pub mod errors;
 mod handlers;
+pub(crate) use handlers::client_ip;
 mod init;
 pub mod middleware;
 pub use board_protocol::dto;

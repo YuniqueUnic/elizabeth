@@ -76,6 +76,8 @@ pub struct AdminRoomView {
     pub current_times_entered: i64,
     #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
     pub max_times_entered: i64,
+    /// 新成员入场角色（房间角色矩阵中的系统角色 key）
+    pub default_role_key: String,
     pub expire_at: Option<NaiveDateTime>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
@@ -133,7 +135,7 @@ pub struct AdminStorageResponse {
     pub dedup_saved_bytes: i64,
 }
 
-/// 系统配置只读视图（机密不回显；运行时修改留待后续明确安全的小集合）
+/// 系统配置视图：静态项为配置文件值（需重启生效），运行时可写项在白名单字段中
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
 #[cfg_attr(feature = "typescript-export", ts(export))]
@@ -167,9 +169,19 @@ pub struct AdminConfigResponse {
     pub runtime_room_default_max_size: i64,
     #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
     pub runtime_room_default_max_times_entered: i64,
+    /// 0 = 未覆盖
+    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
+    pub runtime_session_ttl_seconds: i64,
+    /// 0 = 未覆盖
+    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
+    pub runtime_upload_reservation_ttl_seconds: i64,
+    /// None = 未覆盖
+    pub runtime_room_default_role_key: Option<String>,
+    /// 管理凭证来源："env" | "runtime-override"（不回显凭证本身）
+    pub admin_token_source: String,
 }
 
-/// 运行时可写配置更新（issue #196 白名单）；字段缺省 = 保持不变。
+/// 运行时可写配置更新（管理白名单）；字段缺省 = 保持不变。
 #[derive(Debug, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
 #[cfg_attr(feature = "typescript-export", ts(export))]
@@ -181,4 +193,41 @@ pub struct UpdateRuntimeConfigRequest {
     /// 0 = 清除覆盖，回退配置文件默认值
     #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
     pub room_default_max_times_entered: Option<i64>,
+    /// 0 = 清除覆盖，回退配置文件默认值（访问令牌有效期，秒）
+    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
+    pub session_ttl_seconds: Option<i64>,
+    /// 0 = 清除覆盖，回退配置文件默认值（上传预留有效期，秒）
+    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
+    pub upload_reservation_ttl_seconds: Option<i64>,
+    /// 新房间默认加入角色；空串 = 清除覆盖（须为系统角色 admin/editor/reader）
+    pub room_default_role_key: Option<String>,
+}
+
+/// 管理凭证轮换请求（凭证不回显；覆盖仅存活于进程内，重启回退环境值）
+#[derive(Debug, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
+pub struct AdminCredentialUpdateRequest {
+    pub token: String,
+}
+
+/// 平台管理铸造房间身份码：code 缺省时由服务端生成，明文仅此一次返回
+#[derive(Debug, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
+pub struct AdminMintIdentityCodeRequest {
+    /// 指定身份码；缺省自动生成（6-128 位 ASCII，规则与房间级创建一致）
+    #[cfg_attr(feature = "typescript-export", ts(optional))]
+    pub code: Option<String>,
+    pub role: String,
+    #[cfg_attr(feature = "typescript-export", ts(optional, type = "number"))]
+    pub expires_in_secs: Option<i64>,
+}
+
+/// 管理凭证轮换结果
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
+pub struct AdminCredentialView {
+    pub admin_token_source: String,
 }
