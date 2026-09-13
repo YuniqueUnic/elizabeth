@@ -1,3 +1,4 @@
+import zhAdmin from "../../../messages/zh/admin.json";
 import zhCommon from "../../../messages/zh/common.json";
 import zhErrors from "../../../messages/zh/errors.json";
 import zhHome from "../../../messages/zh/home.json";
@@ -58,6 +59,9 @@ export const tRoom = (key: string, values?: Record<string, string | number>) =>
 
 export const tSettings = (key: string, values?: Record<string, string | number>) =>
   translate(zhSettings as MessageBundle, key, values);
+
+export const tAdmin = (key: string, values?: Record<string, string | number>) =>
+  translate(zhAdmin as MessageBundle, key, values);
 
 export const tPattern = (
   message: string,

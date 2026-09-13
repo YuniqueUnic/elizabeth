@@ -102,7 +102,9 @@ pub async fn create_test_app_with_config(
 
     // 创建应用状态
     let app_state = Arc::new(match storage {
-        Some(storage) => AppState::with_storage(app_config, db_pool.clone(), storage)?,
+        Some(storage) => {
+            AppState::with_storage(app_config, db_pool.clone(), storage, Default::default())?
+        }
         None => AppState::new(app_config, db_pool.clone())?,
     });
 

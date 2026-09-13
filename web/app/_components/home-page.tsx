@@ -22,6 +22,7 @@ import { useTranslations } from "next-intl";
 
 export default function HomePage() {
   const t = useTranslations("home");
+  const tCommon = useTranslations("common");
   const tErrors = useTranslations("errors");
   const router = useRouter();
   const [mode, setMode] = useState<"home" | "create" | "join">("home");
@@ -130,7 +131,13 @@ export default function HomePage() {
   if (mode === "home") {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-linear-to-br from-background to-muted/20 p-4">
-        <div className="absolute top-4 right-4">
+        <div className="absolute top-4 right-4 flex items-center gap-3">
+          <a
+            href="/admin"
+            className="text-muted-foreground hover:text-foreground text-sm underline-offset-4 hover:underline"
+          >
+            {tCommon("adminEntry")}
+          </a>
           <ThemeSwitcher />
         </div>
 
@@ -189,7 +196,13 @@ export default function HomePage() {
   if (mode === "create") {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-linear-to-br from-background to-muted/20 p-4">
-        <div className="absolute top-4 right-4">
+        <div className="absolute top-4 right-4 flex items-center gap-3">
+          <a
+            href="/admin"
+            className="text-muted-foreground hover:text-foreground text-sm underline-offset-4 hover:underline"
+          >
+            {tCommon("adminEntry")}
+          </a>
           <ThemeSwitcher />
         </div>
 
@@ -384,7 +397,13 @@ export default function HomePage() {
   // Join mode
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-linear-to-br from-background to-muted/20 p-4">
-      <div className="absolute top-4 right-4">
+      <div className="absolute top-4 right-4 flex items-center gap-3">
+        <a
+          href="/admin"
+          className="text-muted-foreground hover:text-foreground text-sm underline-offset-4 hover:underline"
+        >
+          {tCommon("adminEntry")}
+        </a>
         <ThemeSwitcher />
       </div>
 

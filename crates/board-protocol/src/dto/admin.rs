@@ -159,4 +159,26 @@ pub struct AdminConfigResponse {
     #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
     pub upload_reservation_ttl_seconds: i64,
     pub admin_api_enabled: bool,
+    /// 存储去重作用域："per-room" | "global"
+    pub dedup_scope: String,
+    // ---- 运行时可写白名单（进程内覆盖，重启回退到配置文件） ----
+    pub runtime_disallow_search_indexing: bool,
+    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
+    pub runtime_room_default_max_size: i64,
+    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
+    pub runtime_room_default_max_times_entered: i64,
+}
+
+/// 运行时可写配置更新（issue #196 白名单）；字段缺省 = 保持不变。
+#[derive(Debug, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
+#[cfg_attr(feature = "typescript-export", ts(export))]
+pub struct UpdateRuntimeConfigRequest {
+    pub disallow_search_indexing: Option<bool>,
+    /// 0 = 清除覆盖，回退配置文件默认值
+    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
+    pub room_default_max_size: Option<i64>,
+    /// 0 = 清除覆盖，回退配置文件默认值
+    #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
+    pub room_default_max_times_entered: Option<i64>,
 }

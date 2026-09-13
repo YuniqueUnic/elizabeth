@@ -49,21 +49,6 @@ async fn fs_backend_stores_reads_and_purges() {
 }
 
 #[tokio::test]
-async fn fs_backend_purge_room_removes_directory() {
-    let root = TempDir::new().unwrap();
-    let backend = FsBackend::new(root.path().to_path_buf());
-
-    let local = root.path().join("x.bin");
-    write_local(&local, b"x").await;
-    backend.store_file("3/x.bin", &local).await.unwrap();
-
-    backend.purge_room(3).await.unwrap();
-    assert!(!root.path().join("3").exists());
-    // 房间不存在时 purge 也应成功
-    backend.purge_room(999).await.unwrap();
-}
-
-#[tokio::test]
 async fn opendal_backend_uses_object_keys_as_locators() {
     let root = TempDir::new().unwrap();
     let operator = opendal::Operator::new(
@@ -86,11 +71,7 @@ async fn opendal_backend_uses_object_keys_as_locators() {
         .await
         .concat();
     assert_eq!(bytes, b"opendal payload");
-
-    backend.purge_room(11).await.unwrap();
-    assert!(!backend.exists_key("11/notes.txt").await.unwrap());
 }
-
 #[tokio::test]
 async fn from_config_selects_backend_by_s3_presence() {
     let root = TempDir::new().unwrap();
@@ -99,6 +80,7 @@ async fn from_config_selects_backend_by_s3_presence() {
         root: root.path().to_path_buf(),
         upload_reservation_ttl_seconds: 600,
         s3: None,
+        global_dedup: false,
         transfer: crate::config::TransferMode::Proxy,
         presign_base_url: None,
         presign_ttl_seconds: 300,
@@ -125,6 +107,7 @@ async fn from_config_rejects_incomplete_s3_settings() {
     let config = crate::config::StorageConfig {
         root: root.path().to_path_buf(),
         upload_reservation_ttl_seconds: 600,
+        global_dedup: false,
         s3: Some(S3StorageConfig {
             endpoint: String::new(),
             bucket: String::new(),
@@ -184,6 +167,7 @@ async fn from_config_rejects_presigned_transfer_without_s3_backend() {
         root: root.path().to_path_buf(),
         upload_reservation_ttl_seconds: 600,
         s3: None,
+        global_dedup: false,
         transfer: crate::config::TransferMode::Presigned,
         presign_base_url: None,
         presign_ttl_seconds: 300,

@@ -28,8 +28,8 @@ use crate::{
     },
     repository::{
         IRoomContentRepository,
+        content_blob_repository::ContentBlobRepository,
         room_chunk_upload_repository::{IRoomChunkUploadRepository, RoomChunkUploadRepository},
-        room_content_blob_repository::RoomContentBlobRepository,
         room_content_repository::RoomContentRepository,
         room_upload_reservation_repository::{
             IRoomUploadReservationRepository, RoomUploadReservationRepository,
@@ -111,7 +111,7 @@ pub async fn complete_file_merge(
     }
 
     // 内容寻址落盘：分片协议全程携带 file_hash，合并校验通过即以哈希归并去重。
-    let blob_repo = RoomContentBlobRepository::new(app_state.db_pool.clone());
+    let blob_repo = ContentBlobRepository::new(app_state.db_pool.clone());
     let final_storage_path = crate::handlers::content::upload::store_content_deduped(
         &app_state,
         &blob_repo,

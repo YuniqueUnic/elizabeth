@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use tower::ServiceExt;
 
-use crate::common::create_test_app;
+use crate::common::{create_test_app, create_test_app_with_config};
 
 async fn body_json(response: axum::response::Response) -> Result<Value> {
     let bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await?;
@@ -86,7 +86,7 @@ async fn test_same_room_duplicate_upload_dedupes_to_single_object() -> Result<()
 
     // blob 引用计数为 2
     let ref_count: i64 = sqlx::query_scalar(
-        "SELECT ref_count FROM room_content_blobs WHERE room_id = (SELECT id FROM rooms WHERE name = 'dedup-room')",
+        "SELECT ref_count FROM content_blobs WHERE owner_room_id = (SELECT id FROM rooms WHERE name = 'dedup-room')",
     )
     .fetch_one(pool.as_ref())
     .await?;
@@ -94,7 +94,7 @@ async fn test_same_room_duplicate_upload_dedupes_to_single_object() -> Result<()
 
     // 物理对象只有一份
     let blob_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM room_content_blobs WHERE room_id = (SELECT id FROM rooms WHERE name = 'dedup-room')",
+        "SELECT COUNT(*) FROM content_blobs WHERE owner_room_id = (SELECT id FROM rooms WHERE name = 'dedup-room')",
     )
     .fetch_one(pool.as_ref())
     .await?;
@@ -147,7 +147,7 @@ async fn test_instant_upload_with_correct_hash_skips_transfer() -> Result<()> {
 
     // 引用计数 +1、房间配额按内容行累计
     let ref_count: i64 = sqlx::query_scalar(
-        "SELECT ref_count FROM room_content_blobs WHERE room_id = (SELECT id FROM rooms WHERE name = 'instant-room')",
+        "SELECT ref_count FROM content_blobs WHERE owner_room_id = (SELECT id FROM rooms WHERE name = 'instant-room')",
     )
     .fetch_one(pool.as_ref())
     .await?;
@@ -230,7 +230,7 @@ async fn test_delete_releases_references_and_cleans_object_at_zero() -> Result<(
     let response = app.clone().oneshot(delete).await?;
     assert_eq!(response.status(), StatusCode::OK);
     assert!(tokio::fs::try_exists(&object_path).await.unwrap());
-    let ref_count: i64 = sqlx::query_scalar("SELECT ref_count FROM room_content_blobs")
+    let ref_count: i64 = sqlx::query_scalar("SELECT ref_count FROM content_blobs")
         .fetch_one(pool.as_ref())
         .await?;
     assert_eq!(ref_count, 1);
@@ -244,7 +244,7 @@ async fn test_delete_releases_references_and_cleans_object_at_zero() -> Result<(
     let response = app.clone().oneshot(delete).await?;
     assert_eq!(response.status(), StatusCode::OK);
     assert!(!tokio::fs::try_exists(&object_path).await.unwrap());
-    let blob_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM room_content_blobs")
+    let blob_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM content_blobs")
         .fetch_one(pool.as_ref())
         .await?;
     assert_eq!(blob_count, 0);
@@ -331,5 +331,84 @@ async fn test_content_update_persists_hash_and_hidden_flag() -> Result<()> {
             .await?;
     assert_eq!(hidden, 1, "隐藏状态必须真实落库");
     assert_eq!(hash.as_deref(), Some(sha256_hex(payload).as_str()));
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_global_dedup_shares_objects_across_rooms_when_enabled() -> Result<()> {
+    // 全局去重（启动期显式开关）：跨房间秒传命中，物理对象只保留一份。
+    let (app, pool) = create_test_app_with_config(Default::default(), |config| {
+        config.storage.global_dedup = true;
+    })
+    .await?;
+    let token_a = create_room(&app, "global-room-a").await?;
+    let token_b = create_room(&app, "global-room-b").await?;
+    let payload: &'static [u8] = b"globally deduplicated payload";
+
+    put_upload(&app, "global-room-a", "first.bin", &token_a, payload).await?;
+
+    // room-b 未上传过：全局模式下秒传直接命中 room-a 的对象
+    let prepare = Request::builder()
+        .method(Method::POST)
+        .uri(format!("/api/v1/rooms/global-room-b/contents/prepare?token={token_b}"))
+        .header("content-type", "application/json")
+        .body(Body::from(
+            json!({"files": [{"name": "second.bin", "size": payload.len(), "mime": "application/octet-stream", "file_hash": sha256_hex(payload)}]})
+                .to_string(),
+        ))?;
+    let response = app.clone().oneshot(prepare).await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    let prepared = body_json(response).await?;
+    assert!(
+        prepared.get("instant_uploads").is_some(),
+        "全局去重开启时跨房间应秒传命中"
+    );
+
+    // 物理对象仍只有一份，引用计数为 2
+    let (blob_count, ref_count): (i64, i64) =
+        sqlx::query_as("SELECT COUNT(*), COALESCE(SUM(ref_count), 0) FROM content_blobs")
+            .fetch_one(pool.as_ref())
+            .await?;
+    assert_eq!(blob_count, 1);
+    assert_eq!(ref_count, 2);
+
+    // 删除 room-a 的引用：对象仍被 room-b 引用而保留
+    let content_id: i64 = sqlx::query_scalar(
+        "SELECT id FROM room_contents WHERE room_id = (SELECT id FROM rooms WHERE name = 'global-room-a')",
+    )
+    .fetch_one(pool.as_ref())
+    .await?;
+    let delete = Request::builder()
+        .method(Method::DELETE)
+        .uri(format!(
+            "/api/v1/rooms/global-room-a/contents?token={token_a}"
+        ))
+        .header("content-type", "application/json")
+        .body(Body::from(json!({"ids": [content_id]}).to_string()))?;
+    assert_eq!(app.clone().oneshot(delete).await?.status(), StatusCode::OK);
+    let locator: String = sqlx::query_scalar("SELECT locator FROM content_blobs")
+        .fetch_one(pool.as_ref())
+        .await?;
+    assert!(tokio::fs::try_exists(&locator).await?);
+
+    // 删除 room-b 的引用：归零后物理清理
+    let content_id: i64 = sqlx::query_scalar(
+        "SELECT id FROM room_contents WHERE room_id = (SELECT id FROM rooms WHERE name = 'global-room-b')",
+    )
+    .fetch_one(pool.as_ref())
+    .await?;
+    let delete = Request::builder()
+        .method(Method::DELETE)
+        .uri(format!(
+            "/api/v1/rooms/global-room-b/contents?token={token_b}"
+        ))
+        .header("content-type", "application/json")
+        .body(Body::from(json!({"ids": [content_id]}).to_string()))?;
+    assert_eq!(app.clone().oneshot(delete).await?.status(), StatusCode::OK);
+    let (blob_count,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM content_blobs")
+        .fetch_one(pool.as_ref())
+        .await?;
+    assert_eq!(blob_count, 0);
+    assert!(!tokio::fs::try_exists(&locator).await?);
     Ok(())
 }

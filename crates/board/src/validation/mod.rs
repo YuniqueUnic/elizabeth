@@ -24,6 +24,13 @@ impl RoomNameValidator {
             ));
         }
 
+        // 保留名：/admin 是平台管理面板路由，不能被房间占用
+        if name.eq_ignore_ascii_case("admin") {
+            return Err(AppError::validation(
+                "Room name 'admin' is reserved for the platform admin panel",
+            ));
+        }
+
         // 使用正则表达式验证房间名称格式
         let re = get_room_name_regex();
         if !re.is_match(name) {
@@ -49,6 +56,13 @@ impl RoomNameValidator {
         if name.len() < 3 || name.len() > 150 {
             return Err(AppError::validation(
                 "Room identifier must be between 3 and 150 characters",
+            ));
+        }
+
+        // 保留名：/admin 是平台管理面板路由，不能被房间占用
+        if name.eq_ignore_ascii_case("admin") {
+            return Err(AppError::validation(
+                "Room name 'admin' is reserved for the platform admin panel",
             ));
         }
 

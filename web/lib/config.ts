@@ -162,4 +162,5 @@ export const ADMIN_ENDPOINTS = {
   roomDelete: (name: string) => `/api/v1/admin/rooms/${encodeURIComponent(name)}`,
   storage: "/api/v1/admin/storage",
   config: "/api/v1/admin/config",
+  runtimeConfig: "/api/v1/admin/config/runtime",
 } as const;

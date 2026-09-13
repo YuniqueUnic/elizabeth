@@ -63,11 +63,14 @@ pub trait StorageBackend: Send + Sync {
     /// 删除 locator 对应内容；不存在视为成功。
     async fn delete(&self, locator: &str) -> StorageResult<()>;
 
-    /// 清空房间全部存储内容（房间回收）。
-    async fn purge_room(&self, room_id: i64) -> StorageResult<()>;
-
     /// 对象大小（字节）；presigned 提交时核对客户端直传结果。
     async fn object_size(&self, locator: &str) -> StorageResult<u64>;
+
+    /// 房间回收后的目录清理（仅本地文件系统实现删除空目录；默认无操作）。
+    async fn cleanup_room_dir(&self, room_id: i64) -> StorageResult<()> {
+        let _ = room_id;
+        Ok(())
+    }
 
     /// 签发短时效的读 URL；不支持预签名的后端返回 Unsupported。
     async fn presign_read(&self, locator: &str, ttl: std::time::Duration) -> StorageResult<String> {
@@ -134,19 +137,25 @@ impl StorageBackend for FsBackend {
         }
     }
 
-    async fn purge_room(&self, room_id: i64) -> StorageResult<()> {
-        match tokio::fs::remove_dir_all(self.root.join(room_id.to_string())).await {
-            Ok(()) => Ok(()),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-            Err(error) => Err(error.into()),
-        }
-    }
-
     async fn object_size(&self, locator: &str) -> StorageResult<u64> {
         match tokio::fs::metadata(locator).await {
             Ok(meta) => Ok(meta.len()),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                 Err(StorageError::NotFound(locator.to_string()))
+            }
+            Err(error) => Err(error.into()),
+        }
+    }
+
+    async fn cleanup_room_dir(&self, room_id: i64) -> StorageResult<()> {
+        // 仅删除空目录：目录内仍有被其他房间引用的文件时保持原样。
+        match tokio::fs::remove_dir(self.root.join(room_id.to_string())).await {
+            Ok(()) => Ok(()),
+            Err(error)
+                if error.kind() == std::io::ErrorKind::NotFound
+                    || error.kind() == std::io::ErrorKind::DirectoryNotEmpty =>
+            {
+                Ok(())
             }
             Err(error) => Err(error.into()),
         }
@@ -265,14 +274,6 @@ impl StorageBackend for OpendalBackend {
         Ok(())
     }
 
-    async fn purge_room(&self, room_id: i64) -> StorageResult<()> {
-        self.operator
-            .delete_with(&format!("{room_id}/"))
-            .recursive(true)
-            .await?;
-        Ok(())
-    }
-
     async fn object_size(&self, locator: &str) -> StorageResult<u64> {
         let metadata = self.operator.stat(locator).await.map_err(|error| {
             if error.kind() == opendal::ErrorKind::NotFound {
@@ -363,16 +364,16 @@ impl StorageBackend for RouterBackend {
         }
     }
 
-    async fn purge_room(&self, room_id: i64) -> StorageResult<()> {
-        self.primary.purge_room(room_id).await
-    }
-
     async fn object_size(&self, locator: &str) -> StorageResult<u64> {
         if locator.starts_with('/') {
             self.local_fs.object_size(locator).await
         } else {
             self.primary.object_size(locator).await
         }
+    }
+
+    async fn cleanup_room_dir(&self, room_id: i64) -> StorageResult<()> {
+        self.local_fs.cleanup_room_dir(room_id).await
     }
 
     async fn presign_read(&self, locator: &str, ttl: std::time::Duration) -> StorageResult<String> {

@@ -9,7 +9,7 @@ use utoipa::ToSchema;
 use crate::dto::{
     AdminConfigResponse, AdminRoomDetailResponse, AdminRoomListResponse, AdminRoomView,
     AdminStatsResponse, AdminStorageResponse, DeleteRoomResponse, FullRoomGcStatusView,
-    RunRoomGcResponse,
+    RunRoomGcResponse, UpdateRuntimeConfigRequest,
 };
 use crate::errors::{AppError, AppResult};
 use crate::repository::{AdminConsoleRepository, IRoomRepository, RoomRepository};
@@ -422,7 +422,19 @@ pub async fn admin_config(
         .trim()
         .is_empty();
 
-    Ok(Json(AdminConfigResponse {
+    Ok(Json(build_admin_config_response(
+        &app_state,
+        admin_api_enabled,
+    )))
+}
+
+fn build_admin_config_response(
+    app_state: &AppState,
+    admin_api_enabled: bool,
+) -> AdminConfigResponse {
+    let config = &app_state.config;
+    let storage = &config.storage;
+    AdminConfigResponse {
         server_host: config.server.host.clone(),
         server_port: config.server.port,
         database_backend: if config.database.url.starts_with("postgres") {
@@ -446,5 +458,68 @@ pub async fn admin_config(
         jwt_refresh_ttl_seconds: config.auth.refresh_ttl_seconds,
         upload_reservation_ttl_seconds: storage.upload_reservation_ttl_seconds,
         admin_api_enabled,
-    }))
+        dedup_scope: if storage.global_dedup {
+            "global"
+        } else {
+            "per-room"
+        }
+        .to_string(),
+        runtime_disallow_search_indexing: app_state.runtime.disallow_search_indexing(),
+        runtime_room_default_max_size: app_state.runtime.room_default_max_size(),
+        runtime_room_default_max_times_entered: app_state.runtime.room_default_max_times_entered(),
+    }
+}
+
+/// 运行时可写配置更新（白名单：robots 开关、新房间默认容量/进入次数）。
+/// 覆盖仅存活于进程内，重启回退到配置文件值；room 字段传 0 表示清除覆盖。
+#[utoipa::path(
+    put,
+    path = "/api/v1/admin/config/runtime",
+    request_body = UpdateRuntimeConfigRequest,
+    responses(
+        (status = 200, description = "更新成功，返回当前生效配置", body = AdminConfigResponse),
+        (status = 400, description = "参数不合法"),
+        (status = 403, description = "未授权")
+    ),
+    tag = "admin"
+)]
+pub async fn admin_update_runtime_config(
+    headers: HeaderMap,
+    State(app_state): State<Arc<AppState>>,
+    Json(payload): Json<UpdateRuntimeConfigRequest>,
+) -> HandlerResult<AdminConfigResponse> {
+    ensure_admin(&headers)?;
+
+    const MIN_ROOM_MAX_SIZE: i64 = 1024 * 1024; // 1 MiB
+    const MAX_ROOM_MAX_SIZE: i64 = 1024 * 1024 * 1024 * 1024; // 1 TiB
+    const MAX_ROOM_TIMES_ENTERED: i64 = 1_000_000_000;
+
+    if let Some(size) = payload.room_default_max_size {
+        if size != 0 && !(MIN_ROOM_MAX_SIZE..=MAX_ROOM_MAX_SIZE).contains(&size) {
+            return Err(AppError::validation(format!(
+                "room_default_max_size must be 0 (reset) or within {MIN_ROOM_MAX_SIZE}..{MAX_ROOM_MAX_SIZE}"
+            )));
+        }
+        app_state.runtime.set_room_default_max_size(size);
+    }
+    if let Some(times) = payload.room_default_max_times_entered {
+        if times != 0 && !(1..=MAX_ROOM_TIMES_ENTERED).contains(&times) {
+            return Err(AppError::validation(format!(
+                "room_default_max_times_entered must be 0 (reset) or within 1..{MAX_ROOM_TIMES_ENTERED}"
+            )));
+        }
+        app_state.runtime.set_room_default_max_times_entered(times);
+    }
+    if let Some(disallow) = payload.disallow_search_indexing {
+        app_state.runtime.set_disallow_search_indexing(disallow);
+    }
+
+    let admin_api_enabled = !std::env::var(ADMIN_TOKEN_ENV)
+        .unwrap_or_default()
+        .trim()
+        .is_empty();
+    Ok(Json(build_admin_config_response(
+        &app_state,
+        admin_api_enabled,
+    )))
 }

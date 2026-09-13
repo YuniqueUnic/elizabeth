@@ -2,6 +2,7 @@
 ///
 /// 重构后的 AppState，职责更加清晰，依赖关系更加明确
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 
 use anyhow::Result;
 
@@ -10,6 +11,60 @@ use crate::db::DbPool;
 use crate::services::Services;
 use crate::storage::{StorageBackend, from_config};
 use crate::websocket::{broadcaster::Broadcaster, connection::ConnectionManager};
+
+/// 运行时可写配置覆盖（issue #196 明确安全的小集合）。
+/// 仅存活于进程内，重启后回到配置文件值——configrs 始终是唯一配置源。
+/// 经 Arc 共享：所有 AppState 克隆看到同一份覆盖。
+#[derive(Debug)]
+pub struct RuntimeConfigOverrides {
+    /// true = 对搜索引擎关闭索引（robots.txt Disallow + X-Robots-Tag: noindex）
+    disallow_search_indexing: AtomicBool,
+    /// 0 = 未覆盖，回退配置文件默认值
+    room_default_max_size: AtomicI64,
+    /// 0 = 未覆盖，回退配置文件默认值
+    room_default_max_times_entered: AtomicI64,
+}
+
+impl Default for RuntimeConfigOverrides {
+    /// 安全默认：搜索引擎防索引开启（与 configrs 安全配置默认一致）。
+    fn default() -> Self {
+        Self {
+            disallow_search_indexing: AtomicBool::new(true),
+            room_default_max_size: AtomicI64::new(0),
+            room_default_max_times_entered: AtomicI64::new(0),
+        }
+    }
+}
+
+impl RuntimeConfigOverrides {
+    pub fn disallow_search_indexing(&self) -> bool {
+        self.disallow_search_indexing.load(Ordering::Relaxed)
+    }
+
+    pub fn set_disallow_search_indexing(&self, value: bool) {
+        self.disallow_search_indexing
+            .store(value, Ordering::Relaxed);
+    }
+
+    /// 房间默认容量；0 表示未覆盖。
+    pub fn room_default_max_size(&self) -> i64 {
+        self.room_default_max_size.load(Ordering::Relaxed)
+    }
+
+    pub fn set_room_default_max_size(&self, value: i64) {
+        self.room_default_max_size.store(value, Ordering::Relaxed);
+    }
+
+    /// 房间默认进入次数；0 表示未覆盖。
+    pub fn room_default_max_times_entered(&self) -> i64 {
+        self.room_default_max_times_entered.load(Ordering::Relaxed)
+    }
+
+    pub fn set_room_default_max_times_entered(&self, value: i64) {
+        self.room_default_max_times_entered
+            .store(value, Ordering::Relaxed);
+    }
+}
 
 /// 应用程序状态
 ///
@@ -24,6 +79,8 @@ pub struct AppState {
     pub services: Services,
     /// 内容存储后端
     pub storage: Arc<dyn StorageBackend>,
+    /// 运行时可写配置覆盖（进程内，重启回退到配置文件）
+    pub runtime: Arc<RuntimeConfigOverrides>,
     /// WebSocket 连接管理器
     pub connection_manager: Arc<ConnectionManager>,
     /// WebSocket 广播器
@@ -41,7 +98,12 @@ impl AppState {
         // 按配置选择内容存储后端
         let storage = from_config(&config.storage)?;
 
-        Self::with_storage(config, db_pool, storage)
+        Self::with_storage(
+            config,
+            db_pool,
+            storage,
+            Arc::new(RuntimeConfigOverrides::default()),
+        )
     }
 
     /// 用显式指定的存储后端创建应用状态（测试注入用）。
@@ -49,6 +111,7 @@ impl AppState {
         config: AppConfig,
         db_pool: Arc<DbPool>,
         storage: Arc<dyn StorageBackend>,
+        runtime: Arc<RuntimeConfigOverrides>,
     ) -> Result<Self> {
         config.validate()?;
 
@@ -67,6 +130,7 @@ impl AppState {
             config,
             services,
             storage,
+            runtime,
             connection_manager,
             broadcaster,
             roles_cache,
@@ -114,6 +178,11 @@ impl AppState {
     /// 便捷方法：获取存储根目录
     pub fn storage_root(&self) -> &std::path::PathBuf {
         &self.config.storage.root
+    }
+
+    /// 全局内容去重是否开启（启动期配置）
+    pub fn global_dedup_enabled(&self) -> bool {
+        self.config.storage.global_dedup
     }
 
     /// 便捷方法：获取上传预留 TTL

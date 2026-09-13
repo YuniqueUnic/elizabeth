@@ -153,6 +153,12 @@ fn apply_storage_env_overrides(cfg: &mut configrs::Config) {
         "STORAGE_PRESIGN_TTL_SECONDS",
         cfg.app.storage.presign_ttl_seconds
     );
+    if let Some(value) = env_string("STORAGE_GLOBAL_DEDUP") {
+        cfg.app.storage.global_dedup = matches!(
+            value.trim().to_lowercase().as_str(),
+            "1" | "true" | "yes" | "on"
+        );
+    }
 }
 
 fn apply_middleware_env_overrides(cfg: &mut configrs::Config) {

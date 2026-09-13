@@ -126,5 +126,6 @@
   "manualCopyFieldLabel": "Content to copy",
   "manualCopyShortcut": "On public HTTP pages, Chrome may disable automatic copying; selecting and copying text manually still works.",
   "manualCopySelectAll": "Select all",
-  "manualCopyClose": "Done"
+  "manualCopyClose": "Done",
+  "adminEntry": "Admin"
 }

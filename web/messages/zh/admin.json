@@ -85,7 +85,18 @@
     "adminApiEnabled": "管理 API",
     "yes": "已启用",
     "no": "未启用",
-    "readonlyHint": "当前配置为只读展示；运行时可写配置将在后续版本以白名单形式开放"
+    "readonlyHint": "当前配置为只读展示；运行时可写配置将在后续版本以白名单形式开放",
+    "runtimeTitle": "运行时可写配置（白名单）",
+    "searchIndexing": "搜索引擎索引",
+    "searchIndexingAllowed": "允许抓取",
+    "searchIndexingDisallowed": "禁止抓取（noindex）",
+    "runtimeMaxSize": "新房间默认容量（字节）",
+    "runtimeMaxTimes": "新房间默认进入次数",
+    "runtimeHint": "覆盖仅存活于进程内，服务重启后回到配置文件值；容量传 0 表示清除覆盖",
+    "save": "保存",
+    "saved": "运行时配置已更新",
+    "runtimeInvalid": "取值不在允许范围内",
+    "dedupScope": "去重范围"
   },
   "errors": {
     "loadFailed": "加载失败：{message}",

@@ -39,14 +39,14 @@ pub struct FullRoomGcStatus {
 pub struct RoomLifecycleService {
     repository: Arc<RoomLifecycleRepository>,
     storage: Arc<dyn crate::storage::StorageBackend>,
-    blob_repository: Arc<dyn crate::repository::IRoomContentBlobRepository>,
+    blob_repository: Arc<dyn crate::repository::IContentBlobRepository>,
 }
 
 impl RoomLifecycleService {
     pub fn new(
         repository: Arc<RoomLifecycleRepository>,
         storage: Arc<dyn crate::storage::StorageBackend>,
-        blob_repository: Arc<dyn crate::repository::IRoomContentBlobRepository>,
+        blob_repository: Arc<dyn crate::repository::IContentBlobRepository>,
     ) -> Self {
         Self {
             repository,
@@ -180,17 +180,40 @@ impl RoomLifecycleService {
     }
 
     async fn purge_room(&self, room_id: i64) -> Result<bool> {
-        self.blob_repository
-            .delete_by_room(room_id)
+        // 引用计数驱动的物理清理：先收集本房间贡献的哈希引用与
+        // 无哈希的存量文件，删除房间图谱后逐哈希递减，归零才删除物理对象。
+        let entries = self
+            .repository
+            .list_content_hash_counts(room_id)
             .await
-            .context("failed to delete room blob references")?;
-        self.storage
-            .purge_room(room_id)
+            .context("failed to collect room content hashes")?;
+        let legacy_locators = self
+            .repository
+            .list_unhashed_content_locators(room_id)
             .await
-            .with_context(|| format!("failed to purge storage for room {room_id}"))?;
+            .context("failed to list legacy content locators")?;
         self.repository
             .delete_room_graph(room_id)
             .await
-            .context("failed to delete room persistence graph")
+            .context("failed to delete room persistence graph")?;
+        for locator in legacy_locators {
+            if let Err(error) = self.storage.delete(&locator).await {
+                log::warn!("failed to delete legacy content {locator}: {error}");
+            }
+        }
+        let zeroed = self
+            .blob_repository
+            .release_room(&entries, room_id)
+            .await
+            .context("failed to release room blob references")?;
+        for blob in zeroed {
+            if let Err(error) = self.storage.delete(&blob.locator).await {
+                log::warn!("failed to delete blob {}: {error}", blob.locator);
+            }
+        }
+        if let Err(error) = self.storage.cleanup_room_dir(room_id).await {
+            log::warn!("failed to clean up room dir {room_id}: {error}");
+        }
+        Ok(true)
     }
 }

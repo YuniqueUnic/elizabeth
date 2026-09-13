@@ -14,5 +14,6 @@ pub fn api_router(app_state: Arc<AppState>) -> OpenApiRouter {
         .routes(routes!(crate::handlers::admin::admin_delete_room))
         .routes(routes!(crate::handlers::admin::admin_storage))
         .routes(routes!(crate::handlers::admin::admin_config))
+        .routes(routes!(crate::handlers::admin::admin_update_runtime_config))
         .with_state(app_state)
 }

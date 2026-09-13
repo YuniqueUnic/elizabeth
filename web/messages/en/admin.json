@@ -85,7 +85,18 @@
     "adminApiEnabled": "Admin API",
     "yes": "Enabled",
     "no": "Disabled",
-    "readonlyHint": "Configuration is shown read-only; a whitelisted set of runtime settings will open up in a future release"
+    "readonlyHint": "Configuration is shown read-only; a whitelisted set of runtime settings will open up in a future release",
+    "runtimeTitle": "Runtime-writable settings (whitelist)",
+    "searchIndexing": "Search engine indexing",
+    "searchIndexingAllowed": "Allowed",
+    "searchIndexingDisallowed": "Blocked (noindex)",
+    "runtimeMaxSize": "New room default capacity (bytes)",
+    "runtimeMaxTimes": "New room default max entries",
+    "runtimeHint": "Overrides live in-process only and fall back to file config on restart; capacity 0 clears the override",
+    "save": "Save",
+    "saved": "Runtime configuration updated",
+    "runtimeInvalid": "Value out of allowed range",
+    "dedupScope": "Dedup scope"
   },
   "errors": {
     "loadFailed": "Failed to load: {message}",

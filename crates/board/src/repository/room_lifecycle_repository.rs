@@ -216,12 +216,26 @@ impl RoomLifecycleRepository {
         .context("failed to reload room lifecycle candidate")
     }
 
-    pub async fn list_content_paths(&self, room_id: i64) -> Result<Vec<String>> {
-        sqlx::query_scalar("SELECT path FROM room_contents WHERE room_id = $1 AND path IS NOT NULL")
-            .bind(room_id)
-            .fetch_all(&*self.pool)
-            .await
-            .context("failed to list room storage paths")
+    /// 本房间无哈希的存量内容 locator（房间回收时直接删除的文件）。
+    pub async fn list_unhashed_content_locators(&self, room_id: i64) -> Result<Vec<String>> {
+        sqlx::query_scalar(
+            "SELECT path FROM room_contents WHERE room_id = $1 AND hash IS NULL AND path IS NOT NULL",
+        )
+        .bind(room_id)
+        .fetch_all(&*self.pool)
+        .await
+        .context("failed to list legacy content locators")
+    }
+
+    /// 本房间内容引用的内容哈希与行数（房间回收的引用计数来源）。
+    pub async fn list_content_hash_counts(&self, room_id: i64) -> Result<Vec<(String, i64)>> {
+        sqlx::query_as(
+            "SELECT hash, COUNT(*) FROM room_contents WHERE room_id = $1 AND hash IS NOT NULL GROUP BY hash",
+        )
+        .bind(room_id)
+        .fetch_all(&*self.pool)
+        .await
+        .context("failed to list room content hash counts")
     }
 
     pub async fn delete_room_graph(&self, room_id: i64) -> Result<bool> {

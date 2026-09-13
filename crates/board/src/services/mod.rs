@@ -90,7 +90,7 @@ impl Services {
         let room_lifecycle = Arc::new(RoomLifecycleService::new(
             room_lifecycle_repository,
             storage,
-            Arc::new(crate::repository::RoomContentBlobRepository::new(
+            Arc::new(crate::repository::ContentBlobRepository::new(
                 db_pool.clone(),
             )),
         ));

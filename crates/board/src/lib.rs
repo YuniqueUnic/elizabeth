@@ -145,6 +145,7 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
             },
             presign_base_url: cfg.app.storage.presign_base_url.clone(),
             presign_ttl_seconds: cfg.app.storage.presign_ttl_seconds as i64,
+            global_dedup: cfg.app.storage.global_dedup,
         },
         room: RoomConfig::try_from(&cfg.app.room)?,
         auth: AuthConfig::new(cfg.app.jwt.secret.clone())
@@ -281,6 +282,10 @@ fn build_api_router(
 
     // 搜索引擎索引策略（默认防索引）：robots.txt 显式声明，HTML 响应附加 X-Robots-Tag
     let disallow_search_indexing = cfg.app.middleware.security.disallow_search_indexing;
+    app_state
+        .runtime
+        .set_disallow_search_indexing(disallow_search_indexing);
+    let runtime = app_state.runtime.clone();
     let router = router.route(
         "/robots.txt",
         axum::routing::get(move || async move {
@@ -289,7 +294,7 @@ fn build_api_router(
                     axum::http::header::CONTENT_TYPE,
                     "text/plain; charset=utf-8",
                 )],
-                robots_txt_body(disallow_search_indexing),
+                robots_txt_body(runtime.disallow_search_indexing()),
             )
         }),
     );
@@ -302,9 +307,10 @@ fn build_api_router(
     // - 精确匹配静态文件（_next/*, favicon.ico 等）→ 直接返回
     // - /api/* 路径 → JSON 404（防止穿透到 SPA）
     // - 所有其他路径 → 返回 index.html（由客户端 React Router 接管）
-    let router = middleware
-        .router
-        .fallback(move |request| spa_fallback(request, disallow_search_indexing));
+    let runtime_fallback = app_state.runtime.clone();
+    let router = middleware.router.fallback(move |request| {
+        spa_fallback(request, runtime_fallback.disallow_search_indexing())
+    });
 
     Ok((scalar_path, router, middleware.scheduled_tasks))
 }
@@ -350,6 +356,26 @@ async fn spa_fallback(request: Request<Body>, disallow_search_indexing: bool) ->
             .status(StatusCode::OK)
             .header(axum::http::header::CONTENT_TYPE, &mime)
             .body(Body::from(asset.data))
+            .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response());
+    }
+
+    // Step 2.5：导出的顶层页面（如 /admin → admin.html）优先于房间模板。
+    // "admin" 同时是保留房间名（RoomNameValidator 拒绝），不会被房间遮蔽。
+    if !path.is_empty()
+        && !path.contains('.')
+        && let Some(page) = EmbeddedSpa::get(&format!("{path}.html"))
+    {
+        return Response::builder()
+            .status(StatusCode::OK)
+            .header(
+                axum::http::header::CONTENT_TYPE,
+                HeaderValue::from_static("text/html; charset=utf-8"),
+            )
+            .header(
+                axum::http::header::CACHE_CONTROL,
+                HeaderValue::from_static("no-store, max-age=0"),
+            )
+            .body(Body::from(page.data))
             .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response());
     }
 

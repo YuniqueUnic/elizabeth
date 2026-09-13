@@ -9,7 +9,7 @@ use crate::errors::AppError;
 use crate::handlers::{AuthToken, verify_room_token};
 use crate::models::content::{ContentType, RoomContent};
 use crate::repository::{
-    IRoomContentBlobRepository, IRoomContentRepository, IRoomRepository, RoomContentBlobRepository,
+    ContentBlobRepository, IContentBlobRepository, IRoomContentRepository, IRoomRepository,
     RoomContentRepository, RoomRepository,
 };
 use crate::state::AppState;
@@ -78,7 +78,7 @@ pub async fn delete_contents(
         )?;
     }
 
-    let blob_repo = RoomContentBlobRepository::new(app_state.db_pool.clone());
+    let blob_repo = ContentBlobRepository::new(app_state.db_pool.clone());
     let freed_size =
         remove_content_files(app_state.storage.as_ref(), &blob_repo, room_id, &contents).await;
     let ids: Vec<i64> = contents.iter().filter_map(|content| content.id).collect();
@@ -121,7 +121,7 @@ fn collect_target_contents(contents: Vec<RoomContent>, target_ids: &[i64]) -> Ve
 
 async fn remove_content_files(
     storage: &dyn crate::storage::StorageBackend,
-    blob_repo: &RoomContentBlobRepository,
+    blob_repo: &dyn IContentBlobRepository,
     room_id: i64,
     contents: &[RoomContent],
 ) -> i64 {
@@ -132,15 +132,9 @@ async fn remove_content_files(
             // 存量/直传内容（无 hash）保持直接删除。
             let mut physical = true;
             if let Some(hash) = &content.hash {
-                physical = match blob_repo.find_by_hash(room_id, hash).await {
-                    Ok(Some(blob)) => match blob.id {
-                        Some(id) => match blob_repo.decrement_ref(id).await {
-                            Ok(remaining) => remaining.is_none(),
-                            Err(_) => false,
-                        },
-                        None => true,
-                    },
-                    _ => true,
+                physical = match blob_repo.decrement_for(room_id, hash).await {
+                    Ok(zeroed) => zeroed.is_some(),
+                    Err(_) => false,
                 };
             }
             if physical {
