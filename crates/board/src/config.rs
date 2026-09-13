@@ -161,6 +161,8 @@ pub struct StorageConfig {
     pub presign_base_url: Option<String>,
     /// 预签名 URL 有效期（秒）。
     pub presign_ttl_seconds: i64,
+    /// 全局内容去重（跨房间共享物理对象）；默认 per-room。启动期配置。
+    pub global_dedup: bool,
 }
 
 /// 内容传输模式。
@@ -196,6 +198,7 @@ impl Default for StorageConfig {
             transfer: TransferMode::Proxy,
             presign_base_url: None,
             presign_ttl_seconds: 300,
+            global_dedup: false,
         }
     }
 }

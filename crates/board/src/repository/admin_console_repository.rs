@@ -29,8 +29,8 @@ impl AdminConsoleRepository {
                 (SELECT COUNT(*) FROM room_contents WHERE content_type = 2),
                 (SELECT COUNT(*) FROM room_contents WHERE content_type = 0),
                 (SELECT COALESCE(SUM(size), 0) FROM room_contents),
-                (SELECT COALESCE(SUM(size), 0) FROM room_content_blobs),
-                (SELECT COUNT(*) FROM room_content_blobs)
+                (SELECT COALESCE(SUM(size), 0) FROM content_blobs),
+                (SELECT COUNT(*) FROM content_blobs)
             "#,
         )
         .fetch_one(self.pool.as_ref())
@@ -112,7 +112,7 @@ impl AdminConsoleRepository {
         let row = sqlx::query_as::<_, (i64, i64)>(
             r#"
             SELECT
-                (SELECT COUNT(*) FROM room_content_blobs WHERE room_id = $1),
+                (SELECT COUNT(*) FROM content_blobs WHERE owner_room_id = $1),
                 (SELECT COUNT(*) FROM room_tokens
                  WHERE room_id = $1 AND revoked_at IS NULL AND expires_at > $2)
             "#,

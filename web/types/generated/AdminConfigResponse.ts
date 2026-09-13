@@ -7,4 +7,8 @@ export type AdminConfigResponse = { server_host: string, server_port: number,
 /**
  * "sqlite" | "postgresql"（不回显连接串）
  */
-database_backend: string, storage_backend: string, transfer_mode: string, storage_root: string, presign_base_url: string | null, room_default_max_size: number, room_default_max_times_entered: number, room_default_role_key: string, jwt_ttl_seconds: number, jwt_refresh_ttl_seconds: number, upload_reservation_ttl_seconds: number, admin_api_enabled: boolean, };
+database_backend: string, storage_backend: string, transfer_mode: string, storage_root: string, presign_base_url: string | null, room_default_max_size: number, room_default_max_times_entered: number, room_default_role_key: string, jwt_ttl_seconds: number, jwt_refresh_ttl_seconds: number, upload_reservation_ttl_seconds: number, admin_api_enabled: boolean, 
+/**
+ * 存储去重作用域："per-room" | "global"
+ */
+dedup_scope: string, runtime_disallow_search_indexing: boolean, runtime_room_default_max_size: number, runtime_room_default_max_times_entered: number, };

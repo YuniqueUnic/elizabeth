@@ -196,6 +196,11 @@ pub struct StorageConfig {
     #[default(300)]
     #[merge(strategy = overwrite)]
     pub presign_ttl_seconds: u64,
+    /// 全局内容去重（跨房间共享物理对象）。默认关闭：
+    /// 跨房间去重构成存在性 oracle，开启前需评估隐私代价（issue #200）。
+    #[default(false)]
+    #[merge(strategy = overwrite)]
+    pub global_dedup: bool,
 }
 
 /// 房间部署策略。

@@ -20,9 +20,9 @@ use crate::models::{
     content::{ContentType, RoomContent},
 };
 use crate::repository::{
-    IRoomContentBlobRepository, IRoomContentRepository, IRoomRepository,
-    IRoomUploadReservationRepository, RoomContentBlob, RoomContentBlobRepository,
-    RoomContentRepository, RoomRepository, RoomUploadReservationRepository,
+    ContentBlob, ContentBlobRepository, IContentBlobRepository, IRoomContentRepository,
+    IRoomRepository, IRoomUploadReservationRepository, RoomContentRepository, RoomRepository,
+    RoomUploadReservationRepository,
 };
 use crate::state::AppState;
 use crate::validation::RoomNameValidator;
@@ -63,22 +63,26 @@ pub(super) fn map_reservation_error(e: anyhow::Error) -> AppError {
 /// 未命中则写入 `{room_id}/{hash}` 并建 blob 行（原子 upsert 防并发重复）。
 pub(crate) async fn store_content_deduped(
     app_state: &Arc<AppState>,
-    blob_repo: &dyn IRoomContentBlobRepository,
+    blob_repo: &dyn IContentBlobRepository,
     room_id: i64,
     hash: String,
     temp_path: &Path,
     size: i64,
 ) -> Result<String, AppError> {
+    let scope = if app_state.global_dedup_enabled() {
+        None
+    } else {
+        Some(room_id)
+    };
     if let Some(blob) = blob_repo
-        .find_by_hash(room_id, &hash)
+        .find_by_hash(&hash, scope)
         .await
         .map_err(|e| AppError::internal(format!("Blob lookup failed: {e}")))?
     {
         blob_repo
-            .upsert_ref(RoomContentBlob {
-                id: None,
-                room_id,
+            .upsert_ref(ContentBlob {
                 hash: blob.hash.clone(),
+                owner_room_id: blob.owner_room_id,
                 locator: blob.locator.clone(),
                 size: blob.size,
                 ref_count: blob.ref_count,
@@ -88,17 +92,20 @@ pub(crate) async fn store_content_deduped(
         return Ok(blob.locator);
     }
 
-    let key = format!("{room_id}/{hash}");
+    // 物理对象 key：全局模式放在根级 {hash}；per-room 放在 {room_id}/{hash}。
+    let key = match scope {
+        None => hash.clone(),
+        Some(room_id) => format!("{room_id}/{hash}"),
+    };
     let locator = app_state
         .storage
         .store_file(&key, temp_path)
         .await
         .map_err(|e| AppError::internal(format!("Store content failed: {e}")))?;
     let blob = blob_repo
-        .upsert_ref(RoomContentBlob {
-            id: None,
-            room_id,
+        .upsert_ref(ContentBlob {
             hash,
+            owner_room_id: room_id,
             locator: locator.clone(),
             size,
             ref_count: 1,
@@ -228,15 +235,20 @@ pub async fn prepare_upload(
 
     // 秒传（per-room 去重）：携带的整文件哈希与大小都命中既有 blob 时，
     // 跳过传输直接建内容记录；命中部分不计入预留。
-    let blob_repo = RoomContentBlobRepository::new(app_state.db_pool.clone());
+    let blob_repo = ContentBlobRepository::new(app_state.db_pool.clone());
     let content_repo = RoomContentRepository::new(app_state.db_pool.clone());
     let mut instant_uploads = Vec::new();
     let mut instant_total: i64 = 0;
     let mut pending_files = Vec::new();
     for file in payload.files {
+        let dedup_scope = if app_state.global_dedup_enabled() {
+            None
+        } else {
+            Some(room_id)
+        };
         let hit = match (&file.file_hash, file.size > 0) {
             (Some(hash), true) => blob_repo
-                .find_by_hash(room_id, hash)
+                .find_by_hash(hash, dedup_scope)
                 .await
                 .map_err(|e| AppError::internal(format!("Blob lookup failed: {e}")))?
                 .filter(|blob| blob.size == file.size),
@@ -244,10 +256,9 @@ pub async fn prepare_upload(
         };
         if let Some(blob) = hit {
             blob_repo
-                .upsert_ref(RoomContentBlob {
-                    id: None,
-                    room_id,
+                .upsert_ref(ContentBlob {
                     hash: blob.hash.clone(),
+                    owner_room_id: blob.owner_room_id,
                     locator: blob.locator.clone(),
                     size: blob.size,
                     ref_count: blob.ref_count,
@@ -627,7 +638,7 @@ pub(super) async fn persist_staged_uploads(
     owner_jti: &str,
     staged: &[TempUpload],
 ) -> Result<(Vec<RoomContentView>, i64), AppError> {
-    let blob_repo = RoomContentBlobRepository::new(app_state.db_pool.clone());
+    let blob_repo = ContentBlobRepository::new(app_state.db_pool.clone());
     let mut uploaded = Vec::new();
     let mut actual_total: i64 = 0;
 

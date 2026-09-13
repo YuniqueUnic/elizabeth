@@ -335,15 +335,6 @@ pub mod storage {
             Ok(())
         }
 
-        async fn purge_room(&self, room_id: i64) -> StorageResult<()> {
-            let prefix = format!("{room_id}/");
-            self.files
-                .lock()
-                .unwrap()
-                .retain(|key, _| !key.starts_with(&prefix));
-            Ok(())
-        }
-
         async fn object_size(&self, locator: &str) -> StorageResult<u64> {
             self.files
                 .lock()

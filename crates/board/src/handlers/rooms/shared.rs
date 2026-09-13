@@ -9,8 +9,15 @@ pub(crate) type HandlerResult<T> = Result<Json<T>, AppError>;
 
 pub(crate) fn apply_room_defaults(room: &mut Room, app_state: &AppState) -> Result<(), AppError> {
     let defaults = app_state.room_creation_defaults();
-    room.max_size = defaults.max_content_size;
-    room.max_times_entered = defaults.max_times_entered;
+    // 运行时覆盖（管理后台白名单）优先；0 = 未覆盖，回退配置文件值。
+    room.max_size = match app_state.runtime.room_default_max_size() {
+        0 => defaults.max_content_size,
+        size => size,
+    };
+    room.max_times_entered = match app_state.runtime.room_default_max_times_entered() {
+        0 => defaults.max_times_entered,
+        times => times,
+    };
     room.default_role_key = defaults.default_role_key.clone();
     room.expire_at = Some(
         app_state

@@ -175,7 +175,16 @@ export function AdminPanel() {
         />
       ) : null}
       {tab === "system" && storage && config ? (
-        <AdminSystem storage={storage} config={config} />
+        <AdminSystem
+          storage={storage}
+          config={config}
+          adminToken={adminToken}
+          onError={reportError}
+          onSaved={(updated) => {
+            setConfig(updated);
+            toast({ description: t("system.saved") });
+          }}
+        />
       ) : null}
     </div>
   );

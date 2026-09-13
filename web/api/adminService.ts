@@ -76,3 +76,18 @@ export function getAdminConfig(adminToken: string): Promise<AdminConfigResponse>
     adminOptions(adminToken),
   );
 }
+
+export function updateRuntimeConfig(
+  adminToken: string,
+  update: {
+    disallow_search_indexing?: boolean;
+    room_default_max_size?: number;
+    room_default_max_times_entered?: number;
+  },
+): Promise<AdminConfigResponse> {
+  return api.put<AdminConfigResponse>(
+    ADMIN_ENDPOINTS.runtimeConfig,
+    update,
+    adminOptions(adminToken),
+  );
+}

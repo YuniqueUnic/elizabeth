@@ -212,7 +212,7 @@ async fn test_admin_delete_room_purges_everything() -> Result<()> {
         SELECT
             (SELECT COUNT(*) FROM rooms WHERE name = 'doomed-room'),
             (SELECT COUNT(*) FROM room_contents WHERE room_id NOT IN (SELECT id FROM rooms)),
-            (SELECT COUNT(*) FROM room_content_blobs WHERE room_id NOT IN (SELECT id FROM rooms))
+            (SELECT COUNT(*) FROM content_blobs WHERE owner_room_id NOT IN (SELECT id FROM rooms))
         "#,
     )
     .fetch_one(pool.as_ref())
@@ -254,6 +254,100 @@ async fn test_admin_storage_and_config_views() -> Result<()> {
         !raw.contains("test-secret-key-for-unit-testing-123456789"),
         "配置视图不得回显机密"
     );
+    set_admin_env(None);
+    Ok(())
+}
+
+#[tokio::test]
+#[serial]
+async fn test_admin_runtime_config_update_roundtrip() -> Result<()> {
+    set_admin_env(Some(ADMIN_TOKEN));
+    let (app, _pool) = create_test_app().await?;
+
+    // 默认值：robots 防索引开启（安全默认）
+    let response = app
+        .clone()
+        .oneshot(admin_request(Method::GET, "/api/v1/admin/config")?)
+        .await?;
+    let config = body_json(response).await?;
+    assert_eq!(config["runtime_disallow_search_indexing"], json!(true));
+    assert_eq!(config["dedup_scope"], json!("per-room"));
+    assert_eq!(config["runtime_room_default_max_size"], json!(0));
+
+    // 运行时关闭防索引 → robots.txt 立即允许抓取
+    let update = Request::builder()
+        .method(Method::PUT)
+        .uri("/api/v1/admin/config/runtime")
+        .header(ADMIN_HEADER, ADMIN_TOKEN)
+        .header("content-type", "application/json")
+        .body(Body::from(
+            json!({"disallow_search_indexing": false}).to_string(),
+        ))?;
+    let response = app.clone().oneshot(update).await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    let updated = body_json(response).await?;
+    assert_eq!(updated["runtime_disallow_search_indexing"], json!(false));
+
+    // robots.txt 的动态生效由 E2E（真实服务器装配）覆盖。
+
+    // 新房间默认容量覆盖生效（1 MiB 上限内取值）
+    let update = Request::builder()
+        .method(Method::PUT)
+        .uri("/api/v1/admin/config/runtime")
+        .header(ADMIN_HEADER, ADMIN_TOKEN)
+        .header("content-type", "application/json")
+        .body(Body::from(
+            json!({"room_default_max_size": 1048576, "room_default_max_times_entered": 7})
+                .to_string(),
+        ))?;
+    let response = app.clone().oneshot(update).await?;
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let create = Request::builder()
+        .method(Method::POST)
+        .uri("/api/v1/rooms/override-room")
+        .header("content-type", "application/json")
+        .body(Body::from(json!({}).to_string()))?;
+    assert_eq!(app.clone().oneshot(create).await?.status(), StatusCode::OK);
+    let (max_size, max_times): (i64, i64) = sqlx::query_as(
+        "SELECT max_size, max_times_entered FROM rooms WHERE name = 'override-room'",
+    )
+    .fetch_one(_pool.as_ref())
+    .await?;
+    assert_eq!(max_size, 1048576);
+    assert_eq!(max_times, 7);
+
+    // 参数越界 → 400
+    let update = Request::builder()
+        .method(Method::PUT)
+        .uri("/api/v1/admin/config/runtime")
+        .header(ADMIN_HEADER, ADMIN_TOKEN)
+        .header("content-type", "application/json")
+        .body(Body::from(json!({"room_default_max_size": 1}).to_string()))?;
+    let response = app.clone().oneshot(update).await?;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    // 未授权 → 403
+    let update = Request::builder()
+        .method(Method::PUT)
+        .uri("/api/v1/admin/config/runtime")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            json!({"disallow_search_indexing": true}).to_string(),
+        ))?;
+    let response = app.clone().oneshot(update).await?;
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    // 还原防索引默认
+    let update = Request::builder()
+        .method(Method::PUT)
+        .uri("/api/v1/admin/config/runtime")
+        .header(ADMIN_HEADER, ADMIN_TOKEN)
+        .header("content-type", "application/json")
+        .body(Body::from(
+            json!({"disallow_search_indexing": true}).to_string(),
+        ))?;
+    assert_eq!(app.clone().oneshot(update).await?.status(), StatusCode::OK);
     set_admin_env(None);
     Ok(())
 }
