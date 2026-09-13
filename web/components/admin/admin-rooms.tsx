@@ -17,6 +17,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
   deleteAdminRoom,
   getAdminRoomDetail,
   listAdminRooms,
@@ -45,7 +53,7 @@ function StatusBadge({ status }: { status: AdminRoomView["status"] }) {
   );
 }
 
-/** 房间管理（容器组件）：默认列表、搜索、分页、详情/设置编辑、身份码铸造与删除。 */
+/** 房间管理（容器组件）：默认列表、搜索、分页、配置与删除的数据与副作用。 */
 export function AdminRooms({
   adminToken,
   refreshKey,
@@ -110,7 +118,7 @@ export function AdminRooms({
     }
   }
 
-  async function openDetail(room: AdminRoomView) {
+  async function openConfig(room: AdminRoomView) {
     try {
       setDetail(await getAdminRoomDetail(adminToken, room.name));
     } catch (error) {
@@ -156,13 +164,7 @@ export function AdminRooms({
             key={room.id}
             className="grid grid-cols-2 gap-2 border-t px-4 py-3 text-sm sm:grid-cols-[2fr_1fr_1fr_1fr_1fr_2fr_auto] sm:items-center"
           >
-            <button
-              type="button"
-              className="text-left font-medium underline-offset-4 hover:underline"
-              onClick={() => void openDetail(room)}
-            >
-              {room.name}
-            </button>
+            <span className="font-medium">{room.name}</span>
             <StatusBadge status={room.status} />
             <span>
               {room.password_protected
@@ -176,13 +178,23 @@ export function AdminRooms({
                 ? new Date(room.expire_at).toLocaleString()
                 : t("rooms.never")}
             </span>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => setPendingDelete(room)}
-            >
-              {t("rooms.delete")}
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void openConfig(room)}
+                data-testid="admin-room-configure"
+              >
+                {t("rooms.configure")}
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setPendingDelete(room)}
+              >
+                {t("rooms.delete")}
+              </Button>
+            </div>
           </div>
         ))}
         {loaded && rooms.length === 0 ? (
@@ -216,7 +228,7 @@ export function AdminRooms({
         </div>
       </div>
 
-      <RoomDetailDialog
+      <RoomConfigDialog
         detail={detail}
         adminToken={adminToken}
         onClose={() => setDetail(null)}
@@ -259,8 +271,8 @@ export function AdminRooms({
   );
 }
 
-/** 房间详情 + 设置编辑 + 身份码铸造（展示组件，数据由父级加载）。 */
-function RoomDetailDialog({
+/** 房间配置对话框（展示组件）：概览 / 设置 / 身份码 三个分区。 */
+function RoomConfigDialog({
   detail,
   adminToken,
   onClose,
@@ -274,15 +286,12 @@ function RoomDetailDialog({
   onSaved: (detail: AdminRoomDetailResponse) => void;
 }) {
   const t = useTranslations("admin");
-  // 设置表单：null/空串 = 保持不变（服务端按字段缺省处理）
   const [maxSize, setMaxSize] = useState("");
   const [maxTimes, setMaxTimes] = useState("");
   const [defaultRole, setDefaultRole] = useState("");
   const [password, setPassword] = useState("");
   const [removePassword, setRemovePassword] = useState(false);
   const [saving, setSaving] = useState(false);
-
-  // 身份码铸造：角色 + 可选指定码；铸造结果明文仅此一次展示
   const [mintRole, setMintRole] = useState<(typeof ROLE_KEYS)[number]>("editor");
   const [mintCode, setMintCode] = useState("");
   const [mintedCode, setMintedCode] = useState<string | null>(null);
@@ -304,7 +313,7 @@ function RoomDetailDialog({
   if (!detail) return null;
 
   async function saveSettings() {
-    if (!detail) return;
+    if (!detail || saving) return;
     setSaving(true);
     try {
       const update: Parameters<typeof updateAdminRoom>[2] = {};
@@ -359,63 +368,106 @@ function RoomDetailDialog({
           <DialogDescription>{detail.slug}</DialogDescription>
         </DialogHeader>
 
-        <dl className="grid grid-cols-2 gap-2 text-sm">
-          <dt>{t("rooms.contents")}</dt>
-          <dd className="tabular-nums">{detail.content_count}</dd>
-          <dt>{t("rooms.detailBlobs")}</dt>
-          <dd className="tabular-nums">{detail.blob_count}</dd>
-          <dt>{t("rooms.detailTokens")}</dt>
-          <dd className="tabular-nums">{detail.token_count}</dd>
-          <dt>{t("rooms.size")}</dt>
-          <dd>{formatFileSize(detail.current_size)}</dd>
-          <dt>{t("rooms.created")}</dt>
-          <dd>{new Date(detail.created_at).toLocaleString()}</dd>
-        </dl>
+        <Tabs defaultValue="overview">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="overview">{t("rooms.tabOverview")}</TabsTrigger>
+            <TabsTrigger value="settings">{t("rooms.tabSettings")}</TabsTrigger>
+            <TabsTrigger value="identity">{t("rooms.tabIdentity")}</TabsTrigger>
+          </TabsList>
 
-        <div className="space-y-2 border-t pt-3">
-          <p className="text-sm font-medium">{t("rooms.settingsTitle")}</p>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <Label htmlFor="admin-room-max-size">{t("rooms.maxSize")}</Label>
-              <Input
-                id="admin-room-max-size"
-                inputMode="numeric"
-                placeholder={String(detail.max_size)}
-                value={maxSize}
-                onChange={(event) => setMaxSize(event.target.value)}
-              />
+          <TabsContent value="overview" className="mt-3">
+            <dl className="grid grid-cols-2 gap-2 text-sm">
+              <dt className="text-muted-foreground">{t("rooms.contents")}</dt>
+              <dd className="tabular-nums">{detail.content_count}</dd>
+              <dt className="text-muted-foreground">{t("rooms.detailBlobs")}</dt>
+              <dd className="tabular-nums">{detail.blob_count}</dd>
+              <dt className="text-muted-foreground">{t("rooms.detailTokens")}</dt>
+              <dd className="tabular-nums">{detail.token_count}</dd>
+              <dt className="text-muted-foreground">{t("rooms.size")}</dt>
+              <dd>
+                {formatFileSize(detail.current_size)} /{" "}
+                {formatFileSize(detail.max_size)}
+              </dd>
+              <dt className="text-muted-foreground">
+                {t("rooms.overviewEntries")}
+              </dt>
+              <dd className="tabular-nums">
+                {detail.current_times_entered} / {detail.max_times_entered}
+              </dd>
+              <dt className="text-muted-foreground">{t("rooms.defaultRole")}</dt>
+              <dd>{detail.default_role_key}</dd>
+              <dt className="text-muted-foreground">{t("rooms.created")}</dt>
+              <dd>{new Date(detail.created_at).toLocaleString()}</dd>
+              <dt className="text-muted-foreground">{t("rooms.expire")}</dt>
+              <dd>
+                {detail.expire_at
+                  ? new Date(detail.expire_at).toLocaleString()
+                  : t("rooms.never")}
+              </dd>
+            </dl>
+          </TabsContent>
+
+          <TabsContent value="settings" className="mt-3 space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="admin-room-max-size">{t("rooms.maxSize")}</Label>
+                <Input
+                  id="admin-room-max-size"
+                  inputMode="numeric"
+                  placeholder={String(detail.max_size)}
+                  value={maxSize}
+                  onChange={(event) => setMaxSize(event.target.value)}
+                />
+                <p className="text-muted-foreground text-xs">
+                  {t("rooms.capacityCurrent", {
+                    size: formatFileSize(detail.max_size),
+                    bytes: detail.max_size,
+                  })}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="admin-room-max-times">
+                  {t("rooms.maxTimes")}
+                </Label>
+                <Input
+                  id="admin-room-max-times"
+                  inputMode="numeric"
+                  placeholder={String(detail.max_times_entered)}
+                  value={maxTimes}
+                  onChange={(event) => setMaxTimes(event.target.value)}
+                />
+                <p className="text-muted-foreground text-xs">
+                  {t("rooms.maxTimesCurrent", {
+                    count: detail.max_times_entered,
+                  })}
+                </p>
+              </div>
             </div>
+
             <div className="space-y-1">
-              <Label htmlFor="admin-room-max-times">
-                {t("rooms.maxTimes")}
-              </Label>
-              <Input
-                id="admin-room-max-times"
-                inputMode="numeric"
-                placeholder={String(detail.max_times_entered)}
-                value={maxTimes}
-                onChange={(event) => setMaxTimes(event.target.value)}
-              />
+              <Label>{t("rooms.defaultRole")}</Label>
+              <Select
+                value={defaultRole || detail.default_role_key}
+                onValueChange={(value) =>
+                  setDefaultRole(value === detail.default_role_key ? "" : value)
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ROLE_KEYS.map((role) => (
+                    <SelectItem key={role} value={role}>
+                      {role}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-muted-foreground text-xs">
+                {t("rooms.roleCurrent", { role: detail.default_role_key })}
+              </p>
             </div>
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="admin-room-default-role">
-              {t("rooms.defaultRole")}
-            </Label>
-            <select
-              id="admin-room-default-role"
-              className="border-input bg-background h-9 w-full rounded-md border px-2 text-sm"
-              value={defaultRole || detail.default_role_key}
-              onChange={(event) => setDefaultRole(event.target.value)}
-            >
-              {ROLE_KEYS.map((role) => (
-                <option key={role} value={role}>
-                  {role}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="grid grid-cols-2 items-end gap-2">
+
             <div className="space-y-1">
               <Label htmlFor="admin-room-password">
                 {t("rooms.passwordSet")}
@@ -423,65 +475,73 @@ function RoomDetailDialog({
               <Input
                 id="admin-room-password"
                 type="password"
+                placeholder={t("rooms.passwordPlaceholder")}
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 disabled={removePassword}
               />
+              {detail.password_protected ? (
+                <label className="text-muted-foreground flex items-center gap-2 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={removePassword}
+                    onChange={(event) => {
+                      setRemovePassword(event.target.checked);
+                      if (event.target.checked) setPassword("");
+                    }}
+                  />
+                  {t("rooms.passwordRemove")}
+                </label>
+              ) : (
+                <p className="text-muted-foreground text-xs">
+                  {t("rooms.passwordAbsent")}
+                </p>
+              )}
             </div>
-            <label className="text-muted-foreground flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={removePassword}
-                onChange={(event) => {
-                  setRemovePassword(event.target.checked);
-                  if (event.target.checked) setPassword("");
-                }}
-              />
-              {t("rooms.passwordRemove")}
-            </label>
-          </div>
-          <p className="text-muted-foreground text-xs">
-            {t("rooms.settingsHint")}
-          </p>
-          <Button
-            size="sm"
-            disabled={!hasSettingChanges || saving}
-            onClick={() => void saveSettings()}
-            data-testid="admin-room-save"
-          >
-            {t("rooms.saveSettings")}
-          </Button>
-        </div>
 
-        <div className="space-y-2 border-t pt-3">
-          <p className="text-sm font-medium">{t("rooms.mintTitle")}</p>
-          {mintedCode ? (
-            <div className="flex items-center gap-2" data-testid="minted-code">
-              <code className="bg-muted flex-1 rounded px-2 py-1 font-mono text-xs">
-                {mintedCode}
-              </code>
-              <CopyButton value={mintedCode} label={t("rooms.copyMinted")} />
-            </div>
-          ) : (
-            <p className="text-muted-foreground text-xs">{t("rooms.mintHint")}</p>
-          )}
-          <div className="grid grid-cols-2 items-end gap-2">
-            <div className="space-y-1">
-              <Label htmlFor="admin-mint-role">{t("rooms.mintRole")}</Label>
-              <select
-                id="admin-mint-role"
-                className="border-input bg-background h-9 w-full rounded-md border px-2 text-sm"
-                value={mintRole}
-                onChange={(event) =>
-                  setMintRole(event.target.value as (typeof ROLE_KEYS)[number])
-                }
+            <p className="text-muted-foreground text-xs">
+              {t("rooms.settingsHint")}
+            </p>
+            <Button
+              size="sm"
+              disabled={!hasSettingChanges || saving}
+              onClick={() => void saveSettings()}
+              data-testid="admin-room-save"
+            >
+              {t("rooms.saveSettings")}
+            </Button>
+          </TabsContent>
+
+          <TabsContent value="identity" className="mt-3 space-y-3">
+            {mintedCode ? (
+              <div
+                className="flex items-center gap-2 border border-primary/40 bg-primary/5 rounded-md p-2"
+                data-testid="minted-code"
               >
-                {ROLE_KEYS.map((role) => (
-                  <option key={role} value={role}>
-                    {role}
-                  </option>
-                ))}
-              </select>
+                <code className="flex-1 font-mono text-xs break-all">
+                  {mintedCode}
+                </code>
+                <CopyButton value={mintedCode} label={t("rooms.copyMinted")} />
+              </div>
+            ) : (
+              <p className="text-muted-foreground text-xs">
+                {t("rooms.mintHint")}
+              </p>
+            )}
+            <div className="space-y-1">
+              <Label>{t("rooms.mintRole")}</Label>
+              <Select value={mintRole} onValueChange={(v) => setMintRole(v as (typeof ROLE_KEYS)[number])}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ROLE_KEYS.map((role) => (
+                    <SelectItem key={role} value={role}>
+                      {role}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1">
               <Label htmlFor="admin-mint-code">{t("rooms.mintCode")}</Label>
@@ -493,17 +553,17 @@ function RoomDetailDialog({
                 onChange={(event) => setMintCode(event.target.value)}
               />
             </div>
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={minting || mintedCode !== null}
-            onClick={() => void mint()}
-            data-testid="admin-room-mint"
-          >
-            {t("rooms.mintButton")}
-          </Button>
-        </div>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={minting || mintedCode !== null}
+              onClick={() => void mint()}
+              data-testid="admin-room-mint"
+            >
+              {t("rooms.mintButton")}
+            </Button>
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );
