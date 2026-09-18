@@ -1,4 +1,3 @@
-#![allow(unused_variables, unused_imports, dead_code)]
 //! 认证系统完整测试
 //!
 //! 测试完整的认证系统功能，包括刷新令牌、登出、清理等
@@ -44,7 +43,7 @@ async fn test_refresh_token_endpoint() -> Result<()> {
 
     let token_body = axum::body::to_bytes(token_response.into_body(), usize::MAX).await?;
     let token_json: serde_json::Value = serde_json::from_slice(&token_body)?;
-    let initial_token = token_json["token"].as_str().unwrap().to_string();
+    let _initial_token = token_json["token"].as_str().unwrap().to_string();
 
     // 测试刷新令牌端点
     let refresh_payload = json!({

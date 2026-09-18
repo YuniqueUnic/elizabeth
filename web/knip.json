@@ -1,0 +1,9 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "ignoreExportsUsedInFile": true,
+  "ignoreDependencies": ["@serenity-js/console-reporter", "postcss-load-config"],
+  "ignoreIssues": {
+    "types/generated/**": ["exports", "types", "enumMembers"],
+    "components/ui/**": ["exports", "types", "enumMembers"]
+  }
+}

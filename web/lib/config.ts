@@ -64,23 +64,16 @@ const internalBase = parseBase(
 const appOrigin = parseOrigin(process.env.NEXT_PUBLIC_APP_URL);
 
 // API Base URL exposed to the browser (path only, no origin)
-export const API_BASE_PATH = publicBase.path;
-export const API_BASE_URL = API_BASE_PATH;
+export const API_BASE_URL = publicBase.path;
 export const API_BASE_ORIGIN = publicBase.origin;
 
 // Internal API base used by the Next.js server to reach the backend
 export const INTERNAL_API_PATH = internalBase.path;
 export const INTERNAL_API_ORIGIN = internalBase.origin;
-export const INTERNAL_API_BASE_URL = INTERNAL_API_ORIGIN
-  ? `${INTERNAL_API_ORIGIN}${INTERNAL_API_PATH}`
-  : "";
 
 // Public app origin (useful as fallback when building server-side URLs)
 export const PUBLIC_APP_ORIGIN = appOrigin;
 export const API_ENDPOINTS = {
-  // Health & Status
-  health: "/health",
-  status: "/status",
   publicConfig: "/config",
 
   // Room Management
@@ -103,8 +96,6 @@ export const API_ENDPOINTS = {
       `/rooms/${encodeURIComponent(name)}/password/verify`,
     validateToken: (name: string) =>
       `/rooms/${encodeURIComponent(name)}/tokens/validate`,
-    revokeToken: (name: string, jti: string) =>
-      `/rooms/${encodeURIComponent(name)}/tokens/${jti}`,
   },
 
   // Content Management
@@ -127,8 +118,6 @@ export const API_ENDPOINTS = {
       `/rooms/${encodeURIComponent(name)}/uploads/chunks/prepare`,
     upload: (name: string) =>
       `/rooms/${encodeURIComponent(name)}/uploads/chunks`,
-    status: (name: string) =>
-      `/rooms/${encodeURIComponent(name)}/uploads/chunks/status`,
     complete: (name: string) =>
       `/rooms/${encodeURIComponent(name)}/uploads/chunks/complete`,
     cancel: (name: string, reservationId: string) =>
@@ -138,8 +127,6 @@ export const API_ENDPOINTS = {
   // Authentication
   auth: {
     refresh: "/auth/refresh",
-    logout: "/auth/logout",
-    cleanup: "/auth/cleanup",
   },
 } as const;
 

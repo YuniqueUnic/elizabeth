@@ -10,10 +10,12 @@ use tokio::sync::Barrier;
 
 use crate::config::{AppConfig, AuthConfig};
 use crate::db::{DbPoolSettings, init_db, run_migrations};
-use crate::dto::rooms::{RoomView, VerifyRoomPasswordRequest};
-use crate::handlers::rooms::find;
+use crate::dto::rooms::{RoomView, UpdateRoomSettingsRequest, VerifyRoomPasswordRequest};
+use crate::handlers::rooms::lifecycle::find;
+use crate::handlers::rooms::settings::apply_room_settings_update;
 use crate::handlers::rooms::tokens::{issue_token, verify_password};
 use crate::models::content::{ContentType, RoomContent};
+use crate::models::room::upload_file_policy::{UploadFileTypeMode, UploadFileTypePolicy};
 use crate::models::{Room, RoomRefreshToken, RoomToken};
 use crate::repository::{
     IRoomContentRepository, IRoomRefreshTokenRepository, IRoomRepository, IRoomTokenRepository,
@@ -44,6 +46,56 @@ fn future_room(name: &str) -> Room {
     let mut room = Room::new(name.to_string(), None);
     room.expire_at = Some(Utc::now().naive_utc() + Duration::days(7));
     room
+}
+
+/// 房间级 settings 端点与平台管理端点共用同一核心：一次更新必须同时落库
+/// 容量、默认角色与上传类型策略，两个入口才不会出现能力差异。
+#[tokio::test]
+async fn shared_settings_core_persists_capacity_default_role_and_upload_policy()
+-> anyhow::Result<()> {
+    let state = setup_state(std::env::temp_dir().as_path()).await?;
+    let room = state
+        .services
+        .room_repository
+        .create(&future_room("settings-parity-room"))
+        .await?;
+    let room_id = room.id.unwrap();
+    let original_max_size = room.max_size;
+
+    let updated = apply_room_settings_update(
+        &state,
+        room,
+        UpdateRoomSettingsRequest {
+            password: None,
+            remove_password: None,
+            age_seconds: None,
+            max_times_entered: None,
+            max_size: Some(original_max_size + 1024),
+            default_role_key: Some("editor".to_string()),
+            upload_file_type: Some(UploadFileTypePolicy {
+                mode: UploadFileTypeMode::Allow,
+                extensions: vec!["PDF".to_string(), ".zip".to_string()],
+            }),
+        },
+    )
+    .await?;
+
+    assert_eq!(updated.max_size, original_max_size + 1024);
+    assert_eq!(updated.default_role_key, "editor");
+    assert_eq!(updated.upload_file_type.mode, UploadFileTypeMode::Allow);
+    assert_eq!(updated.upload_file_type.extensions, ["pdf", "zip"]);
+
+    // 重新读库，确认策略真的落盘而不是只改了内存里的副本
+    let reloaded = state
+        .services
+        .room_repository
+        .find_by_id(room_id)
+        .await?
+        .expect("room still exists");
+    assert_eq!(reloaded.max_size, original_max_size + 1024);
+    assert_eq!(reloaded.default_role_key, "editor");
+    assert_eq!(reloaded.upload_file_type.extensions, ["pdf", "zip"]);
+    Ok(())
 }
 
 #[tokio::test]
@@ -251,7 +303,7 @@ async fn websocket_handshake_rejects_revoked_sessions_and_returns_live_room_info
         }),
     )
     .await?;
-    let handler = MessageHandler::new((*state).clone(), state.connection_manager.clone());
+    let handler = MessageHandler::new((*state).clone());
     let request = ConnectRequest {
         token: issued.token.clone(),
         room_name: room.slug.clone(),

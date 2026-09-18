@@ -7,7 +7,6 @@
     "tokenLabel": "管理员 Token",
     "tokenPlaceholder": "粘贴管理员 Token",
     "submit": "进入面板",
-    "unavailable": "管理后台未启用：服务端未配置 ELIZABETH_ADMIN_TOKEN",
     "invalid": "Token 无效或管理后台未启用"
   },
   "nav": {
@@ -60,10 +59,13 @@
     "search": "搜索",
     "cancel": "取消",
     "saved": "房间设置已保存",
-    "settingsTitle": "房间设置",
     "maxSize": "容量（字节）",
     "maxTimes": "进入次数上限",
+    "duration": "房间持续时间",
+    "durationUnchanged": "不修改",
+    "durationCurrent": "当前过期时间：{time}",
     "defaultRole": "默认角色",
+    "uploadFileType": "上传文件类型",
     "passwordSet": "设置新密码",
     "passwordRemove": "移除密码",
     "settingsHint": "只提交有改动的字段；修改密码会吊销该房间所有会话",
@@ -102,7 +104,6 @@
     "dedupSaved": "去重节省",
     "database": "数据库",
     "server": "服务地址",
-    "roomDefaults": "房间默认参数",
     "maxSize": "默认容量",
     "maxTimesEntered": "默认进入次数",
     "defaultRole": "默认角色",
@@ -121,7 +122,6 @@
     "runtimeHint": "覆盖仅存活于进程内，服务重启后回到配置文件值；数值传 0 表示清除覆盖",
     "save": "保存",
     "saved": "运行时配置已更新",
-    "runtimeInvalid": "取值不在允许范围内",
     "dedupScope": "去重范围",
     "runtimeSessionTtl": "会话有效期（秒）",
     "runtimeReservationTtl": "上传预留有效期（秒）",
@@ -135,10 +135,16 @@
     "credentialHint": "轮换立即生效（本会话自动切换到新凭证）；覆盖仅存活于进程内，重启回退环境变量值",
     "credentialRotate": "轮换凭证",
     "credentialRotated": "管理凭证已轮换，本会话已切换到新凭证",
-    "runtimeDefaultRoleFollow": "跟随配置文件（{role}）"
+    "runtimeDefaultRoleFollow": "跟随配置文件（{role}）",
+    "runtimeRoomExpiry": "房间有效期策略",
+    "runtimeRoomExpiryAllowed": "允许时长（逗号分隔，单位 s/m/h/d/w）",
+    "runtimeRoomExpiryDefault": "新建房间默认时长",
+    "runtimeRoomExpiryHint": "写法与配置文件 app.room.expiry 一致；允许时长需非空且严格递增，默认时长必须是其中之一。",
+    "runtimeRoomExpiryFollowing": "当前跟随配置文件：{ages}",
+    "runtimeRoomExpiryClear": "清除覆盖",
+    "roomExpiry": "房间有效期策略"
   },
   "errors": {
-    "loadFailed": "加载失败：{message}",
-    "deleteFailed": "删除失败：{message}"
+    "loadFailed": "加载失败：{message}"
   }
 }

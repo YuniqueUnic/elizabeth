@@ -33,6 +33,8 @@ pub struct RuntimeConfigOverrides {
     upload_reservation_ttl_seconds: AtomicI64,
     /// None = 未覆盖，回退配置文件默认值（新房间默认加入角色）
     room_default_role_key: RwLock<Option<String>>,
+    /// None = 未覆盖，回退配置文件默认值（房间有效期策略，整组替换）
+    room_expiry_policy: RwLock<Option<Arc<crate::config::RoomExpiryPolicy>>>,
 }
 
 impl Default for RuntimeConfigOverrides {
@@ -45,6 +47,7 @@ impl Default for RuntimeConfigOverrides {
             session_ttl_seconds: AtomicI64::new(0),
             upload_reservation_ttl_seconds: AtomicI64::new(0),
             room_default_role_key: RwLock::new(None),
+            room_expiry_policy: RwLock::new(None),
         }
     }
 }
@@ -107,6 +110,20 @@ impl RuntimeConfigOverrides {
 
     pub fn set_room_default_role_key(&self, value: Option<String>) {
         if let Ok(mut guard) = self.room_default_role_key.write() {
+            *guard = value;
+        }
+    }
+
+    /// 房间有效期策略覆盖；None 表示未覆盖。
+    pub fn room_expiry_policy(&self) -> Option<Arc<crate::config::RoomExpiryPolicy>> {
+        self.room_expiry_policy
+            .read()
+            .ok()
+            .and_then(|guard| guard.clone())
+    }
+
+    pub fn set_room_expiry_policy(&self, value: Option<Arc<crate::config::RoomExpiryPolicy>>) {
+        if let Ok(mut guard) = self.room_expiry_policy.write() {
             *guard = value;
         }
     }
@@ -189,6 +206,8 @@ pub struct AppState {
     pub broadcaster: Arc<Broadcaster>,
     /// 房间角色矩阵缓存（键：room_id，失效：rooms.roles_version）
     pub roles_cache: Arc<crate::authz::RoleTableCache>,
+    /// 配置文件中的房间有效期策略；运行时覆盖存在时以其为准
+    base_room_expiry_policy: Arc<crate::config::RoomExpiryPolicy>,
 }
 
 impl AppState {
@@ -227,6 +246,7 @@ impl AppState {
         let broadcaster = Arc::new(Broadcaster::new(connection_manager.clone()));
 
         let roles_cache = services.roles_cache.clone();
+        let base_room_expiry_policy = Arc::new(config.room.expiry.clone());
         Ok(Self {
             db_pool,
             config,
@@ -237,6 +257,7 @@ impl AppState {
             connection_manager,
             broadcaster,
             roles_cache,
+            base_room_expiry_policy,
         })
     }
 
@@ -319,8 +340,12 @@ impl AppState {
         &self.config.room.defaults
     }
 
-    pub fn room_expiry_policy(&self) -> &crate::config::RoomExpiryPolicy {
-        &self.config.room.expiry
+    /// 房间有效期策略：运行时白名单覆盖优先，回退配置文件值。
+    /// 覆盖值在写入边界已校验，因此这里不会构造出非法策略。
+    pub fn room_expiry_policy(&self) -> Arc<crate::config::RoomExpiryPolicy> {
+        self.runtime
+            .room_expiry_policy()
+            .unwrap_or_else(|| self.base_room_expiry_policy.clone())
     }
 }
 

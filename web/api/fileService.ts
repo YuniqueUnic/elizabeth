@@ -9,7 +9,6 @@ import type { TransferProgress } from "../lib/transfer-types";
 import type {
   BackendRoomContent,
   FileItem,
-  UpdateContentResponse,
   UploadContentResponse,
   UploadPreparationRequest,
   UploadPreparationResponse,
@@ -65,15 +64,6 @@ function triggerBrowserDownload(blob: Blob, fileName: string): void {
   link.click();
   document.body.removeChild(link);
   setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
-}
-
-export async function getDownloadUrl(
-  roomName: string,
-  fileId: string,
-  token?: string,
-): Promise<string> {
-  const authToken = await ensureToken(roomName, token);
-  return buildAuthenticatedDownloadPath(fileId, authToken);
 }
 
 function mapMimeToFileType(mime?: string): FileItem["type"] {
@@ -270,24 +260,6 @@ export async function deleteFile(
 }
 
 /**
- * Delete multiple files
- */
-export async function deleteFiles(
-  roomName: string,
-  fileIds: string[],
-  token?: string,
-): Promise<void> {
-  const authToken = await ensureToken(roomName, token);
-  const numericIds = fileIds.map((id) => parseInt(id, 10));
-  const idsParam = numericIds.join(",");
-  await api.delete(
-    `${API_ENDPOINTS.content.base(roomName)}?ids=${idsParam}`,
-    { ids: numericIds },
-    { token: authToken },
-  );
-}
-
-/**
  * Download a file with progress tracking and abort support.
  * Uses XHR for real download progress events.
  */
@@ -369,31 +341,6 @@ export async function cancelUpload(
 }
 
 /**
- * Batch download files one by one
- */
-export async function downloadFilesBatch(
-  roomName: string,
-  fileIds: string[],
-  token?: string,
-): Promise<void> {
-  const authToken = await ensureToken(roomName, token);
-  const files = await getFilesList(roomName, authToken);
-  const fileMap = new Map(files.map((f) => [f.id, f.name]));
-
-  for (const fileId of fileIds) {
-    try {
-      const fileName = fileMap.get(fileId) || `file_${fileId}`;
-      await downloadFile(roomName, fileId, fileName, authToken);
-      if (fileIds.indexOf(fileId) < fileIds.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 200));
-      }
-    } catch (error) {
-      console.error(`Failed to download file ${fileId}:`, error);
-    }
-  }
-}
-
-/**
  * Upload a URL as content to a room
  */
 export async function uploadUrl(
@@ -410,15 +357,3 @@ export async function uploadUrl(
   return convertFile(response.created, roomName);
 }
 
-const fileService = {
-  getFilesList,
-  uploadFile,
-  uploadUrl,
-  deleteFile,
-  deleteFiles,
-  downloadFile,
-  downloadFilesBatch,
-  cancelUpload,
-};
-
-export default fileService;

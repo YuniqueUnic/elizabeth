@@ -91,38 +91,6 @@ impl Broadcaster {
         self.manager.broadcast_to_room(room_name, message).await
     }
 
-    /// 广播用户加入事件
-    pub async fn broadcast_user_joined(
-        &self,
-        room_name: &str,
-        user_id: &str,
-    ) -> Result<usize, Box<dyn std::error::Error>> {
-        let payload = json!({
-            "user_id": user_id,
-            "room_name": room_name,
-        });
-
-        let message = WsMessage::new(WsMessageType::UserJoined, Some(payload));
-
-        self.manager.broadcast_to_room(room_name, message).await
-    }
-
-    /// 广播用户离开事件
-    pub async fn broadcast_user_left(
-        &self,
-        room_name: &str,
-        user_id: &str,
-    ) -> Result<usize, Box<dyn std::error::Error>> {
-        let payload = json!({
-            "user_id": user_id,
-            "room_name": room_name,
-        });
-
-        let message = WsMessage::new(WsMessageType::UserLeft, Some(payload));
-
-        self.manager.broadcast_to_room(room_name, message).await
-    }
-
     /// 广播房间更新事件
     pub async fn broadcast_room_update(
         &self,

@@ -1,11 +1,8 @@
 import type { Locator, Page } from "@playwright/test";
 
-import { tCommon, tPattern, tRoom } from "../../support/i18n";
+import { tCommon, tRoom } from "../../support/i18n";
 
 export const RoomScreen = {
-  mainArea: (page: Page): Locator =>
-    page.locator("main"),
-
   brandLabel: (page: Page): Locator =>
     page.getByText("Elizabeth", { exact: true }),
 
@@ -48,9 +45,6 @@ export const RoomScreen = {
   deleteMessagesButton: (page: Page): Locator =>
     page.getByTestId("delete-messages-btn"),
 
-  helpButton: (page: Page): Locator =>
-    page.getByTestId("help-btn"),
-
   settingsButton: (page: Page): Locator =>
     page.getByTestId("settings-btn"),
 
@@ -69,17 +63,8 @@ export const RoomScreen = {
   messageEditedBadges: (page: Page): Locator =>
     page.getByTestId(/^message-edited-badge-/),
 
-  messageEditingBadges: (page: Page): Locator =>
-    page.getByTestId(/^message-editing-badge-/),
-
-  messageCountSummary: (page: Page): Locator =>
-    page.getByText(tPattern(tRoom("messageList.loadedCount"), { count: /\d+/ })),
-
   messageSelectAllButton: (page: Page): Locator =>
     page.locator("main").getByRole("button", { name: tRoom("messageList.selectAll") }).first(),
-
-  messageInvertSelectionButton: (page: Page): Locator =>
-    page.locator("main").getByRole("button", { name: tRoom("messageList.invertSelection") }).first(),
 
   messageListScroll: (page: Page): Locator =>
     page.getByTestId("message-list-scroll"),
@@ -110,12 +95,6 @@ export const RoomScreen = {
   mobileBottomTabs: (page: Page): Locator =>
     page.getByTestId("mobile-bottom-tabs"),
 
-  editorCancelButton: (page: Page): Locator =>
-    page.getByRole("button", { name: tRoom("messageInput.cancel") }).last(),
-
-  roomConfigRoot: (page: Page): Locator =>
-    page.locator("aside").first(),
-
   leftSidebar: (page: Page): Locator =>
     page.getByTestId("left-sidebar"),
 
@@ -128,17 +107,29 @@ export const RoomScreen = {
   leftSidebarCollapsedRail: (page: Page): Locator =>
     page.getByTestId("left-sidebar-collapsed-rail"),
 
-  roomConfigTitle: (page: Page): Locator =>
-    page.locator("aside").first().getByText(tRoom("config.title")),
+  durationSelect: (page: Page): Locator =>
+    page.getByTestId("room-duration-select"),
 
-  expirySelect: (page: Page): Locator =>
-    page.getByRole("combobox").first(),
+  durationOption: (page: Page, ageSeconds: number): Locator =>
+    page.getByTestId(`room-duration-option-${ageSeconds}`),
+
+  roomExpiryHint: (page: Page): Locator =>
+    page.getByTestId("room-expiry-hint"),
 
   roomPasswordInput: (page: Page): Locator =>
     page.locator("aside").first().locator("#room-password"),
 
   maxViewsInput: (page: Page): Locator =>
     page.locator("aside").first().locator("#room-max-views"),
+
+  maxSizeInput: (page: Page): Locator =>
+    page.locator("aside").first().locator("#room-max-size"),
+
+  defaultRoleSelect: (page: Page): Locator =>
+    page.getByTestId("room-default-role-select"),
+
+  defaultRoleOption: (page: Page, roleKey: string): Locator =>
+    page.getByTestId(`room-default-role-option-${roleKey}`),
 
   uploadFileTypeModeSelect: (page: Page): Locator =>
     page.getByTestId("upload-file-type-mode"),
@@ -154,23 +145,8 @@ export const RoomScreen = {
       name: tRoom("config.save.saveConfig"),
     }),
 
-  resetRoomConfigButton: (page: Page): Locator =>
-    page.locator("aside").first().getByRole("button", { name: tRoom("config.cancel") }),
-
-  permissionButton: (page: Page, label: string): Locator =>
-    page.locator("aside").first().getByRole("button", { name: label }).first(),
-
   capacityInfo: (page: Page): Locator =>
     page.locator("aside").first().getByText(tRoom("capacity.title")).locator(".."),
-
-  shareLinkButton: (page: Page): Locator =>
-    page.locator("aside").first().getByRole("button", { name: tRoom("sharing.getLink") }).first(),
-
-  shareDownloadQrButton: (page: Page): Locator =>
-    page.locator("aside").first().getByRole("button", { name: tRoom("sharing.download") }).first(),
-
-  qrCodeImage: (page: Page): Locator =>
-    page.locator("aside").first().locator('img[alt="Room QR Code"]'),
 
   closeRoomButton: (page: Page): Locator =>
     page.getByRole("button", { name: tRoom("closeRoom.button") }).first(),
@@ -202,15 +178,6 @@ export const RoomScreen = {
   alert: (page: Page): Locator =>
     page.locator("div[role='alert'][data-slot='alert']").first(),
 
-  roomAddressChangedAlert: (page: Page): Locator =>
-    page.locator("div[role='alert']").filter({ hasText: tCommon("roomAddressChanged") }).first(),
-
-  fileSidebar: (page: Page): Locator =>
-    page.locator("aside").last(),
-
-  fileUploadButton: (page: Page): Locator =>
-    page.locator("aside").last().locator(`button[title='${tRoom("fileManager.uploadFile")}']`),
-
   fileAddLinkButton: (page: Page): Locator =>
     page.locator("aside").last().locator(`button[title='${tRoom("fileManager.addLink")}']`),
 
@@ -237,30 +204,11 @@ export const RoomScreen = {
   fileCards: (page: Page): Locator =>
     page.locator("div.group.relative.flex.items-center.gap-3.rounded-lg.border"),
 
-  fileCheckboxes: (page: Page): Locator =>
-    page.locator("div.group.relative.flex.items-center.gap-3.rounded-lg.border [role='checkbox']"),
-
   fileNames: (page: Page): Locator =>
     page.locator("div.group.relative.flex.items-center.gap-3.rounded-lg.border p.text-sm.font-medium"),
 
-  fileUploadZone: (page: Page): Locator =>
-    page.getByText(tRoom("fileUploadZone.dragOrClick")),
-
   fileSelectAllButton: (page: Page): Locator =>
     page.locator("aside").last().getByRole("button", { name: tRoom("fileManager.selectAll") }),
-
-  fileInvertSelectionButton: (page: Page): Locator =>
-    page.locator("aside").last().getByRole("button", { name: tRoom("fileManager.invertSelection") }),
-
-  // Transfer progress panel
-  transferProgressPanel: (page: Page): Locator =>
-    page.locator("aside").last().locator(".border-b.bg-muted\\/30"),
-
-  transferRows: (page: Page): Locator =>
-    page.locator("aside").last().locator(".border-b.bg-muted\\/30 > div"),
-
-  transferCancelButton: (page: Page): Locator =>
-    page.locator("aside").last().locator(".border-b.bg-muted\\/30 button[title='Cancel']"),
 
   filePreviewDialog: (page: Page): Locator =>
     page.getByRole("dialog"),
@@ -282,9 +230,6 @@ export const RoomScreen = {
 
   filePreviewDeleteButton: (page: Page): Locator =>
     page.getByTestId("file-preview-delete"),
-
-  filePreviewIframe: (page: Page): Locator =>
-    page.locator("dialog iframe, [role='dialog'] iframe"),
 
   filePreviewCloseButton: (page: Page): Locator =>
     RoomScreen.filePreviewDialog(page).locator('button[title="Close"]'),
@@ -376,24 +321,8 @@ export const RoomScreen = {
   closeRoomPasswordError: (page: Page): Locator =>
     page.getByRole("dialog").locator("p.text-destructive, [class*='destructive'] p").first(),
 
-  // Settings dialog switches
-  settingIncludeMetadataCopy: (page: Page): Locator =>
-    page.getByTestId("setting-include-metadata-copy"),
-
-  settingIncludeMetadataDownload: (page: Page): Locator =>
-    page.getByTestId("setting-include-metadata-download"),
-
-  settingDeleteConfirmation: (page: Page): Locator =>
-    page.getByTestId("setting-delete-confirmation"),
-
-  settingAutoScroll: (page: Page): Locator =>
-    page.getByTestId("setting-auto-scroll"),
-
   settingDesktopNotifications: (page: Page): Locator =>
     page.getByTestId("setting-desktop-notifications"),
-
-  settingDesktopNotificationShowContent: (page: Page): Locator =>
-    page.getByTestId("setting-desktop-notification-show-content"),
 
   settingDesktopNotificationType: (
     page: Page,
@@ -452,13 +381,4 @@ export const RoomScreen = {
     RoomScreen.deleteConfirmDialog(page).getByRole("button", {
       name: /(?:don.t.*ask|不再|confirm.*don.t)/i,
     }).first(),
-
-  deleteCancelButton: (page: Page): Locator =>
-    RoomScreen.deleteConfirmDialog(page).getByRole("button", {
-      name: /cancel|取消/i,
-    }).first(),
-
-  // Message meta row
-  messageMeta: (page: Page, messageId: string): Locator =>
-    page.getByTestId(`message-meta-${messageId}`),
 };

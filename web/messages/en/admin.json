@@ -7,7 +7,6 @@
     "tokenLabel": "Admin token",
     "tokenPlaceholder": "Paste admin token",
     "submit": "Enter panel",
-    "unavailable": "Admin panel is disabled: ELIZABETH_ADMIN_TOKEN is not configured on the server",
     "invalid": "Invalid token or admin panel is disabled"
   },
   "nav": {
@@ -60,10 +59,13 @@
     "search": "Search",
     "cancel": "Cancel",
     "saved": "Room settings saved",
-    "settingsTitle": "Room settings",
     "maxSize": "Capacity (bytes)",
     "maxTimes": "Max entries",
+    "duration": "Room duration",
+    "durationUnchanged": "Leave unchanged",
+    "durationCurrent": "Current deadline: {time}",
     "defaultRole": "Default role",
+    "uploadFileType": "Upload file types",
     "passwordSet": "Set new password",
     "passwordRemove": "Remove password",
     "settingsHint": "Only changed fields are submitted; changing the password revokes all room sessions",
@@ -102,7 +104,6 @@
     "dedupSaved": "Dedup saved",
     "database": "Database",
     "server": "Server address",
-    "roomDefaults": "Room defaults",
     "maxSize": "Default capacity",
     "maxTimesEntered": "Default max entries",
     "defaultRole": "Default role",
@@ -121,7 +122,6 @@
     "runtimeHint": "Overrides live in-process only and fall back to file config on restart; 0 clears a numeric override",
     "save": "Save",
     "saved": "Runtime configuration updated",
-    "runtimeInvalid": "Value out of allowed range",
     "dedupScope": "Dedup scope",
     "runtimeSessionTtl": "Session TTL (seconds)",
     "runtimeReservationTtl": "Upload reservation TTL (seconds)",
@@ -135,10 +135,16 @@
     "credentialHint": "Rotation takes effect immediately (this session switches automatically); the override is process-lifetime and reverts to the env value on restart",
     "credentialRotate": "Rotate credential",
     "credentialRotated": "Admin credential rotated; this session now uses the new credential",
-    "runtimeDefaultRoleFollow": "Follow config file ({role})"
+    "runtimeDefaultRoleFollow": "Follow config file ({role})",
+    "runtimeRoomExpiry": "Room expiry policy",
+    "runtimeRoomExpiryAllowed": "Allowed durations (comma separated, units s/m/h/d/w)",
+    "runtimeRoomExpiryDefault": "Default duration for new rooms",
+    "runtimeRoomExpiryHint": "Same shape as the app.room.expiry config; allowed durations must be non-empty and strictly ascending, and the default must be one of them.",
+    "runtimeRoomExpiryFollowing": "Currently following the config file: {ages}",
+    "runtimeRoomExpiryClear": "Clear override",
+    "roomExpiry": "Room expiry policy"
   },
   "errors": {
-    "loadFailed": "Failed to load: {message}",
-    "deleteFailed": "Failed to delete: {message}"
+    "loadFailed": "Failed to load: {message}"
   }
 }

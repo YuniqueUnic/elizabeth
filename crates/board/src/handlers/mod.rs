@@ -8,11 +8,6 @@ mod token;
 
 use axum::http::HeaderMap;
 
-pub use admin::*;
-pub use chunked_upload::*;
-pub use content::*;
-pub use refresh_token::*;
-pub use rooms::*;
 pub(crate) use token::*;
 
 /// 请求客户端标识：反代头优先，回退常量。

@@ -1,5 +1,4 @@
 use regex::Regex;
-use serde::{Deserialize, Serialize};
 use std::sync::OnceLock;
 
 use crate::errors::{AppError, AppResult};

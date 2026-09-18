@@ -7,7 +7,6 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema, Default)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
 #[serde(rename_all = "lowercase")]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub enum TokenType {
     /// 访问令牌（短期有效）
     #[default]
@@ -18,7 +17,6 @@ pub enum TokenType {
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct RoomTokenClaims {
     pub sub: String,
     #[cfg_attr(feature = "typescript-export", ts(type = "number"))]

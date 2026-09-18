@@ -13,7 +13,6 @@ use std::pin::Pin;
 
 use async_trait::async_trait;
 use futures::{Stream, StreamExt};
-use tokio::io::AsyncWriteExt;
 
 use crate::config::S3StorageConfig;
 

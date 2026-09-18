@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
+import { useQuery } from "@tanstack/react-query";
 
 import { CopyButton } from "@/components/copy-button";
 import { Badge } from "@/components/ui/badge";
@@ -31,7 +32,13 @@ import {
   mintAdminIdentityCode,
   updateAdminRoom,
 } from "@/api/adminService";
-import { formatFileSize } from "@/lib/utils/format";
+import { formatFileSize, formatBackendDateTime, formatDuration } from "@/lib/utils/format";
+import { getPublicConfig } from "@/api/publicConfigService";
+import {
+  UploadFileTypePolicyFields,
+  buildUploadFileTypePolicy,
+} from "@/components/room/upload-file-type-policy-fields";
+import type { UploadFileTypeMode } from "@/lib/types";
 import type {
   AdminRoomDetailResponse,
   AdminRoomView,
@@ -39,6 +46,8 @@ import type {
 
 const PAGE_SIZE = 20;
 const ROLE_KEYS = ["admin", "editor", "reader"] as const;
+/** 持续时长下拉的「不修改」哨兵值：管理端只提交有改动的字段。 */
+const DURATION_UNCHANGED = "unchanged";
 
 function StatusBadge({ status }: { status: AdminRoomView["status"] }) {
   const t = useTranslations("admin");
@@ -175,7 +184,7 @@ export function AdminRooms({
             <span className="tabular-nums">{room.content_count}</span>
             <span>
               {room.expire_at
-                ? new Date(room.expire_at).toLocaleString()
+                ? formatBackendDateTime(room.expire_at)
                 : t("rooms.never")}
             </span>
             <div className="flex gap-2">
@@ -286,9 +295,14 @@ function RoomConfigDialog({
   onSaved: (detail: AdminRoomDetailResponse) => void;
 }) {
   const t = useTranslations("admin");
+  const tUploadFileType = useTranslations("room.config.uploadFileType");
+  const locale = useLocale();
   const [maxSize, setMaxSize] = useState("");
   const [maxTimes, setMaxTimes] = useState("");
   const [defaultRole, setDefaultRole] = useState("");
+  const [duration, setDuration] = useState<number | null>(null);
+  const [uploadMode, setUploadMode] = useState<UploadFileTypeMode>("any");
+  const [uploadExtensions, setUploadExtensions] = useState("");
   const [password, setPassword] = useState("");
   const [removePassword, setRemovePassword] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -296,12 +310,23 @@ function RoomConfigDialog({
   const [mintCode, setMintCode] = useState("");
   const [mintedCode, setMintedCode] = useState<string | null>(null);
   const [minting, setMinting] = useState(false);
+  // 允许的时长属于部署配置，与房间侧共用同一份公开配置，避免策略出现两个来源。
+  const config = useQuery({
+    queryKey: ["public-config"],
+    queryFn: getPublicConfig,
+    staleTime: Infinity,
+    enabled: detail !== null,
+  });
+  const allowedAges = config.data?.room.expiry.allowed_ages_seconds ?? [];
 
   useEffect(() => {
     if (detail) {
       setMaxSize("");
       setMaxTimes("");
       setDefaultRole("");
+      setDuration(null);
+      setUploadMode(detail.upload_file_type.mode);
+      setUploadExtensions(detail.upload_file_type.extensions.join(", "));
       setPassword("");
       setRemovePassword(false);
       setMintRole("editor");
@@ -312,6 +337,11 @@ function RoomConfigDialog({
 
   if (!detail) return null;
 
+  const uploadPolicy = buildUploadFileTypePolicy(uploadMode, uploadExtensions);
+  const uploadPolicyChanged =
+    uploadMode !== detail.upload_file_type.mode ||
+    uploadPolicy.extensions.join(",") !== detail.upload_file_type.extensions.join(",");
+
   async function saveSettings() {
     if (!detail || saving) return;
     setSaving(true);
@@ -320,6 +350,8 @@ function RoomConfigDialog({
       if (maxSize !== "") update.max_size = Number(maxSize);
       if (maxTimes !== "") update.max_times_entered = Number(maxTimes);
       if (defaultRole !== "") update.default_role_key = defaultRole;
+      if (duration !== null) update.age_seconds = duration;
+      if (uploadPolicyChanged) update.upload_file_type = uploadPolicy;
       if (removePassword) {
         update.remove_password = true;
       } else if (password !== "") {
@@ -355,6 +387,8 @@ function RoomConfigDialog({
     maxSize !== "" ||
     maxTimes !== "" ||
     defaultRole !== "" ||
+    duration !== null ||
+    uploadPolicyChanged ||
     password !== "" ||
     removePassword;
 
@@ -396,12 +430,19 @@ function RoomConfigDialog({
               </dd>
               <dt className="text-muted-foreground">{t("rooms.defaultRole")}</dt>
               <dd>{detail.default_role_key}</dd>
+              <dt className="text-muted-foreground">{t("rooms.uploadFileType")}</dt>
+              <dd>
+                {tUploadFileType(`mode.${detail.upload_file_type.mode}`)}
+                {detail.upload_file_type.extensions.length > 0
+                  ? ` (${detail.upload_file_type.extensions.join(", ")})`
+                  : ""}
+              </dd>
               <dt className="text-muted-foreground">{t("rooms.created")}</dt>
-              <dd>{new Date(detail.created_at).toLocaleString()}</dd>
+              <dd>{formatBackendDateTime(detail.created_at)}</dd>
               <dt className="text-muted-foreground">{t("rooms.expire")}</dt>
               <dd>
                 {detail.expire_at
-                  ? new Date(detail.expire_at).toLocaleString()
+                  ? formatBackendDateTime(detail.expire_at)
                   : t("rooms.never")}
               </dd>
             </dl>
@@ -467,6 +508,54 @@ function RoomConfigDialog({
                 {t("rooms.roleCurrent", { role: detail.default_role_key })}
               </p>
             </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="admin-room-duration">{t("rooms.duration")}</Label>
+              <Select
+                value={duration === null ? DURATION_UNCHANGED : String(duration)}
+                onValueChange={(value) =>
+                  setDuration(value === DURATION_UNCHANGED ? null : Number(value))
+                }
+                disabled={allowedAges.length === 0}
+              >
+                <SelectTrigger
+                  id="admin-room-duration"
+                  className="w-full"
+                  data-testid="admin-room-duration"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={DURATION_UNCHANGED}>
+                    {t("rooms.durationUnchanged")}
+                  </SelectItem>
+                  {allowedAges.map((ageSeconds) => (
+                    <SelectItem
+                      key={ageSeconds}
+                      value={String(ageSeconds)}
+                      data-testid={`admin-room-duration-option-${ageSeconds}`}
+                    >
+                      {formatDuration(ageSeconds, locale)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-muted-foreground text-xs">
+                {detail.expire_at
+                  ? t("rooms.durationCurrent", {
+                      time: formatBackendDateTime(detail.expire_at),
+                    })
+                  : t("rooms.never")}
+              </p>
+            </div>
+
+            <UploadFileTypePolicyFields
+              mode={uploadMode}
+              extensions={uploadExtensions}
+              onModeChange={setUploadMode}
+              onExtensionsChange={setUploadExtensions}
+              testIdPrefix="admin-room-upload-file-type"
+            />
 
             <div className="space-y-1">
               <Label htmlFor="admin-room-password">

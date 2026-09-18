@@ -9,6 +9,8 @@ import type {
   AdminStatsResponse,
   AdminStorageResponse,
   CreateRoomIdentityCodeResponse,
+  RoomExpiryOverride,
+  UploadFileTypePolicy,
 } from "../types/generated/api.types";
 
 /**
@@ -89,6 +91,8 @@ export function updateRuntimeConfig(
     session_ttl_seconds?: number;
     upload_reservation_ttl_seconds?: number;
     room_default_role_key?: string;
+    /** 房间有效期策略覆盖；空允许列表 = 清除覆盖 */
+    room_expiry?: RoomExpiryOverride;
   },
 ): Promise<AdminConfigResponse> {
   return api.put<AdminConfigResponse>(
@@ -106,6 +110,10 @@ export function updateAdminRoom(
     max_size?: number;
     max_times_entered?: number;
     default_role_key?: string;
+    /** 房间有效期（秒）；必须属于部署配置允许的期限 */
+    age_seconds?: number;
+    /** 上传文件类型策略（any/allow/deny + 扩展名列表） */
+    upload_file_type?: UploadFileTypePolicy;
     password?: string;
     remove_password?: boolean;
   },

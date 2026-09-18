@@ -6,7 +6,7 @@ import type { ProvisionedRoom } from "./constants";
 import { primeRoomToken } from "./token-storage";
 import { OpenRoom } from "../room/tasks/Room.tasks";
 
-export interface ActorHandle {
+interface ActorHandle {
   actor: Actor;
   page: Page;
 }

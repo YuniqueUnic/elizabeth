@@ -1,5 +1,5 @@
 use axum::Router;
-use tower_http::cors::{AllowHeaders, AllowMethods, AllowOrigin, AllowPrivateNetwork, CorsLayer};
+use tower_http::cors::{AllowHeaders, AllowMethods, AllowOrigin, CorsLayer};
 
 // Re-export CorsConfig from configrs
 pub use configrs::CorsConfig;

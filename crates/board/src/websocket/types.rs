@@ -25,10 +25,6 @@ pub enum WsMessageType {
     ContentUpdated,
     /// 内容删除事件
     ContentDeleted,
-    /// 用户加入房间事件
-    UserJoined,
-    /// 用户离开房间事件
-    UserLeft,
     /// 房间更新事件
     RoomUpdate,
 }
@@ -105,38 +101,25 @@ pub enum RoomUpdateReason {
     SettingsChanged,
 }
 
-/// WebSocket 错误类型
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-#[serde(rename_all = "snake_case")]
+/// WebSocket 握手失败原因
+///
+/// 握手失败时服务端只发一帧 `{"error": "<Display 文案>"}` 再关闭连接，
+/// 所以这里不是线上协议的一部分，只需覆盖 CONNECT 校验能产生的两种失败。
+#[derive(Debug, Clone)]
 pub enum WsError {
-    /// 无效的 token
+    /// 令牌缺失、无效、过期，或房间不存在
     InvalidToken(String),
-    /// 房间不存在
-    RoomNotFound,
-    /// 权限不足
+    /// 令牌有效但缺少接收实时消息的能力
     PermissionDenied,
-    /// 无效的消息格式
-    InvalidMessage(String),
-    /// 内部错误
-    InternalError(String),
 }
 
 impl std::fmt::Display for WsError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             WsError::InvalidToken(msg) => write!(f, "Invalid token: {}", msg),
-            WsError::RoomNotFound => write!(f, "Room not found"),
             WsError::PermissionDenied => write!(f, "Permission denied"),
-            WsError::InvalidMessage(msg) => write!(f, "Invalid message: {}", msg),
-            WsError::InternalError(msg) => write!(f, "Internal error: {}", msg),
         }
     }
 }
 
 impl std::error::Error for WsError {}
-
-impl From<serde_json::Error> for WsError {
-    fn from(err: serde_json::Error) -> Self {
-        WsError::InvalidMessage(err.to_string())
-    }
-}

@@ -1,5 +1,3 @@
-#![allow(unused_variables, unused_imports, dead_code)]
-
 use anyhow::Result;
 use axum::{
     body::Body,
@@ -8,11 +6,7 @@ use axum::{
 use serde_json::json;
 use tower::ServiceExt;
 
-use crate::common::{
-    create_test_app,
-    fixtures::{passwords, room_names},
-    http::{assert_json, create_request as create_http_request},
-};
+use crate::common::{create_test_app, http::create_request as create_http_request};
 
 fn create_room_request(room_name: &str, password: Option<&str>) -> axum::http::Request<Body> {
     let payload = match password {

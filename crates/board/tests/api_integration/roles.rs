@@ -1,33 +1,12 @@
-#![allow(dead_code)]
-
 use anyhow::Result;
 use axum::{
     body::Body,
-    http::{Method, Request, StatusCode},
+    http::{Method, StatusCode},
 };
 use serde_json::json;
 use tower::ServiceExt;
 
 use crate::common::{create_test_app, http::create_request as create_http_request};
-
-async fn issue_manager_token(app: &axum::Router, room_name: &str) -> Result<String> {
-    let response = app
-        .clone()
-        .oneshot(create_http_request(
-            Method::POST,
-            &format!("/api/v1/rooms/{room_name}/tokens"),
-            Some(Body::from(
-                json!({"password": "secret123", "role": "admin"}).to_string(),
-            )),
-        ))
-        .await?;
-    assert_eq!(response.status(), StatusCode::OK);
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await?;
-    Ok(serde_json::from_slice::<serde_json::Value>(&body)?["token"]
-        .as_str()
-        .expect("manager token")
-        .to_string())
-}
 
 async fn create_room(app: &axum::Router, room_name: &str) -> Result<String> {
     let response = app

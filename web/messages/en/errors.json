@@ -15,10 +15,7 @@
   "roomInaccessibleViaLink": "Room cannot be accessed via this link: it may have expired, reached the maximum number of entries, or switched to a private address (please use a new share link).",
   "roomExpired": "This room has expired and can no longer be accessed.",
   "roomNotFound": "Room not found.",
-  "roomNotFoundAutoCreateFailed": "Room does not exist and automatic creation failed. Please try again later.",
   "cannotAccessRoom": "Unable to access the room, please try again later (check if the backend service is available and the frontend API proxy configuration).",
   "wrongPassword": "Incorrect password",
-  "passwordVerificationRetry": "Unable to verify password, please try again later",
-  "enterPassword": "Please enter password",
-  "passwordVerificationFailed": "Password verification failed"
+  "passwordVerificationRetry": "Unable to verify password, please try again later"
 }

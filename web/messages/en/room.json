@@ -1,7 +1,6 @@
 {
   "sidebar": {
     "roomControl": "Room Controls",
-    "roomSettings": "Room Settings",
     "expandSidebar": "Expand sidebar",
     "collapseSidebar": "Collapse sidebar",
     "loading": "Loading..."
@@ -34,36 +33,32 @@
     "fileUpload": "Room permissions changed, and no longer have edit access to upload files.",
     "linkAdd": "Room permissions changed, and no longer have edit access to add links.",
     "fileDelete": "Room permissions changed, and no longer have delete access to remove files or links.",
-    "roomConfig": "Room permissions changed, and no longer have delete access to modify room configuration.",
-    "roomSettings": "Room permissions changed, and no longer have delete access to modify room settings.",
-    "roomPermissions": "Room permissions changed, and no longer have delete access to modify room permissions.",
     "closeRoom": "Room permissions changed, and no longer have delete access to close this room."
   },
   "config": {
     "title": "Room Configuration",
-    "adminOnly": "Only an identity with room.settings.update can modify this room's configuration",
-    "adminSaveOnly": "Only room administrators can save configuration",
-    "expiry": {
-      "label": "Expiry Time",
-      "placeholder": "Select expiry time",
-      "options": {
-        "oneMinute": "1 minute",
-        "tenMinutes": "10 minutes",
-        "oneHour": "1 hour",
-        "twelveHours": "12 hours",
-        "oneDay": "1 day",
-        "oneWeek": "1 week"
-      }
+    "duration": {
+      "label": "Room duration",
+      "placeholder": "Select duration"
     },
+    "expiresAt": "Expires at: {time}",
     "password": {
       "label": "Room Password",
       "placeholder": "Set a new password; leave empty to keep the current one",
       "protectedHint": "This room is currently password protected.",
-      "removeAction": "Remove password",
-      "keepAction": "Keep password"
+      "removeAction": "Remove password"
     },
     "maxViews": {
       "label": "Maximum Entries"
+    },
+    "maxSize": {
+      "label": "Room capacity limit (bytes)",
+      "hint": "Current limit {size}, {used} used. Cannot be lower than the used capacity."
+    },
+    "defaultRole": {
+      "label": "Default role for new members",
+      "placeholder": "Select a default role",
+      "hint": "Role granted automatically when someone joins. Move this before deleting the role."
     },
     "uploadFileType": {
       "label": "Upload file types",
@@ -81,68 +76,12 @@
         "invalid": "Invalid extension: {extension}"
       }
     },
-    "permissions": {
-      "title": "Room Permissions",
-      "hint": "Preview is always available; Edit, Share, and Manage are independent permissions.",
-      "labels": {
-        "read": "Preview",
-        "edit": "Edit",
-        "share": "Share",
-        "delete": "Manage"
-      },
-      "descriptions": {
-        "read": "View room content",
-        "edit": "Upload and modify content",
-        "share": "Publicly share the room",
-        "delete": "Manage settings and sessions, or delete content and the room"
-      }
-    },
     "save": {
       "saving": "Saving...",
       "saveConfig": "Save Configuration",
       "successTitle": "Configuration saved",
-      "successDescription": "Room configuration has been updated successfully",
-      "failTitle": "Save failed",
-      "failDescription": "Unable to save room configuration. Please try again."
-    },
-    "cancel": "Cancel",
-    "linkCopied": "New link copied",
-    "copyFailTitle": "Copy failed",
-    "copyFailDescription": "Unable to copy link. Please copy it manually."
-  },
-  "settings": {
-    "title": "Room Settings",
-    "adminOnly": "Only room administrators (with delete permission) can modify room settings",
-    "expiry": {
-      "label": "Expiry Time",
-      "placeholder": "Select expiry time",
-      "options": {
-        "oneMinute": "1 minute",
-        "tenMinutes": "10 minutes",
-        "oneHour": "1 hour",
-        "twelveHours": "12 hours",
-        "oneDay": "1 day",
-        "oneWeek": "1 week"
-      }
-    },
-    "password": {
-      "label": "Room Password",
-      "placeholder": "Set room password"
-    },
-    "maxViews": {
-      "label": "Max Views"
-    },
-    "save": {
-      "saving": "Saving...",
-      "saveSettings": "Save Settings",
-      "successTitle": "Settings saved",
-      "successDescription": "Room settings have been updated successfully",
-      "failTitle": "Save failed",
-      "failDescription": "Unable to save room settings. Please try again.",
-      "authFail": "Authentication failed. Please refresh the page and log in again."
-    },
-    "warningTitle": "Warning",
-    "jwtRefreshFail": "Password has been updated, but JWT refresh failed. Please refresh the page and log in again."
+      "failTitle": "Save failed"
+    }
   },
   "identity": {
     "title": "My identity",
@@ -153,12 +92,6 @@
     "codeLabel": "Room identity code",
     "copy": "Copy identity code",
     "copied": "Copied",
-    "copyFailed": "Copy failed. Please copy manually",
-    "rotate": "Rotate identity code",
-    "rotating": "Rotating...",
-    "rotateSuccessTitle": "Identity code rotated",
-    "rotateSuccessDescription": "The old code is now invalid. Use the new code from now on.",
-    "rotateFailed": "Rotation failed. Please try again",
     "managePermissions": "Members & permissions",
     "editorHint": "You joined as an editor. Your identity code is issued by the room admin.",
     "readerHint": "You joined as a reader with view-only access.",
@@ -205,36 +138,14 @@
     "disableFailed": "Could not disable identity code",
     "issuing": "Generating...",
     "issueFailed": "Generation failed",
-    "sessions": "Active sessions",
-    "sessionsHint": "All live identities in this room. Revoking disconnects the user immediately.",
-    "sessionCurrent": "Current",
-    "sessionCreated": "Issued {time}",
-    "sessionExpires": "Expires {time}",
-    "revoke": "Revoke",
-    "revoking": "Revoking...",
-    "revokeSuccess": "Session revoked",
-    "revokeFailed": "Revoke failed",
-    "noSessions": "No active sessions",
-    "validator": "Verify a code",
-    "validatorHint": "Paste any identity code to check its role and validity.",
-    "validatorPlaceholder": "Paste an identity code",
-    "validate": "Verify",
-    "validating": "Verifying...",
-    "invalidFormat": "That does not look like a valid identity code",
-    "invalid": "The identity code is invalid or expired",
-    "validRole": "Valid · role: {role}",
     "durationLabel": "Validity",
-    "durationHint": "Codes expire automatically and never outlive the room; the admin code always follows the room lifetime.",
-    "invalidDuration": "Enter a duration greater than 0",
     "unitSecond": "seconds",
     "unitMinute": "minutes",
     "unitHour": "hours",
     "unitDay": "days",
-    "unitMonth": "months",
-    "issuedTokenExpires": "Valid until {time}"
+    "unitMonth": "months"
   },
   "roles": {
-    "title": "Role permissions",
     "loading": "Loading role matrix...",
     "forbidden": "This identity cannot manage room roles.",
     "newRole": "New role",
@@ -250,14 +161,13 @@
     "any": "Any",
     "own": "Own only",
     "systemBadge": "System",
-    "defaultBadge": "Default",
     "adminWarning": "Changing admin permissions can affect your own control over this room.",
     "immediateEffect": "Changes apply to every session in the room immediately.",
     "saveSuccess": "Role saved",
     "deleteSuccess": "Role deleted",
     "saveFailed": "Unable to save role",
     "deleteFailed": "Unable to delete role",
-    "deleteDefaultRoleConflict": "This role is the default join role. Change the default first.",
+    "deleteDefaultRoleConflict": "This role is the default join role. Close this dialog, switch “Default role for new members” in the room configuration panel to another role, then delete it.",
     "groups": {
       "room": "Room",
       "msg": "Messages",
@@ -356,43 +266,9 @@
     "title": "Storage Usage",
     "usage": "{currentSize} MB / {maxSize} MB ({percentage}%)"
   },
-  "permissions": {
-    "title": "Room Permissions",
-    "hint": "Note: Edit and Share require Preview permission; Delete requires Preview and Edit permissions",
-    "adminOnly": "Only room administrators can modify permissions",
-    "labels": {
-      "read": "Preview",
-      "edit": "Edit",
-      "share": "Share",
-      "delete": "Delete"
-    },
-    "descriptions": {
-      "read": "View room content",
-      "edit": "Upload and modify content",
-      "share": "Publicly share the room",
-      "delete": "Delete room content"
-    },
-    "save": {
-      "saving": "Saving...",
-      "savePermissions": "Save Permissions",
-      "successTitle": "Permissions updated",
-      "successDescription": "Room permissions have been updated successfully",
-      "failTitle": "Update failed",
-      "failDescription": "Unable to update room permissions. Please try again."
-    },
-    "cancel": "Cancel",
-    "needRelogin": "Re-login Required",
-    "downgradeNotice": "Permissions have been downgraded. Please re-enter your password to log in."
-  },
   "chat": {
-    "messageSent": "Message sent",
-    "messageUpdated": "Message updated",
-    "messageUpdatedDescription": "Your message has been updated successfully",
-    "messageDeleted": "Message deleted",
     "loadFailed": "Unable to load messages. Please refresh and try again.",
     "sendFailed": "Unable to send message. Please try again.",
-    "updateFailed": "Unable to update message. Please try again.",
-    "deleteFailed": "Unable to delete message. Please try again.",
     "deleteConfirmTitle": "Are you sure you want to delete this message?",
     "deleteConfirmDescription": "This action will be recorded until you click the save button.",
     "confirmAndDisable": "Confirm / Don't ask again",
@@ -411,9 +287,6 @@
     "edit": "Edit",
     "copy": "Copy",
     "delete": "Delete",
-    "messageNumber": "Message #{number}",
-    "userLabel": "User:",
-    "timeLabel": "Time:",
     "hidden": "Hidden",
     "hide": "Hide message",
     "show": "Unhide",
@@ -463,7 +336,6 @@
     "loadOlder": "Load earlier messages",
     "selectedCount": "{count} messages selected",
     "loadedCount": "{count} messages loaded",
-    "totalCount": "{count} messages total",
     "selectAll": "Select All",
     "deselectAll": "Deselect All",
     "invertSelection": "Invert",
@@ -521,7 +393,6 @@
     "emptyContent": "File content is empty"
   },
   "urlUpload": {
-    "manualInput": "Manual Input",
     "invalidUrl": "Please enter a valid URL",
     "urlRequired": "URL cannot be empty",
     "unnamedLink": "Unnamed Link",
@@ -560,17 +431,12 @@
     "copyFailedDescription": "The browser blocked automatic copying. Please copy manually in the dialog.",
     "insertedToEditor": "Inserted into editor",
     "insertedToEditorDescription": "Markdown link inserted at cursor position",
-    "fileDeleted": "File deleted",
-    "fileDeletedDescription": "{fileName} removed from room",
-    "openedInNewTab": "Opened in new tab",
     "imageLoadError": "Unable to generate image URL (missing token or URL)",
     "videoNotSupported": "Your browser does not support video playback",
     "unsupportedType": "Cannot preview this file type",
-    "downloadToView": "Please download the file to view its content",
-    "loadingPdfViewer": "Loading PDF viewer..."
+    "downloadToView": "Please download the file to view its content"
   },
   "urlViewer": {
-    "iframeWarning": "Some websites may not allow display in iframe. If preview fails, use 'Open in new tab'",
     "hidePreview": "Hide Preview",
     "preview": "Preview",
     "newTab": "New Tab",
@@ -593,8 +459,6 @@
     "linkAdded": "Link added",
     "linkAddedDescription": "URL has been added to the room",
     "linkAddFailed": "Failed to add link. Please try again.",
-    "downloadStart": "Download started",
-    "downloadStartDescription": "Preparing to download {count} files",
     "protectedBatchDownloadNotSupported": "Batch download of protected files is not supported. Please download individually."
   },
   "image": {
@@ -624,14 +488,6 @@
     "modeOff": "No Restrictions (Off)",
     "modeReusable": "Reusable Code",
     "modeOneTime": "One-Time Codes",
-    "maxDownloads": "Max Downloads",
-    "maxDownloadsPlaceholder": "0",
-    "maxDownloadsHint": "0 means unlimited",
-    "codeCount": "Number of Codes",
-    "generateCodes": "Manage Codes",
-    "generateBtn": "Generate",
-    "poolSize": "Remaining downloads in pool: {size}",
-    "generateWarning": "Copy and save these codes now (they will only be shown once)",
     "copied": "Copied to clipboard",
     "copyFailed": "Failed to copy",
     "cancel": "Cancel",
@@ -639,8 +495,6 @@
     "loading": "Loading...",
     "saveSuccess": "Policy saved successfully",
     "saveFailed": "Failed to save policy",
-    "generateSuccess": "Codes generated",
-    "generateFailed": "Failed to generate codes",
     "protectedBadge": "Protected",
     "settingsTitle": "Policy Settings",
     "redeemTitle": "Enter Access Code",

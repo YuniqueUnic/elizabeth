@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,17 +14,27 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { createRoom } from "@/api/roomService";
+import { getPublicConfig } from "@/api/publicConfigService";
 import { setRoomToken } from "@/lib/utils/api";
+import { formatDuration } from "@/lib/utils/format";
 import { ArrowRight, Eye, EyeOff, KeyRound, Lock, Plus } from "lucide-react";
 import { IdentityCodeDisclosure } from "@/components/room/identity-code-disclosure";
 import { ThemeSwitcher } from "@/components/theme-switcher";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 export default function HomePage() {
   const t = useTranslations("home");
   const tCommon = useTranslations("common");
   const tErrors = useTranslations("errors");
+  const locale = useLocale();
   const router = useRouter();
   const [mode, setMode] = useState<"home" | "create" | "join">("home");
   const [roomName, setRoomName] = useState("");
@@ -34,8 +45,23 @@ export default function HomePage() {
   const [createdIdentityCode, setCreatedIdentityCode] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [duration, setDuration] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // 允许的时长属于部署配置，与房间侧边栏共用同一份公开配置，避免出现第二个来源。
+  const config = useQuery({
+    queryKey: ["public-config"],
+    queryFn: getPublicConfig,
+    staleTime: Infinity,
+  });
+  const expiryPolicy = config.data?.room.expiry;
+  const allowedAges = expiryPolicy?.allowed_ages_seconds ?? [];
+  useEffect(() => {
+    if (duration === null && expiryPolicy) {
+      setDuration(expiryPolicy.default_age_seconds);
+    }
+  }, [duration, expiryPolicy]);
 
   const handleCreateRoom = async () => {
     const trimmed = roomName.trim();
@@ -81,11 +107,11 @@ export default function HomePage() {
       setLoading(true);
       setError(null);
 
-      const created = await createRoom(
-        trimmed,
-        password || undefined,
-        adminIdentityCode.trim() || undefined,
-      );
+      const created = await createRoom(trimmed, {
+        password: password || undefined,
+        adminIdentityCode: adminIdentityCode.trim() || undefined,
+        ageSeconds: duration ?? undefined,
+      });
       setRoomToken(trimmed, {
         token: created.token,
         expiresAt: created.expires_at,
@@ -235,6 +261,35 @@ export default function HomePage() {
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="create-room-duration">{t("duration")}</Label>
+              <Select
+                value={duration === null ? undefined : String(duration)}
+                onValueChange={(value) => setDuration(Number(value))}
+                disabled={loading || allowedAges.length === 0}
+              >
+                <SelectTrigger
+                  id="create-room-duration"
+                  data-testid="create-room-duration"
+                  className="w-full"
+                >
+                  <SelectValue placeholder={t("durationPlaceholder")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {allowedAges.map((ageSeconds) => (
+                    <SelectItem
+                      key={ageSeconds}
+                      value={String(ageSeconds)}
+                      data-testid={`create-room-duration-option-${ageSeconds}`}
+                    >
+                      {formatDuration(ageSeconds, locale)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-muted-foreground text-xs">{t("durationHint")}</p>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="password">
                 <div className="flex items-center gap-2">
                   <Lock className="h-4 w-4" />
@@ -373,6 +428,7 @@ export default function HomePage() {
                   setConfirmPassword("");
                   setShowPassword(false);
                   setShowConfirmPassword(false);
+                  setDuration(null);
                   setError(null);
                 }}
                 disabled={loading}

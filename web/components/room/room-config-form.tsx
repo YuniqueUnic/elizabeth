@@ -1,14 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { RoomDetails, UploadFileTypeMode, UploadFileTypePolicy } from "@/lib/types";
+import type { RoomDetails, UploadFileTypeMode } from "@/lib/types";
+import {
+  formatBackendDateTime,
+  formatDuration,
+  formatFileSize,
+  parseBackendDateTime,
+} from "@/lib/utils/format";
 import { useAppStore } from "@/lib/store";
 import { useToast } from "@/hooks/use-toast";
 import { getPublicConfig } from "@/api/publicConfigService";
-import { updateRoomSettings } from "@/api/roomService";
+import { listRoomRoles, updateRoomSettings } from "@/api/roomService";
 import { useRoomCapabilities } from "@/hooks/use-room-capabilities";
+import {
+  UploadFileTypePolicyFields,
+  buildUploadFileTypePolicy,
+  describeUploadFileTypeError,
+} from "@/components/room/upload-file-type-policy-fields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,35 +31,43 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const UPLOAD_FILE_TYPE_MODES: UploadFileTypeMode[] = ["any", "allow", "deny"];
-
-/** 与后端 normalize_upload_file_extensions 一致的本地预清理；服务端仍是权威校验。 */
-function parseExtensionsInput(raw: string): string[] {
-  const normalized = raw
-    .split(/[,，\s]+/)
-    .map((entry) => entry.trim().replace(/^\.+/, "").toLowerCase())
-    .filter((entry) => entry.length > 0);
-  return [...new Set(normalized)];
+/**
+ * 房间只持久化绝对过期时刻，不记录建房时选定的时长。
+ * 因此以「剩余时间最接近的允许时长」作为当前选择；用户未改动时不会回写，
+ * 显示上的近似不会漂移到真实过期时刻。
+ */
+function currentDurationOption(
+  expiresAt: string | null,
+  allowedAges: number[],
+  defaultAge: number,
+): number | null {
+  if (allowedAges.length === 0) return null;
+  if (!expiresAt) return defaultAge;
+  const expiresAtDate = parseBackendDateTime(expiresAt);
+  if (!expiresAtDate) return defaultAge;
+  const remainingSeconds = Math.round((expiresAtDate.getTime() - Date.now()) / 1000);
+  if (remainingSeconds <= 0) return allowedAges[0];
+  return allowedAges.reduce((closest, candidate) =>
+    Math.abs(candidate - remainingSeconds) < Math.abs(closest - remainingSeconds)
+      ? candidate
+      : closest,
+  );
 }
 
-/** 后端 naive datetime 为 UTC；解析失败时回退原始字符串。 */
-function formatExpiry(value: string): string {
-  const normalized = value.replace(/(\.\d{3})\d+$/, "$1");
-  const date = new Date(value.includes("T") ? `${normalized}Z` : normalized);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
-}
-
-/** 房间设置（仅拥有 room.settings.update 的身份可见）：密码、最大进入次数、上传文件类型。 */
+/** 房间设置（仅拥有 room.settings.update 的身份可见）：持续时间、密码、容量、进入次数、默认角色、上传文件类型。 */
 export function RoomConfigForm({ roomDetails }: { roomDetails: RoomDetails }) {
   const t = useTranslations("room.config");
+  const locale = useLocale();
   const roomName = useAppStore((state) => state.currentRoomId);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { can } = useRoomCapabilities();
+  const { token, can } = useRoomCapabilities();
   const [password, setPassword] = useState("");
   const [maxViews, setMaxViews] = useState(roomDetails.settings.maxViews);
+  const [maxSize, setMaxSize] = useState(String(roomDetails.maxSize));
+  const [defaultRole, setDefaultRole] = useState(roomDetails.defaultRoleKey);
   const [removePassword, setRemovePassword] = useState(false);
+  const [duration, setDuration] = useState<number | null>(null);
   const [fileTypeMode, setFileTypeMode] = useState<UploadFileTypeMode>(
     roomDetails.uploadFileType.mode,
   );
@@ -56,22 +75,50 @@ export function RoomConfigForm({ roomDetails }: { roomDetails: RoomDetails }) {
     roomDetails.uploadFileType.extensions.join(", "),
   );
   const config = useQuery({ queryKey: ["public-config"], queryFn: getPublicConfig, staleTime: Infinity });
-  useEffect(() => setMaxViews(roomDetails.settings.maxViews), [roomDetails.settings.maxViews]);
+  // 默认角色必须是本房角色集成员，因此选项来自房间角色矩阵（与权限对话框共用缓存）。
+  const rolesQuery = useQuery({
+    queryKey: ["room-roles", roomName],
+    queryFn: () => listRoomRoles(roomName, token ?? undefined),
+    enabled: Boolean(token),
+    staleTime: 15_000,
+  });
+  const roles = rolesQuery.data ?? [];
+  const expiryPolicy = config.data?.room.expiry;
+  const allowedAges = expiryPolicy?.allowed_ages_seconds ?? [];
+  const currentDuration = expiryPolicy
+    ? currentDurationOption(
+        roomDetails.settings.expiresAt,
+        allowedAges,
+        expiryPolicy.default_age_seconds,
+      )
+    : null;
+  const durationChanged =
+    duration !== null && currentDuration !== null && duration !== currentDuration;
+  useEffect(() => setDuration(currentDuration), [currentDuration]);
+  useEffect(() => {
+    setMaxViews(roomDetails.settings.maxViews);
+    setMaxSize(String(roomDetails.maxSize));
+    setDefaultRole(roomDetails.defaultRoleKey);
+  }, [roomDetails.settings.maxViews, roomDetails.maxSize, roomDetails.defaultRoleKey]);
   useEffect(() => {
     setFileTypeMode(roomDetails.uploadFileType.mode);
     setFileTypeExtensions(roomDetails.uploadFileType.extensions.join(", "));
   }, [roomDetails.uploadFileType]);
+  const parsedMaxSize = Number(maxSize);
+  // 只在确实改动时提交，避免保存密码等操作顺带重写容量/角色。
+  const maxSizeChanged =
+    Number.isInteger(parsedMaxSize) && parsedMaxSize > 0 && parsedMaxSize !== roomDetails.maxSize;
+  const defaultRoleChanged = defaultRole !== roomDetails.defaultRoleKey;
   const mutation = useMutation({
     mutationFn: () => {
-      const uploadFileType: UploadFileTypePolicy = {
-        mode: fileTypeMode,
-        extensions: fileTypeMode === "any" ? [] : parseExtensionsInput(fileTypeExtensions),
-      };
       return updateRoomSettings(roomName, {
         password: password || undefined,
         removePassword,
+        ageSeconds: durationChanged && duration !== null ? duration : undefined,
         maxViews,
-        uploadFileType,
+        maxSize: maxSizeChanged ? parsedMaxSize : undefined,
+        defaultRoleKey: defaultRoleChanged ? defaultRole : undefined,
+        uploadFileType: buildUploadFileTypePolicy(fileTypeMode, fileTypeExtensions),
       });
     },
     onSuccess: (room) => {
@@ -84,15 +131,45 @@ export function RoomConfigForm({ roomDetails }: { roomDetails: RoomDetails }) {
       const message = error instanceof Error ? error.message : "";
       toast({
         title: t("save.failTitle"),
-        description: describeFileTypePolicyError(message, t) || undefined,
+        description:
+          describeUploadFileTypeError(message, (key, values) =>
+            t(`uploadFileType.${key}`, values),
+          ) || undefined,
         variant: "destructive",
       });
     },
   });
-  const expiry = config.data?.room.expiry;
   return (
     <section className="space-y-3">
       <h3 className="text-sm font-semibold">{t("title")}</h3>
+      <div className="space-y-2">
+        <Label htmlFor="room-duration">{t("duration.label")}</Label>
+        <Select
+          value={duration?.toString()}
+          onValueChange={(value) => setDuration(Number(value))}
+          disabled={!can.settings || allowedAges.length === 0}
+        >
+          <SelectTrigger id="room-duration" data-testid="room-duration-select" className="w-full">
+            <SelectValue placeholder={t("duration.placeholder")} />
+          </SelectTrigger>
+          <SelectContent>
+            {allowedAges.map((ageSeconds) => (
+              <SelectItem
+                key={ageSeconds}
+                value={ageSeconds.toString()}
+                data-testid={`room-duration-option-${ageSeconds}`}
+              >
+                {formatDuration(ageSeconds, locale)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {roomDetails.settings.expiresAt && (
+          <p className="text-xs text-muted-foreground" data-testid="room-expiry-hint">
+            {t("expiresAt", { time: formatBackendDateTime(roomDetails.settings.expiresAt) })}
+          </p>
+        )}
+      </div>
       <div className="space-y-2">
         <Label htmlFor="room-password">{t("password.label")}</Label>
         <Input
@@ -118,39 +195,59 @@ export function RoomConfigForm({ roomDetails }: { roomDetails: RoomDetails }) {
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="upload-file-type-mode">{t("uploadFileType.label")}</Label>
+        <Label htmlFor="room-max-size">{t("maxSize.label")}</Label>
+        <Input
+          id="room-max-size"
+          data-testid="room-max-size"
+          type="number"
+          min={1}
+          inputMode="numeric"
+          value={maxSize}
+          onChange={(e) => setMaxSize(e.target.value)}
+        />
+        <p className="text-xs text-muted-foreground" data-testid="room-max-size-hint">
+          {t("maxSize.hint", {
+            size: formatFileSize(roomDetails.maxSize),
+            used: formatFileSize(roomDetails.currentSize),
+          })}
+        </p>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="room-default-role">{t("defaultRole.label")}</Label>
         <Select
-          value={fileTypeMode}
-          onValueChange={(value) => setFileTypeMode(value as UploadFileTypeMode)}
+          value={defaultRole}
+          onValueChange={setDefaultRole}
+          disabled={!can.settings || roles.length === 0}
         >
-          <SelectTrigger id="upload-file-type-mode" data-testid="upload-file-type-mode">
-            <SelectValue />
+          <SelectTrigger
+            id="room-default-role"
+            data-testid="room-default-role-select"
+            className="w-full"
+          >
+            <SelectValue placeholder={t("defaultRole.placeholder")} />
           </SelectTrigger>
           <SelectContent>
-            {UPLOAD_FILE_TYPE_MODES.map((mode) => (
-              <SelectItem key={mode} value={mode}>
-                {t(`uploadFileType.mode.${mode}`)}
+            {roles.map((role) => (
+              <SelectItem
+                key={role.role_key}
+                value={role.role_key}
+                data-testid={`room-default-role-option-${role.role_key}`}
+              >
+                {role.display_name}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        {fileTypeMode !== "any" && (
-          <div className="space-y-1">
-            <Label htmlFor="upload-file-type-extensions">
-              {t("uploadFileType.extensionsLabel")}
-            </Label>
-            <Input
-              id="upload-file-type-extensions"
-              data-testid="upload-file-type-extensions"
-              value={fileTypeExtensions}
-              onChange={(e) => setFileTypeExtensions(e.target.value)}
-              placeholder={t("uploadFileType.extensionsPlaceholder")}
-              className="font-mono text-xs"
-            />
-            <p className="text-xs text-muted-foreground">{t("uploadFileType.extensionsHint")}</p>
-          </div>
-        )}
+        <p className="text-xs text-muted-foreground">{t("defaultRole.hint")}</p>
       </div>
+      <UploadFileTypePolicyFields
+        mode={fileTypeMode}
+        extensions={fileTypeExtensions}
+        onModeChange={setFileTypeMode}
+        onExtensionsChange={setFileTypeExtensions}
+        disabled={!can.settings}
+        testIdPrefix="upload-file-type"
+      />
       <div className="flex items-center gap-2">
         <Button type="button" onClick={() => mutation.mutate()} disabled={!can.settings || mutation.isPending}>
           {mutation.isPending ? t("save.saving") : t("save.saveConfig")}
@@ -166,38 +263,6 @@ export function RoomConfigForm({ roomDetails }: { roomDetails: RoomDetails }) {
           </Button>
         )}
       </div>
-      {expiry && (
-        <p className="text-xs text-muted-foreground">
-          {roomDetails.settings.expiresAt
-            ? formatExpiry(roomDetails.settings.expiresAt)
-            : t("expiry.placeholder")}
-        </p>
-      )}
     </section>
   );
-}
-
-/** 后端策略校验消息 → 本地化文案；未匹配时回退原始消息。 */
-type Translate = (key: string, values?: Record<string, string | number>) => string;
-
-function describeFileTypePolicyError(message: string, t: Translate): string {
-  const stripped = message.startsWith("Validation error: ")
-    ? message.slice("Validation error: ".length)
-    : message;
-  const m = stripped;
-  if (
-    m ===
-    "upload_file_type.extensions must not be empty for allow or deny mode"
-  ) {
-    return t("uploadFileType.errors.empty");
-  }
-  if (m.startsWith("upload_file_type.extensions supports at most")) {
-    return t("uploadFileType.errors.tooMany");
-  }
-  if (m.startsWith("Invalid file type extension: ")) {
-    return t("uploadFileType.errors.invalid", {
-      extension: m.slice("Invalid file type extension: ".length),
-    });
-  }
-  return message;
 }

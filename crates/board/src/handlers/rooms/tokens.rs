@@ -197,7 +197,6 @@ pub async fn issue_token(
     let (refresh_token, refresh_expires_at) = prepared_refresh
         .map(|prepared| (Some(prepared.signed_token), Some(prepared.expires_at)))
         .unwrap_or((None, None));
-    broadcast_user_joined(app_state, name, claims.jti.clone());
 
     Ok(Json(IssueTokenResponse {
         token,
@@ -461,18 +460,6 @@ pub async fn verify_password(
     };
     validate_room_password(&app_state, &room, &request, &headers).await?;
     Ok(Json(VerifyRoomPasswordResponse { valid: true }))
-}
-
-fn broadcast_user_joined(app_state: Arc<AppState>, room_name: String, user_id: String) {
-    let broadcaster = app_state.broadcaster.clone();
-    tokio::spawn(async move {
-        if let Err(e) = broadcaster
-            .broadcast_user_joined(&room_name, &user_id)
-            .await
-        {
-            log::warn!("Failed to broadcast user joined event: {}", e);
-        }
-    });
 }
 
 /// 查询当前会话的实时能力快照。

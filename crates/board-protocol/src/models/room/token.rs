@@ -1,13 +1,12 @@
 use chrono::{NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, Row, any::AnyRow, postgres::PgRow, sqlite::SqliteRow};
+use sqlx::{FromRow, Row, any::AnyRow};
 use utoipa::ToSchema;
 
 use crate::models::room::row_utils::{read_datetime_from_any, read_optional_datetime_from_any};
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct RoomToken {
     #[cfg_attr(feature = "typescript-export", ts(type = "number | null"))]
     pub id: Option<i64>,
@@ -24,60 +23,18 @@ pub struct RoomToken {
     pub created_at: NaiveDateTime,
 }
 
-fn build_room_token_sqlite(row: &SqliteRow) -> Result<RoomToken, sqlx::Error> {
-    Ok(RoomToken {
-        id: row.try_get("id")?,
-        room_id: row.try_get("room_id")?,
-        jti: row.try_get("jti")?,
-        role_key: row.try_get("role_key")?,
-        identity_code_id: row.try_get("identity_code_id")?,
-        expires_at: row.try_get("expires_at")?,
-        revoked_at: row.try_get("revoked_at")?,
-        created_at: row.try_get("created_at")?,
-    })
-}
-
-fn build_room_token_pg(row: &PgRow) -> Result<RoomToken, sqlx::Error> {
-    Ok(RoomToken {
-        id: row.try_get("id")?,
-        room_id: row.try_get("room_id")?,
-        jti: row.try_get("jti")?,
-        role_key: row.try_get("role_key")?,
-        identity_code_id: row.try_get("identity_code_id")?,
-        expires_at: row.try_get("expires_at")?,
-        revoked_at: row.try_get("revoked_at")?,
-        created_at: row.try_get("created_at")?,
-    })
-}
-
-fn build_room_token_any(row: &AnyRow) -> Result<RoomToken, sqlx::Error> {
-    Ok(RoomToken {
-        id: row.try_get("id")?,
-        room_id: row.try_get("room_id")?,
-        jti: row.try_get("jti")?,
-        role_key: row.try_get("role_key")?,
-        identity_code_id: row.try_get("identity_code_id")?,
-        expires_at: read_datetime_from_any(row, "expires_at")?,
-        revoked_at: read_optional_datetime_from_any(row, "revoked_at")?,
-        created_at: read_datetime_from_any(row, "created_at")?,
-    })
-}
-
-impl<'r> FromRow<'r, SqliteRow> for RoomToken {
-    fn from_row(row: &'r SqliteRow) -> Result<Self, sqlx::Error> {
-        build_room_token_sqlite(row)
-    }
-}
-
-impl<'r> FromRow<'r, PgRow> for RoomToken {
-    fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
-        build_room_token_pg(row)
-    }
-}
-
 impl<'r> FromRow<'r, AnyRow> for RoomToken {
     fn from_row(row: &'r AnyRow) -> Result<Self, sqlx::Error> {
-        build_room_token_any(row)
+        Ok(RoomToken {
+            id: row.try_get("id")?,
+            room_id: row.try_get("room_id")?,
+            jti: row.try_get("jti")?,
+            role_key: row.try_get("role_key")?,
+            identity_code_id: row.try_get("identity_code_id")?,
+            expires_at: read_datetime_from_any(row, "expires_at")?,
+            revoked_at: read_optional_datetime_from_any(row, "revoked_at")?,
+            created_at: read_datetime_from_any(row, "created_at")?,
+        })
     }
 }
 

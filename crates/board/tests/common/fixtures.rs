@@ -1,10 +1,10 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
 /// 测试数据夹具
 ///
 /// 提供常用的测试数据对象
 use board::models::{Room, RoomToken};
 use board::services::token::RoomTokenClaims;
-use chrono::{NaiveDateTime, Utc};
+use chrono::Utc;
 
 /// 创建测试房间
 pub fn create_test_room(name: &str, password: Option<String>) -> Room {

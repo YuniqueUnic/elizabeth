@@ -16,7 +16,6 @@ use board::constants::{
 };
 use board::db::{DbPoolSettings, run_migrations};
 use board::state::AppState;
-use utoipa_axum::{router::OpenApiRouter, routes};
 
 const TEST_DB_URL: &str = "sqlite::memory:";
 

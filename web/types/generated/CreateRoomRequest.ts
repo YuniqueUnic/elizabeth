@@ -8,4 +8,9 @@ password?: string,
 /**
  * 创建者 admin 身份码；未提供时由服务端生成一次性随机身份码。
  */
-admin_identity_code?: string, };
+admin_identity_code?: string, 
+/**
+ * 可选房间有效期（秒）。缺省 = 部署配置的默认时长；
+ * 提供时必须属于部署配置允许的期限，否则请求被拒。
+ */
+age_seconds?: number | null, };

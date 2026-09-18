@@ -18,6 +18,12 @@ export const HomeScreen = {
   roomNameInput: (page: Page): Locator =>
     page.locator("#room-name"),
 
+  createDurationSelect: (page: Page): Locator =>
+    page.getByTestId("create-room-duration"),
+
+  createDurationOption: (page: Page, ageSeconds: number): Locator =>
+    page.getByTestId(`create-room-duration-option-${ageSeconds}`),
+
   createPasswordInput: (page: Page): Locator =>
     page.locator("#password").first(),
 

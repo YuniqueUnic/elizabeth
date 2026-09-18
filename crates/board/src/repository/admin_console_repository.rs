@@ -9,7 +9,9 @@ use anyhow::{Context, Result};
 use chrono::NaiveDateTime;
 
 use crate::db::DbPool;
+use crate::models::room::parse_upload_file_extensions;
 use crate::models::room::row_utils::{read_datetime_from_any, read_optional_datetime_from_any};
+use crate::models::room::upload_file_policy::{UploadFileTypeMode, UploadFileTypePolicy};
 
 pub struct AdminConsoleRepository {
     pool: Arc<DbPool>,
@@ -73,6 +75,7 @@ impl AdminConsoleRepository {
                 r.current_size, r.max_size,
                 r.current_times_entered, r.max_times_entered,
                 r.default_role_key,
+                r.upload_file_type_mode, r.upload_file_type_extensions,
                 CAST(r.expire_at AS TEXT) AS expire_at,
                 CAST(r.created_at AS TEXT) AS created_at,
                 CAST(r.updated_at AS TEXT) AS updated_at,
@@ -139,6 +142,7 @@ pub struct AdminRoomRow {
     pub current_times_entered: i64,
     pub max_times_entered: i64,
     pub default_role_key: String,
+    pub upload_file_type: UploadFileTypePolicy,
     pub expire_at: Option<NaiveDateTime>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
@@ -158,6 +162,10 @@ fn parse_admin_room_row(row: &sqlx::any::AnyRow) -> Result<AdminRoomRow, sqlx::E
         current_times_entered: row.try_get("current_times_entered")?,
         max_times_entered: row.try_get("max_times_entered")?,
         default_role_key: row.try_get("default_role_key")?,
+        upload_file_type: UploadFileTypePolicy {
+            mode: UploadFileTypeMode::from(row.try_get::<String, _>("upload_file_type_mode")?),
+            extensions: parse_upload_file_extensions(row.try_get("upload_file_type_extensions")?)?,
+        },
         expire_at: read_optional_datetime_from_any(row, "expire_at")?,
         created_at: read_datetime_from_any(row, "created_at")?,
         updated_at: read_datetime_from_any(row, "updated_at")?,

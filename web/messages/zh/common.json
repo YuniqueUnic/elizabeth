@@ -32,8 +32,7 @@
     "fallback": {
       "message": "消息",
       "file": "文件",
-      "link": "链接",
-      "room": "房间"
+      "link": "链接"
     },
     "title": {
       "message": {
@@ -51,7 +50,6 @@
       },
       "room": {
         "address_changed": "房间地址已变更",
-        "permissions_changed": "房间权限已更新",
         "settings_changed": "房间配置已更新",
         "roles_changed": "成员角色已变更"
       }
@@ -72,15 +70,12 @@
       },
       "room": {
         "address_changed": "房间地址已变更",
-        "permissions_changed": "房间权限已更新",
         "settings_changed": "房间配置已更新",
         "roles_changed": "成员角色已变更"
       }
     },
     "roomUpdateSubject": {
       "addressChanged": "房间地址已变更：{path}",
-      "address_changed": "房间地址已变更",
-      "permissions_changed": "房间权限已更新",
       "settings_changed": "房间配置已更新",
       "roles_changed": "成员角色已变更"
     }
@@ -100,15 +95,8 @@
   "mobileTabSettings": "设置",
   "mobileTabChat": "聊天",
   "mobileTabFiles": "文件",
-  "roomPasswordDialogTitle": "房间已加密",
-  "roomPasswordDialogDescription": "房间 {roomName} 需要密码才能访问",
-  "passwordLabel": "密码",
-  "passwordPlaceholder": "请输入房间密码",
-  "verifying": "验证中...",
-  "enterRoom": "进入房间",
   "loadingRoom": "正在加载房间...",
   "errorTitle": "错误",
-  "preparingRoomAccess": "正在准备房间访问...",
   "roomReadyTitle": "房间已创建",
   "roomReadyDescription": "房间 {roomName} 已就绪。请先保存下方的一次性管理员身份码，它是恢复管理员身份的唯一凭据。",
   "roomAddressChanged": "房间地址已变更",

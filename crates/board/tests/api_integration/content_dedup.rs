@@ -72,8 +72,8 @@ async fn test_same_room_duplicate_upload_dedupes_to_single_object() -> Result<()
     let token = create_room(&app, "dedup-room").await?;
     let payload: &'static [u8] = b"duplicate content payload";
 
-    let first = put_upload(&app, "dedup-room", "one.bin", &token, payload).await?;
-    let second = put_upload(&app, "dedup-room", "two.bin", &token, payload).await?;
+    let _first = put_upload(&app, "dedup-room", "one.bin", &token, payload).await?;
+    let _second = put_upload(&app, "dedup-room", "two.bin", &token, payload).await?;
 
     // 两条内容记录，同一 locator 与 hash
     let rows: Vec<(Option<String>, Option<String>)> =

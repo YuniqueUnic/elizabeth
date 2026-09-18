@@ -1,25 +1,22 @@
-//! WebSocket 消息处理器
+//! WebSocket 连接握手处理器
 //!
-//! 处理 WebSocket 消息和认证
+//! 负责校验 CONNECT 请求（令牌 + 能力），其余帧的收发由 `server` 模块处理
 
 use crate::authz::{Authz, Resource};
 use crate::handlers::verify_room_token;
 use crate::models::room::role::Capability;
 use crate::state::AppState;
-use crate::websocket::{
-    connection::ConnectionManager,
-    types::{ConnectAck, ConnectRequest, RoomInfo, WsError, WsMessage, WsMessageType},
-};
+use crate::websocket::types::{ConnectAck, ConnectRequest, RoomInfo, WsError};
 use std::sync::Arc;
 
-/// WebSocket 消息处理器
+/// WebSocket 连接握手处理器
 pub struct MessageHandler {
     app_state: AppState,
 }
 
 impl MessageHandler {
-    /// 创建新的消息处理器
-    pub fn new(app_state: AppState, _manager: Arc<ConnectionManager>) -> Self {
+    /// 创建新的握手处理器
+    pub fn new(app_state: AppState) -> Self {
         Self { app_state }
     }
 
@@ -70,45 +67,5 @@ impl MessageHandler {
             message: "Connected successfully".to_string(),
             room_info,
         })
-    }
-
-    /// 处理 PING 消息
-    pub fn handle_ping(&self) -> WsMessage {
-        WsMessage::new(WsMessageType::Pong, None)
-    }
-
-    /// 处理消息
-    pub async fn handle_message(&self, message: WsMessage) -> Result<WsMessage, WsError> {
-        match message.message_type {
-            WsMessageType::Connect => {
-                // 解析连接请求
-                if let Some(payload) = message.payload {
-                    if let Ok(request) = serde_json::from_value::<ConnectRequest>(payload) {
-                        let ack = self.handle_connect(request).await?;
-                        Ok(WsMessage::new(
-                            WsMessageType::ConnectAck,
-                            Some(serde_json::to_value(ack)?),
-                        ))
-                    } else {
-                        Ok(WsMessage::error("Invalid connect request"))
-                    }
-                } else {
-                    Ok(WsMessage::error("Missing connect payload"))
-                }
-            }
-            WsMessageType::Ping => Ok(self.handle_ping()),
-            WsMessageType::Pong => Ok(WsMessage::new(WsMessageType::Pong, None)),
-            _ => Ok(WsMessage::error("Unhandled message type")),
-        }
-    }
-
-    /// 发送消息到客户端
-    pub fn send_message(&self, message: WsMessage) -> WsMessage {
-        message
-    }
-
-    /// 发送错误消息
-    pub fn send_error(&self, error: WsError) -> WsMessage {
-        WsMessage::error(&error.to_string())
     }
 }

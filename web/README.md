@@ -26,7 +26,6 @@ Elizabeth 是一个现代化的、以房间为中心的文件分享与协作平�
 - **数据请求**: TanStack Query (React Query)
 - **Markdown**: react-markdown + remark-gfm
 - **文件上传**: react-dropzone
-- **日期处理**: date-fns
 
 ## 项目结构
 

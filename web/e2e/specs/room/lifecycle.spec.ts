@@ -1,5 +1,10 @@
 import { expect, test } from "../../screenplay/fixtures/screenplay.fixture";
 import { API_BASE_URL } from "../../screenplay/support/constants";
+import {
+  remainingSeconds,
+  roomExpiryPolicy,
+  roomView,
+} from "../../screenplay/support/room-expiry";
 import { tErrors } from "../../screenplay/support/i18n";
 import { uniqueRoomName } from "../../screenplay/support/test-data";
 import { RoomScreen } from "../../screenplay/room/screens/Room.screen";
@@ -125,5 +130,62 @@ test.describe("Room lifecycle and limits", () => {
       tErrors("roomExpired"),
     );
     expect(createRoomRequests).toBe(0);
+  });
+
+  // 侧边栏必须能改房间持续时间。新建房间的生命周期来自部署默认时长，
+  // 缺少该控件时用户只能得到默认值（例如 2 小时）。
+  test("applies the duration chosen in the sidebar to the room deadline", async ({
+    actor,
+    page,
+    request,
+    provisionRoom,
+  }) => {
+    const room = await provisionRoom({
+      actor,
+      roomName: uniqueRoomName("screenplay-duration"),
+    });
+    await actor.attemptsTo(OpenRoom(room.url));
+
+    const { allowedAges, defaultAge } = await roomExpiryPolicy(request);
+    expect(allowedAges.length).toBeGreaterThan(1);
+
+    // 新房间的寿命就是部署默认时长。
+    const before = await remainingSeconds(request, room.name);
+    expect(Math.abs(before - defaultAge)).toBeLessThan(30);
+
+    const hintBefore = (await RoomScreen.roomExpiryHint(page).textContent()) ?? "";
+    expect(hintBefore).not.toBe("");
+    const longestAge = allowedAges[allowedAges.length - 1];
+    await actor.attemptsTo(ConfigureRoom({ durationSeconds: longestAge }));
+
+    const after = await remainingSeconds(request, room.name);
+    expect(Math.abs(after - longestAge)).toBeLessThan(30);
+    await expect(RoomScreen.roomExpiryHint(page)).not.toHaveText(hintBefore);
+  });
+
+  // 容量上限与新成员默认角色此前只在平台管理面板可改，房间侧边栏缺失。
+  // 两个入口共用同一后端核心，侧边栏必须同样能改。
+  test("applies capacity and default role changes made in the sidebar", async ({
+    actor,
+    request,
+    provisionRoom,
+  }) => {
+    const room = await provisionRoom({
+      actor,
+      roomName: uniqueRoomName("screenplay-sidebar-policy"),
+    });
+    await actor.attemptsTo(OpenRoom(room.url));
+
+    const before = await roomView(request, room.name);
+    const nextMaxSize = before.max_size + 5 * 1024 * 1024;
+    expect(before.default_role_key).not.toBe("editor");
+
+    await actor.attemptsTo(
+      ConfigureRoom({ maxSizeBytes: nextMaxSize, defaultRoleKey: "editor" }),
+    );
+
+    const after = await roomView(request, room.name);
+    expect(after.max_size).toBe(nextMaxSize);
+    expect(after.default_role_key).toBe("editor");
   });
 });

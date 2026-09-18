@@ -10,7 +10,8 @@ use crate::dto::{
     AdminConfigResponse, AdminCredentialUpdateRequest, AdminCredentialView,
     AdminMintIdentityCodeRequest, AdminRoomDetailResponse, AdminRoomListResponse, AdminRoomView,
     AdminStatsResponse, AdminStorageResponse, CreateRoomIdentityCodeResponse, DeleteRoomResponse,
-    FullRoomGcStatusView, RunRoomGcResponse, UpdateRoomSettingsRequest, UpdateRuntimeConfigRequest,
+    FullRoomGcStatusView, RoomExpiryOverride, RunRoomGcResponse, UpdateRoomSettingsRequest,
+    UpdateRuntimeConfigRequest,
 };
 use crate::errors::{AppError, AppResult};
 use crate::handlers::rooms::identity_codes::validate_identity_code;
@@ -252,6 +253,7 @@ pub async fn admin_list_rooms(
             current_times_entered: row.current_times_entered,
             max_times_entered: row.max_times_entered,
             default_role_key: row.default_role_key,
+            upload_file_type: row.upload_file_type,
             expire_at: row.expire_at,
             created_at: row.created_at,
             updated_at: row.updated_at,
@@ -330,6 +332,7 @@ async fn room_detail_response(
             current_times_entered: room_stats.current_times_entered,
             max_times_entered: room_stats.max_times_entered,
             default_role_key: room_stats.default_role_key,
+            upload_file_type: room_stats.upload_file_type,
             expire_at: room_stats.expire_at,
             created_at: room_stats.created_at,
             updated_at: room_stats.updated_at,
@@ -470,6 +473,8 @@ fn build_admin_config_response(app_state: &AppState) -> AdminConfigResponse {
         room_default_max_size: config.room.defaults.max_content_size,
         room_default_max_times_entered: config.room.defaults.max_times_entered,
         room_default_role_key: config.room.defaults.default_role_key.clone(),
+        room_expiry_allowed_ages_seconds: config.room.expiry.allowed_ages_seconds().to_vec(),
+        room_expiry_default_age_seconds: config.room.expiry.default_age_seconds(),
         jwt_ttl_seconds: config.auth.ttl_seconds,
         jwt_refresh_ttl_seconds: config.auth.refresh_ttl_seconds,
         upload_reservation_ttl_seconds: storage.upload_reservation_ttl_seconds,
@@ -486,13 +491,19 @@ fn build_admin_config_response(app_state: &AppState) -> AdminConfigResponse {
         runtime_session_ttl_seconds: app_state.runtime.session_ttl_seconds(),
         runtime_upload_reservation_ttl_seconds: app_state.runtime.upload_reservation_ttl_seconds(),
         runtime_room_default_role_key: app_state.runtime.room_default_role_key(),
+        runtime_room_expiry: app_state.runtime.room_expiry_policy().map(|policy| {
+            crate::dto::admin::RoomExpiryOverride {
+                allowed_ages_seconds: policy.allowed_ages_seconds().to_vec(),
+                default_age_seconds: policy.default_age_seconds(),
+            }
+        }),
         admin_token_source: app_state.admin_credential.source().to_string(),
     }
 }
 
 /// 运行时可写配置更新（白名单：robots 开关、新房间默认容量/进入次数/角色、
-/// 会话有效期、上传预留有效期）。覆盖仅存活于进程内，重启回退到配置文件值；
-/// 数值字段传 0 表示清除覆盖，角色字段传空串表示清除覆盖。
+/// 房间有效期策略、会话有效期、上传预留有效期）。覆盖仅存活于进程内，重启回退到配置文件值；
+/// 数值字段传 0 表示清除覆盖，角色字段传空串表示清除覆盖，有效期策略传空允许列表表示清除覆盖。
 #[utoipa::path(
     put,
     path = "/api/v1/admin/config/runtime",
@@ -568,8 +579,27 @@ pub async fn admin_update_runtime_config(
     if let Some(disallow) = payload.disallow_search_indexing {
         app_state.runtime.set_disallow_search_indexing(disallow);
     }
+    if let Some(expiry) = payload.room_expiry {
+        // 允许列表与默认时长互相约束，因此整组校验后原子替换。
+        let policy = validated_room_expiry_override(expiry)?;
+        app_state
+            .runtime
+            .set_room_expiry_policy(policy.map(Arc::new));
+    }
 
     Ok(Json(build_admin_config_response(&app_state)))
+}
+
+/// 校验并生成房间有效期策略覆盖；空允许列表 = 清除覆盖。
+pub(crate) fn validated_room_expiry_override(
+    expiry: RoomExpiryOverride,
+) -> AppResult<Option<crate::config::RoomExpiryPolicy>> {
+    if expiry.allowed_ages_seconds.is_empty() {
+        return Ok(None);
+    }
+    crate::config::RoomExpiryPolicy::new(expiry.allowed_ages_seconds, expiry.default_age_seconds)
+        .map(Some)
+        .map_err(|error| AppError::validation(format!("Invalid room expiry policy: {error}")))
 }
 
 /// 轮换平台管理 API 凭证（进程内覆盖，重启回退环境引导值；凭证不回显）。

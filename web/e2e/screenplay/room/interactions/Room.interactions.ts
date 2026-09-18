@@ -90,11 +90,11 @@ export const ResizeViewport = (width: number, height: number) =>
     await page.setViewportSize({ width, height });
   });
 
-export const SelectRoomExpiry = (optionLabel: string) =>
-  Interaction.where(the`#actor selects the room expiry ${optionLabel}`, async (actor) => {
+export const SelectRoomDuration = (ageSeconds: number) =>
+  Interaction.where(the`#actor selects the room duration ${ageSeconds}`, async (actor) => {
     const page = await nativePageFor(actor);
-    await RoomScreen.expirySelect(page).click();
-    await page.getByRole("option", { name: optionLabel }).click();
+    await RoomScreen.durationSelect(page).click();
+    await RoomScreen.durationOption(page, ageSeconds).click();
   });
 
 export const SetRoomPassword = (password: string) =>
@@ -107,6 +107,19 @@ export const SetRoomMaxViews = (count: number) =>
   Interaction.where(the`#actor sets the maximum room views to ${count}`, async (actor) => {
     const page = await nativePageFor(actor);
     await RoomScreen.maxViewsInput(page).fill(String(count));
+  });
+
+export const SetRoomMaxSize = (bytes: number) =>
+  Interaction.where(the`#actor sets the room capacity limit to ${bytes}`, async (actor) => {
+    const page = await nativePageFor(actor);
+    await RoomScreen.maxSizeInput(page).fill(String(bytes));
+  });
+
+export const SelectRoomDefaultRole = (roleKey: string) =>
+  Interaction.where(the`#actor selects the room default role ${roleKey}`, async (actor) => {
+    const page = await nativePageFor(actor);
+    await RoomScreen.defaultRoleSelect(page).click();
+    await RoomScreen.defaultRoleOption(page, roleKey).click();
   });
 
 export const SaveRoomConfiguration = () =>
@@ -145,45 +158,10 @@ export const SaveRoomConfiguration = () =>
     }
   });
 
-export const SetPermissionState = (
-  label: "read" | "edit" | "share" | "delete",
-  desired: boolean,
-) =>
-  Interaction.where(the`#actor sets the ${label} permission to ${desired}`, async (actor) => {
-    const page = await nativePageFor(actor);
-    const button = RoomScreen.permissionButton(
-      page,
-      tRoom(`config.permissions.labels.${label}`),
-    );
-    const current = await button.getAttribute("aria-pressed");
-
-    if ((current === "true") !== desired) {
-      await button.click();
-    }
-  });
-
 export const SelectAllMessages = () =>
   Interaction.where(the`#actor selects all messages`, async (actor) => {
     const page = await nativePageFor(actor);
     await RoomScreen.messageSelectAllButton(page).click();
-  });
-
-export const InvertMessageSelection = () =>
-  Interaction.where(the`#actor inverts the selected messages`, async (actor) => {
-    const page = await nativePageFor(actor);
-    await RoomScreen.messageInvertSelectionButton(page).click();
-  });
-
-export const SelectAllFiles = () =>
-  Interaction.where(the`#actor selects all files`, async (actor) => {
-    const page = await nativePageFor(actor);
-    await RoomScreen.fileSelectAllButton(page).click();
-  });
-
-export const InvertFileSelection = () =>
-  Interaction.where(the`#actor inverts the selected files`, async (actor) => {
-    const page = await nativePageFor(actor);
-    await RoomScreen.fileInvertSelectionButton(page).click();
   });
 
 export const UploadFiles = (...files: UploadableFile[]) =>
@@ -275,12 +253,6 @@ export const OpenFilePreviewNamed = (name: string) =>
     }).first().click();
   });
 
-export const CancelFirstTransfer = () =>
-  Interaction.where(the`#actor cancels the first transfer`, async (actor) => {
-    const page = await nativePageFor(actor);
-    await RoomScreen.transferCancelButton(page).first().click();
-  });
-
 export const ClickFilePreviewDownload = () =>
   Interaction.where(the`#actor downloads the previewed file`, async (actor) => {
     const page = await nativePageFor(actor);
@@ -309,31 +281,6 @@ export const ClickFilePreviewDelete = () =>
   Interaction.where(the`#actor clicks the preview delete button`, async (actor) => {
     const page = await nativePageFor(actor);
     await RoomScreen.filePreviewDeleteButton(page).click();
-  });
-
-export const OpenCloseRoomDialog = () =>
-  Interaction.where(the`#actor opens the close room dialog`, async (actor) => {
-    const page = await nativePageFor(actor);
-    await RoomScreen.closeRoomButton(page).click();
-  });
-
-export const VerifyCloseRoomPassword = (password: string) =>
-  Interaction.where(the`#actor verifies the close room password`, async (actor) => {
-    const page = await nativePageFor(actor);
-    await RoomScreen.closeRoomPasswordInput(page).fill(password);
-    await RoomScreen.closeRoomNextButton(page).click();
-  });
-
-export const ConfirmPhysicalClose = () =>
-  Interaction.where(the`#actor confirms the physical room closure`, async (actor) => {
-    const page = await nativePageFor(actor);
-    await RoomScreen.closeRoomConfirmButton(page).click();
-  });
-
-export const CancelDialog = () =>
-  Interaction.where(the`#actor cancels the open dialog`, async (actor) => {
-    const page = await nativePageFor(actor);
-    await RoomScreen.closeRoomCancelButton(page).click();
   });
 
 export const EnterRoomPassword = (password: string) =>
@@ -366,28 +313,6 @@ export const EditLatestMessage = (content: string) =>
     await RoomScreen.sendButton(page).click();
   });
 
-export const ScrollMessageListToTop = () =>
-  Interaction.where(the`#actor scrolls the message list to the top`, async (actor) => {
-    const page = await nativePageFor(actor);
-    await RoomScreen.messageListScroll(page).evaluate((element) => {
-      const viewport = element.querySelector("[data-radix-scroll-area-viewport]") as HTMLDivElement | null;
-      if (viewport) {
-        viewport.scrollTop = 0;
-        viewport.dispatchEvent(new Event("scroll", { bubbles: true }));
-      }
-    });
-  });
-
-export const ScrollMessageListToBottom = () =>
-  Interaction.where(the`#actor scrolls the message list to the bottom`, async (actor) => {
-    const page = await nativePageFor(actor);
-    await RoomScreen.messageListScroll(page).evaluate((element) => {
-      const viewport = element.querySelector("[data-radix-scroll-area-viewport]") as HTMLDivElement | null;
-      if (viewport) {
-        viewport.scrollTop = viewport.scrollHeight;
-      }
-    });
-  });
 export const OpenSettings = () =>
   Interaction.where(the`#actor opens the settings dialog`, async (actor) => {
     const page = await nativePageFor(actor);
@@ -412,12 +337,6 @@ export const CloseSettings = () =>
       await closeButton.dispatchEvent("click");
       await dialog.waitFor({ state: "hidden", timeout: 5_000 }).catch(() => {});
     }
-  });
-
-export const ToggleSetting = (testid: string) =>
-  Interaction.where(the`#actor toggles the setting ${testid}`, async (actor) => {
-    const page = await nativePageFor(actor);
-    await (await revealSetting(page, testid)).click();
   });
 
 export const SetSettingState = (testid: string, desired: boolean) =>
@@ -464,12 +383,6 @@ export const ConfirmDeleteAndDisable = () =>
     await RoomScreen.deleteConfirmAndDisableButton(page).click();
   });
 
-export const HoverMessage = (messageId: string) =>
-  Interaction.where(the`#actor hovers over the message ${messageId}`, async (actor) => {
-    const page = await nativePageFor(actor);
-    await page.getByTestId(`message-item-${messageId}`).hover();
-  });
-
 export const ClickMessageCopyButton = (messageId: string) =>
   Interaction.where(the`#actor copies the message ${messageId}`, async (actor) => {
     const page = await nativePageFor(actor);
@@ -492,7 +405,7 @@ export const WaitForSavingToComplete = () =>
     await page.locator('[data-testid="save-messages-btn"][disabled]').waitFor({ state: "attached", timeout: 30_000 });
   });
 
-export type DownloadPolicyMode = "off" | "reusable" | "one_time";
+type DownloadPolicyMode = "off" | "reusable" | "one_time";
 
 export interface DownloadPolicyInput {
   mode: DownloadPolicyMode;

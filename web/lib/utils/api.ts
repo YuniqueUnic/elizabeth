@@ -135,7 +135,7 @@ const appendParams = (
 /**
  * Get all stored tokens from localStorage
  */
-export function getStoredTokens(): TokenStorage {
+function getStoredTokens(): TokenStorage {
   if (typeof window === "undefined") return {};
 
   try {
@@ -150,7 +150,7 @@ export function getStoredTokens(): TokenStorage {
 /**
  * Save tokens to localStorage
  */
-export function saveTokens(tokens: TokenStorage): void {
+function saveTokens(tokens: TokenStorage): void {
   if (typeof window === "undefined") return;
 
   try {
@@ -195,14 +195,6 @@ export function clearRoomToken(roomName: string): void {
 }
 
 /**
- * Clear all tokens
- */
-export function clearAllTokens(): void {
-  if (typeof window === "undefined") return;
-  localStorage.removeItem(TOKEN_CONFIG.storageKey);
-}
-
-/**
  * Check if a token is expired or will expire soon
  */
 export function isTokenExpired(
@@ -222,7 +214,7 @@ export function isTokenExpired(
 /**
  * Try to get a fresh token for a room (for non-password-protected rooms)
  */
-export async function refreshRoomToken(
+async function refreshRoomToken(
   roomName: string,
 ): Promise<string | null> {
   try {
@@ -261,15 +253,6 @@ export async function refreshRoomToken(
 // API Response Types
 // ============================================================================
 
-export interface APIResponse<T = any> {
-  success: boolean;
-  data?: T;
-  error?: string;
-  code?: number;
-  message?: string;
-  timestamp?: string;
-}
-
 export class APIError extends Error {
   constructor(
     message: string,
@@ -285,7 +268,7 @@ export class APIError extends Error {
  * 后端房间文件类型策略拒绝消息的稳定前缀（upload_file_type_violation）。
  * 返回被拒绝的文件名；非该类错误返回 null。
  */
-export const FILE_TYPE_POLICY_ERROR_PREFIX = "File type not allowed by room policy: ";
+const FILE_TYPE_POLICY_ERROR_PREFIX = "File type not allowed by room policy: ";
 const VALIDATION_ERROR_PREFIX = "Validation error: ";
 
 export function parseFilePolicyViolation(message?: string): string | null {
@@ -301,7 +284,7 @@ export function parseFilePolicyViolation(message?: string): string | null {
 // Request Configuration
 // ============================================================================
 
-export interface RequestOptions extends RequestInit {
+interface RequestOptions extends RequestInit {
   token?: string;
   skipTokenInjection?: boolean;
   retries?: number;
@@ -343,37 +326,6 @@ function resolveToken(token?: string, roomName?: string): string | undefined {
   }
 
   return undefined;
-}
-
-/**
- * Inject token into URL query parameter.
- * Used ONLY for media URLs (<img src>, <video src>, PDF.js, etc.)
- * that cannot send Authorization headers.
- */
-export function injectTokenToUrl(url: string, token?: string, roomName?: string): string {
-  const applyToken = (inputUrl: string, tokenValue: string): string => {
-    const urlObj = createURLObject(inputUrl);
-    urlObj.searchParams.set("token", tokenValue);
-
-    if (ABSOLUTE_URL_REGEX.test(inputUrl)) {
-      return urlObj.toString();
-    }
-
-    return `${urlObj.pathname}${urlObj.search}${urlObj.hash}`;
-  };
-
-  if (token) {
-    return applyToken(url, token);
-  }
-
-  if (roomName) {
-    const tokenInfo = getRoomToken(roomName);
-    if (tokenInfo && !isTokenExpired(tokenInfo.expiresAt)) {
-      return applyToken(url, tokenInfo.token);
-    }
-  }
-
-  return url;
 }
 
 /**
@@ -691,5 +643,3 @@ export const api = {
     });
   },
 };
-
-export default api;

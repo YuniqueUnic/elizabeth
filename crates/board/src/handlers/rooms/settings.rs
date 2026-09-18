@@ -52,7 +52,6 @@ pub async fn update_room_settings(
         .ok_or_else(|| AppError::internal("Room id missing"))?;
     authz.require(Capability::RoomSettingsUpdate, &Resource::Room { room_id })?;
 
-    let repo = RoomRepository::new(app_state.db_pool.clone());
     let room = verified.room;
     let updated_room = apply_room_settings_update(&app_state, room, payload).await?;
 
@@ -68,7 +67,8 @@ pub(crate) async fn apply_room_settings_update(
 ) -> AppResult<Room> {
     let repo = RoomRepository::new(app_state.db_pool.clone());
     let mut room = room;
-    validate_settings_payload(&payload, app_state.room_expiry_policy())?;
+    let expiry_policy = app_state.room_expiry_policy();
+    validate_settings_payload(&payload, &expiry_policy)?;
     validate_policy_not_below_usage(&room, &payload)?;
     validate_default_role_key(app_state, &room, &payload).await?;
 
@@ -78,7 +78,7 @@ pub(crate) async fn apply_room_settings_update(
     if let Some(default_role_key) = payload.default_role_key.clone() {
         room.default_role_key = default_role_key;
     }
-    apply_settings_payload(&mut room, payload, app_state.room_expiry_policy())?;
+    apply_settings_payload(&mut room, payload, &expiry_policy)?;
     if remove_password {
         room.password = None;
     } else if let Some(password) = password {
@@ -194,6 +194,9 @@ fn validate_settings_payload(
     Ok(())
 }
 
+/// 校验 + 应用的组合入口，仅测试使用：生产路径在 `apply_room_settings_update` 内
+/// 于两步之间还要处理默认角色与密码，无法直接复用这个组合。
+#[cfg(test)]
 pub(crate) fn apply_validated_settings_payload(
     room: &mut Room,
     payload: UpdateRoomSettingsRequest,

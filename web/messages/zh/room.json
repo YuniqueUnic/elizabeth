@@ -1,7 +1,6 @@
 {
   "sidebar": {
     "roomControl": "房间控制",
-    "roomSettings": "房间设置",
     "expandSidebar": "展开侧边栏",
     "collapseSidebar": "收起侧边栏",
     "loading": "加载中..."
@@ -34,36 +33,32 @@
     "fileUpload": "房间权限已变更，现在没有编辑权限，无法上传文件。",
     "linkAdd": "房间权限已变更，现在没有编辑权限，无法新增链接。",
     "fileDelete": "房间权限已变更，现在没有删除权限，无法删除文件或链接。",
-    "roomConfig": "房间权限已变更，现在没有删除权限，无法修改房间配置。",
-    "roomSettings": "房间权限已变更，现在没有删除权限，无法修改房间设置。",
-    "roomPermissions": "房间权限已变更，现在没有删除权限，无法修改房间权限。",
     "closeRoom": "房间权限已变更，现在没有删除权限，无法关闭房间。"
   },
   "config": {
     "title": "房间配置",
-    "adminOnly": "只有拥有 room.settings.update 能力的身份才能修改当前房间配置",
-    "adminSaveOnly": "只有房间管理员可以保存配置",
-    "expiry": {
-      "label": "过期时间",
-      "placeholder": "选择过期时间",
-      "options": {
-        "oneMinute": "1 分钟",
-        "tenMinutes": "10 分钟",
-        "oneHour": "1 小时",
-        "twelveHours": "12 小时",
-        "oneDay": "1 天",
-        "oneWeek": "1 周"
-      }
+    "duration": {
+      "label": "房间持续时间",
+      "placeholder": "选择持续时间"
     },
+    "expiresAt": "过期时间：{time}",
     "password": {
       "label": "房间密码",
       "placeholder": "设置新密码；留空表示保持不变",
       "protectedHint": "当前房间已启用密码保护。",
-      "removeAction": "移除密码",
-      "keepAction": "保留密码"
+      "removeAction": "移除密码"
     },
     "maxViews": {
       "label": "最大进入次数"
+    },
+    "maxSize": {
+      "label": "房间容量上限（字节）",
+      "hint": "当前上限 {size}，已使用 {used}。不能低于已使用容量。"
+    },
+    "defaultRole": {
+      "label": "新成员默认角色",
+      "placeholder": "选择默认角色",
+      "hint": "新成员进入房间时自动获得的角色；删除某角色前需先把它移出默认角色。"
     },
     "uploadFileType": {
       "label": "上传文件类型",
@@ -81,68 +76,12 @@
         "invalid": "无效的扩展名：{extension}"
       }
     },
-    "permissions": {
-      "title": "房间权限",
-      "hint": "预览是房间的基础权限；编辑、分享和管理权限彼此独立。",
-      "labels": {
-        "read": "预览",
-        "edit": "编辑",
-        "share": "分享",
-        "delete": "管理与删除"
-      },
-      "descriptions": {
-        "read": "查看房间内容",
-        "edit": "上传和修改内容",
-        "share": "公开分享房间",
-        "delete": "管理配置、会话以及删除内容或房间"
-      }
-    },
     "save": {
       "saving": "保存中...",
       "saveConfig": "保存配置",
       "successTitle": "配置已保存",
-      "successDescription": "房间配置已成功更新",
-      "failTitle": "保存失败",
-      "failDescription": "无法保存房间配置，请重试"
-    },
-    "cancel": "取消",
-    "linkCopied": "已复制新链接",
-    "copyFailTitle": "复制失败",
-    "copyFailDescription": "无法复制链接，请手动复制。"
-  },
-  "settings": {
-    "title": "房间设置",
-    "adminOnly": "只有房间管理员（拥有删除权限）可以修改房间设置",
-    "expiry": {
-      "label": "过期时间",
-      "placeholder": "选择过期时间",
-      "options": {
-        "oneMinute": "1 分钟",
-        "tenMinutes": "10 分钟",
-        "oneHour": "1 小时",
-        "twelveHours": "12 小时",
-        "oneDay": "1 天",
-        "oneWeek": "1 周"
-      }
-    },
-    "password": {
-      "label": "房间密码",
-      "placeholder": "设置房间密码"
-    },
-    "maxViews": {
-      "label": "最大查看次数"
-    },
-    "save": {
-      "saving": "保存中...",
-      "saveSettings": "保存设置",
-      "successTitle": "设置已保存",
-      "successDescription": "房间设置已成功更新",
-      "failTitle": "保存失败",
-      "failDescription": "无法保存房间设置，请重试",
-      "authFail": "认证失败，请刷新页面重新登录"
-    },
-    "warningTitle": "警告",
-    "jwtRefreshFail": "密码已更新，但 JWT 刷新失败。请刷新页面重新登录。"
+      "failTitle": "保存失败"
+    }
   },
   "identity": {
     "title": "我的身份",
@@ -153,12 +92,6 @@
     "codeLabel": "房间身份码",
     "copy": "复制身份码",
     "copied": "已复制",
-    "copyFailed": "复制失败，请手动复制",
-    "rotate": "轮换身份码",
-    "rotating": "轮换中...",
-    "rotateSuccessTitle": "身份码已轮换",
-    "rotateSuccessDescription": "旧身份码已立即失效，请使用新身份码。",
-    "rotateFailed": "轮换失败，请重试",
     "managePermissions": "成员与权限",
     "editorHint": "你以编辑者身份进入，身份码由房间管理员分发。",
     "readerHint": "你以读者身份进入，仅可查看房间内容。",
@@ -205,36 +138,14 @@
     "disableFailed": "无法禁用身份码",
     "issuing": "生成中...",
     "issueFailed": "生成失败",
-    "sessions": "活跃会话",
-    "sessionsHint": "房间内全部有效身份，吊销后对方会立即断开连接。",
-    "sessionCurrent": "当前",
-    "sessionCreated": "签发 {time}",
-    "sessionExpires": "过期 {time}",
-    "revoke": "吊销",
-    "revoking": "吊销中...",
-    "revokeSuccess": "已吊销该会话",
-    "revokeFailed": "吊销失败",
-    "noSessions": "暂无活跃会话",
-    "validator": "校验身份码",
-    "validatorHint": "粘贴任意身份码，确认其角色与有效性。",
-    "validatorPlaceholder": "粘贴身份码",
-    "validate": "校验",
-    "validating": "校验中...",
-    "invalidFormat": "身份码格式不正确",
-    "invalid": "身份码无效或已过期",
-    "validRole": "有效 · 角色：{role}",
     "durationLabel": "有效期",
-    "durationHint": "身份码到期自动失效，最长不超过房间有效期；admin 身份码始终跟随房间生命周期。",
-    "invalidDuration": "请输入大于 0 的有效时长",
     "unitSecond": "秒",
     "unitMinute": "分钟",
     "unitHour": "小时",
     "unitDay": "天",
-    "unitMonth": "个月",
-    "issuedTokenExpires": "有效期至 {time}"
+    "unitMonth": "个月"
   },
   "roles": {
-    "title": "角色权限",
     "loading": "正在加载角色矩阵...",
     "forbidden": "当前身份无权管理房间角色。",
     "newRole": "新建角色",
@@ -250,14 +161,13 @@
     "any": "任意",
     "own": "仅自己",
     "systemBadge": "系统",
-    "defaultBadge": "默认加入",
     "adminWarning": "修改管理员权限可能影响你自己对房间的控制能力，请谨慎操作。",
     "immediateEffect": "保存后立即对全房会话生效。",
     "saveSuccess": "角色已保存",
     "deleteSuccess": "角色已删除",
     "saveFailed": "无法保存角色",
     "deleteFailed": "无法删除角色",
-    "deleteDefaultRoleConflict": "该角色是默认加入角色，请先在房间设置中修改默认角色。",
+    "deleteDefaultRoleConflict": "该角色是默认加入角色。请先关闭本对话框，在左侧「房间配置」的「新成员默认角色」中改为其它角色，再删除。",
     "groups": {
       "room": "房间管理",
       "msg": "消息",
@@ -356,43 +266,9 @@
     "title": "容量使用",
     "usage": "{currentSize} MB / {maxSize} MB ({percentage}%)"
   },
-  "permissions": {
-    "title": "房间权限",
-    "hint": "提示：编辑、分享需要预览权限；删除需要预览和编辑权限",
-    "adminOnly": "只有房间管理员可以修改权限",
-    "labels": {
-      "read": "预览",
-      "edit": "编辑",
-      "share": "分享",
-      "delete": "删除"
-    },
-    "descriptions": {
-      "read": "查看房间内容",
-      "edit": "上传和修改内容",
-      "share": "公开分享房间",
-      "delete": "删除房间内容"
-    },
-    "save": {
-      "saving": "保存中...",
-      "savePermissions": "保存权限",
-      "successTitle": "权限已更新",
-      "successDescription": "房间权限已成功更新",
-      "failTitle": "更新失败",
-      "failDescription": "无法更新房间权限，请重试"
-    },
-    "cancel": "取消",
-    "needRelogin": "需要重新登录",
-    "downgradeNotice": "权限已降级，请重新输入密码登录"
-  },
   "chat": {
-    "messageSent": "消息已发送",
-    "messageUpdated": "消息已更新",
-    "messageUpdatedDescription": "您的消息已成功更新",
-    "messageDeleted": "消息已删除",
     "loadFailed": "无法加载消息，请刷新重试",
     "sendFailed": "无法发送消息，请重试",
-    "updateFailed": "无法更新消息，请重试",
-    "deleteFailed": "无法删除消息，请重试",
     "deleteConfirmTitle": "确定要删除这条消息吗？",
     "deleteConfirmDescription": "这个操作将会被记录，直到点击保存按钮。",
     "confirmAndDisable": "确认/并不再提示",
@@ -411,9 +287,6 @@
     "edit": "编辑",
     "copy": "复制",
     "delete": "删除",
-    "messageNumber": "消息 #{number}",
-    "userLabel": "用户:",
-    "timeLabel": "时间:",
     "hidden": "已隐藏",
     "hide": "隐藏消息",
     "show": "取消隐藏",
@@ -463,7 +336,6 @@
     "loadOlder": "加载更早的消息",
     "selectedCount": "已选择 {count} 条消息",
     "loadedCount": "已加载 {count} 条消息",
-    "totalCount": "共 {count} 条消息",
     "selectAll": "全选",
     "deselectAll": "取消全选",
     "invertSelection": "反选",
@@ -521,7 +393,6 @@
     "emptyContent": "文件内容为空"
   },
   "urlUpload": {
-    "manualInput": "手动输入",
     "invalidUrl": "请输入有效的 URL",
     "urlRequired": "URL 不能为空",
     "unnamedLink": "未命名链接",
@@ -560,17 +431,12 @@
     "copyFailedDescription": "浏览器阻止了自动复制，请在弹窗中手动复制。",
     "insertedToEditor": "已插入到编辑器",
     "insertedToEditorDescription": "已将 Markdown 链接插入到当前光标位置",
-    "fileDeleted": "文件已删除",
-    "fileDeletedDescription": "{fileName} 已从房间中删除",
-    "openedInNewTab": "已在新标签页打开",
     "imageLoadError": "无法生成图片 URL（缺少 token 或 URL）",
     "videoNotSupported": "您的浏览器不支持视频播放",
     "unsupportedType": "无法预览此文件类型",
-    "downloadToView": "请下载文件以查看内容",
-    "loadingPdfViewer": "加载 PDF 查看器..."
+    "downloadToView": "请下载文件以查看内容"
   },
   "urlViewer": {
-    "iframeWarning": "某些网站可能不允许在 iframe 中显示。如果预览失败，请使用「新标签页打开」",
     "hidePreview": "隐藏预览",
     "preview": "预览",
     "newTab": "新标签页",
@@ -593,8 +459,6 @@
     "linkAdded": "链接已添加",
     "linkAddedDescription": "URL 已成功添加到房间",
     "linkAddFailed": "添加链接失败，请重试",
-    "downloadStart": "开始下载",
-    "downloadStartDescription": "正在准备下载 {count} 个文件",
     "protectedBatchDownloadNotSupported": "暂不支持批量下载受保护的文件，请单独下载"
   },
   "image": {
@@ -624,14 +488,6 @@
     "modeOff": "无限制 (Off)",
     "modeReusable": "固定访问码 (Reusable)",
     "modeOneTime": "一次性访问码 (One Time)",
-    "maxDownloads": "最大下载次数",
-    "maxDownloadsPlaceholder": "0",
-    "maxDownloadsHint": "输入0表示不限制次数",
-    "codeCount": "生成数量",
-    "generateCodes": "访问码管理",
-    "generateBtn": "生成访问码",
-    "poolSize": "当前剩余可兑换次数: {size}",
-    "generateWarning": "请立即复制并保存以下访问码（仅显示一次）",
     "copied": "已复制到剪贴板",
     "copyFailed": "复制失败",
     "cancel": "取消",
@@ -639,8 +495,6 @@
     "loading": "加载中...",
     "saveSuccess": "策略已保存",
     "saveFailed": "保存策略失败",
-    "generateSuccess": "访问码已生成",
-    "generateFailed": "生成失败",
     "protectedBadge": "受保护",
     "settingsTitle": "设置下载策略",
     "redeemTitle": "输入访问码",

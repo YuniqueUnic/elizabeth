@@ -30,8 +30,6 @@ export enum WsMessageType {
   ContentCreated = "content_created",
   ContentUpdated = "content_updated",
   ContentDeleted = "content_deleted",
-  UserJoined = "user_joined",
-  UserLeft = "user_left",
   RoomUpdate = "room_update",
 }
 
@@ -42,6 +40,14 @@ export interface WsMessage {
   message_type: WsMessageType;
   payload?: unknown;
   timestamp: number;
+}
+
+/**
+ * Error frame payload (backend `WsMessage::error`).
+ * The reason is a server-authored string, e.g. "Room deleted" / "Room expired".
+ */
+interface WsErrorPayload {
+  error: string;
 }
 
 /**
@@ -103,11 +109,6 @@ export interface ContentEventPayload {
   sequence_number?: number;
 }
 
-export interface UserEventPayload {
-  user_id: string;
-  room_name: string;
-}
-
 // ============================================================================
 // Configuration
 // ============================================================================
@@ -116,6 +117,11 @@ const WS_CONFIG = {
   MAX_RECONNECT_ATTEMPTS: 5,
   BASE_RECONNECT_DELAY: 1000, // 1 second
   MAX_RECONNECT_DELAY: 30000, // 30 seconds
+  /**
+   * 服务端每隔 25s 推一次 PING（见 `crates/board/src/websocket/server.rs` 的
+   * `HEARTBEAT_INTERVAL`）。超过这个时间再加 5s 余量还没收到就判定连接已死，
+   * 主动关闭并由 onclose 统一重连。
+   */
   HEARTBEAT_INTERVAL: 30000, // 30 seconds
 } as const;
 
@@ -384,6 +390,16 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
               setError(new Error(ack.message || "Connection failed"));
               ws.close();
             }
+          }
+
+          // 服务端错误帧：握手失败、订阅失败、房间被删除/过期/改密后强制断开。
+          // 后端发完这一帧就会关连接，所以这里只负责把原因带进 error 并主动关闭，
+          // 重连由 onclose 的统一逻辑处理。
+          if (message.message_type === WsMessageType.Error) {
+            const payload = message.payload as WsErrorPayload | null;
+            setError(new Error(payload?.error || "WebSocket error"));
+            ws.close();
+            return;
           }
 
           callbacksRef.current.onMessage?.(message);

@@ -2,7 +2,7 @@ import type { BrowserContext, Page } from "@playwright/test";
 
 type ScriptTarget = BrowserContext | Page;
 
-export interface RecordedNotification {
+interface RecordedNotification {
   title: string;
   options?: NotificationOptions;
 }

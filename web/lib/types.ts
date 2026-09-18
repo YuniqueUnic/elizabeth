@@ -10,10 +10,8 @@ import type {
   ContentType as GeneratedContentType,
   RoomView as GeneratedRoomView,
   RoomContentView as GeneratedRoomContentView,
-  IssueTokenResponse as GeneratedIssueTokenResponse,
   CreateRoomResponse as GeneratedCreateRoomResponse,
   UploadPreparationResponse as GeneratedUploadPreparationResponse,
-  ValidateTokenResponse as GeneratedValidateTokenResponse,
 } from '../types/generated/api.types';
 
 // ============================================================================
@@ -61,16 +59,17 @@ export function parseContentType(
 
 /** Backend room role and capability contracts. */
 export type { Capability, Grant, RoleDefinition } from '../types/generated/api.types';
+export type {
+  UploadFileTypeMode,
+  UploadFileTypePolicy,
+} from '../types/generated/api.types';
 import type { Capability, Grant, RoleDefinition } from '../types/generated/api.types';
-
-/** 每个房间最多同时有效的 Editor 身份码数量（与后端 MAX_EDITOR_TOKENS 一致）。 */
-export const MAX_EDITOR_TOKENS = 10;
+import type { UploadFileTypePolicy } from '../types/generated/api.types';
 
 export type BackendRoom = GeneratedRoomView;
 export type CreateRoomResponse = GeneratedCreateRoomResponse;
 export type RoomRole = RoleDefinition;
 export type RoomGrant = Grant;
-export type RoomCapability = Capability;
 
 /**
  * Backend RoomContent response
@@ -82,16 +81,6 @@ export type BackendRoomContent = GeneratedRoomContentView;
  */
 export type UploadPreparationResponse = GeneratedUploadPreparationResponse;
 
-/**
- * Backend Token response (issue token)
- */
-export type BackendTokenResponse = GeneratedIssueTokenResponse;
-
-/**
- * Backend Token validation response
- */
-export type BackendTokenValidation = GeneratedValidateTokenResponse;
-
 // ============================================================================
 // Frontend Types
 // ============================================================================
@@ -101,18 +90,6 @@ export interface RoomSettings {
   passwordProtected: boolean;
   maxViews: number;
 }
-
-export type UploadFileTypeMode = "any" | "allow" | "deny";
-
-export interface UploadFileTypePolicy {
-  mode: UploadFileTypeMode;
-  extensions: string[];
-}
-
-export const DEFAULT_UPLOAD_FILE_TYPE_POLICY: UploadFileTypePolicy = {
-  mode: "any",
-  extensions: [],
-};
 
 export interface RoomDetails {
   id: string;

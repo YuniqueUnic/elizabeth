@@ -9,7 +9,6 @@
  */
 
 import { API_ENDPOINTS } from "../lib/config";
-import { decodeJWT } from "../lib/utils/jwt";
 import {
   api,
   clearRoomToken,
@@ -115,31 +114,6 @@ export async function verifyRoomPassword(
   );
 }
 
-/**
- * Validate a token for a room
- *
- * @param roomName - The name of the room
- * @param token - Optional token to validate (uses stored token if not provided)
- * @returns Validation result
- */
-export async function issueRoomRoleToken(
-  roomName: string,
-  role: string,
-  adminToken: string,
-  expiresInSecs?: number,
-): Promise<IssueTokenResponse> {
-  return api.post<IssueTokenResponse>(
-    API_ENDPOINTS.rooms.tokens(roomName),
-    {
-      token: adminToken,
-      role,
-      with_refresh_token: false,
-      expires_in_secs: expiresInSecs,
-    },
-    { skipTokenInjection: true },
-  );
-}
-
 export async function validateToken(
   roomName: string,
   token?: string,
@@ -163,7 +137,7 @@ export async function validateToken(
  * @param refreshToken - The refresh token
  * @returns New token information
  */
-export async function refreshToken(
+async function refreshToken(
   refreshToken: string,
 ): Promise<RefreshTokenResponse> {
   const response = await api.post<RefreshTokenResponse>(
@@ -176,52 +150,6 @@ export async function refreshToken(
   // The calling code should handle storing the token with the appropriate room name
 
   return response;
-}
-
-/**
- * Log out by revoking the access token
- *
- * @param accessToken - The access token to revoke
- */
-export async function logout(accessToken?: string): Promise<void> {
-  await api.post(
-    API_ENDPOINTS.auth.logout,
-    { access_token: accessToken },
-    { skipTokenInjection: true },
-  );
-}
-
-/**
- * Revoke a specific room token
- *
- * @param roomName - The name of the room
- * @param jti - The token ID (jti) to revoke
- * @param token - Optional admin/access token
- */
-export async function revokeRoomToken(
-  roomName: string,
-  jti: string,
-  token?: string,
-): Promise<void> {
-  const authToken = token || await getValidToken(roomName);
-  if (!authToken) {
-    throw new Error("Authentication required to revoke room tokens");
-  }
-
-  await api.delete(
-    API_ENDPOINTS.rooms.revokeToken(roomName, jti),
-    undefined,
-    { token: authToken },
-  );
-
-  // 仅当吊销的是当前会话时才清除本地存储的 token
-  const currentToken = getRoomToken(roomName);
-  if (currentToken) {
-    const claims = decodeJWT(currentToken.token);
-    if (claims?.jti === jti) {
-      clearRoomToken(roomName);
-    }
-  }
 }
 
 /**
@@ -283,15 +211,3 @@ export function hasValidToken(roomName: string): boolean {
   return !isTokenExpired(tokenInfo.expiresAt);
 }
 
-const authService = {
-  getAccessToken,
-  verifyRoomPassword,
-  validateToken,
-  refreshToken,
-  logout,
-  revokeRoomToken,
-  getValidToken,
-  hasValidToken,
-};
-
-export default authService;

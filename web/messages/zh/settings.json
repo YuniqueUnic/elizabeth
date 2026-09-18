@@ -62,7 +62,6 @@
       "updated": "更新",
       "deleted": "删除",
       "address_changed": "地址变更",
-      "permissions_changed": "权限变更",
       "settings_changed": "配置变更",
       "roles_changed": "角色变更"
     }
