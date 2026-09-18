@@ -144,6 +144,12 @@ export interface UseWebSocketOptions {
   onClose?: (event: CloseEvent) => void;
   /** Callback when an error occurs */
   onError?: (event: Event) => void;
+  /**
+   * Callback when the server sends a terminal error frame (handshake rejected,
+   * subscription failed, room deleted/expired, session kicked). Network
+   * outages do NOT produce these frames — only server-authored rejections do.
+   */
+  onErrorFrame?: (reason: string) => void;
   /** Callback when reconnection happens */
   onReconnect?: (attempt: number) => void;
   /** Callback after a reconnection successfully opens */
@@ -217,6 +223,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     onMessage,
     onClose,
     onError,
+    onErrorFrame,
     onReconnect,
     onReconnected,
     enableReconnect = true,
@@ -237,6 +244,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     | "onMessage"
     | "onClose"
     | "onError"
+    | "onErrorFrame"
     | "onReconnect"
     | "onReconnected"
   >;
@@ -245,6 +253,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     onMessage,
     onClose,
     onError,
+    onErrorFrame,
     onReconnect,
     onReconnected,
   });
@@ -255,10 +264,11 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
       onMessage,
       onClose,
       onError,
+      onErrorFrame,
       onReconnect,
       onReconnected,
     };
-  }, [onOpen, onMessage, onClose, onError, onReconnect, onReconnected]);
+  }, [onOpen, onMessage, onClose, onError, onErrorFrame, onReconnect, onReconnected]);
 
   // State
   const [connected, setConnected] = useState(false);
@@ -397,7 +407,9 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
           // 重连由 onclose 的统一逻辑处理。
           if (message.message_type === WsMessageType.Error) {
             const payload = message.payload as WsErrorPayload | null;
-            setError(new Error(payload?.error || "WebSocket error"));
+            const reason = payload?.error || "WebSocket error";
+            setError(new Error(reason));
+            callbacksRef.current.onErrorFrame?.(reason);
             ws.close();
             return;
           }

@@ -1,4 +1,6 @@
 import { expect, test } from "../../screenplay/fixtures/screenplay.fixture";
+import { CallElizabethApi } from "../../screenplay/abilities/CallElizabethApi.ability";
+import { EnterRoomPassword } from "../../screenplay/room/interactions/Room.interactions";
 import { HomeScreen } from "../../screenplay/home/screens/Home.screen";
 import {
   CreateRoomFromHome,
@@ -51,6 +53,48 @@ test.describe("Home room access and validation", () => {
 
     await expect(RoomScreen.messageInput(visitor.page)).toBeVisible();
     expect(await visitor.actor.answer(CurrentRoomName())).toBe(room.name);
+  });
+
+  test("returns a live session to the password gate when the room password is rotated", async ({
+    createActor,
+    provisionRoom,
+    request,
+  }) => {
+    const password = "test123"; // pragma: allowlist secret
+    const rotated = "rotated-pass-456"; // pragma: allowlist secret
+    const room = await provisionRoom({
+      injectToken: false,
+      password,
+      roomName: uniqueRoomName("screenplay-kick-on-rotate"),
+    });
+
+    // 访客用旧密码进入，持有 ready 会话
+    const visitor = await createActor("Visitor");
+    await visitor.actor.attemptsTo(StartJoiningRoom(room.name));
+    await expect(RoomScreen.passwordDialogInput(visitor.page)).toBeVisible();
+    await visitor.actor.attemptsTo(UnlockProtectedRoom(password));
+    await expect(RoomScreen.messageInput(visitor.page)).toBeVisible();
+
+    // 房主在服务端改密：全部旧会话被吊销。前端应收到 WS 终止性错误帧后
+    // 自动重跑进入流程 —— 不刷新页面就弹回密码门，而不是空转重连。
+    const api = CallElizabethApi.using(request);
+    const session = await api.adminSessionToken();
+    const auth = { Authorization: `Bearer ${session}` };
+    const update = await request.put(
+      `/api/v1/admin/rooms/${encodeURIComponent(room.name)}`,
+      { headers: auth, data: { password: rotated } },
+    );
+    expect(update.ok()).toBeTruthy();
+
+    await expect(RoomScreen.passwordDialogInput(visitor.page)).toBeVisible({
+      timeout: 15_000,
+    });
+
+    // 旧密码已失效；新密码可重新进入
+    await visitor.actor.attemptsTo(EnterRoomPassword(password));
+    await expect(RoomScreen.passwordDialogError(visitor.page)).toBeVisible();
+    await visitor.actor.attemptsTo(UnlockProtectedRoom(rotated));
+    await expect(RoomScreen.messageInput(visitor.page)).toBeVisible();
   });
 
   test("blocks invalid room names in the create flow", async ({ actor, page }) => {
