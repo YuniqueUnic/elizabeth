@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v1.1.0.html).
 
+## [2.0.0](https://github.com/YuniqueUnic/elizabeth/compare/v1.9.0...v2.0.0) (2026-09-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* **admin:** 移除 ELIZABETH_ADMIN_TOKEN 环境变量与 X-Elizabeth-Admin-Token 认证头；升级后需设置一次 ELIZABETH_ADMIN_PASSWORD 完成 bootstrap，管理 API 改用 Bearer 会话或 X-Elizabeth-Admin-Key。
+
+### Features
+
+* **admin:** 管理认证重构为 bootstrap 管理员账号 + 密码登录与管理 API Key ([4f759f3](https://github.com/YuniqueUnic/elizabeth/commit/4f759f32bcdefabb60a9fdb3c0c49c7905cb72aa))
+* remove global CSS styles and update TypeScript types for room expiry and file upload policies ([067db74](https://github.com/YuniqueUnic/elizabeth/commit/067db745850a83e5708b88bd635ef2d8104b3797))
+
 ## [1.9.0](https://github.com/YuniqueUnic/elizabeth/compare/v1.8.4...v1.9.0) (2026-09-13)
 
 
