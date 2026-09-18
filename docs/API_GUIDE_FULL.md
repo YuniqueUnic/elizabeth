@@ -81,7 +81,7 @@ POST /api/v1/rooms/{name}/tokens
 
 `password` 与 `token` 按进入/续签场景使用。省略 `role` 使用房间
 `default_role_key`。请求非默认角色需要已有身份码的
-`room.roles.manage`，或使用部署级 `X-Elizabeth-Admin-Token` bootstrap
+`room.roles.manage`，或使用平台管理会话 / `X-Elizabeth-Admin-Key` bootstrap
 credential；密码房间首次 bootstrap admin 还必须提供房间密码。
 
 响应：
@@ -196,9 +196,9 @@ DELETE /api/v1/rooms/{name}/contents    # msg.delete 或 file.delete
 - `404`：房间/角色/资源不存在。
 - `409`：角色 key 冲突、系统角色删除、默认角色删除。
 
-不要把 room JWT、refresh token 或 admin credential 写日志、放入分析事件或长期
-URL。`X-Elizabeth-Admin-Token`
-是部署级运维凭证，不是房间角色，也不能替代房间身份码。
+不要把 room JWT、refresh token 或管理凭证写日志、放入分析事件或长期 URL。
+管理会话（`POST /admin/auth/login` 签发的 JWT）与 `X-Elizabeth-Admin-Key` 是
+平台运维凭证，不是房间角色，也不能替代房间身份码。
 
 ## 开发与迁移
 

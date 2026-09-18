@@ -84,7 +84,7 @@ pub(crate) async fn apply_room_settings_update(
     } else if let Some(password) = password {
         room.password = Some(
             app_state
-                .room_password_service()
+                .password_hash_service()
                 .hash(password)
                 .await
                 .map_err(|e| AppError::internal(format!("Failed to protect room password: {e}")))?,

@@ -57,7 +57,7 @@
 | 文件     | 本地文件系统直写，`storage/rooms/{room}/...`                                       | `crates/board/src/handlers/content/upload.rs:9`                |
 | 实时     | 进程内 `ConnectionManager`：`room_name -> Vec<connection_id>` + mpsc sender        | `crates/board/src/websocket/connection.rs:45`                  |
 | 定时任务 | 自研 `TaskScheduler`（tokio interval）：房间 GC / token 清理 / 上传清理 / 限流清理 | `crates/board/src/lib.rs:342`                                  |
-| 鉴权     | 房间 JWT（**HS256**）+ Argon2id 房间密码 + `X-Elizabeth-Admin-Token`               | `crates/board/src/services/token.rs:78`、`room_password.rs:31` |
+| 鉴权     | 房间 JWT（**HS256**）+ Argon2id 房间密码 + 管理员账号 / `X-Elizabeth-Admin-Key`   | `crates/board/src/services/token.rs:78`、`password.rs:31` |
 | 限流     | `tower_governor` + `SmartIpKeyExtractor`（进程内令牌桶）                           | `crates/board/src/middleware/rate_limit.rs`                    |
 
 ### 1.2 数据层形态（决定迁移难度的关键）

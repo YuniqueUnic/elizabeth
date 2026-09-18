@@ -141,8 +141,13 @@ export const TOKEN_CONFIG = {
   refreshBeforeExpiry: 5 * 60 * 1000, // Refresh 5 minutes before expiry
 } as const;
 
-// 平台管理后台（issue #196）；鉴权始终在服务端（X-Elizabeth-Admin-Token）
+// 平台管理后台；鉴权始终在服务端（登录会话 Bearer 或 X-Elizabeth-Admin-Key）
 export const ADMIN_ENDPOINTS = {
+  login: "/api/v1/admin/auth/login",
+  me: "/api/v1/admin/auth/me",
+  password: "/api/v1/admin/auth/password",
+  apiKeys: "/api/v1/admin/api-keys",
+  apiKeyDelete: (id: number) => `/api/v1/admin/api-keys/${id}`,
   stats: "/api/v1/admin/stats",
   rooms: "/api/v1/admin/rooms",
   roomDetail: (name: string) => `/api/v1/admin/rooms/${encodeURIComponent(name)}`,
@@ -153,5 +158,4 @@ export const ADMIN_ENDPOINTS = {
   storage: "/api/v1/admin/storage",
   config: "/api/v1/admin/config",
   runtimeConfig: "/api/v1/admin/config/runtime",
-  credential: "/api/v1/admin/credential",
 } as const;

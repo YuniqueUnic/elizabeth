@@ -21,9 +21,11 @@ export interface CapabilityGrant {
   scope: "any" | "own";
 }
 
-/** 平台引导凭证（后端 ELIZABETH_ADMIN_TOKEN；仅测试服务器启用）。 */
-export const ADMIN_BOOTSTRAP_TOKEN =
-  process.env.ELIZABETH_ADMIN_TOKEN ?? "elizabeth-test-admin";
+/** 平台管理员账号（测试服务器由 ELIZABETH_ADMIN_USERNAME/PASSWORD bootstrap）。 */
+export const ADMIN_BOOTSTRAP_USERNAME =
+  process.env.ELIZABETH_ADMIN_USERNAME ?? "admin";
+export const ADMIN_BOOTSTRAP_PASSWORD =
+  process.env.ELIZABETH_ADMIN_PASSWORD ?? "elizabeth-test-admin";
 
 export class CallElizabethApi extends Ability {
   constructor(
@@ -32,6 +34,35 @@ export class CallElizabethApi extends Ability {
     readonly appBaseUrl: string,
   ) {
     super();
+  }
+
+  /**
+   * 平台管理员会话（JWT）：懒登录并在整个测试运行内复用。
+   * 会话有效期 2 小时（部署默认 jwt.ttl），足够单轮 e2e 使用。
+   */
+  private adminSession: Promise<string> | null = null;
+
+  async adminSessionToken(): Promise<string> {
+    this.adminSession ??= (async () => {
+      const response = await this.request.post(
+        `${this.apiBaseUrl}/admin/auth/login`,
+        {
+          data: {
+            username: ADMIN_BOOTSTRAP_USERNAME,
+            password: ADMIN_BOOTSTRAP_PASSWORD,
+          },
+          timeout: 15_000,
+        },
+      );
+      if (!response.ok()) {
+        const body = await response.text().catch(() => "");
+        throw new Error(
+          `Admin login failed: ${response.status()} ${body}`,
+        );
+      }
+      return ((await response.json()) as { token: string }).token;
+    })();
+    return this.adminSession;
   }
 
   static using(
@@ -86,7 +117,7 @@ export class CallElizabethApi extends Ability {
   ): Promise<RoomTokenInfo> {
     const headers: Record<string, string> = {};
     if (options.asAdminBootstrap) {
-      headers["X-Elizabeth-Admin-Token"] = ADMIN_BOOTSTRAP_TOKEN;
+      headers["Authorization"] = `Bearer ${await this.adminSessionToken()}`;
     }
 
     const response = await this.request.post(

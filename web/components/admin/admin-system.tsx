@@ -1,10 +1,13 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import {
-  updateAdminCredential,
+  adminChangePassword,
+  createAdminApiKey,
+  listAdminApiKeys,
+  revokeAdminApiKey,
   updateRuntimeConfig,
 } from "@/api/adminService";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatFileSize, formatDurationList, parseDurationList } from "@/lib/utils/format";
 import type {
+  AdminApiKeyView,
   AdminConfigResponse,
   AdminStorageResponse,
 } from "@/types/generated/api.types";
@@ -29,22 +33,22 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-/** 系统 tab（容器组件）：存储状态 + 运行时可写白名单 + 管理凭证轮换 + 只读配置展示。 */
+/** 系统 tab（容器组件）：存储状态 + 运行时可写白名单 + 账号密码 / API key 管理 + 只读配置展示。 */
 export function AdminSystem({
   storage,
   config,
-  adminToken,
+  sessionToken,
   onError,
   onSaved,
-  onCredentialRotated,
+  /** 改密使当前会话一并失效，父组件据此回到登录页 */
+  onPasswordChanged,
 }: {
   storage: AdminStorageResponse;
   config: AdminConfigResponse;
-  adminToken: string;
+  sessionToken: string;
   onError: (message: string) => void;
   onSaved: (updated: AdminConfigResponse) => void;
-  /** 凭证轮换成功后同步父级会话（sessionStorage + 请求头），避免持有已轮换的旧值 */
-  onCredentialRotated: (newToken: string) => void;
+  onPasswordChanged: () => void;
 }) {
   const t = useTranslations("admin");
   const [saving, setSaving] = useState(false);
@@ -85,8 +89,6 @@ export function AdminSystem({
       config.runtime_room_expiry?.default_age_seconds ?? config.room_expiry_default_age_seconds,
     ]),
   );
-  const [newAdminToken, setNewAdminToken] = useState("");
-  const [rotating, setRotating] = useState(false);
 
   const parsedExpiryAges = parseDurationList(expiryAges);
   const parsedExpiryDefault = parseDurationList(expiryDefault);
@@ -119,7 +121,7 @@ export function AdminSystem({
           default_age_seconds: parsedExpiryDefault[0],
         };
       }
-      const updated = await updateRuntimeConfig(adminToken, update);
+      const updated = await updateRuntimeConfig(sessionToken, update);
       onSaved(updated);
     } catch (error) {
       onError(error instanceof Error ? error.message : String(error));
@@ -131,7 +133,7 @@ export function AdminSystem({
   async function clearRoomExpiryOverride() {
     setSaving(true);
     try {
-      const updated = await updateRuntimeConfig(adminToken, {
+      const updated = await updateRuntimeConfig(sessionToken, {
         room_expiry: { allowed_ages_seconds: [], default_age_seconds: 0 },
       });
       onSaved(updated);
@@ -145,7 +147,7 @@ export function AdminSystem({
   async function toggleSearchIndexing() {
     setSaving(true);
     try {
-      const updated = await updateRuntimeConfig(adminToken, {
+      const updated = await updateRuntimeConfig(sessionToken, {
         disallow_search_indexing: !config.runtime_disallow_search_indexing,
       });
       onSaved(updated);
@@ -153,20 +155,6 @@ export function AdminSystem({
       onError(error instanceof Error ? error.message : String(error));
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function rotateCredential() {
-    if (newAdminToken === "") return;
-    setRotating(true);
-    try {
-      await updateAdminCredential(adminToken, newAdminToken);
-      onCredentialRotated(newAdminToken);
-      setNewAdminToken("");
-    } catch (error) {
-      onError(error instanceof Error ? error.message : String(error));
-    } finally {
-      setRotating(false);
     }
   }
 
@@ -401,43 +389,12 @@ export function AdminSystem({
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("system.credentialTitle")}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Row
-              label={t("system.credentialSource")}
-              value={
-                <Badge variant="secondary" data-testid="admin-credential-source">
-                  {config.admin_token_source}
-                </Badge>
-              }
-            />
-            <div className="space-y-2">
-              <Label htmlFor="admin-credential-new">{t("system.credentialNew")}</Label>
-              <Input
-                id="admin-credential-new"
-                type="password"
-                data-testid="admin-credential-new"
-                placeholder={t("system.credentialPlaceholder")}
-                value={newAdminToken}
-                onChange={(event) => setNewAdminToken(event.target.value)}
-              />
-              <p className="text-muted-foreground text-xs">
-                {t("system.credentialHint")}
-              </p>
-            </div>
-            <Button
-              size="sm"
-              data-testid="admin-rotate-credential"
-              disabled={rotating || newAdminToken === ""}
-              onClick={() => void rotateCredential()}
-            >
-              {t("system.credentialRotate")}
-            </Button>
-          </CardContent>
-        </Card>
+        <AdminPasswordCard
+          sessionToken={sessionToken}
+          onError={onError}
+          onPasswordChanged={onPasswordChanged}
+        />
+        <AdminApiKeysCard sessionToken={sessionToken} onError={onError} />
 
         <Card>
           <CardHeader>
@@ -486,5 +443,270 @@ export function AdminSystem({
         </Card>
       </div>
     </div>
+  );
+}
+
+/** 管理员账号密码修改：改密后该账号所有会话失效（含当前会话，由父组件登出）。 */
+function AdminPasswordCard({
+  sessionToken,
+  onError,
+  onPasswordChanged,
+}: {
+  sessionToken: string;
+  onError: (message: string) => void;
+  onPasswordChanged: () => void;
+}) {
+  const t = useTranslations("admin");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [changing, setChanging] = useState(false);
+
+  const mismatch = confirmPassword !== "" && confirmPassword !== newPassword;
+  const ready = currentPassword !== "" && newPassword !== "" && !mismatch;
+
+  async function changePassword() {
+    setChanging(true);
+    try {
+      await adminChangePassword(sessionToken, {
+        current_password: currentPassword,
+        new_password: newPassword,
+      });
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      onPasswordChanged();
+    } catch (error) {
+      // 改密失败（含当前密码错误）原样呈现；当前会话仍有效
+      onError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setChanging(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t("system.passwordTitle")}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="space-y-2">
+          <Label htmlFor="admin-password-current">{t("system.passwordCurrent")}</Label>
+          <Input
+            id="admin-password-current"
+            type="password"
+            autoComplete="current-password"
+            data-testid="admin-password-current"
+            value={currentPassword}
+            onChange={(event) => setCurrentPassword(event.target.value)}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-2">
+            <Label htmlFor="admin-password-new">{t("system.passwordNew")}</Label>
+            <Input
+              id="admin-password-new"
+              type="password"
+              autoComplete="new-password"
+              data-testid="admin-password-new"
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="admin-password-confirm">{t("system.passwordConfirm")}</Label>
+            <Input
+              id="admin-password-confirm"
+              type="password"
+              autoComplete="new-password"
+              data-testid="admin-password-confirm"
+              value={confirmPassword}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+            />
+            {mismatch && (
+              <p className="text-destructive text-xs">{t("system.passwordMismatch")}</p>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-muted-foreground text-xs">{t("system.passwordHint")}</p>
+          <Button
+            size="sm"
+            data-testid="admin-change-password"
+            disabled={changing || !ready}
+            onClick={() => void changePassword()}
+          >
+            {t("system.passwordChange")}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** 管理 API key：创建（明文一次性展示）、列表与吊销。 */
+function AdminApiKeysCard({
+  sessionToken,
+  onError,
+}: {
+  sessionToken: string;
+  onError: (message: string) => void;
+}) {
+  const t = useTranslations("admin");
+  const [keys, setKeys] = useState<AdminApiKeyView[] | null>(null);
+  const [name, setName] = useState("");
+  const [expiresIn, setExpiresIn] = useState("");
+  const [creating, setCreating] = useState(false);
+  /** 刚创建的明文 key：仅在本次会话中展示一次 */
+  const [freshSecret, setFreshSecret] = useState<{ name: string; secret: string } | null>(null);
+
+  const reload = useCallback(async () => {
+    try {
+      setKeys(await listAdminApiKeys(sessionToken));
+    } catch (error) {
+      onError(error instanceof Error ? error.message : String(error));
+    }
+  }, [sessionToken, onError]);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
+  async function createKey() {
+    setCreating(true);
+    try {
+      const created = await createAdminApiKey(sessionToken, {
+        name: name.trim(),
+        expires_in_secs: expiresIn === "" ? undefined : Number(expiresIn),
+      });
+      setFreshSecret({ name: created.name, secret: created.secret });
+      setName("");
+      setExpiresIn("");
+      await reload();
+    } catch (error) {
+      onError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function revokeKey(id: number) {
+    try {
+      await revokeAdminApiKey(sessionToken, id);
+      await reload();
+    } catch (error) {
+      onError(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  const EXPIRY_CHOICES = [
+    { value: "", label: t("system.apiKeyNeverExpires") },
+    { value: "86400", label: t("system.apiKeyExpiryDay") },
+    { value: "604800", label: t("system.apiKeyExpiryWeek") },
+    { value: "2592000", label: t("system.apiKeyExpiryMonth") },
+  ];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t("system.apiKeyTitle")}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid grid-cols-[1fr_auto_auto] items-end gap-2">
+          <div className="space-y-2">
+            <Label htmlFor="admin-api-key-name">{t("system.apiKeyName")}</Label>
+            <Input
+              id="admin-api-key-name"
+              data-testid="admin-api-key-name"
+              placeholder={t("system.apiKeyNamePlaceholder")}
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="admin-api-key-expiry">{t("system.apiKeyExpiry")}</Label>
+            <select
+              id="admin-api-key-expiry"
+              data-testid="admin-api-key-expiry"
+              className="border-input bg-background h-9 w-full rounded-md border px-2 text-sm"
+              value={expiresIn}
+              onChange={(event) => setExpiresIn(event.target.value)}
+            >
+              {EXPIRY_CHOICES.map((choice) => (
+                <option key={choice.value} value={choice.value}>
+                  {choice.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <Button
+            size="sm"
+            data-testid="admin-api-key-create"
+            disabled={creating || name.trim() === ""}
+            onClick={() => void createKey()}
+          >
+            {t("system.apiKeyCreate")}
+          </Button>
+        </div>
+
+        {freshSecret ? (
+          <div className="space-y-1 rounded-md border p-3" data-testid="admin-api-key-secret">
+            <p className="text-sm font-medium">
+              {t("system.apiKeySecretTitle", { name: freshSecret.name })}
+            </p>
+            <code className="block break-all font-mono text-xs">{freshSecret.secret}</code>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-muted-foreground text-xs">{t("system.apiKeySecretHint")}</p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void navigator.clipboard.writeText(freshSecret.secret)}
+              >
+                {t("system.apiKeyCopy")}
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="space-y-1">
+          {(keys ?? []).map((key) => (
+            <div
+              key={key.id}
+              className="flex items-center justify-between gap-4 rounded-md border px-3 py-2"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">
+                  {key.name}{" "}
+                  <span className="text-muted-foreground font-mono text-xs">
+                    {t("system.apiKeyPrefix", { prefix: key.prefix })}
+                  </span>
+                </p>
+                <p className="text-muted-foreground text-xs">
+                  {key.expires_at
+                    ? t("system.apiKeyExpiresAt", { time: new Date(key.expires_at).toLocaleString() })
+                    : t("system.apiKeyNoExpiry")}
+                  {" · "}
+                  {key.last_used_at
+                    ? t("system.apiKeyLastUsed", { time: new Date(key.last_used_at).toLocaleString() })
+                    : t("system.apiKeyNeverUsed")}
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                data-testid={`admin-api-key-revoke-${key.id}`}
+                onClick={() => void revokeKey(key.id)}
+              >
+                {t("system.apiKeyRevoke")}
+              </Button>
+            </div>
+          ))}
+          {keys !== null && keys.length === 0 ? (
+            <p className="text-muted-foreground text-xs">{t("system.apiKeyEmpty")}</p>
+          ) : null}
+        </div>
+        <p className="text-muted-foreground text-xs">{t("system.apiKeyUsageHint")}</p>
+      </CardContent>
+    </Card>
   );
 }

@@ -1,3 +1,4 @@
+pub mod admin_auth_repository;
 pub mod admin_console_repository;
 pub mod content_blob_repository;
 pub mod download_policy_repository;
@@ -12,6 +13,7 @@ pub mod room_role_repository;
 pub mod room_token_repository;
 pub mod room_upload_reservation_repository;
 
+pub use admin_auth_repository::*;
 pub use admin_console_repository::*;
 pub use content_blob_repository::*;
 pub use download_policy_repository::*;

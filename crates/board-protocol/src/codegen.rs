@@ -5,23 +5,24 @@ use ts_rs::TS;
 
 #[cfg(feature = "typescript-export")]
 use crate::dto::{
-    AdminConfigResponse, AdminCredentialUpdateRequest, AdminCredentialView,
-    AdminMintIdentityCodeRequest, AdminRoomDetailResponse, AdminRoomListResponse, AdminRoomView,
-    AdminStatsResponse, AdminStorageResponse, ChunkStatusInfo, ChunkUploadRequest,
-    ChunkUploadResponse, ChunkedUploadPreparationRequest, ChunkedUploadPreparationResponse,
-    CleanupResponse, CreateMessageRequest, CreateMessageResponse, CreateRoleRequest,
-    CreateRoomIdentityCodeRequest, CreateRoomIdentityCodeResponse, CreateRoomRequest,
-    CreateRoomResponse, CreateUrlContentRequest, CreateUrlContentResponse, DeleteContentRequest,
-    DeleteContentResponse, DeleteRoleResponse, DeleteRoomResponse, FileMergeRequest,
-    FileMergeResponse, FullRoomGcStatusView, IssueTokenRequest, IssueTokenResponse, LogoutRequest,
-    MergedFileInfo, MessagePage, MyCapabilitiesResponse, PublicConfigResponse, PublicRoomConfig,
-    PublicRoomExpiryConfig, ReservedFileInfo, RevokeTokenResponse, RoleDefinition, RoomContentView,
-    RoomExpiryOverride, RoomIdentityCodeView, RoomTokenClaims, RoomTokenView, RoomView,
-    RunRoomGcResponse, TokenType, UpdateContentRequest, UpdateContentResponse, UpdateRoleRequest,
-    UpdateRoomSettingsRequest, UpdateRuntimeConfigRequest, UploadContentResponse,
-    UploadPreparationRequest, UploadPreparationResponse, UploadStatusQuery, UploadStatusResponse,
-    ValidateTokenRequest, ValidateTokenResponse, VerifyRoomPasswordRequest,
-    VerifyRoomPasswordResponse,
+    AdminApiKeyCreateRequest, AdminApiKeyCreateResponse, AdminApiKeyView, AdminConfigResponse,
+    AdminLoginRequest, AdminLoginResponse, AdminMintIdentityCodeRequest,
+    AdminPasswordChangeRequest, AdminRoomDetailResponse, AdminRoomListResponse, AdminRoomView,
+    AdminSessionView, AdminStatsResponse, AdminStorageResponse, ChunkStatusInfo,
+    ChunkUploadRequest, ChunkUploadResponse, ChunkedUploadPreparationRequest,
+    ChunkedUploadPreparationResponse, CleanupResponse, CreateMessageRequest, CreateMessageResponse,
+    CreateRoleRequest, CreateRoomIdentityCodeRequest, CreateRoomIdentityCodeResponse,
+    CreateRoomRequest, CreateRoomResponse, CreateUrlContentRequest, CreateUrlContentResponse,
+    DeleteContentRequest, DeleteContentResponse, DeleteRoleResponse, DeleteRoomResponse,
+    FileMergeRequest, FileMergeResponse, FullRoomGcStatusView, IssueTokenRequest,
+    IssueTokenResponse, LogoutRequest, MergedFileInfo, MessagePage, MyCapabilitiesResponse,
+    PublicConfigResponse, PublicRoomConfig, PublicRoomExpiryConfig, ReservedFileInfo,
+    RevokeTokenResponse, RoleDefinition, RoomContentView, RoomExpiryOverride, RoomIdentityCodeView,
+    RoomTokenClaims, RoomTokenView, RoomView, RunRoomGcResponse, TokenType, UpdateContentRequest,
+    UpdateContentResponse, UpdateRoleRequest, UpdateRoomSettingsRequest,
+    UpdateRuntimeConfigRequest, UploadContentResponse, UploadPreparationRequest,
+    UploadPreparationResponse, UploadStatusQuery, UploadStatusResponse, ValidateTokenRequest,
+    ValidateTokenResponse, VerifyRoomPasswordRequest, VerifyRoomPasswordResponse,
 };
 #[cfg(feature = "typescript-export")]
 use crate::models::content::{ContentType, RoomContent};
@@ -116,8 +117,13 @@ pub fn export_ts_types_to(output_dir: &Path) -> Result<(), ts_rs::ExportError> {
     AdminRoomView::export_all(&output_dir_cfg)?;
     AdminStatsResponse::export_all(&output_dir_cfg)?;
     AdminStorageResponse::export_all(&output_dir_cfg)?;
-    AdminCredentialUpdateRequest::export_all(&output_dir_cfg)?;
-    AdminCredentialView::export_all(&output_dir_cfg)?;
+    AdminLoginRequest::export_all(&output_dir_cfg)?;
+    AdminLoginResponse::export_all(&output_dir_cfg)?;
+    AdminSessionView::export_all(&output_dir_cfg)?;
+    AdminPasswordChangeRequest::export_all(&output_dir_cfg)?;
+    AdminApiKeyCreateRequest::export_all(&output_dir_cfg)?;
+    AdminApiKeyCreateResponse::export_all(&output_dir_cfg)?;
+    AdminApiKeyView::export_all(&output_dir_cfg)?;
     AdminMintIdentityCodeRequest::export_all(&output_dir_cfg)?;
     UpdateRuntimeConfigRequest::export_all(&output_dir_cfg)?;
     RoomExpiryOverride::export_all(&output_dir_cfg)?;
@@ -205,8 +211,13 @@ pub fn exported_ts_type_names() -> &'static [&'static str] {
         "AdminRoomView",
         "AdminStatsResponse",
         "AdminStorageResponse",
-        "AdminCredentialUpdateRequest",
-        "AdminCredentialView",
+        "AdminLoginRequest",
+        "AdminLoginResponse",
+        "AdminSessionView",
+        "AdminPasswordChangeRequest",
+        "AdminApiKeyCreateRequest",
+        "AdminApiKeyCreateResponse",
+        "AdminApiKeyView",
         "AdminMintIdentityCodeRequest",
         "UpdateRuntimeConfigRequest",
         "RoomExpiryOverride",

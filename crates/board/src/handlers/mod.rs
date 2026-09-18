@@ -1,4 +1,5 @@
 pub mod admin;
+pub mod admin_auth;
 pub mod chunked_upload;
 pub mod config;
 pub mod content;

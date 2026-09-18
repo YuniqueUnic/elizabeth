@@ -1,3 +1,5 @@
+//! 通用 Argon2 密码哈希基础设施：房间密码与管理员账号共用。
+
 use anyhow::{Context, Result};
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use sqlx::Row;
@@ -7,9 +9,9 @@ use crate::db::DbPool;
 const ARGON2_PREFIX: &str = "$argon2";
 
 #[derive(Debug, Clone, Default)]
-pub struct RoomPasswordService;
+pub struct PasswordHashService;
 
-impl RoomPasswordService {
+impl PasswordHashService {
     pub async fn hash(&self, password: String) -> Result<String> {
         tokio::task::spawn_blocking(move || hash_password(&password))
             .await
@@ -38,13 +40,25 @@ fn verify_password(password: &str, encoded_hash: &str) -> Result<bool> {
         .is_ok())
 }
 
+/// 一次性预计算的假哈希：登录用户名不存在时也走一遍 Argon2 校验，
+/// 抹平“账号不存在”与“密码错误”的响应时间差，防止用户枚举。
+pub fn decoy_hash() -> String {
+    static DECOY: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    DECOY
+        .get_or_init(|| {
+            hash_password("elizabeth-decoy-password-for-timing-equalization")
+                .expect("decoy hash generation cannot fail")
+        })
+        .clone()
+}
+
 /// One-time, idempotent data upgrade for volumes created before password hashing.
 ///
 /// SQL migrations cannot generate Argon2 salts, so the server performs this data
 /// rewrite immediately after schema migrations and before accepting traffic.
 pub async fn migrate_legacy_room_passwords(
     pool: &DbPool,
-    service: &RoomPasswordService,
+    service: &PasswordHashService,
 ) -> Result<u64> {
     let rows = sqlx::query(
         "SELECT id, password FROM rooms WHERE password IS NOT NULL AND password NOT LIKE '$argon2%'",

@@ -7,15 +7,16 @@ use serde::Deserialize;
 use utoipa::ToSchema;
 
 use crate::dto::{
-    AdminConfigResponse, AdminCredentialUpdateRequest, AdminCredentialView,
-    AdminMintIdentityCodeRequest, AdminRoomDetailResponse, AdminRoomListResponse, AdminRoomView,
-    AdminStatsResponse, AdminStorageResponse, CreateRoomIdentityCodeResponse, DeleteRoomResponse,
-    FullRoomGcStatusView, RoomExpiryOverride, RunRoomGcResponse, UpdateRoomSettingsRequest,
-    UpdateRuntimeConfigRequest,
+    AdminConfigResponse, AdminMintIdentityCodeRequest, AdminRoomDetailResponse,
+    AdminRoomListResponse, AdminRoomView, AdminStatsResponse, AdminStorageResponse,
+    CreateRoomIdentityCodeResponse, DeleteRoomResponse, FullRoomGcStatusView, RoomExpiryOverride,
+    RunRoomGcResponse, UpdateRoomSettingsRequest, UpdateRuntimeConfigRequest,
 };
 use crate::errors::{AppError, AppResult};
 use crate::handlers::rooms::identity_codes::validate_identity_code;
-use crate::repository::{AdminConsoleRepository, IRoomRepository, RoomRepository};
+use crate::repository::{
+    AdminConsoleRepository, IAdminAccountRepository, IRoomRepository, RoomRepository,
+};
 use crate::services::GuardScope;
 use crate::state::AppState;
 
@@ -23,52 +24,123 @@ type HandlerResult<T> = Result<Json<T>, AppError>;
 
 const DEFAULT_ADMIN_LIMIT: u32 = 100;
 const MAX_ADMIN_LIMIT: u32 = 1000;
-const ADMIN_TOKEN_HEADER: &str = "X-Elizabeth-Admin-Token";
+const ADMIN_KEY_HEADER: &str = "X-Elizabeth-Admin-Key";
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct AdminLimitQuery {
     pub limit: Option<u32>,
 }
 
-/// 管理凭证校验 + 防爆破：失败按客户端累计，超阈值锁定（与房间密码/身份码同一守卫）。
-/// 引导补签（issue_token）等内部路径也复用本函数；未携带管理头的请求
-/// （普通用户流）只做凭证判定，不计入防爆破失败。
-pub(crate) fn ensure_admin(app_state: &AppState, headers: &HeaderMap) -> AppResult<()> {
-    let Some(provided) = headers
-        .get(ADMIN_TOKEN_HEADER)
-        .and_then(|value| value.to_str().ok())
-    else {
-        return app_state.admin_credential.verify(None);
-    };
+/// 通过鉴权的管理主体：交互式登录会话或机器 API key。
+#[derive(Debug, Clone)]
+pub(crate) enum AdminPrincipal {
+    Account(crate::models::AdminAccount),
+    ApiKey(crate::models::AdminApiKey),
+}
 
-    let client = crate::client_ip(headers);
-    app_state
-        .attempt_guard()
-        .check(GuardScope::AdminLogin, client)?;
-
-    match app_state.admin_credential.verify(Some(provided)) {
-        Ok(()) => {
-            app_state
-                .attempt_guard()
-                .record_success(GuardScope::AdminLogin, client);
-            Ok(())
-        }
-        Err(error) => {
-            app_state
-                .attempt_guard()
-                .record_failure(GuardScope::AdminLogin, client);
-            Err(error)
+impl AdminPrincipal {
+    pub(crate) fn username(&self) -> &str {
+        match self {
+            AdminPrincipal::Account(account) => &account.username,
+            // API key 没有人类用户名；以 key 名义记录审计上下文
+            AdminPrincipal::ApiKey(key) => &key.name,
         }
     }
 }
 
-/// 管理 API 是否可用：配置了环境引导凭证或运行时轮换凭证即视为启用。
-fn admin_api_enabled(app_state: &AppState) -> bool {
-    app_state.admin_credential.source() == "runtime-override"
-        || !std::env::var(crate::state::ADMIN_TOKEN_ENV)
-            .unwrap_or_default()
-            .trim()
-            .is_empty()
+/// 管理 API 鉴权 + 防爆破：接受管理员会话 JWT（Authorization: Bearer）或
+/// 管理 API key（X-Elizabeth-Admin-Key）。失败按客户端累计，超阈值锁定
+/// （与房间密码/身份码同一守卫）。未携带任何凭证的请求只做判定，不计入防爆破。
+pub(crate) async fn ensure_admin(
+    app_state: &AppState,
+    headers: &HeaderMap,
+) -> AppResult<AdminPrincipal> {
+    // 未完成 bootstrap 时管理面整体关闭：无论是否携带凭证，都明确提示引导方式
+    if !admin_api_enabled(app_state).await {
+        return Err(AppError::authorization(format!(
+            "Admin API disabled: bootstrap the admin account with {} first",
+            crate::services::admin_auth::ADMIN_PASSWORD_ENV
+        )));
+    }
+
+    let bearer = headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let api_key = headers
+        .get(ADMIN_KEY_HEADER)
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+
+    let result = match (bearer, api_key) {
+        (Some(token), _) => verify_session(app_state, token).await,
+        (None, Some(secret)) => verify_api_key_principal(app_state, secret).await,
+        (None, None) => Err(disabled_or_unauthorized(app_state).await),
+    };
+
+    // 仅在客户端确实出示了凭证时才计入防爆破，避免普通用户流污染计数
+    if bearer.is_some() || api_key.is_some() {
+        let client = crate::client_ip(headers);
+        match result {
+            Ok(principal) => {
+                app_state
+                    .attempt_guard()
+                    .record_success(GuardScope::AdminLogin, client);
+                Ok(principal)
+            }
+            Err(error) => {
+                app_state
+                    .attempt_guard()
+                    .record_failure(GuardScope::AdminLogin, client);
+                Err(error)
+            }
+        }
+    } else {
+        result
+    }
+}
+
+async fn verify_session(app_state: &AppState, token: &str) -> AppResult<AdminPrincipal> {
+    let claims = app_state
+        .services
+        .admin_session
+        .verify(token)
+        .map_err(|_| AppError::authentication("Invalid admin session"))?;
+    let account = crate::repository::AdminAccountRepository::new(app_state.db_pool.clone())
+        .find_by_username(&claims.sub)
+        .await
+        .map_err(|e| AppError::internal(format!("Failed to load admin account: {e}")))?
+        .ok_or_else(|| AppError::authentication("Admin account no longer exists"))?;
+    if account.password_version() != claims.pwdv {
+        return Err(AppError::authentication(
+            "Admin session expired: password has changed",
+        ));
+    }
+    Ok(AdminPrincipal::Account(account))
+}
+
+async fn verify_api_key_principal(app_state: &AppState, secret: &str) -> AppResult<AdminPrincipal> {
+    crate::services::admin_auth::verify_api_key(&app_state.db_pool, secret)
+        .await
+        .map_err(|e| AppError::internal(format!("Failed to verify admin API key: {e}")))?
+        .map(AdminPrincipal::ApiKey)
+        .ok_or_else(|| AppError::authentication("Invalid admin API key"))
+}
+
+async fn disabled_or_unauthorized(_app_state: &AppState) -> AppError {
+    AppError::authentication("Admin authentication required")
+}
+
+/// 管理 API 是否可用：已完成管理员账号 bootstrap（存在账号）即启用。
+pub(crate) async fn admin_api_enabled(app_state: &AppState) -> bool {
+    crate::repository::AdminAccountRepository::new(app_state.db_pool.clone())
+        .count()
+        .await
+        .unwrap_or(0)
+        > 0
 }
 
 fn clamp_limit(limit: Option<u32>) -> u32 {
@@ -94,7 +166,7 @@ pub async fn list_full_unbounded_rooms(
     Query(query): Query<AdminLimitQuery>,
     State(app_state): State<Arc<AppState>>,
 ) -> HandlerResult<Vec<FullRoomGcStatusView>> {
-    ensure_admin(&app_state, &headers)?;
+    ensure_admin(&app_state, &headers).await?;
     let limit = clamp_limit(query.limit);
 
     let rooms = app_state
@@ -140,7 +212,7 @@ pub async fn run_room_gc(
     Query(query): Query<AdminLimitQuery>,
     State(app_state): State<Arc<AppState>>,
 ) -> HandlerResult<RunRoomGcResponse> {
-    ensure_admin(&app_state, &headers)?;
+    ensure_admin(&app_state, &headers).await?;
     let limit = clamp_limit(query.limit);
 
     let report = app_state
@@ -173,7 +245,7 @@ pub async fn admin_stats(
     headers: HeaderMap,
     State(app_state): State<Arc<AppState>>,
 ) -> HandlerResult<AdminStatsResponse> {
-    ensure_admin(&app_state, &headers)?;
+    ensure_admin(&app_state, &headers).await?;
     let repo = AdminConsoleRepository::new(app_state.db_pool.clone());
 
     let (rooms_total, rooms_open, rooms_protected) = repo
@@ -228,7 +300,7 @@ pub async fn admin_list_rooms(
     Query(query): Query<AdminRoomListQuery>,
     State(app_state): State<Arc<AppState>>,
 ) -> HandlerResult<AdminRoomListResponse> {
-    ensure_admin(&app_state, &headers)?;
+    ensure_admin(&app_state, &headers).await?;
     let limit = query.limit.unwrap_or(50).clamp(1, 500);
     let offset = query.offset.unwrap_or(0).max(0);
     let repo = AdminConsoleRepository::new(app_state.db_pool.clone());
@@ -286,7 +358,7 @@ pub async fn admin_room_detail(
     AxumPath(name): AxumPath<String>,
     State(app_state): State<Arc<AppState>>,
 ) -> HandlerResult<AdminRoomDetailResponse> {
-    ensure_admin(&app_state, &headers)?;
+    ensure_admin(&app_state, &headers).await?;
     Ok(Json(room_detail_response(&app_state, &name).await?))
 }
 
@@ -360,7 +432,7 @@ pub async fn admin_delete_room(
     AxumPath(name): AxumPath<String>,
     State(app_state): State<Arc<AppState>>,
 ) -> HandlerResult<DeleteRoomResponse> {
-    ensure_admin(&app_state, &headers)?;
+    ensure_admin(&app_state, &headers).await?;
     let room = RoomRepository::new(app_state.db_pool.clone())
         .find_by_name(&name)
         .await
@@ -398,7 +470,7 @@ pub async fn admin_storage(
     headers: HeaderMap,
     State(app_state): State<Arc<AppState>>,
 ) -> HandlerResult<AdminStorageResponse> {
-    ensure_admin(&app_state, &headers)?;
+    ensure_admin(&app_state, &headers).await?;
     let repo = AdminConsoleRepository::new(app_state.db_pool.clone());
     let (_, _, _, logical, physical, blob_count) = repo
         .content_stats()
@@ -446,11 +518,11 @@ pub async fn admin_config(
     headers: HeaderMap,
     State(app_state): State<Arc<AppState>>,
 ) -> HandlerResult<AdminConfigResponse> {
-    ensure_admin(&app_state, &headers)?;
-    Ok(Json(build_admin_config_response(&app_state)))
+    ensure_admin(&app_state, &headers).await?;
+    Ok(Json(build_admin_config_response(&app_state).await))
 }
 
-fn build_admin_config_response(app_state: &AppState) -> AdminConfigResponse {
+async fn build_admin_config_response(app_state: &AppState) -> AdminConfigResponse {
     let config = &app_state.config;
     let storage = &config.storage;
     AdminConfigResponse {
@@ -478,7 +550,7 @@ fn build_admin_config_response(app_state: &AppState) -> AdminConfigResponse {
         jwt_ttl_seconds: config.auth.ttl_seconds,
         jwt_refresh_ttl_seconds: config.auth.refresh_ttl_seconds,
         upload_reservation_ttl_seconds: storage.upload_reservation_ttl_seconds,
-        admin_api_enabled: admin_api_enabled(app_state),
+        admin_api_enabled: admin_api_enabled(app_state).await,
         dedup_scope: if storage.global_dedup {
             "global"
         } else {
@@ -497,7 +569,6 @@ fn build_admin_config_response(app_state: &AppState) -> AdminConfigResponse {
                 default_age_seconds: policy.default_age_seconds(),
             }
         }),
-        admin_token_source: app_state.admin_credential.source().to_string(),
     }
 }
 
@@ -520,7 +591,7 @@ pub async fn admin_update_runtime_config(
     State(app_state): State<Arc<AppState>>,
     Json(payload): Json<UpdateRuntimeConfigRequest>,
 ) -> HandlerResult<AdminConfigResponse> {
-    ensure_admin(&app_state, &headers)?;
+    ensure_admin(&app_state, &headers).await?;
 
     const MIN_ROOM_MAX_SIZE: i64 = 1024 * 1024; // 1 MiB
     const MAX_ROOM_MAX_SIZE: i64 = 1024 * 1024 * 1024 * 1024; // 1 TiB
@@ -587,7 +658,7 @@ pub async fn admin_update_runtime_config(
             .set_room_expiry_policy(policy.map(Arc::new));
     }
 
-    Ok(Json(build_admin_config_response(&app_state)))
+    Ok(Json(build_admin_config_response(&app_state).await))
 }
 
 /// 校验并生成房间有效期策略覆盖；空允许列表 = 清除覆盖。
@@ -600,39 +671,6 @@ pub(crate) fn validated_room_expiry_override(
     crate::config::RoomExpiryPolicy::new(expiry.allowed_ages_seconds, expiry.default_age_seconds)
         .map(Some)
         .map_err(|error| AppError::validation(format!("Invalid room expiry policy: {error}")))
-}
-
-/// 轮换平台管理 API 凭证（进程内覆盖，重启回退环境引导值；凭证不回显）。
-#[utoipa::path(
-    put,
-    path = "/api/v1/admin/credential",
-    request_body = AdminCredentialUpdateRequest,
-    responses(
-        (status = 200, description = "轮换成功", body = AdminCredentialView),
-        (status = 400, description = "凭证强度不足"),
-        (status = 403, description = "未授权")
-    ),
-    tag = "admin"
-)]
-pub async fn admin_update_credential(
-    headers: HeaderMap,
-    State(app_state): State<Arc<AppState>>,
-    Json(payload): Json<AdminCredentialUpdateRequest>,
-) -> HandlerResult<AdminCredentialView> {
-    ensure_admin(&app_state, &headers)?;
-
-    const MIN_ADMIN_TOKEN_LEN: usize = 12;
-    let token = payload.token.trim();
-    if token.len() < MIN_ADMIN_TOKEN_LEN || token.chars().any(char::is_whitespace) {
-        return Err(AppError::validation(format!(
-            "admin token must be at least {MIN_ADMIN_TOKEN_LEN} characters without whitespace"
-        )));
-    }
-    app_state.admin_credential.rotate(token.to_owned());
-
-    Ok(Json(AdminCredentialView {
-        admin_token_source: app_state.admin_credential.source().to_string(),
-    }))
 }
 
 /// 房间管理：更新房间设置（平台运维语义；复用房间设置校验与落库核心）。
@@ -655,7 +693,7 @@ pub async fn admin_update_room(
     State(app_state): State<Arc<AppState>>,
     Json(payload): Json<UpdateRoomSettingsRequest>,
 ) -> HandlerResult<AdminRoomDetailResponse> {
-    ensure_admin(&app_state, &headers)?;
+    ensure_admin(&app_state, &headers).await?;
     let room = RoomRepository::new(app_state.db_pool.clone())
         .find_by_name(&name)
         .await
@@ -685,7 +723,7 @@ pub async fn admin_mint_identity_code(
     State(app_state): State<Arc<AppState>>,
     Json(payload): Json<AdminMintIdentityCodeRequest>,
 ) -> HandlerResult<CreateRoomIdentityCodeResponse> {
-    ensure_admin(&app_state, &headers)?;
+    ensure_admin(&app_state, &headers).await?;
     let room = RoomRepository::new(app_state.db_pool.clone())
         .find_by_name(&name)
         .await

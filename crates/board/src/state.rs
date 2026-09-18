@@ -13,9 +13,6 @@ use crate::services::Services;
 use crate::storage::{StorageBackend, from_config};
 use crate::websocket::{broadcaster::Broadcaster, connection::ConnectionManager};
 
-/// 平台管理 API 凭证的环境变量名。
-pub const ADMIN_TOKEN_ENV: &str = "ELIZABETH_ADMIN_TOKEN";
-
 /// 运行时可写配置覆盖（管理白名单）。
 /// 仅存活于进程内，重启后回到配置文件值——configrs 始终是唯一配置源。
 /// 经 Arc 共享：所有 AppState 克隆看到同一份覆盖。
@@ -129,60 +126,6 @@ impl RuntimeConfigOverrides {
     }
 }
 
-/// 平台管理 API 凭证：环境变量为引导值，支持运行时轮换（进程内覆盖，重启回退环境值）。
-#[derive(Debug, Default)]
-pub struct AdminCredential {
-    runtime_token: RwLock<Option<String>>,
-}
-
-impl AdminCredential {
-    /// 轮换管理凭证；空串或纯空白视为无效，调用方负责先校验强度。
-    pub fn rotate(&self, token: String) {
-        if let Ok(mut guard) = self.runtime_token.write() {
-            *guard = Some(token);
-        }
-    }
-
-    /// 当前凭证来源：运行时覆盖或环境变量引导值。
-    pub fn source(&self) -> &'static str {
-        let overridden = self
-            .runtime_token
-            .read()
-            .ok()
-            .is_some_and(|guard| guard.is_some());
-        if overridden {
-            "runtime-override"
-        } else {
-            "env"
-        }
-    }
-
-    /// 校验请求携带的管理凭证。未配置任何凭证时整个管理 API 关闭。
-    pub fn verify(&self, provided: Option<&str>) -> Result<(), crate::errors::AppError> {
-        use crate::errors::AppError;
-
-        let expected = self
-            .runtime_token
-            .read()
-            .ok()
-            .and_then(|guard| guard.clone())
-            .or_else(|| {
-                std::env::var(ADMIN_TOKEN_ENV)
-                    .ok()
-                    .map(|value| value.trim().to_owned())
-                    .filter(|value| !value.is_empty())
-            });
-
-        match expected {
-            None => Err(AppError::authorization(format!(
-                "Admin API disabled (set {ADMIN_TOKEN_ENV})"
-            ))),
-            Some(expected) if provided == Some(expected.as_str()) => Ok(()),
-            _ => Err(AppError::authorization("Invalid admin token")),
-        }
-    }
-}
-
 /// 应用程序状态
 ///
 /// 包含应用程序运行时所需的所有核心组件
@@ -198,8 +141,6 @@ pub struct AppState {
     pub storage: Arc<dyn StorageBackend>,
     /// 运行时可写配置覆盖（进程内，重启回退到配置文件）
     pub runtime: Arc<RuntimeConfigOverrides>,
-    /// 平台管理 API 凭证（环境引导 + 运行时轮换）
-    pub admin_credential: Arc<AdminCredential>,
     /// WebSocket 连接管理器
     pub connection_manager: Arc<ConnectionManager>,
     /// WebSocket 广播器
@@ -253,7 +194,6 @@ impl AppState {
             services,
             storage,
             runtime,
-            admin_credential: Arc::new(AdminCredential::default()),
             connection_manager,
             broadcaster,
             roles_cache,
@@ -291,8 +231,8 @@ impl AppState {
         &self.services.refresh_token_service
     }
 
-    pub fn room_password_service(&self) -> &crate::services::RoomPasswordService {
-        &self.services.room_password
+    pub fn password_hash_service(&self) -> &crate::services::PasswordHashService {
+        &self.services.password_hash
     }
 
     pub fn attempt_guard(&self) -> &crate::services::AttemptGuard {

@@ -61,7 +61,7 @@ pub async fn create(
         None => format!("admin_{}", Uuid::new_v4().simple()),
     };
     let identity_code_hash = app_state
-        .room_password_service()
+        .password_hash_service()
         .hash(admin_identity_code.clone())
         .await
         .map_err(|e| AppError::internal(format!("Failed to protect admin identity code: {e}")))?;
@@ -301,7 +301,7 @@ async fn new_room_with_defaults(
     let password = match password {
         Some(password) => Some(
             app_state
-                .room_password_service()
+                .password_hash_service()
                 .hash(password)
                 .await
                 .map_err(|e| AppError::internal(format!("Failed to protect room password: {e}")))?,

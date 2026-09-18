@@ -52,8 +52,10 @@ pub async fn issue_token(
     Json(payload): Json<IssueTokenRequest>,
 ) -> HandlerResult<IssueTokenResponse> {
     RoomNameValidator::validate_identifier(&name)?;
-    // 平台管理凭证可作为引导补签通道；失败同样计入防爆破锁定。
-    let admin_bootstrap = crate::handlers::admin::ensure_admin(&app_state, &headers).is_ok();
+    // 平台管理员（登录会话或 API key）可作为引导补签通道；失败同样计入防爆破锁定。
+    let admin_bootstrap = crate::handlers::admin::ensure_admin(&app_state, &headers)
+        .await
+        .is_ok();
 
     let TokenIssueContext {
         mut room,
@@ -387,7 +389,7 @@ async fn validate_room_password(
         return Err(AppError::authentication("Invalid room password"));
     };
     let valid = app_state
-        .room_password_service()
+        .password_hash_service()
         .verify(password, encoded_hash.clone())
         .await
         .map_err(|e| AppError::internal(format!("Failed to verify room password: {e}")))?;

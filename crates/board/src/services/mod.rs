@@ -12,19 +12,23 @@ use crate::repository::room_refresh_token_repository::{
 use crate::repository::room_repository::RoomRepository;
 use crate::repository::{RoomAccessRepository, RoomTokenRepository};
 
+pub mod admin_auth;
+pub mod admin_session;
 pub mod attempt_guard;
 pub mod auth_service;
+pub mod password;
 pub mod refresh_token_service;
 pub mod room_lifecycle;
-pub mod room_password;
 pub mod token;
 
 // 重新导出服务类型
+pub use admin_auth::*;
+pub use admin_session::*;
 pub use attempt_guard::*;
 pub use auth_service::*;
+pub use password::*;
 pub use refresh_token_service::*;
 pub use room_lifecycle::*;
-pub use room_password::*;
 pub use token::*;
 
 /// 服务容器，包含所有应用程序服务
@@ -35,7 +39,9 @@ pub struct Services {
     pub refresh_token_service: Arc<RefreshTokenService>,
     pub room_repository: Arc<RoomRepository>,
     pub room_lifecycle: Arc<RoomLifecycleService>,
-    pub room_password: Arc<RoomPasswordService>,
+    pub password_hash: Arc<PasswordHashService>,
+    /// 管理员登录会话（JWT 签发/验签）
+    pub admin_session: Arc<AdminSessionService>,
     /// 统一防爆破守卫（身份码 / 房间密码 / 文件兑换码 / 管理登录）
     pub attempt_guard: Arc<AttemptGuard>,
     /// 房间角色矩阵缓存（AppState 与 refresh service 共享同一份）
@@ -97,7 +103,12 @@ impl Services {
                 db_pool.clone(),
             )),
         ));
-        let room_password = Arc::new(RoomPasswordService);
+        let password_hash = Arc::new(PasswordHashService);
+        let admin_session = Arc::new(AdminSessionService::new(
+            Arc::new(config.auth.jwt_secret.clone()),
+            config.auth.ttl_seconds,
+            config.auth.leeway_seconds,
+        ));
         let attempt_guard = Arc::new(AttemptGuard::new());
 
         Ok(Self {
@@ -106,7 +117,8 @@ impl Services {
             refresh_token_service,
             room_repository,
             room_lifecycle,
-            room_password,
+            password_hash,
+            admin_session,
             attempt_guard,
             roles_cache,
         })
