@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v1.1.0.html).
 
+## [2.0.1](https://github.com/YuniqueUnic/elizabeth/compare/v2.0.0...v2.0.1) (2026-09-18)
+
+
+### Bug Fixes
+
+* **cd:** 允许 musl 链接器提示性警告，修复 aarch64-musl 发布产物构建 ([eed6ed4](https://github.com/YuniqueUnic/elizabeth/commit/eed6ed45e82b1421bcd21abda3dae4d8a3f2e385))
+* **deploy:** docker compose 与部署文档透传管理面 bootstrap 变量 ([0e2005e](https://github.com/YuniqueUnic/elizabeth/commit/0e2005e1162a7184d317309e6dc68ae21ba7319e))
+* **room:** 会话被服务端吊销后自动回到进入流程，密码房免刷新弹回密码门 ([ba8bef9](https://github.com/YuniqueUnic/elizabeth/commit/ba8bef9782d63299e2d1a6dfda3b5cef72ff6df7))
+
 ## [2.0.0](https://github.com/YuniqueUnic/elizabeth/compare/v1.9.0...v2.0.0) (2026-09-18)
 
 
