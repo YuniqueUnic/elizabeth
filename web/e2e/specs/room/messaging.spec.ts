@@ -11,7 +11,7 @@ import {
   UnsavedBadgeCount,
 } from "../../screenplay/room/questions/Room.questions";
 import { RoomScreen } from "../../screenplay/room/screens/Room.screen";
-import { tCommon, tRoom } from "../../screenplay/support/i18n";
+import { tRoom } from "../../screenplay/support/i18n";
 import {
   OpenRoom,
   SaveMessages,

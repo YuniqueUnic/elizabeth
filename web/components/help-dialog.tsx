@@ -129,6 +129,9 @@ export function HelpDialog({ children }: { children: React.ReactNode }) {
                                     <li>
                                         <strong>{t("sections.roomSettings.permissions.items.scope.label")}</strong>: {t("sections.roomSettings.permissions.items.scope.description")}
                                     </li>
+                                    <li>
+                                        <strong>{t("sections.roomSettings.permissions.items.visibility.label")}</strong>: {t("sections.roomSettings.permissions.items.visibility.description")}
+                                    </li>
                                 </ul>
                             </HelpItem>
                             <HelpItem title={t("sections.roomSettings.authorization.title")} icon={KeyRound}>

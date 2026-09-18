@@ -1,16 +1,13 @@
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use chrono::{NaiveDateTime, Utc};
-use sqlx::{Any, FromRow, Row};
+use sqlx::Any;
 use std::sync::Arc;
 
 use crate::models::room::role::SYSTEM_ROLE_TEMPLATES;
 use crate::models::room::role::grants_to_json;
 use crate::models::room::row_utils::{format_naive_datetime, format_optional_naive_datetime};
-use crate::{
-    db::DbPool,
-    models::{Room, RoomStatus},
-};
+use crate::{db::DbPool, models::Room};
 
 const ROOM_SELECT_BASE: &str = r#"
     SELECT

@@ -1,5 +1,3 @@
-#![allow(unused_variables, unused_imports, dead_code)]
-
 use anyhow::Result;
 use axum::{
     body::Body,
@@ -8,11 +6,7 @@ use axum::{
 use serde_json::json;
 use tower::ServiceExt;
 
-use crate::common::{
-    create_test_app,
-    fixtures::{passwords, room_names},
-    http::{assert_json, create_request as create_http_request},
-};
+use crate::common::{create_test_app, http::create_request as create_http_request};
 
 fn create_room_request(room_name: &str, password: Option<&str>) -> axum::http::Request<Body> {
     let payload = match password {
@@ -37,7 +31,7 @@ async fn test_concurrent_token_requests() -> Result<()> {
     assert_eq!(create_response.status(), StatusCode::OK);
 
     // 发送多个并发令牌请求
-    let responses = futures::future::join_all((0..5).map(|i| {
+    let responses = futures::future::join_all((0..5).map(|_i| {
         let app_clone = app.clone();
         let room_name = room_name.to_string();
         async move {

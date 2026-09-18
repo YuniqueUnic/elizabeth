@@ -8,7 +8,6 @@ use utoipa::ToSchema;
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[sqlx(type_name = "TEXT", rename_all = "snake_case")]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub enum UploadFileTypeMode {
     /// 不限制上传文件类型
     #[default]
@@ -43,7 +42,6 @@ impl UploadFileTypeMode {
 /// 房间级上传文件类型策略。扩展名统一为小写、不含点（如 "pdf"）。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema, Default)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct UploadFileTypePolicy {
     pub mode: UploadFileTypeMode,
     #[cfg_attr(feature = "typescript-export", ts(type = "Array<string>"))]

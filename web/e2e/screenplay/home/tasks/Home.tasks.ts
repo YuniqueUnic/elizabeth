@@ -27,6 +27,8 @@ export const CreateRoomFromHome = (
   options: {
     password?: string;
     confirmPassword?: string;
+    /** 建房时选定的房间有效期（秒）；缺省则用部署默认时长 */
+    durationSeconds?: number;
   } = {},
 ) =>
   {
@@ -39,6 +41,12 @@ export const CreateRoomFromHome = (
       Interaction.where(the`#actor enters the room name`, async (actor) => {
         const page = await nativePageFor(actor);
         await HomeScreen.roomNameInput(page).fill(roomName);
+      }),
+      Interaction.where(the`#actor selects the room duration`, async (actor) => {
+        if (options.durationSeconds === undefined) return;
+        const page = await nativePageFor(actor);
+        await HomeScreen.createDurationSelect(page).click();
+        await HomeScreen.createDurationOption(page, options.durationSeconds).click();
       }),
       Interaction.where(the`#actor enters optional room credentials`, async (actor) => {
         const page = await nativePageFor(actor);

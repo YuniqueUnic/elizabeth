@@ -7,7 +7,13 @@ use crate::websocket::types::{RoomInfo, RoomUpdateReason};
 
 pub(crate) type HandlerResult<T> = Result<Json<T>, AppError>;
 
-pub(crate) fn apply_room_defaults(room: &mut Room, app_state: &AppState) -> Result<(), AppError> {
+/// 应用建房默认值。有效期策略由调用方一次性读入并传入，
+/// 保证同一次建房只使用一份策略（避免允许列表与默认时长来自两次读取）。
+pub(crate) fn apply_room_defaults(
+    room: &mut Room,
+    app_state: &AppState,
+    expiry_policy: &crate::config::RoomExpiryPolicy,
+) -> Result<(), AppError> {
     let defaults = app_state.room_creation_defaults();
     // 运行时覆盖（管理后台白名单）优先；0 = 未覆盖，回退配置文件值。
     room.max_size = match app_state.runtime.room_default_max_size() {
@@ -23,8 +29,7 @@ pub(crate) fn apply_room_defaults(room: &mut Room, app_state: &AppState) -> Resu
         .room_default_role_key()
         .unwrap_or_else(|| defaults.default_role_key.clone());
     room.expire_at = Some(
-        app_state
-            .room_expiry_policy()
+        expiry_policy
             .default_expire_at(room.created_at)
             .ok_or_else(|| {
                 AppError::internal("Default room expiry exceeds supported date range")

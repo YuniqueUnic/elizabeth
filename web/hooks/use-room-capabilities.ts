@@ -7,13 +7,6 @@ import { useAppStore } from "@/lib/store";
 import { decodeJWT } from "@/lib/utils/jwt";
 import type { Capability, Grant, RoleDefinition } from "@/lib/types";
 
-const capabilityNames = [
-  "room.share", "room.settings.update", "room.roles.manage", "room.delete",
-  "msg.read", "msg.send", "msg.copy", "msg.edit", "msg.delete",
-  "file.list", "file.preview", "file.download", "file.upload", "file.delete", "file.policy.manage",
-  "msg.visibility.manage", "file.visibility.manage",
-] as const satisfies readonly Capability[];
-
 export function useRoomCapabilities(
   roles?: RoleDefinition[] | null,
   capabilities?: Grant[] | null,
@@ -57,4 +50,3 @@ export function useRoomCapabilities(
   return { token, payload, grants: effectiveGrants, capabilities: effectiveGrants.map((grant) => grant.capability), has, can, roleKey: payload?.role ?? tokenInfo?.roleKey ?? null, roomName: payload?.room_name ?? roomName ?? null, roomId: payload?.room_id ?? null };
 }
 
-export { capabilityNames };

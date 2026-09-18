@@ -1,6 +1,6 @@
 use chrono::{NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, Row, any::AnyRow, postgres::PgRow, sqlite::SqliteRow};
+use sqlx::{FromRow, Row, any::AnyRow};
 use utoipa::ToSchema;
 
 use crate::constants::room::{DEFAULT_MAX_ROOM_CONTENT_SIZE, DEFAULT_MAX_TIMES_ENTER_ROOM};
@@ -46,7 +46,6 @@ pub use upload_reservation::{RoomUploadReservation, UploadFileDescriptor, Upload
 #[serde(rename_all = "snake_case")]
 #[sqlx(type_name = "INTEGER")]
 #[repr(i64)]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub enum RoomStatus {
     #[default]
     Open = 0,
@@ -65,7 +64,6 @@ pub enum RoomAvailability {
 /// 数据库与 API Room 模型
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct Room {
     #[cfg_attr(feature = "typescript-export", ts(type = "number | null"))]
     pub id: Option<i64>,
@@ -94,97 +92,37 @@ pub struct Room {
 }
 
 /// 上传文件类型扩展名在 DB 中以 JSON 数字符串存储，读取时严格解析。
-fn parse_upload_file_extensions(raw: String) -> Result<Vec<String>, sqlx::Error> {
+pub fn parse_upload_file_extensions(raw: String) -> Result<Vec<String>, sqlx::Error> {
     serde_json::from_str(&raw).map_err(|e| sqlx::Error::ColumnDecode {
         index: "upload_file_type_extensions".to_string(),
         source: Box::new(e),
     })
 }
 
-fn build_room_from_sqlite(row: &SqliteRow) -> Result<Room, sqlx::Error> {
-    Ok(Room {
-        id: row.try_get("id")?,
-        name: row.try_get("name")?,
-        slug: row.try_get("slug")?,
-        password: row.try_get("password")?,
-        status: row.try_get("status")?,
-        max_size: row.try_get("max_size")?,
-        current_size: row.try_get("current_size")?,
-        max_times_entered: row.try_get("max_times_entered")?,
-        current_times_entered: row.try_get("current_times_entered")?,
-        expire_at: row.try_get("expire_at")?,
-        created_at: row.try_get("created_at")?,
-        updated_at: row.try_get("updated_at")?,
-        default_role_key: row.try_get("default_role_key")?,
-        upload_file_type: UploadFileTypePolicy {
-            mode: UploadFileTypeMode::from(row.try_get::<String, _>("upload_file_type_mode")?),
-            extensions: parse_upload_file_extensions(row.try_get("upload_file_type_extensions")?)?,
-        },
-        roles_version: row.try_get("roles_version")?,
-    })
-}
-
-fn build_room_from_pg(row: &PgRow) -> Result<Room, sqlx::Error> {
-    Ok(Room {
-        id: row.try_get("id")?,
-        name: row.try_get("name")?,
-        slug: row.try_get("slug")?,
-        password: row.try_get("password")?,
-        status: row.try_get("status")?,
-        max_size: row.try_get("max_size")?,
-        current_size: row.try_get("current_size")?,
-        max_times_entered: row.try_get("max_times_entered")?,
-        current_times_entered: row.try_get("current_times_entered")?,
-        expire_at: row.try_get("expire_at")?,
-        created_at: row.try_get("created_at")?,
-        updated_at: row.try_get("updated_at")?,
-        default_role_key: row.try_get("default_role_key")?,
-        upload_file_type: UploadFileTypePolicy {
-            mode: UploadFileTypeMode::from(row.try_get::<String, _>("upload_file_type_mode")?),
-            extensions: parse_upload_file_extensions(row.try_get("upload_file_type_extensions")?)?,
-        },
-        roles_version: row.try_get("roles_version")?,
-    })
-}
-
-fn build_room_from_any(row: &AnyRow) -> Result<Room, sqlx::Error> {
-    Ok(Room {
-        id: row.try_get("id")?,
-        name: row.try_get("name")?,
-        slug: row.try_get("slug")?,
-        password: row.try_get("password")?,
-        status: row.try_get("status")?,
-        max_size: row.try_get("max_size")?,
-        current_size: row.try_get("current_size")?,
-        max_times_entered: row.try_get("max_times_entered")?,
-        current_times_entered: row.try_get("current_times_entered")?,
-        expire_at: read_optional_datetime_from_any(row, "expire_at")?,
-        created_at: read_datetime_from_any(row, "created_at")?,
-        updated_at: read_datetime_from_any(row, "updated_at")?,
-        default_role_key: row.try_get("default_role_key")?,
-        upload_file_type: UploadFileTypePolicy {
-            mode: UploadFileTypeMode::from(row.try_get::<String, _>("upload_file_type_mode")?),
-            extensions: parse_upload_file_extensions(row.try_get("upload_file_type_extensions")?)?,
-        },
-        roles_version: row.try_get("roles_version")?,
-    })
-}
-
-impl<'r> FromRow<'r, SqliteRow> for Room {
-    fn from_row(row: &'r SqliteRow) -> Result<Self, sqlx::Error> {
-        build_room_from_sqlite(row)
-    }
-}
-
-impl<'r> FromRow<'r, PgRow> for Room {
-    fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
-        build_room_from_pg(row)
-    }
-}
-
 impl<'r> FromRow<'r, AnyRow> for Room {
     fn from_row(row: &'r AnyRow) -> Result<Self, sqlx::Error> {
-        build_room_from_any(row)
+        Ok(Room {
+            id: row.try_get("id")?,
+            name: row.try_get("name")?,
+            slug: row.try_get("slug")?,
+            password: row.try_get("password")?,
+            status: row.try_get("status")?,
+            max_size: row.try_get("max_size")?,
+            current_size: row.try_get("current_size")?,
+            max_times_entered: row.try_get("max_times_entered")?,
+            current_times_entered: row.try_get("current_times_entered")?,
+            expire_at: read_optional_datetime_from_any(row, "expire_at")?,
+            created_at: read_datetime_from_any(row, "created_at")?,
+            updated_at: read_datetime_from_any(row, "updated_at")?,
+            default_role_key: row.try_get("default_role_key")?,
+            upload_file_type: UploadFileTypePolicy {
+                mode: UploadFileTypeMode::from(row.try_get::<String, _>("upload_file_type_mode")?),
+                extensions: parse_upload_file_extensions(
+                    row.try_get("upload_file_type_extensions")?,
+                )?,
+            },
+            roles_version: row.try_get("roles_version")?,
+        })
     }
 }
 

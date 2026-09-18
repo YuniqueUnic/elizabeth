@@ -19,15 +19,6 @@ export interface SetPolicyRequest {
   codes?: string[];
 }
 
-export interface GenerateCodesRequest {
-  count: number;
-  is_reusable: boolean;
-}
-
-export interface GenerateCodesResponse {
-  codes: string[];
-}
-
 export interface RedeemRequest {
   code: string;
 }
@@ -44,10 +35,6 @@ export async function getPolicy(roomName: string, contentId: string): Promise<Po
 
 export async function setPolicy(roomName: string, contentId: string, data: SetPolicyRequest): Promise<PolicyResponse> {
   return await api.put(`/api/v1/rooms/${roomName}/contents/${contentId}/policy`, data);
-}
-
-export async function generateCodes(roomName: string, contentId: string, data: GenerateCodesRequest): Promise<GenerateCodesResponse> {
-  return await api.post(`/api/v1/rooms/${roomName}/contents/${contentId}/policy/generate-codes`, data);
 }
 
 export async function redeemCode(roomName: string, contentId: string, data: RedeemRequest): Promise<RedeemResponse> {

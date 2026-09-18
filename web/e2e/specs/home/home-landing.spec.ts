@@ -7,9 +7,10 @@ import {
 } from "../../screenplay/home/tasks/Home.tasks";
 import { CurrentRoomName, DisclosedIdentityCode } from "../../screenplay/room/questions/Room.questions";
 import { RoomScreen } from "../../screenplay/room/screens/Room.screen";
-import { OpenRoom, OpenUnprovisionedRoom } from "../../screenplay/room/tasks/Room.tasks";
+import { OpenUnprovisionedRoom } from "../../screenplay/room/tasks/Room.tasks";
 import { EnterRoomAfterDisclosure } from "../../screenplay/room/tasks/Room.tasks";
 import { API_BASE_URL } from "../../screenplay/support/constants";
+import { remainingSeconds, roomExpiryPolicy } from "../../screenplay/support/room-expiry";
 import { uniqueRoomName } from "../../screenplay/support/test-data";
 
 test.describe("Home landing", () => {
@@ -77,5 +78,25 @@ test.describe("Home landing", () => {
 
     await expect(HomeScreen.title(page)).toBeVisible();
     await expect(HomeScreen.joinRoomNameInput(page)).toHaveCount(0);
+  });
+
+  // 建房表单必须能直接选持续时间；否则新房间只能停在部署默认时长（例如 2 小时），
+  // 用户只能在进房之后再改一次。
+  test("applies the duration chosen on the create form to the new room", async ({
+    actor,
+    request,
+  }) => {
+    const roomName = uniqueRoomName("screenplay-home-duration");
+    const { allowedAges, defaultAge } = await roomExpiryPolicy(request);
+    const chosenAge = allowedAges.find((age) => age !== defaultAge);
+    expect(chosenAge, "deployment must allow more than one room duration").toBeDefined();
+    if (chosenAge === undefined) return;
+
+    await actor.attemptsTo(
+      CreateRoomFromHome(roomName, { durationSeconds: chosenAge }),
+    );
+
+    const remaining = await remainingSeconds(request, roomName);
+    expect(Math.abs(remaining - chosenAge)).toBeLessThan(30);
   });
 });

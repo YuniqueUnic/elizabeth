@@ -7,14 +7,13 @@
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, Row, any::AnyRow, postgres::PgRow, sqlite::SqliteRow};
+use sqlx::{FromRow, Row, any::AnyRow};
 use utoipa::ToSchema;
 
 /// own/any 作用域：`Any` 覆盖任何人的资源；`Own` 仅覆盖自己是创建者的资源。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema, Default)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
 #[serde(rename_all = "lowercase")]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub enum Scope {
     #[default]
     Any,
@@ -27,7 +26,6 @@ pub enum Scope {
 /// `room_roles.capabilities` 紧凑格式与前端 i18n key 的能力段。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub enum Capability {
     #[serde(rename = "room.share")]
     RoomShare,
@@ -113,7 +111,6 @@ impl Capability {
 /// 最小授权单元：能力 + 作用域。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct Grant {
     pub capability: Capability,
     pub scope: Scope,
@@ -296,50 +293,14 @@ pub struct RoomRole {
     pub is_system: bool,
 }
 
-fn build_room_role_sqlite(row: &SqliteRow) -> Result<RoomRole, sqlx::Error> {
-    Ok(RoomRole {
-        room_id: row.try_get("room_id")?,
-        role_key: row.try_get("role_key")?,
-        display_name: row.try_get("display_name")?,
-        capabilities: row.try_get("capabilities")?,
-        is_system: row.try_get::<i64, _>("is_system")? != 0,
-    })
-}
-
-fn build_room_role_pg(row: &PgRow) -> Result<RoomRole, sqlx::Error> {
-    Ok(RoomRole {
-        room_id: row.try_get("room_id")?,
-        role_key: row.try_get("role_key")?,
-        display_name: row.try_get("display_name")?,
-        capabilities: row.try_get("capabilities")?,
-        is_system: row.try_get::<bool, _>("is_system")?,
-    })
-}
-
-fn build_room_role_any(row: &AnyRow) -> Result<RoomRole, sqlx::Error> {
-    Ok(RoomRole {
-        room_id: row.try_get("room_id")?,
-        role_key: row.try_get("role_key")?,
-        display_name: row.try_get("display_name")?,
-        capabilities: row.try_get("capabilities")?,
-        is_system: row.try_get::<i64, _>("is_system")? != 0,
-    })
-}
-
-impl<'r> FromRow<'r, SqliteRow> for RoomRole {
-    fn from_row(row: &'r SqliteRow) -> Result<Self, sqlx::Error> {
-        build_room_role_sqlite(row)
-    }
-}
-
-impl<'r> FromRow<'r, PgRow> for RoomRole {
-    fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
-        build_room_role_pg(row)
-    }
-}
-
 impl<'r> FromRow<'r, AnyRow> for RoomRole {
     fn from_row(row: &'r AnyRow) -> Result<Self, sqlx::Error> {
-        build_room_role_any(row)
+        Ok(RoomRole {
+            room_id: row.try_get("room_id")?,
+            role_key: row.try_get("role_key")?,
+            display_name: row.try_get("display_name")?,
+            capabilities: row.try_get("capabilities")?,
+            is_system: row.try_get::<i64, _>("is_system")? != 0,
+        })
     }
 }

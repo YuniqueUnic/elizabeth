@@ -33,10 +33,6 @@ function formatMessage(template: string, values?: Record<string, string | number
   });
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 function translate(
   bundle: MessageBundle,
   key: string,
@@ -62,29 +58,3 @@ export const tSettings = (key: string, values?: Record<string, string | number>)
 
 export const tAdmin = (key: string, values?: Record<string, string | number>) =>
   translate(zhAdmin as MessageBundle, key, values);
-
-export const tPattern = (
-  message: string,
-  values?: Record<string, string | number | RegExp>,
-) => {
-  const segments = message.split(/(\{\w+\})/g).filter(Boolean);
-  const pattern = segments.map((segment) => {
-    const match = segment.match(/^\{(\w+)\}$/);
-    if (!match) {
-      return escapeRegExp(segment);
-    }
-
-    const value = values?.[match[1]];
-    if (value === undefined) {
-      return "(.+?)";
-    }
-
-    if (value instanceof RegExp) {
-      return value.source;
-    }
-
-    return escapeRegExp(String(value));
-  }).join("");
-
-  return new RegExp(`^${pattern}$`);
-};

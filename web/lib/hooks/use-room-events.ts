@@ -8,18 +8,13 @@
  * - Subscribe to room WebSocket events
  * - Handle CONTENT_CREATED, CONTENT_UPDATED, CONTENT_DELETED events
  * - Automatic TanStack Query cache invalidation
- * - User presence tracking (USER_JOINED, USER_LEFT)
  */
 
 import { useCallback, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { useWebSocket, WsMessageType, type WsMessage } from "./use-websocket";
-import type {
-  ContentEventPayload,
-  RoomUpdatePayload,
-  UserEventPayload,
-} from "./use-websocket";
+import type { ContentEventPayload, RoomUpdatePayload } from "./use-websocket";
 import { ContentType, parseContentType } from "../types";
 
 // ============================================================================
@@ -68,10 +63,6 @@ export interface UseRoomEventsOptions {
   onContentUpdated?: (payload: ContentEventPayload) => void;
   /** Callback when content is deleted */
   onContentDeleted?: (payload: ContentEventPayload) => void;
-  /** Callback when a user joins */
-  onUserJoined?: (payload: UserEventPayload) => void;
-  /** Callback when a user leaves */
-  onUserLeft?: (payload: UserEventPayload) => void;
   /** Callback when room is updated */
   onRoomUpdate?: (payload: RoomUpdatePayload) => void;
   /** Callback after the websocket reconnects successfully */
@@ -103,8 +94,6 @@ export function useRoomEvents(options: UseRoomEventsOptions) {
     onContentCreated,
     onContentUpdated,
     onContentDeleted,
-    onUserJoined,
-    onUserLeft,
     onRoomUpdate,
     onReconnected,
     enableCacheInvalidation = true,
@@ -165,18 +154,6 @@ export function useRoomEvents(options: UseRoomEventsOptions) {
         break;
       }
 
-      case WsMessageType.UserJoined: {
-        const payload = message.payload as UserEventPayload;
-        onUserJoined?.(payload);
-        break;
-      }
-
-      case WsMessageType.UserLeft: {
-        const payload = message.payload as UserEventPayload;
-        onUserLeft?.(payload);
-        break;
-      }
-
       case WsMessageType.RoomUpdate: {
         const payload = message.payload as RoomUpdatePayload;
         onRoomUpdate?.(payload);
@@ -185,15 +162,13 @@ export function useRoomEvents(options: UseRoomEventsOptions) {
       }
 
       default:
-        // Ignore other message types (PING, PONG, CONNECT_ACK, etc.)
+        // PING / ERROR 已由 use-websocket 在传输层消费；这里忽略其余控制帧（CONNECT_ACK、PONG）。
         break;
     }
   }, [
     onContentCreated,
     onContentUpdated,
     onContentDeleted,
-    onUserJoined,
-    onUserLeft,
     onRoomUpdate,
     invalidateContentQueries,
     invalidateRoomQueries,
@@ -241,6 +216,4 @@ export function useRoomEvents(options: UseRoomEventsOptions) {
 // Re-exports
 // ============================================================================
 
-export type { WsMessage, WsMessageType, ContentEventPayload, UserEventPayload };
-export type { RoomUpdatePayload };
-export { useWebSocket } from "./use-websocket";
+export type { ContentEventPayload, RoomUpdatePayload };

@@ -1,4 +1,4 @@
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code)]
 use anyhow::Result;
 use chrono::{NaiveDateTime, Utc};
 /// Mock 对象和辅助工具
@@ -7,14 +7,9 @@ use chrono::{NaiveDateTime, Utc};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use board::models::{Room, RoomToken};
-use board::repository::{
-    IRoomContentRepository, IRoomRefreshTokenRepository, IRoomRepository, IRoomTokenRepository,
-    IRoomUploadReservationRepository, ITokenBlacklistRepository,
-};
+use board::models::Room;
+use board::repository::IRoomRepository;
 use board::services::RoomTokenClaims;
-use board::services::auth_service::AuthService;
-use board::services::token::RoomTokenService;
 
 /// 内存中的房间仓库模拟
 #[derive(Debug, Default)]
@@ -211,7 +206,6 @@ pub mod http {
     use axum::{
         body::Body,
         http::{Method, Request, StatusCode},
-        response::IntoResponse,
     };
     use serde_json;
     use tower::util::ServiceExt;

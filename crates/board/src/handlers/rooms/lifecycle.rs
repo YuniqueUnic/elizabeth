@@ -42,9 +42,19 @@ pub async fn create(
     let CreateRoomRequest {
         password,
         admin_identity_code,
+        age_seconds,
     } = payload;
     if let Some(ref password) = password {
         PasswordValidator::validate_room_password(password)?;
+    }
+    // 建房时选定的有效期必须属于部署允许的期限；缺省则用默认时长。
+    let expiry_policy = app_state.room_expiry_policy();
+    if let Some(age_seconds) = age_seconds
+        && !expiry_policy.allows(age_seconds)
+    {
+        return Err(AppError::validation(
+            "age_seconds must be one of the configured room expiry ages",
+        ));
     }
     let admin_identity_code = match admin_identity_code {
         Some(code) => super::identity_codes::validate_identity_code(&code)?,
@@ -57,7 +67,8 @@ pub async fn create(
         .map_err(|e| AppError::internal(format!("Failed to protect admin identity code: {e}")))?;
 
     let repository = RoomRepository::new(app_state.db_pool.clone());
-    let room = new_room_with_defaults(&app_state, name, password).await?;
+    let room =
+        new_room_with_defaults(&app_state, name, password, age_seconds, &expiry_policy).await?;
     let created_room = repository
         .create_if_absent(&room)
         .await
@@ -274,10 +285,13 @@ async fn cleanup_created_room(
     }
 }
 
+/// 构造新房间：先套用部署默认值，再按建房请求覆盖有效期。
 async fn new_room_with_defaults(
     app_state: &AppState,
     name: String,
     requested_password: Option<String>,
+    requested_age_seconds: Option<i64>,
+    expiry_policy: &crate::config::RoomExpiryPolicy,
 ) -> Result<Room, AppError> {
     let password = match requested_password {
         Some(password) if password.trim().is_empty() => None,
@@ -295,7 +309,14 @@ async fn new_room_with_defaults(
         None => None,
     };
     let mut room = Room::new(name, password);
-    apply_room_defaults(&mut room, app_state)?;
+    apply_room_defaults(&mut room, app_state, expiry_policy)?;
+    if let Some(age_seconds) = requested_age_seconds {
+        room.expire_at = Some(
+            expiry_policy
+                .expire_at(room.created_at, age_seconds)
+                .ok_or_else(|| AppError::validation("Room expiry exceeds supported date range"))?,
+        );
+    }
     Ok(room)
 }
 

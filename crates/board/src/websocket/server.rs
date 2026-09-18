@@ -2,6 +2,8 @@
 //!
 //! 提供 WebSocket 服务器功能和路由集成
 
+use std::time::Duration;
+
 use axum::extract::{State, ws::WebSocket, ws::WebSocketUpgrade};
 use futures::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
@@ -9,15 +11,38 @@ use uuid::Uuid;
 
 use crate::state::AppState;
 use crate::websocket::{
-    connection::ConnectionManager,
     handler::MessageHandler,
     types::{ConnectRequest, WsMessage, WsMessageType},
 };
+
+/// 心跳间隔。
+///
+/// 前端在 30s + 5s 余量内收不到 PING 就判定连接已死，主动关闭并重连
+/// （见 `web/lib/hooks/use-websocket.ts` 的 `WS_CONFIG.HEARTBEAT_INTERVAL`），
+/// 所以这里必须留出足够余量。
+const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(25);
 
 /// WebSocket 服务器
 pub struct WsServer;
 
 impl WsServer {
+    /// 周期性把 PING 推进连接的消息通道。
+    ///
+    /// 连接结束后通道接收端被丢弃，`send` 失败即自然退出，无需额外的取消信号。
+    pub async fn send_heartbeats(tx: mpsc::UnboundedSender<WsMessage>, interval: Duration) {
+        let mut ticker = tokio::time::interval(interval);
+        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        // interval 的首次 tick 立即就绪，跳过它，避免紧接着 CONNECT_ACK 再补一帧
+        ticker.tick().await;
+
+        loop {
+            ticker.tick().await;
+            if tx.send(WsMessage::new(WsMessageType::Ping, None)).is_err() {
+                return;
+            }
+        }
+    }
+
     /// 处理 WebSocket 连接升级
     pub async fn handle_ws(
         ws: WebSocketUpgrade,
@@ -34,13 +59,15 @@ impl WsServer {
 
         // 创建消息通道用于接收广播
         let (tx, mut rx) = mpsc::unbounded_channel::<WsMessage>();
+        // 心跳需要独立的发送端：subscribe_to_room 会消费 tx
+        let heartbeat_tx = tx.clone();
 
         // 生成唯一连接 ID
         let connection_id = Uuid::new_v4().to_string();
 
         // 使用共享的连接管理器
         let manager = app_state.connection_manager.clone();
-        let handler = MessageHandler::new(app_state.clone(), manager.clone());
+        let handler = MessageHandler::new(app_state.clone());
         let room_lifecycle = app_state.services.room_lifecycle.clone();
 
         // 接收第一条 CONNECT 消息
@@ -75,7 +102,6 @@ impl WsServer {
                 Some(msg)
             }
         };
-        // subscribe_result 已被 match 消费，不再存在
 
         if let Some(error_msg) = error_to_send {
             let error_response =
@@ -96,23 +122,35 @@ impl WsServer {
             log::warn!("Failed to clear room gc markers for {}: {}", room_name, e);
         }
 
-        // 创建接收客户端消息的任务
-        let manager_recv = manager.clone();
+        // 创建接收客户端消息的任务。
+        // 握手之后客户端只会发 PONG（以及关闭帧），所以这里只负责消费并记录；
+        // 收到关闭帧或无法解析的帧即结束接收，由下方 select! 触发整条连接的清理。
         let connection_id_recv = connection_id.clone();
-        let room_name_recv = room_name.clone();
         let mut recv_task = tokio::spawn(async move {
-            while let Some(Ok(msg)) = receiver.next().await {
-                if let Err(e) = Self::handle_client_message(
-                    msg,
-                    &handler,
-                    &manager_recv,
-                    &connection_id_recv,
-                    &room_name_recv,
-                )
-                .await
-                {
-                    log::error!("Error handling client message: {}", e);
-                    break;
+            while let Some(Ok(frame)) = receiver.next().await {
+                match frame {
+                    axum::extract::ws::Message::Close(_) => {
+                        log::info!("Client closed connection {}", connection_id_recv);
+                        break;
+                    }
+                    axum::extract::ws::Message::Text(text) => {
+                        match serde_json::from_str::<WsMessage>(&text) {
+                            Ok(message) => log::debug!(
+                                "Received {:?} from connection {}",
+                                message.message_type,
+                                connection_id_recv
+                            ),
+                            Err(e) => {
+                                log::warn!(
+                                    "Malformed frame on connection {}: {}",
+                                    connection_id_recv,
+                                    e
+                                );
+                                break;
+                            }
+                        }
+                    }
+                    _ => {}
                 }
             }
             log::debug!("Receive task ended for connection {}", connection_id_recv);
@@ -145,17 +183,24 @@ impl WsServer {
             log::debug!("Send task ended for connection {}", connection_id_send);
         });
 
+        // 创建心跳任务
+        let heartbeat_task = tokio::spawn(Self::send_heartbeats(heartbeat_tx, HEARTBEAT_INTERVAL));
+
         // 等待任一任务完成
         tokio::select! {
             _ = &mut recv_task => {
                 log::info!("Receive task completed for connection {}", connection_id);
                 send_task.abort();
+                heartbeat_task.abort();
                 let _ = send_task.await;
+                let _ = heartbeat_task.await;
             }
             _ = &mut send_task => {
                 log::info!("Send task completed for connection {}", connection_id);
                 recv_task.abort();
+                heartbeat_task.abort();
                 let _ = recv_task.await;
+                let _ = heartbeat_task.await;
             }
         }
 
@@ -237,46 +282,5 @@ impl WsServer {
             .map_err(|e| format!("Failed to send CONNECT_ACK: {}", e))?;
 
         Ok(connect_req.room_name)
-    }
-
-    /// 处理客户端消息
-    async fn handle_client_message(
-        msg: axum::extract::ws::Message,
-        _handler: &MessageHandler,
-        _manager: &ConnectionManager,
-        _connection_id: &str,
-        _room_name: &str,
-    ) -> Result<(), String> {
-        match msg {
-            axum::extract::ws::Message::Text(text) => {
-                // 解析 WsMessage
-                let ws_msg: WsMessage = serde_json::from_str(&text)
-                    .map_err(|e| format!("Failed to parse message: {}", e))?;
-
-                // 处理不同类型的消息
-                match ws_msg.message_type {
-                    WsMessageType::Ping => {
-                        // PING 消息自动回复 PONG
-                        log::debug!("Received PING, sending PONG");
-                    }
-                    WsMessageType::Pong => {
-                        log::debug!("Received PONG");
-                    }
-                    _ => {
-                        log::debug!("Received message type: {:?}", ws_msg.message_type);
-                    }
-                }
-
-                Ok(())
-            }
-            axum::extract::ws::Message::Close(_) => {
-                log::info!("Client initiated close");
-                Err("Connection closed by client".to_string())
-            }
-            _ => {
-                log::debug!("Received non-text message");
-                Ok(())
-            }
-        }
     }
 }

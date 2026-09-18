@@ -1,10 +1,4 @@
-use axum::{
-    Router,
-    extract::Request,
-    http::{HeaderMap, HeaderValue},
-    middleware::Next,
-    response::Response,
-};
+use axum::{Router, extract::Request, http::HeaderValue, middleware::Next};
 use logrs::Instrument;
 use uuid::Uuid;
 
@@ -89,10 +83,7 @@ fn extract_or_generate_request_id(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::{
-        body::Body,
-        http::{Request, StatusCode},
-    };
+    use axum::{body::Body, http::Request};
 
     #[test]
     fn test_extract_existing_request_id() {

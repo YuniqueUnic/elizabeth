@@ -15,6 +15,7 @@ import { useRoomCapabilities } from "@/hooks/use-room-capabilities";
 import { useToast } from "@/hooks/use-toast";
 import { copyTextToClipboard } from "@/lib/utils/clipboard";
 import { clearRoomToken } from "@/lib/utils/api";
+import { formatBackendDateTime } from "@/lib/utils/format";
 import { ManualCopyDialog } from "@/components/manual-copy-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,11 +35,12 @@ type DurationUnit = keyof typeof DURATION_UNIT_SECONDS;
 type RevealedCode = { code: string; role: string; sessionEnded: boolean };
 
 function formatTime(value: string): string {
-  const normalized = /[zZ]|[+-]\d{2}:?\d{2}$/.test(value) ? value : `${value}Z`;
-  const date = new Date(normalized);
-  return Number.isNaN(date.getTime())
-    ? value
-    : date.toLocaleString(undefined, { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  return formatBackendDateTime(value, {
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function generateIdentityCode(): string {

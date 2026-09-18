@@ -4,9 +4,7 @@ import { Navigate } from "@serenity-js/web";
 import { nativePageFor } from "../../support/actor-page";
 
 import {
-  CancelDialog,
   CancelFileDeleteAction,
-  CancelFirstTransfer,
   ClickFilePreviewDelete,
   ClickCopyMessages,
   ClickDeleteMessages,
@@ -26,14 +24,12 @@ import {
   ClickFilePreviewCopyMarkdown,
   ClickFilePreviewDownload,
   ClickFilePreviewInsertToEditor,
-  ConfirmPhysicalClose,
   AddLinkToRoom,
   DeleteFileNamed,
   DropFileOntoEditor,
   EditLatestMessage,
   EnterMessage,
   EnterRoomPassword,
-  OpenCloseRoomDialog,
   OpenFilePreviewNamed,
   OpenIdentityRedeemDialog,
   PasteFileIntoEditor,
@@ -42,16 +38,13 @@ import {
   RedeemIdentityCode,
   ResizeViewport,
   SaveRoomConfiguration,
-  ScrollMessageListToBottom,
-  ScrollMessageListToTop,
-  ToggleSetting,
   SetSettingState,
-  SelectRoomExpiry,
-  SetPermissionState,
+  SelectRoomDuration,
+  SelectRoomDefaultRole,
+  SetRoomMaxSize,
   SetRoomMaxViews,
   SetRoomPassword,
   UploadFiles,
-  VerifyCloseRoomPassword,
   WaitForRoomToBeReady,
   WaitForSavingToComplete,
   type DownloadPolicyInput,
@@ -115,53 +108,25 @@ export const SendCurrentDraft = () =>
   );
 
 export const ConfigureRoom = (config: {
-  expiry?: string;
+  durationSeconds?: number;
   password?: string;
   maxViews?: number;
+  maxSizeBytes?: number;
+  defaultRoleKey?: string;
 }) =>
   Task.where(
     the`#actor updates the room configuration`,
-    ...(config.expiry ? [SelectRoomExpiry(config.expiry)] : []),
+    ...(config.durationSeconds !== undefined
+      ? [SelectRoomDuration(config.durationSeconds)]
+      : []),
     ...(config.password !== undefined ? [SetRoomPassword(config.password)] : []),
     ...(config.maxViews !== undefined ? [SetRoomMaxViews(config.maxViews)] : []),
+    ...(config.maxSizeBytes !== undefined ? [SetRoomMaxSize(config.maxSizeBytes)] : []),
+    ...(config.defaultRoleKey !== undefined
+      ? [SelectRoomDefaultRole(config.defaultRoleKey)]
+      : []),
     SaveRoomConfiguration(),
   );
-
-export const SetRoomPermissions = (permissions: Partial<Record<"read" | "edit" | "share" | "delete", boolean>>) =>
-  {
-    const entries = Object.entries(permissions)
-      .filter(([, desired]) => desired !== undefined) as Array<
-        ["read" | "edit" | "share" | "delete", boolean]
-      >;
-
-    const enableOrder: Array<"read" | "edit" | "share" | "delete"> = [
-      "read",
-      "edit",
-      "share",
-      "delete",
-    ];
-    const disableOrder: Array<"read" | "edit" | "share" | "delete"> = [
-      "delete",
-      "share",
-      "edit",
-      "read",
-    ];
-
-    const ordered = [
-      ...disableOrder
-        .filter((label) => entries.some(([entry, desired]) => entry === label && desired === false))
-        .map((label) => [label, false] as const),
-      ...enableOrder
-        .filter((label) => entries.some(([entry, desired]) => entry === label && desired === true))
-        .map((label) => [label, true] as const),
-    ];
-
-    return Task.where(
-      the`#actor updates room permissions`,
-      ...ordered.map(([label, desired]) => SetPermissionState(label, desired)),
-      SaveRoomConfiguration(),
-    );
-  };
 
 export const UploadRoomFiles = (...files: UploadableFile[]) =>
   Task.where(
@@ -233,35 +198,6 @@ export const DeletePreviewedRoomFile = () =>
     ClickFilePreviewDelete(),
   );
 
-export const CancelTransfer = () =>
-  Task.where(
-    the`#actor cancels the first active transfer`,
-    CancelFirstTransfer(),
-  );
-
-export const CloseRoomWithoutPassword = () =>
-  Task.where(
-    the`#actor closes the room without a password challenge`,
-    OpenCloseRoomDialog(),
-    ConfirmPhysicalClose(),
-  );
-
-export const CloseRoomWithPassword = (password: string) =>
-  Task.where(
-    the`#actor closes the room using a password challenge`,
-    OpenCloseRoomDialog(),
-    VerifyCloseRoomPassword(password),
-    ConfirmPhysicalClose(),
-  );
-
-export const CancelRoomClosure = (password?: string) =>
-  Task.where(
-    the`#actor cancels closing the room`,
-    OpenCloseRoomDialog(),
-    ...(password ? [VerifyCloseRoomPassword(password)] : []),
-    CancelDialog(),
-  );
-
 export const UnlockProtectedRoom = (password: string) =>
   Task.where(
     the`#actor unlocks the protected room`,
@@ -309,18 +245,6 @@ export const SwitchToShortMobileViewport = () =>
     ResizeViewport(390, 560),
   );
 
-export const ScrollMessagesUp = () =>
-  Task.where(
-    the`#actor scrolls away from the latest message`,
-    ScrollMessageListToTop(),
-  );
-
-export const ScrollMessagesDown = () =>
-  Task.where(
-    the`#actor scrolls back to the latest message`,
-    ScrollMessageListToBottom(),
-  );
-
 export const CopySelectedMessages = () =>
   Task.where(
     the`#actor copies the selected messages to clipboard`,
@@ -363,26 +287,12 @@ export const CopySingleMessage = (messageId: string) =>
     ClickMessageCopyButton(messageId),
   );
 
-export const EnableSetting = (testid: string) =>
-  Task.where(
-    the`#actor enables the setting`,
-    OpenSettings(),
-    ToggleSetting(testid),
-    CloseSettings(),
-  );
-
 export const SetSettingTo = (testid: string, desired: boolean) =>
   Task.where(
     the`#actor sets the setting to ${desired}`,
     OpenSettings(),
     SetSettingState(testid, desired),
     CloseSettings(),
-  );
-
-export const ToggleSettingInOpenDialog = (testid: string) =>
-  Task.where(
-    the`#actor toggles a setting in the open settings dialog`,
-    ToggleSetting(testid),
   );
 
 export const ConfigureDownloadPolicy = (

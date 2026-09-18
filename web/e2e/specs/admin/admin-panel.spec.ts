@@ -1,6 +1,7 @@
 import { expect, test } from "../../screenplay/fixtures/screenplay.fixture";
 import { ADMIN_BOOTSTRAP_TOKEN } from "../../screenplay/abilities/CallElizabethApi.ability";
-import { tAdmin, tCommon } from "../../screenplay/support/i18n";
+import { tAdmin, tCommon, tRoom } from "../../screenplay/support/i18n";
+import { parseUtcMillis, roomExpiryPolicy } from "../../screenplay/support/room-expiry";
 import { uniqueRoomName } from "../../screenplay/support/test-data";
 
 /**
@@ -128,9 +129,11 @@ test.describe("Admin panel", () => {
         disallow_search_indexing: true,
         room_default_max_size: 0,
         room_default_max_times_entered: 0,
+        room_expiry: { allowed_ages_seconds: [], default_age_seconds: 0 },
       },
     });
     expect(reset.ok()).toBeTruthy();
+    const { defaultAge: deploymentDefaultAge } = await roomExpiryPolicy(request);
 
     await gotoAdmin(page);
     await login(page, ADMIN_BOOTSTRAP_TOKEN);
@@ -174,6 +177,55 @@ test.describe("Admin panel", () => {
     await page.getByLabel(tAdmin("system.runtimeMaxTimes")).fill("0");
     await page.getByTestId("admin-save-runtime").click();
     await expect(page.getByText(tAdmin("system.saved"), { exact: true }).first()).toBeVisible();
+
+    // 房间有效期策略：允许列表与默认时长是一组，写入后同时生效
+    await page.getByTestId("admin-runtime-expiry-ages").fill("5m, 30m");
+    await page.getByTestId("admin-runtime-expiry-default").fill("30m");
+    await page.getByTestId("admin-save-runtime").click();
+    await expect(page.getByText(tAdmin("system.saved"), { exact: true }).first()).toBeVisible();
+
+    // 新建房间继承覆盖后的默认时长（30m）
+    const overrideRoom = uniqueRoomName("admin-expiry");
+    await createRoomViaApi(request, overrideRoom);
+    const overrideDetail = await request.get(
+      `/api/v1/admin/rooms/${encodeURIComponent(overrideRoom)}`,
+      { headers: adminHeaders },
+    );
+    expect(overrideDetail.ok()).toBeTruthy();
+    expect(
+      Math.abs(
+        (parseUtcMillis((await overrideDetail.json()).expire_at) - Date.now()) / 1000 - 1800,
+      ),
+    ).toBeLessThan(30);
+
+    // 覆盖是整组替换：部署默认时长已不在允许列表内，建房被拒且不落库
+    const rejectedRoom = uniqueRoomName("admin-expiry-rejected");
+    const rejected = await request.post(`/api/v1/rooms/${encodeURIComponent(rejectedRoom)}`, {
+      data: { age_seconds: deploymentDefaultAge },
+    });
+    expect(rejected.status()).toBe(400);
+    const rejectedDetail = await request.get(
+      `/api/v1/admin/rooms/${encodeURIComponent(rejectedRoom)}`,
+      { headers: adminHeaders },
+    );
+    expect(rejectedDetail.status()).toBe(404);
+
+    // 清除覆盖 → 回退配置文件策略，部署默认时长重新可用
+    await page.getByTestId("admin-clear-room-expiry").click();
+    await expect(page.getByTestId("admin-room-expiry-base")).toBeVisible();
+    const restoredRoom = uniqueRoomName("admin-expiry-restored");
+    await createRoomViaApi(request, restoredRoom);
+    const restoredDetail = await request.get(
+      `/api/v1/admin/rooms/${encodeURIComponent(restoredRoom)}`,
+      { headers: adminHeaders },
+    );
+    expect(restoredDetail.ok()).toBeTruthy();
+    expect(
+      Math.abs(
+        (parseUtcMillis((await restoredDetail.json()).expire_at) - Date.now()) / 1000 -
+          deploymentDefaultAge,
+      ),
+    ).toBeLessThan(30);
   });
 
   test("lists existing rooms without search, edits settings, mints a code", async ({
@@ -182,6 +234,8 @@ test.describe("Admin panel", () => {
   }) => {
     const roomName = uniqueRoomName("admin-list");
     await createRoomViaApi(request, roomName);
+    const { allowedAges } = await roomExpiryPolicy(request);
+    const longestAge = allowedAges[allowedAges.length - 1];
 
     await gotoAdmin(page);
     await login(page, ADMIN_BOOTSTRAP_TOKEN);
@@ -190,13 +244,44 @@ test.describe("Admin panel", () => {
     // 默认列出已有房间，无需先搜索
     await expect(page.getByText(roomName)).toBeVisible();
 
-    // 行内「配置」按钮打开配置对话框 → 设置 tab 修改进入次数上限
+    // 行内「配置」按钮打开配置对话框 → 设置 tab 修改进入次数上限、房间持续时间与上传类型策略
     const configRow = page.locator("div.border-t", { hasText: roomName }).first();
     await configRow.getByTestId("admin-room-configure").click();
     await page.getByRole("tab", { name: tAdmin("rooms.tabSettings") }).click();
     await page.getByLabel(tAdmin("rooms.maxTimes")).fill("5");
+    await page.getByTestId("admin-room-duration").click();
+    await page.getByTestId(`admin-room-duration-option-${longestAge}`).click();
+    await page.getByTestId("admin-room-upload-file-type-mode").click();
+    await page
+      .getByRole("option", { name: tRoom("config.uploadFileType.mode.allow") })
+      .click();
+    await page.getByTestId("admin-room-upload-file-type-extensions").fill("pdf, zip");
     await page.getByTestId("admin-room-save").click();
     await expect(page.getByText(tAdmin("rooms.saved")).first()).toBeVisible();
+
+    // 服务端确认三个字段都已生效：截止时刻按所选时长重算，上传策略已落盘
+    const detail = await request.get(
+      `/api/v1/admin/rooms/${encodeURIComponent(roomName)}`,
+      { headers: adminHeaders },
+    );
+    expect(detail.ok()).toBeTruthy();
+    const saved = await detail.json();
+    expect(saved.max_times_entered).toBe(5);
+    expect(
+      Math.abs((parseUtcMillis(saved.expire_at) - Date.now()) / 1000 - longestAge),
+    ).toBeLessThan(30);
+    expect(saved.upload_file_type).toEqual({
+      mode: "allow",
+      extensions: ["pdf", "zip"],
+    });
+
+    // 概览 tab 回显当前上传策略（与房间侧边栏同源）
+    await page.getByRole("tab", { name: tAdmin("rooms.tabOverview") }).click();
+    await expect(
+      page.getByRole("dialog").locator("dd", {
+        hasText: tRoom("config.uploadFileType.mode.allow"),
+      }),
+    ).toHaveText(`${tRoom("config.uploadFileType.mode.allow")} (pdf, zip)`);
 
     // 身份码 tab：铸造 editor 身份码，明文仅此一次展示，可复制
     await page.getByRole("tab", { name: tAdmin("rooms.tabIdentity") }).click();

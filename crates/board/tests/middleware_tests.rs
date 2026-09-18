@@ -1,4 +1,3 @@
-#![allow(unused_variables, unused_imports, dead_code)]
 //! 中间件功能测试
 //!
 //! 测试各种中间件的功能，包括 CORS、限流、安全、压缩、追踪、认证中间件
@@ -9,14 +8,11 @@ use anyhow::Result;
 use axum::{
     body::Body,
     extract::Request,
-    http::{Method, StatusCode, header},
+    http::{Method, StatusCode},
 };
 use tower::ServiceExt;
 
-use common::{
-    create_test_app,
-    http::{create_request as create_http_request, send_request},
-};
+use common::{create_test_app, http::create_request as create_http_request};
 
 /// 测试 CORS 中间件
 #[tokio::test]
@@ -139,7 +135,7 @@ async fn test_compression_middleware() -> Result<()> {
     );
 
     // 检查响应是否被压缩
-    let headers = response.headers();
+    let _headers = response.headers();
 
     // 响应可能被压缩，也可能不被压缩（取决于响应大小和配置）
     // 这里我们只验证请求被正确处理，不强制房间存在

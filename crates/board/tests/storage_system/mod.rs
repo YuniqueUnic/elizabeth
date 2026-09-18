@@ -41,15 +41,6 @@ pub(crate) async fn create_room(
     Ok(value["token"].as_str().expect("admin token").to_string())
 }
 
-pub(crate) async fn issue_session(
-    app: &Router,
-    room_name: &str,
-    password: Option<&str>,
-) -> Result<IssuedSession> {
-    let admin = create_room(app, room_name, password).await?;
-    issue_session_with_token(app, room_name, &admin, "editor").await
-}
-
 pub(crate) async fn issue_session_with_token(
     app: &Router,
     room_name: &str,

@@ -1,17 +1,12 @@
-#![allow(unused_variables, unused_imports, dead_code)]
-
 use anyhow::Result;
 use axum::{
     body::Body,
-    http::{Method, Request, StatusCode},
+    http::{Method, StatusCode},
 };
 use serde_json::json;
 use tower::ServiceExt;
 
-use crate::common::{
-    create_test_app,
-    http::{assert_json, assert_status, create_request as create_http_request, send_request},
-};
+use crate::common::{create_test_app, http::create_request as create_http_request};
 
 #[tokio::test]
 async fn test_token_refresh_revokes_old_token() -> Result<()> {

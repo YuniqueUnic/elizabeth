@@ -18,7 +18,6 @@ import type {
   CreateRoomResponse,
   RoomDetails,
   RoomRole,
-  RoomTokenView,
   CreateRoleRequest,
   UpdateRoleRequest,
   UpdateRoomSettingsRequest,
@@ -35,20 +34,29 @@ import { backendRoomToRoomDetails as convertRoom } from "../lib/types";
  * Create a new room
  *
  * @param name - The name of the room
- * @param password - Optional password for the room
+ * @param options.password - Optional password for the room
+ * @param options.adminIdentityCode - Optional creator admin identity code
+ * @param options.ageSeconds - Optional room lifetime; must be one of the
+ *   deployment-allowed ages, defaults to the deployment default when omitted
  * @returns Room details
  */
 export async function createRoom(
   name: string,
-  password?: string,
-  adminIdentityCode?: string,
+  options: {
+    password?: string;
+    adminIdentityCode?: string;
+    ageSeconds?: number;
+  } = {},
 ): Promise<CreateRoomResponse> {
   const payload: CreateRoomRequest = {};
-  if (password) {
-    payload.password = password;
+  if (options.password) {
+    payload.password = options.password;
   }
-  if (adminIdentityCode) {
-    payload.admin_identity_code = adminIdentityCode;
+  if (options.adminIdentityCode) {
+    payload.admin_identity_code = options.adminIdentityCode;
+  }
+  if (options.ageSeconds !== undefined) {
+    payload.age_seconds = options.ageSeconds;
   }
   const response = await api.post<CreateRoomResponse>(
     API_ENDPOINTS.rooms.base(name),
@@ -235,6 +243,7 @@ export async function updateRoomSettings(
     ageSeconds?: number;
     maxViews?: number;
     maxSize?: number;
+    defaultRoleKey?: string;
     uploadFileType?: UploadFileTypePolicy;
   },
   token?: string,
@@ -271,6 +280,10 @@ export async function updateRoomSettings(
     payload.max_size = settings.maxSize;
   }
 
+  if (settings.defaultRoleKey !== undefined) {
+    payload.default_role_key = settings.defaultRoleKey;
+  }
+
   if (settings.uploadFileType !== undefined) {
     payload.upload_file_type = settings.uploadFileType;
   }
@@ -284,42 +297,6 @@ export async function updateRoomSettings(
   return convertRoom(room);
 }
 
-/**
- * List all tokens for a room
- *
- * @param roomName - The name of the room
- * @param token - Optional token for authentication
- * @returns List of tokens
- */
-export async function listRoomTokens(
-  roomName: string,
-  token?: string,
-): Promise<RoomTokenView[]> {
-  const authToken = token || await getValidToken(roomName);
-
-  if (!authToken) {
-    throw new Error("Authentication required to list tokens");
-  }
-
-  return api.get<RoomTokenView[]>(
-    API_ENDPOINTS.rooms.tokens(roomName),
-    undefined,
-    { token: authToken },
-  );
-}
-
 // Legacy compatibility exports (for existing components)
 // getRoomDetails is already exported above
 
-const roomService = {
-  createRoom,
-  getRoomDetails,
-  deleteRoom,
-  listRoomRoles,
-  createRoomRole,
-  updateRoomRole,
-  deleteRoomRole,
-  listRoomTokens,
-};
-
-export default roomService;

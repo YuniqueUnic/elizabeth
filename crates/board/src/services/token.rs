@@ -1,20 +1,15 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result, anyhow};
-use chrono::{Duration, NaiveDateTime, Utc};
+use chrono::{Duration, Utc};
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};
 
-use crate::db::DbPool;
-use crate::models::{RefreshTokenResponse, Room};
-use crate::repository::room_refresh_token_repository::{
-    IRoomRefreshTokenRepository, ITokenBlacklistRepository,
-};
+use crate::models::Room;
 
 pub use crate::dto::{RoomTokenClaims, RoomTokenClaimsBuilder, TokenType};
 
 const DEFAULT_LEEWAY_SECONDS: i64 = 5;
 const DEFAULT_TOKEN_TTL_MINUTES: i64 = 120;
-const DEFAULT_REFRESH_TOKEN_TTL_DAYS: i64 = 7;
 const MINIMUM_EXP_DELTA_SECONDS: i64 = 5;
 
 /// 身份码允许配置的最短有效时长（秒）。

@@ -62,7 +62,6 @@
       "updated": "Updated",
       "deleted": "Deleted",
       "address_changed": "Address changed",
-      "permissions_changed": "Permissions changed",
       "settings_changed": "Settings changed",
       "roles_changed": "Role changes"
     }

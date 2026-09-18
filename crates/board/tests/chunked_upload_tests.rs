@@ -1,4 +1,3 @@
-#![allow(unused_variables, unused_imports, dead_code)]
 //! 分块上传功能测试
 //!
 //! 测试文件分块上传的完整工作流程
@@ -14,13 +13,7 @@ use serde_json::json;
 use sha2::{Digest, Sha256};
 use tower::ServiceExt;
 
-use common::{
-    create_test_app,
-    fixtures::{file_sizes, filenames, passwords, room_names},
-    http::{assert_json, assert_status, create_request as create_http_request, send_request},
-};
-
-use board::route::room::api_router;
+use common::{create_test_app, http::create_request as create_http_request};
 
 fn create_room_request(room_name: &str, password: Option<&str>) -> Request<Body> {
     let payload = match password {

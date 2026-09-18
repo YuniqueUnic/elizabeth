@@ -17,7 +17,7 @@ import {
 import { uniqueRoomName } from "../support/test-data";
 import { primeRoomToken } from "../support/token-storage";
 
-export interface ActorHandle {
+interface ActorHandle {
   actor: Actor;
   page: Page;
   context: BrowserContext;
@@ -36,15 +36,7 @@ interface ScreenplayFixtures {
   provisionRoom: (options?: ProvisionRoomOptions) => Promise<ProvisionedRoom>;
 }
 
-const {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  test,
-} = useFixtures<ScreenplayFixtures>({
+const { expect, test } = useFixtures<ScreenplayFixtures>({
   page: async ({ page }, use) => {
     await installClipboardStub(page);
     await installNotificationStub(page);
@@ -118,4 +110,4 @@ const {
   },
 });
 
-export { afterAll, beforeAll, beforeEach, describe, expect, it, test };
+export { expect, test };

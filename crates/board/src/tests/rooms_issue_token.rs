@@ -8,7 +8,7 @@ use chrono::Utc;
 use crate::config::{AppConfig, AuthConfig};
 use crate::db::{DbPoolSettings, init_db, run_migrations};
 use crate::dto::rooms::IssueTokenRequest;
-use crate::handlers::rooms::issue_token;
+use crate::handlers::rooms::tokens::issue_token;
 use crate::models::Room;
 use crate::models::content::{ContentType, RoomContent};
 use crate::repository::{

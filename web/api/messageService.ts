@@ -130,32 +130,6 @@ export async function deleteMessage(
 }
 
 /**
- * Delete multiple messages
- *
- * @param roomName - The name of the room
- * @param messageIds - Array of message IDs to delete
- * @param token - Optional token for authentication
- */
-export async function deleteMessages(
-  roomName: string,
-  messageIds: string[],
-  token?: string,
-): Promise<void> {
-  const authToken = token || await getValidToken(roomName);
-
-  if (!authToken) {
-    throw new Error("Authentication required to delete messages");
-  }
-
-  const idsParam = messageIds.join(",");
-  await api.delete(
-    `${API_ENDPOINTS.content.base(roomName)}?ids=${idsParam}`,
-    { ids: messageIds.map((id) => parseInt(id, 10)) },
-    { token: authToken },
-  );
-}
-
-/**
  * Update a message
  *
  * Uses the backend's update_content API (PUT /api/v1/rooms/{name}/contents/{content_id})
@@ -188,12 +162,3 @@ export async function updateMessage(
   return convertMessage(response.updated);
 }
 
-const messageService = {
-  getMessagePage,
-  postMessage,
-  updateMessage,
-  deleteMessage,
-  deleteMessages,
-};
-
-export default messageService;

@@ -1,14 +1,15 @@
-#![allow(unused_variables, unused_imports, dead_code)]
 //! WebSocket 模块单元测试
 //!
-//! 测试 ConnectionManager、Broadcaster 和 MessageHandler
+//! 测试 ConnectionManager、Broadcaster 和心跳任务
 
 use board::models::room::content::{ContentType, RoomContent};
 use board::websocket::broadcaster::Broadcaster;
 use board::websocket::connection::ConnectionManager;
+use board::websocket::server::WsServer;
 use board::websocket::types::{RoomInfo, RoomUpdateReason, WsError, WsMessage, WsMessageType};
 use chrono::Utc;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::mpsc;
 
 // ============================================================================
@@ -224,54 +225,6 @@ async fn test_broadcaster_content_deleted_includes_content_metadata() {
 }
 
 #[tokio::test]
-async fn test_broadcaster_user_joined() {
-    let manager = Arc::new(ConnectionManager::new());
-    let broadcaster = Broadcaster::new(manager.clone());
-    let room_name = "test-room".to_string();
-    let connection_id = "conn-1".to_string();
-    let (tx, mut rx) = mpsc::unbounded_channel::<WsMessage>();
-
-    manager
-        .subscribe_to_room(connection_id, room_name.clone(), tx)
-        .await
-        .unwrap();
-
-    broadcaster
-        .broadcast_user_joined(&room_name, "user-1")
-        .await
-        .unwrap();
-
-    let received: Option<WsMessage> = rx.recv().await;
-    assert!(received.is_some(), "should receive message");
-    let msg = received.unwrap();
-    assert_eq!(msg.message_type, WsMessageType::UserJoined);
-}
-
-#[tokio::test]
-async fn test_broadcaster_user_left() {
-    let manager = Arc::new(ConnectionManager::new());
-    let broadcaster = Broadcaster::new(manager.clone());
-    let room_name = "test-room".to_string();
-    let connection_id = "conn-1".to_string();
-    let (tx, mut rx) = mpsc::unbounded_channel::<WsMessage>();
-
-    manager
-        .subscribe_to_room(connection_id, room_name.clone(), tx)
-        .await
-        .unwrap();
-
-    broadcaster
-        .broadcast_user_left(&room_name, "user-1")
-        .await
-        .unwrap();
-
-    let received: Option<WsMessage> = rx.recv().await;
-    assert!(received.is_some(), "should receive message");
-    let msg = received.unwrap();
-    assert_eq!(msg.message_type, WsMessageType::UserLeft);
-}
-
-#[tokio::test]
 async fn test_broadcaster_room_update() {
     let manager = Arc::new(ConnectionManager::new());
     let broadcaster = Broadcaster::new(manager.clone());
@@ -313,7 +266,7 @@ async fn test_broadcaster_room_update() {
 }
 
 // ============================================================================
-// MessageHandler 测试
+// WsMessage / WsError 测试
 // ============================================================================
 
 #[tokio::test]
@@ -334,7 +287,7 @@ async fn test_ws_message_with_payload() {
         "user": "test-user"
     });
 
-    let message = WsMessage::new(WsMessageType::UserJoined, Some(payload));
+    let message = WsMessage::new(WsMessageType::ContentCreated, Some(payload));
 
     let json = serde_json::to_string(&message);
     assert!(json.is_ok(), "should serialize message with payload");
@@ -384,19 +337,6 @@ async fn test_ws_error_display() {
 }
 
 #[tokio::test]
-async fn test_ws_error_serialization() {
-    let error = WsError::RoomNotFound;
-
-    let json = serde_json::to_string(&error);
-    assert!(json.is_ok(), "should serialize WsError");
-
-    let deserialized: Result<WsError, _> = serde_json::from_str(&json.unwrap());
-    assert!(deserialized.is_ok(), "should deserialize WsError");
-    let err = deserialized.unwrap();
-    matches!(err, WsError::RoomNotFound);
-}
-
-#[tokio::test]
 async fn test_ws_message_new() {
     let message = WsMessage::new(WsMessageType::Pong, None);
     assert_eq!(message.message_type, WsMessageType::Pong);
@@ -414,4 +354,40 @@ async fn test_ws_message_error() {
         let json = serde_json::to_string(&payload).unwrap();
         assert!(json.contains("error"), "payload should contain error field");
     }
+}
+
+// ============================================================================
+// 心跳测试
+// ============================================================================
+
+#[tokio::test]
+async fn test_heartbeat_keeps_pushing_ping_frames() {
+    let (tx, mut rx) = mpsc::unbounded_channel::<WsMessage>();
+    let task = tokio::spawn(WsServer::send_heartbeats(tx, Duration::from_millis(20)));
+
+    // 连续三帧都是 PING，说明是周期推送而不是只发一次
+    for round in 1..=3 {
+        let received = tokio::time::timeout(Duration::from_secs(5), rx.recv())
+            .await
+            .unwrap_or_else(|_| panic!("heartbeat should push frame {}", round))
+            .expect("channel should stay open while the connection lives");
+        assert_eq!(received.message_type, WsMessageType::Ping);
+        assert!(received.payload.is_none(), "PING 不需要载荷");
+    }
+
+    task.abort();
+}
+
+#[tokio::test]
+async fn test_heartbeat_stops_after_connection_closes() {
+    let (tx, rx) = mpsc::unbounded_channel::<WsMessage>();
+    let task = tokio::spawn(WsServer::send_heartbeats(tx, Duration::from_millis(10)));
+
+    // 连接结束 = 接收端被丢弃
+    drop(rx);
+
+    tokio::time::timeout(Duration::from_secs(5), task)
+        .await
+        .expect("heartbeat should exit once the connection closes")
+        .expect("heartbeat task should not panic");
 }

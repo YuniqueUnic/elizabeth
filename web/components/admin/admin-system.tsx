@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { formatFileSize } from "@/lib/utils/format";
+import { formatFileSize, formatDurationList, parseDurationList } from "@/lib/utils/format";
 import type {
   AdminConfigResponse,
   AdminStorageResponse,
@@ -71,19 +71,68 @@ export function AdminSystem({
   const [defaultRole, setDefaultRole] = useState(
     config.runtime_room_default_role_key ?? "",
   );
+  // 有效期策略是「允许时长 + 默认时长」的一组，编辑器与配置文件同形（1m/2h/7d）。
+  const configExpiryAges = formatDurationList(config.room_expiry_allowed_ages_seconds);
+  const configExpiryDefault = formatDurationList([config.room_expiry_default_age_seconds]);
+  const [expiryAges, setExpiryAges] = useState(
+    formatDurationList(
+      config.runtime_room_expiry?.allowed_ages_seconds ??
+        config.room_expiry_allowed_ages_seconds,
+    ),
+  );
+  const [expiryDefault, setExpiryDefault] = useState(
+    formatDurationList([
+      config.runtime_room_expiry?.default_age_seconds ?? config.room_expiry_default_age_seconds,
+    ]),
+  );
   const [newAdminToken, setNewAdminToken] = useState("");
   const [rotating, setRotating] = useState(false);
+
+  const parsedExpiryAges = parseDurationList(expiryAges);
+  const parsedExpiryDefault = parseDurationList(expiryDefault);
+  const expiryChanged =
+    expiryAges.trim() !==
+      formatDurationList(
+        config.runtime_room_expiry?.allowed_ages_seconds ??
+          config.room_expiry_allowed_ages_seconds,
+      ) ||
+    expiryDefault.trim() !==
+      formatDurationList([
+        config.runtime_room_expiry?.default_age_seconds ?? config.room_expiry_default_age_seconds,
+      ]);
 
   async function saveRuntime() {
     setSaving(true);
     try {
-      const updated = await updateRuntimeConfig(adminToken, {
+      const update: Parameters<typeof updateRuntimeConfig>[1] = {
         room_default_max_size: maxSize === "" ? 0 : Number(maxSize),
         room_default_max_times_entered: maxTimes === "" ? 0 : Number(maxTimes),
         session_ttl_seconds: sessionTtl === "" ? 0 : Number(sessionTtl),
         upload_reservation_ttl_seconds:
           reservationTtl === "" ? 0 : Number(reservationTtl),
         room_default_role_key: defaultRole,
+      };
+      // 未改动时不提交，避免把「跟随配置文件」静默固化成一份等价覆盖。
+      if (expiryChanged && parsedExpiryAges && parsedExpiryDefault?.length === 1) {
+        update.room_expiry = {
+          allowed_ages_seconds: parsedExpiryAges,
+          default_age_seconds: parsedExpiryDefault[0],
+        };
+      }
+      const updated = await updateRuntimeConfig(adminToken, update);
+      onSaved(updated);
+    } catch (error) {
+      onError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function clearRoomExpiryOverride() {
+    setSaving(true);
+    try {
+      const updated = await updateRuntimeConfig(adminToken, {
+        room_expiry: { allowed_ages_seconds: [], default_age_seconds: 0 },
       });
       onSaved(updated);
     } catch (error) {
@@ -122,11 +171,16 @@ export function AdminSystem({
   }
 
   const numeric = (value: string) => /^\d+$/.test(value) || value === "";
+  const expiryInputInvalid =
+    parsedExpiryAges === null ||
+    parsedExpiryDefault === null ||
+    parsedExpiryDefault.length !== 1;
   const invalid =
     !numeric(maxSize) ||
     !numeric(maxTimes) ||
     !numeric(sessionTtl) ||
-    !numeric(reservationTtl);
+    !numeric(reservationTtl) ||
+    (expiryChanged && expiryInputInvalid);
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -283,6 +337,56 @@ export function AdminSystem({
                 {t("system.runtimeDefaultRoleHint")}
               </p>
             </div>
+            <div className="space-y-2 border-t pt-3">
+              <div className="flex items-center justify-between gap-4">
+                <p className="text-sm font-medium">{t("system.runtimeRoomExpiry")}</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  data-testid="admin-clear-room-expiry"
+                  disabled={saving || config.runtime_room_expiry === null}
+                  onClick={() => void clearRoomExpiryOverride()}
+                >
+                  {t("system.runtimeRoomExpiryClear")}
+                </Button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-2">
+                  <Label htmlFor="admin-runtime-expiry-ages">
+                    {t("system.runtimeRoomExpiryAllowed")}
+                  </Label>
+                  <Input
+                    id="admin-runtime-expiry-ages"
+                    data-testid="admin-runtime-expiry-ages"
+                    className="font-mono text-xs"
+                    placeholder={configExpiryAges}
+                    value={expiryAges}
+                    onChange={(event) => setExpiryAges(event.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="admin-runtime-expiry-default">
+                    {t("system.runtimeRoomExpiryDefault")}
+                  </Label>
+                  <Input
+                    id="admin-runtime-expiry-default"
+                    data-testid="admin-runtime-expiry-default"
+                    className="font-mono text-xs"
+                    placeholder={configExpiryDefault}
+                    value={expiryDefault}
+                    onChange={(event) => setExpiryDefault(event.target.value)}
+                  />
+                </div>
+              </div>
+              <p className="text-muted-foreground text-xs">
+                {t("system.runtimeRoomExpiryHint")}
+              </p>
+              {config.runtime_room_expiry === null && (
+                <p className="text-muted-foreground text-xs" data-testid="admin-room-expiry-base">
+                  {t("system.runtimeRoomExpiryFollowing", { ages: configExpiryAges })}
+                </p>
+              )}
+            </div>
             <div className="flex items-center justify-between gap-4">
               <p className="text-muted-foreground text-xs">{t("system.runtimeHint")}</p>
               <Button
@@ -354,6 +458,10 @@ export function AdminSystem({
               value={config.room_default_max_times_entered}
             />
             <Row label={t("system.defaultRole")} value={config.room_default_role_key} />
+            <Row
+              label={t("system.roomExpiry")}
+              value={`${configExpiryAges} · ${configExpiryDefault}`}
+            />
             <Row label={t("system.jwtTtl")} value={`${config.jwt_ttl_seconds}s`} />
             <Row
               label={t("system.jwtRefreshTtl")}

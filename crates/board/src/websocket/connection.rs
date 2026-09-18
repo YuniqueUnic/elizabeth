@@ -2,9 +2,8 @@
 //!
 //! 管理 WebSocket 连接和房间订阅关系，支持性能优化和资源限制
 
-use crate::websocket::types::{WsMessage, WsMessageType};
+use crate::websocket::types::WsMessage;
 use std::collections::HashMap;
-use std::sync::Arc;
 use tokio::sync::RwLock;
 
 /// 连接管理器配置

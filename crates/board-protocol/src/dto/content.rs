@@ -8,7 +8,6 @@ use crate::models::content::{ContentType, RoomContent};
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct RoomContentView {
     #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
     pub id: i64,
@@ -66,7 +65,6 @@ impl From<RoomContent> for RoomContentView {
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct UploadContentResponse {
     pub uploaded: Vec<RoomContentView>,
     #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
@@ -75,14 +73,12 @@ pub struct UploadContentResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct UploadPreparationRequest {
     pub files: Vec<UploadFileDescriptor>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct UploadPreparationResponse {
     /// 待传文件的预留 id；全部文件秒传命中时为 None（无传输环节）。
     #[cfg_attr(feature = "typescript-export", ts(type = "number | null"))]
@@ -109,7 +105,6 @@ pub struct UploadPreparationResponse {
 /// 单文件的预签名直传信息。URL 短时效，签发前已完成鉴权与配额校验。
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct PresignedUpload {
     pub file_name: String,
     /// 直传使用的 HTTP 方法（PUT）
@@ -120,7 +115,6 @@ pub struct PresignedUpload {
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct DeleteContentRequest {
     #[cfg_attr(feature = "typescript-export", ts(type = "number[]"))]
     pub ids: Vec<i64>,
@@ -128,7 +122,6 @@ pub struct DeleteContentRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct DeleteContentResponse {
     #[cfg_attr(feature = "typescript-export", ts(type = "number[]"))]
     pub deleted: Vec<i64>,
@@ -140,7 +133,6 @@ pub struct DeleteContentResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct UpdateContentRequest {
     #[cfg_attr(feature = "typescript-export", ts(optional))]
     pub text: Option<String>,
@@ -152,14 +144,12 @@ pub struct UpdateContentRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct UpdateContentResponse {
     pub updated: RoomContentView,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct CreateUrlContentRequest {
     pub url: String,
     pub name: String,
@@ -169,14 +159,12 @@ pub struct CreateUrlContentRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct CreateUrlContentResponse {
     pub created: RoomContentView,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct CreateMessageRequest {
     pub text: String,
     #[cfg_attr(feature = "typescript-export", ts(optional))]
@@ -185,14 +173,12 @@ pub struct CreateMessageRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct CreateMessageResponse {
     pub message: RoomContentView,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct MessagePage {
     pub items: Vec<RoomContentView>,
     pub next_cursor: Option<String>,
@@ -203,7 +189,6 @@ pub struct MessagePage {
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct SetContentVisibilityRequest {
     /// true = 隐藏（对外不可见）；false = 恢复显示
     #[cfg_attr(feature = "typescript-export", ts(type = "boolean"))]
@@ -212,7 +197,6 @@ pub struct SetContentVisibilityRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct SetContentVisibilityResponse {
     pub updated: RoomContentView,
 }

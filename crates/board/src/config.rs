@@ -3,7 +3,6 @@
 /// 将配置相关的设置集中管理，与 AppState 分离
 use std::fmt;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use chrono::Duration;
 use serde::{Deserialize, Serialize};

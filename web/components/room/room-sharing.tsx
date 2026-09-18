@@ -33,7 +33,7 @@ export function RoomSharing({ roomId, canShare }: RoomSharingProps) {
 
   const { data: qrCodeUrl } = useQuery({
     queryKey: ["qrcode", roomId, currentTheme],
-    queryFn: () => getQRCodeImage(roomId, { theme: currentTheme }),
+    queryFn: () => getQRCodeImage(roomId, currentTheme),
     enabled: !!roomId && canShare,
   });
 

@@ -7,7 +7,6 @@ use crate::models::{ChunkStatus, UploadFileDescriptor, UploadStatus};
 /// 分块上传预留请求
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct ChunkedUploadPreparationRequest {
     pub files: Vec<UploadFileDescriptor>,
 }
@@ -15,7 +14,6 @@ pub struct ChunkedUploadPreparationRequest {
 /// 分块上传预留响应
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct ChunkedUploadPreparationResponse {
     /// 预留 ID
     pub reservation_id: String,
@@ -30,7 +28,6 @@ pub struct ChunkedUploadPreparationResponse {
 /// 预留文件信息
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct ReservedFileInfo {
     /// 文件名
     pub name: String,
@@ -52,7 +49,6 @@ pub struct ReservedFileInfo {
 /// 单个分块上传请求
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct ChunkUploadRequest {
     /// 上传令牌
     pub upload_token: String,
@@ -69,7 +65,6 @@ pub struct ChunkUploadRequest {
 /// 单个分块上传响应
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct ChunkUploadResponse {
     /// 分块索引
     pub chunk_index: i32,
@@ -87,7 +82,6 @@ pub struct ChunkUploadResponse {
 /// 上传状态查询请求
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct UploadStatusQuery {
     /// 上传令牌（与 reservation_id 二选一）
     #[cfg_attr(feature = "typescript-export", ts(optional))]
@@ -100,7 +94,6 @@ pub struct UploadStatusQuery {
 /// 单个分块状态信息
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct ChunkStatusInfo {
     /// 分块索引
     #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
@@ -119,7 +112,6 @@ pub struct ChunkStatusInfo {
 /// 上传状态查询响应
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct UploadStatusResponse {
     /// 预留 ID
     pub reservation_id: String,
@@ -155,7 +147,6 @@ pub struct UploadStatusResponse {
 /// 文件合并完成请求
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct FileMergeRequest {
     pub reservation_id: String,
     pub final_hash: String,
@@ -164,7 +155,6 @@ pub struct FileMergeRequest {
 /// 合并后的文件信息
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct MergedFileInfo {
     pub file_name: String,
     #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
@@ -179,7 +169,6 @@ pub struct MergedFileInfo {
 /// 文件合并完成响应
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct FileMergeResponse {
     pub reservation_id: String,
     pub merged_files: Vec<MergedFileInfo>,

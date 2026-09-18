@@ -1,7 +1,7 @@
 use chrono::{NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use sqlx::{FromRow, Row, any::AnyRow, postgres::PgRow, sqlite::SqliteRow};
+use sqlx::{FromRow, Row, any::AnyRow};
 use utoipa::ToSchema;
 
 use crate::models::room::role::Grant;
@@ -11,7 +11,6 @@ use crate::models::room::row_utils::{read_datetime_from_any, read_optional_datet
 /// 用于存储和管理 JWT 刷新令牌的信息
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct RoomRefreshToken {
     /// 主键 ID
     #[cfg_attr(feature = "typescript-export", ts(type = "number | null"))]
@@ -33,61 +32,19 @@ pub struct RoomRefreshToken {
     pub is_revoked: bool,
 }
 
-fn build_room_refresh_token_sqlite(row: &SqliteRow) -> Result<RoomRefreshToken, sqlx::Error> {
-    Ok(RoomRefreshToken {
-        id: row.try_get("id")?,
-        room_id: row.try_get("room_id")?,
-        access_token_jti: row.try_get("access_token_jti")?,
-        token_hash: row.try_get("token_hash")?,
-        expires_at: row.try_get("expires_at")?,
-        created_at: row.try_get("created_at")?,
-        last_used_at: row.try_get("last_used_at")?,
-        is_revoked: row.try_get("is_revoked")?,
-    })
-}
-
-fn build_room_refresh_token_pg(row: &PgRow) -> Result<RoomRefreshToken, sqlx::Error> {
-    Ok(RoomRefreshToken {
-        id: row.try_get("id")?,
-        room_id: row.try_get("room_id")?,
-        access_token_jti: row.try_get("access_token_jti")?,
-        token_hash: row.try_get("token_hash")?,
-        expires_at: row.try_get("expires_at")?,
-        created_at: row.try_get("created_at")?,
-        last_used_at: row.try_get("last_used_at")?,
-        is_revoked: row.try_get("is_revoked")?,
-    })
-}
-
-fn build_room_refresh_token_any(row: &AnyRow) -> Result<RoomRefreshToken, sqlx::Error> {
-    let is_revoked_raw: i64 = row.try_get("is_revoked")?;
-    Ok(RoomRefreshToken {
-        id: row.try_get("id")?,
-        room_id: row.try_get("room_id")?,
-        access_token_jti: row.try_get("access_token_jti")?,
-        token_hash: row.try_get("token_hash")?,
-        expires_at: read_datetime_from_any(row, "expires_at")?,
-        created_at: read_datetime_from_any(row, "created_at")?,
-        last_used_at: read_optional_datetime_from_any(row, "last_used_at")?,
-        is_revoked: is_revoked_raw != 0,
-    })
-}
-
-impl<'r> FromRow<'r, SqliteRow> for RoomRefreshToken {
-    fn from_row(row: &'r SqliteRow) -> Result<Self, sqlx::Error> {
-        build_room_refresh_token_sqlite(row)
-    }
-}
-
-impl<'r> FromRow<'r, PgRow> for RoomRefreshToken {
-    fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
-        build_room_refresh_token_pg(row)
-    }
-}
-
 impl<'r> FromRow<'r, AnyRow> for RoomRefreshToken {
     fn from_row(row: &'r AnyRow) -> Result<Self, sqlx::Error> {
-        build_room_refresh_token_any(row)
+        let is_revoked_raw: i64 = row.try_get("is_revoked")?;
+        Ok(RoomRefreshToken {
+            id: row.try_get("id")?,
+            room_id: row.try_get("room_id")?,
+            access_token_jti: row.try_get("access_token_jti")?,
+            token_hash: row.try_get("token_hash")?,
+            expires_at: read_datetime_from_any(row, "expires_at")?,
+            created_at: read_datetime_from_any(row, "created_at")?,
+            last_used_at: read_optional_datetime_from_any(row, "last_used_at")?,
+            is_revoked: is_revoked_raw != 0,
+        })
     }
 }
 
@@ -175,7 +132,6 @@ impl RoomRefreshToken {
 /// 用于创建刷新令牌的请求结构
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct CreateRefreshTokenRequest {
     /// 房间 ID
     #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
@@ -191,7 +147,6 @@ pub struct CreateRefreshTokenRequest {
 /// 刷新令牌验证请求结构
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct RefreshTokenRequest {
     /// 刷新令牌（明文）
     pub refresh_token: String,
@@ -200,7 +155,6 @@ pub struct RefreshTokenRequest {
 /// 刷新令牌验证响应结构
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct RefreshTokenResponse {
     /// 新的访问令牌
     pub access_token: String,
@@ -219,7 +173,6 @@ pub struct RefreshTokenResponse {
 /// 令牌黑名单条目结构
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct TokenBlacklistEntry {
     /// 主键 ID
     #[cfg_attr(feature = "typescript-export", ts(type = "number | null"))]
@@ -232,48 +185,14 @@ pub struct TokenBlacklistEntry {
     pub created_at: NaiveDateTime,
 }
 
-fn build_token_blacklist_entry_sqlite(row: &SqliteRow) -> Result<TokenBlacklistEntry, sqlx::Error> {
-    Ok(TokenBlacklistEntry {
-        id: row.try_get("id")?,
-        jti: row.try_get("jti")?,
-        expires_at: row.try_get("expires_at")?,
-        created_at: row.try_get("created_at")?,
-    })
-}
-
-fn build_token_blacklist_entry_pg(row: &PgRow) -> Result<TokenBlacklistEntry, sqlx::Error> {
-    Ok(TokenBlacklistEntry {
-        id: row.try_get("id")?,
-        jti: row.try_get("jti")?,
-        expires_at: row.try_get("expires_at")?,
-        created_at: row.try_get("created_at")?,
-    })
-}
-
-fn build_token_blacklist_entry_any(row: &AnyRow) -> Result<TokenBlacklistEntry, sqlx::Error> {
-    Ok(TokenBlacklistEntry {
-        id: row.try_get("id")?,
-        jti: row.try_get("jti")?,
-        expires_at: read_datetime_from_any(row, "expires_at")?,
-        created_at: read_datetime_from_any(row, "created_at")?,
-    })
-}
-
-impl<'r> FromRow<'r, SqliteRow> for TokenBlacklistEntry {
-    fn from_row(row: &'r SqliteRow) -> Result<Self, sqlx::Error> {
-        build_token_blacklist_entry_sqlite(row)
-    }
-}
-
-impl<'r> FromRow<'r, PgRow> for TokenBlacklistEntry {
-    fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
-        build_token_blacklist_entry_pg(row)
-    }
-}
-
 impl<'r> FromRow<'r, AnyRow> for TokenBlacklistEntry {
     fn from_row(row: &'r AnyRow) -> Result<Self, sqlx::Error> {
-        build_token_blacklist_entry_any(row)
+        Ok(TokenBlacklistEntry {
+            id: row.try_get("id")?,
+            jti: row.try_get("jti")?,
+            expires_at: read_datetime_from_any(row, "expires_at")?,
+            created_at: read_datetime_from_any(row, "created_at")?,
+        })
     }
 }
 

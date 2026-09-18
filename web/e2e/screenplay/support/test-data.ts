@@ -24,14 +24,6 @@ export function markdownFile(name: string, content: string): UploadableFile {
   return textFile(name, content, "text/markdown");
 }
 
-export function jsonFile(name: string, data: unknown): UploadableFile {
-  return {
-    name,
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(data, null, 2), "utf-8"),
-  };
-}
-
 export function binaryFile(
   name: string,
   mimeType: string,

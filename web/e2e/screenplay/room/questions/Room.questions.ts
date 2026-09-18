@@ -3,14 +3,7 @@ import { Question, the } from "@serenity-js/core";
 import { CallElizabethApi } from "../../abilities/CallElizabethApi.ability";
 import { nativePageFor } from "../../support/actor-page";
 import { readClipboard } from "../../support/clipboard";
-import { tRoom } from "../../support/i18n";
 import { RoomScreen } from "../screens/Room.screen";
-
-export const CurrentUrl = () =>
-  Question.about(the`the current page URL`, async (actor) => {
-    const page = await nativePageFor(actor);
-    return page.url();
-  });
 
 export const CurrentRoomName = () =>
   Question.about(the`the current room name`, async (actor) => {
@@ -68,35 +61,10 @@ export const FileCount = () =>
     return RoomScreen.fileCards(page).count();
   });
 
-export const PreviewedFileName = () =>
-  Question.about(the`the previewed file name`, async (actor) => {
-    const page = await nativePageFor(actor);
-    const text = await RoomScreen.filePreviewTitle(page).textContent();
-    return text?.trim() ?? "";
-  });
-
 export const ClipboardContents = () =>
   Question.about(the`the clipboard contents`, async (actor) => {
     const page = await nativePageFor(actor);
     return readClipboard(page);
-  });
-
-export const TransferProgressVisible = () =>
-  Question.about(the`whether the transfer progress panel is visible`, async (actor) => {
-    const page = await nativePageFor(actor);
-    return RoomScreen.transferProgressPanel(page).isVisible().catch(() => false);
-  });
-
-export const TransferRowCount = () =>
-  Question.about(the`the number of transfer rows`, async (actor) => {
-    const page = await nativePageFor(actor);
-    return RoomScreen.transferRows(page).count();
-  });
-
-export const TransferProgressTexts = () =>
-  Question.about(the`the transfer progress texts`, async (actor) => {
-    const page = await nativePageFor(actor);
-    return RoomScreen.transferRows(page).allInnerTexts();
   });
 
 export const RoomCapacitySummary = () =>
@@ -104,17 +72,6 @@ export const RoomCapacitySummary = () =>
     const page = await nativePageFor(actor);
     const text = await RoomScreen.capacityInfo(page).textContent();
     return text?.trim() ?? "";
-  });
-
-export const PermissionState = (label: "read" | "edit" | "share" | "delete") =>
-  Question.about(the`whether the ${label} permission is enabled`, async (actor) => {
-    const page = await nativePageFor(actor);
-    return (
-      await RoomScreen.permissionButton(
-        page,
-        tRoom(`config.permissions.labels.${label}`),
-      ).getAttribute("aria-pressed")
-    ) === "true";
   });
 
 export const AlertText = () =>

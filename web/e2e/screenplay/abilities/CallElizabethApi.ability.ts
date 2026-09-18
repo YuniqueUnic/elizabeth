@@ -7,7 +7,7 @@ import {
   type RoomTokenInfo,
 } from "../support/constants";
 
-export interface IssueTokenOptions {
+interface IssueTokenOptions {
   password?: string;
   role?: string;
   withRefreshToken?: boolean;

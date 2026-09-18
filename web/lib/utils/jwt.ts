@@ -1,6 +1,6 @@
 import type { RoomTokenClaims } from "../types";
 
-export type JWTPayload = RoomTokenClaims;
+type JWTPayload = RoomTokenClaims;
 
 export function decodeJWT(token: string): JWTPayload | null {
   try {
@@ -13,6 +13,3 @@ export function decodeJWT(token: string): JWTPayload | null {
   }
 }
 
-export function getRoomNameFromToken(token: string | null | undefined): string | null {
-  return token ? decodeJWT(token)?.room_name ?? null : null;
-}

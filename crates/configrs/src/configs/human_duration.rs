@@ -2,7 +2,7 @@ use std::{fmt, str::FromStr, time::Duration};
 
 use serde::{
     Deserialize, Deserializer, Serialize, Serializer,
-    de::{Error as _, Unexpected, Visitor},
+    de::{Unexpected, Visitor},
 };
 
 /// A configuration duration that accepts humantime strings or integer seconds.

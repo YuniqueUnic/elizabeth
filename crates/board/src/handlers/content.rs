@@ -10,11 +10,4 @@ pub mod upload;
 pub mod url;
 pub mod visibility;
 
-pub use delete::delete_contents;
-pub use download::download_content_global;
-pub use message::{create_message, list_messages};
-pub use update::update_content;
-pub use url::create_url_content;
-pub use visibility::set_content_visibility;
-
 pub(crate) use shared::{HandlerResult, room_id_or_error};

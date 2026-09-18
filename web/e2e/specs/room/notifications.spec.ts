@@ -8,7 +8,6 @@ import {
   FileNames,
   LastMessageText,
   MessageCount,
-  PermissionState,
 } from "../../screenplay/room/questions/Room.questions";
 import { RoomScreen } from "../../screenplay/room/screens/Room.screen";
 import {
@@ -20,7 +19,6 @@ import {
   SaveMessages,
   SendMessage,
   SetSettingTo,
-  SetRoomPermissions,
   UpdateLatestMessage,
 } from "../../screenplay/room/tasks/Room.tasks";
 import { tCommon } from "../../screenplay/support/i18n";

@@ -1,4 +1,3 @@
-#![allow(unused_variables, unused_imports, dead_code)]
 //! WebSocket 集成测试
 //!
 //! 测试完整的 WebSocket 连接流程、消息发送接收、房间订阅广播、认证流程和错误处理
@@ -199,7 +198,7 @@ async fn test_error_handling() {
 
     // 测试重复订阅同一个连接 ID（实际行为取决于实现）
     let (tx1, _rx) = mpsc::unbounded_channel::<WsMessage>();
-    let (tx2, _rx) = mpsc::unbounded_channel::<WsMessage>();
+    let (_tx2, _rx) = mpsc::unbounded_channel::<WsMessage>();
 
     let result1 = manager
         .subscribe_to_room("conn-dup".to_string(), room_name.clone(), tx1)
@@ -295,8 +294,6 @@ async fn test_message_serialization_integration() {
         WsMessageType::ContentCreated,
         WsMessageType::ContentUpdated,
         WsMessageType::ContentDeleted,
-        WsMessageType::UserJoined,
-        WsMessageType::UserLeft,
         WsMessageType::RoomUpdate,
     ];
 

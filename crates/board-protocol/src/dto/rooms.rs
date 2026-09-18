@@ -9,7 +9,6 @@ use crate::models::{Room, RoomStatus, RoomToken};
 
 #[derive(Debug, Default, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct CreateRoomRequest {
     /// 可选房间密码。密码只在请求边界出现，不会在房间响应中回显。
     #[cfg_attr(feature = "typescript-export", ts(optional))]
@@ -17,11 +16,14 @@ pub struct CreateRoomRequest {
     /// 创建者 admin 身份码；未提供时由服务端生成一次性随机身份码。
     #[cfg_attr(feature = "typescript-export", ts(optional))]
     pub admin_identity_code: Option<String>,
+    /// 可选房间有效期（秒）。缺省 = 部署配置的默认时长；
+    /// 提供时必须属于部署配置允许的期限，否则请求被拒。
+    #[cfg_attr(feature = "typescript-export", ts(optional, type = "number | null"))]
+    pub age_seconds: Option<i64>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct CreateRoomResponse {
     #[serde(flatten)]
     pub room: RoomView,
@@ -37,7 +39,6 @@ pub struct CreateRoomResponse {
 
 #[derive(Debug, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct CreateRoomIdentityCodeRequest {
     pub code: String,
     pub role: String,
@@ -60,7 +61,6 @@ pub struct RedeemRoomIdentityCodeRequest {
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct RoomIdentityCodeView {
     pub id: i64,
     pub role: String,
@@ -74,7 +74,6 @@ pub struct RoomIdentityCodeView {
 
 #[derive(Debug, Serialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct CreateRoomIdentityCodeResponse {
     #[serde(flatten)]
     pub identity_code: RoomIdentityCodeView,
@@ -93,7 +92,6 @@ pub struct UpdateRoomIdentityCodeResponse {
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct RoomView {
     pub id: i64,
     pub name: String,
@@ -136,21 +134,18 @@ impl From<&Room> for RoomView {
 
 #[derive(Debug, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct VerifyRoomPasswordRequest {
     pub password: String,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct VerifyRoomPasswordResponse {
     pub valid: bool,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct IssueTokenRequest {
     /// 房间密码，如果房间设置了密码，则必须填写
     #[cfg_attr(feature = "typescript-export", ts(optional))]
@@ -175,7 +170,6 @@ pub struct IssueTokenRequest {
 
 #[derive(Debug, Serialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct IssueTokenResponse {
     pub token: String,
     pub claims: RoomTokenClaims,
@@ -194,21 +188,18 @@ pub struct IssueTokenResponse {
 
 #[derive(Debug, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct ValidateTokenRequest {
     pub token: String,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct ValidateTokenResponse {
     pub claims: RoomTokenClaims,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct UpdateRoomSettingsRequest {
     /// 新房间密码。字段缺失表示保持当前密码不变。
     #[cfg_attr(feature = "typescript-export", ts(optional))]
@@ -240,7 +231,6 @@ pub struct UpdateRoomSettingsRequest {
 /// 当前会话的实时能力快照（角色矩阵变更后客户端刷新用）。
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct MyCapabilitiesResponse {
     pub role: String,
     pub capabilities: Vec<Grant>,
@@ -248,21 +238,18 @@ pub struct MyCapabilitiesResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct RevokeTokenResponse {
     pub revoked: bool,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct DeleteRoomResponse {
     pub message: String,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct RoomTokenView {
     pub jti: String,
     /// 会话绑定的角色

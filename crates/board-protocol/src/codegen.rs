@@ -16,16 +16,19 @@ use crate::dto::{
     FileMergeResponse, FullRoomGcStatusView, IssueTokenRequest, IssueTokenResponse, LogoutRequest,
     MergedFileInfo, MessagePage, MyCapabilitiesResponse, PublicConfigResponse, PublicRoomConfig,
     PublicRoomExpiryConfig, ReservedFileInfo, RevokeTokenResponse, RoleDefinition, RoomContentView,
-    RoomIdentityCodeView, RoomTokenClaims, RoomTokenView, RoomView, RunRoomGcResponse, TokenType,
-    UpdateContentRequest, UpdateContentResponse, UpdateRoleRequest, UpdateRoomSettingsRequest,
-    UpdateRuntimeConfigRequest, UploadContentResponse, UploadPreparationRequest,
-    UploadPreparationResponse, UploadStatusQuery, UploadStatusResponse, ValidateTokenRequest,
-    ValidateTokenResponse, VerifyRoomPasswordRequest, VerifyRoomPasswordResponse,
+    RoomExpiryOverride, RoomIdentityCodeView, RoomTokenClaims, RoomTokenView, RoomView,
+    RunRoomGcResponse, TokenType, UpdateContentRequest, UpdateContentResponse, UpdateRoleRequest,
+    UpdateRoomSettingsRequest, UpdateRuntimeConfigRequest, UploadContentResponse,
+    UploadPreparationRequest, UploadPreparationResponse, UploadStatusQuery, UploadStatusResponse,
+    ValidateTokenRequest, ValidateTokenResponse, VerifyRoomPasswordRequest,
+    VerifyRoomPasswordResponse,
 };
 #[cfg(feature = "typescript-export")]
 use crate::models::content::{ContentType, RoomContent};
 #[cfg(feature = "typescript-export")]
 use crate::models::room::role::{Capability, Grant, Scope};
+#[cfg(feature = "typescript-export")]
+use crate::models::room::upload_file_policy::{UploadFileTypeMode, UploadFileTypePolicy};
 #[cfg(feature = "typescript-export")]
 use crate::models::{
     ChunkStatus, CreateRefreshTokenRequest, RefreshTokenRequest, RefreshTokenResponse,
@@ -117,6 +120,9 @@ pub fn export_ts_types_to(output_dir: &Path) -> Result<(), ts_rs::ExportError> {
     AdminCredentialView::export_all(&output_dir_cfg)?;
     AdminMintIdentityCodeRequest::export_all(&output_dir_cfg)?;
     UpdateRuntimeConfigRequest::export_all(&output_dir_cfg)?;
+    RoomExpiryOverride::export_all(&output_dir_cfg)?;
+    UploadFileTypeMode::export_all(&output_dir_cfg)?;
+    UploadFileTypePolicy::export_all(&output_dir_cfg)?;
     FullRoomGcStatusView::export_all(&output_dir_cfg)?;
     RunRoomGcResponse::export_all(&output_dir_cfg)?;
     CreateRoomIdentityCodeRequest::export_all(&output_dir_cfg)?;
@@ -203,6 +209,9 @@ pub fn exported_ts_type_names() -> &'static [&'static str] {
         "AdminCredentialView",
         "AdminMintIdentityCodeRequest",
         "UpdateRuntimeConfigRequest",
+        "RoomExpiryOverride",
+        "UploadFileTypeMode",
+        "UploadFileTypePolicy",
         "FullRoomGcStatusView",
         "RunRoomGcResponse",
         "CreateRoomIdentityCodeRequest",

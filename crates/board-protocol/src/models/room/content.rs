@@ -1,6 +1,6 @@
 use chrono::{NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, Row, any::AnyRow, postgres::PgRow, sqlite::SqliteRow};
+use sqlx::{FromRow, Row, any::AnyRow};
 use utoipa::ToSchema;
 
 use crate::models::room::row_utils::read_datetime_from_any;
@@ -11,7 +11,6 @@ use crate::models::room::row_utils::read_datetime_from_any;
 #[serde(tag = "type")]
 #[sqlx(type_name = "INTEGER")]
 #[repr(i64)]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub enum ContentType {
     Text = 0,
     Image = 1,
@@ -22,7 +21,6 @@ pub enum ContentType {
 /// 数据库 RoomContent 模型
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct RoomContent {
     #[cfg_attr(feature = "typescript-export", ts(type = "number | null"))]
     pub id: Option<i64>,
@@ -50,81 +48,25 @@ pub struct RoomContent {
     pub updated_at: NaiveDateTime,
 }
 
-fn build_room_content_sqlite(row: &SqliteRow) -> Result<RoomContent, sqlx::Error> {
-    Ok(RoomContent {
-        id: row.try_get("id")?,
-        room_id: row.try_get("room_id")?,
-        content_type: row.try_get("content_type")?,
-        text: row.try_get("text")?,
-        url: row.try_get("url")?,
-        path: row.try_get("path")?,
-        hash: row.try_get("hash")?,
-        file_name: row.try_get("file_name")?,
-        size: row.try_get("size")?,
-        mime_type: row.try_get("mime_type")?,
-        sequence_number: row.try_get("sequence_number")?,
-        created_by_jti: row.try_get("created_by_jti")?,
-        hidden: row.try_get::<i64, _>("hidden")? != 0,
-        created_at: row.try_get("created_at")?,
-        updated_at: row.try_get("updated_at")?,
-    })
-}
-
-fn build_room_content_pg(row: &PgRow) -> Result<RoomContent, sqlx::Error> {
-    Ok(RoomContent {
-        id: row.try_get("id")?,
-        room_id: row.try_get("room_id")?,
-        content_type: row.try_get("content_type")?,
-        text: row.try_get("text")?,
-        url: row.try_get("url")?,
-        path: row.try_get("path")?,
-        hash: row.try_get("hash")?,
-        file_name: row.try_get("file_name")?,
-        size: row.try_get("size")?,
-        mime_type: row.try_get("mime_type")?,
-        sequence_number: row.try_get("sequence_number")?,
-        created_by_jti: row.try_get("created_by_jti")?,
-        hidden: row.try_get::<bool, _>("hidden")?,
-        created_at: row.try_get("created_at")?,
-        updated_at: row.try_get("updated_at")?,
-    })
-}
-
-fn build_room_content_any(row: &AnyRow) -> Result<RoomContent, sqlx::Error> {
-    Ok(RoomContent {
-        id: row.try_get("id")?,
-        room_id: row.try_get("room_id")?,
-        content_type: row.try_get("content_type")?,
-        text: row.try_get("text")?,
-        url: row.try_get("url")?,
-        path: row.try_get("path")?,
-        hash: row.try_get("hash")?,
-        file_name: row.try_get("file_name")?,
-        size: row.try_get("size")?,
-        mime_type: row.try_get("mime_type")?,
-        sequence_number: row.try_get("sequence_number")?,
-        created_by_jti: row.try_get("created_by_jti")?,
-        hidden: row.try_get::<i64, _>("hidden")? != 0,
-        created_at: read_datetime_from_any(row, "created_at")?,
-        updated_at: read_datetime_from_any(row, "updated_at")?,
-    })
-}
-
-impl<'r> FromRow<'r, SqliteRow> for RoomContent {
-    fn from_row(row: &'r SqliteRow) -> Result<Self, sqlx::Error> {
-        build_room_content_sqlite(row)
-    }
-}
-
-impl<'r> FromRow<'r, PgRow> for RoomContent {
-    fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
-        build_room_content_pg(row)
-    }
-}
-
 impl<'r> FromRow<'r, AnyRow> for RoomContent {
     fn from_row(row: &'r AnyRow) -> Result<Self, sqlx::Error> {
-        build_room_content_any(row)
+        Ok(RoomContent {
+            id: row.try_get("id")?,
+            room_id: row.try_get("room_id")?,
+            content_type: row.try_get("content_type")?,
+            text: row.try_get("text")?,
+            url: row.try_get("url")?,
+            path: row.try_get("path")?,
+            hash: row.try_get("hash")?,
+            file_name: row.try_get("file_name")?,
+            size: row.try_get("size")?,
+            mime_type: row.try_get("mime_type")?,
+            sequence_number: row.try_get("sequence_number")?,
+            created_by_jti: row.try_get("created_by_jti")?,
+            hidden: row.try_get::<i64, _>("hidden")? != 0,
+            created_at: read_datetime_from_any(row, "created_at")?,
+            updated_at: read_datetime_from_any(row, "updated_at")?,
+        })
     }
 }
 

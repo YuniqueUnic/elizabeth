@@ -1,6 +1,6 @@
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, Row, any::AnyRow, postgres::PgRow, sqlite::SqliteRow};
+use sqlx::{FromRow, Row, any::AnyRow};
 use utoipa::ToSchema;
 
 use crate::models::room::row_utils::{read_datetime_from_any, read_optional_datetime_from_any};
@@ -9,7 +9,6 @@ use crate::models::room::row_utils::{read_datetime_from_any, read_optional_datet
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Default)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
 #[serde(rename_all = "lowercase")]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub enum UploadStatus {
     #[default]
     Pending, // 等待上传
@@ -121,7 +120,6 @@ impl<'q> sqlx::Encode<'q, sqlx::Any> for UploadStatus {
 /// 客户端上报的文件信息
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct UploadFileDescriptor {
     pub name: String,
     #[cfg_attr(feature = "typescript-export", ts(type = "number"))]
@@ -142,7 +140,6 @@ pub struct UploadFileDescriptor {
 /// 上传预留记录
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript-export", derive(ts_rs::TS, schemars::JsonSchema))]
-#[cfg_attr(feature = "typescript-export", ts(export))]
 pub struct RoomUploadReservation {
     #[cfg_attr(feature = "typescript-export", ts(type = "number | null"))]
     pub id: Option<i64>,
@@ -173,98 +170,35 @@ pub struct RoomUploadReservation {
     pub upload_status: Option<UploadStatus>, // 上传状态
 }
 
-fn build_room_upload_reservation_sqlite(
-    row: &SqliteRow,
-) -> Result<RoomUploadReservation, sqlx::Error> {
-    let chunked_upload_raw: Option<i64> = row.try_get("chunked_upload")?;
-    Ok(RoomUploadReservation {
-        id: row.try_get("id")?,
-        room_id: row.try_get("room_id")?,
-        owner_token_jti: row.try_get("owner_token_jti")?,
-        token_jti: row.try_get("token_jti")?,
-        file_manifest: row.try_get("file_manifest")?,
-        reserved_size: row.try_get("reserved_size")?,
-        reserved_at: row.try_get("reserved_at")?,
-        expires_at: row.try_get("expires_at")?,
-        consumed_at: row.try_get("consumed_at")?,
-        created_at: row.try_get("created_at")?,
-        updated_at: row.try_get("updated_at")?,
-        chunked_upload: chunked_upload_raw.map(|v| v != 0),
-        total_chunks: row.try_get("total_chunks")?,
-        uploaded_chunks: row.try_get("uploaded_chunks")?,
-        file_hash: row.try_get("file_hash")?,
-        chunk_size: row.try_get("chunk_size")?,
-        upload_status: row.try_get("upload_status")?,
-    })
-}
-
-fn build_room_upload_reservation_pg(row: &PgRow) -> Result<RoomUploadReservation, sqlx::Error> {
-    Ok(RoomUploadReservation {
-        id: row.try_get("id")?,
-        room_id: row.try_get("room_id")?,
-        owner_token_jti: row.try_get("owner_token_jti")?,
-        token_jti: row.try_get("token_jti")?,
-        file_manifest: row.try_get("file_manifest")?,
-        reserved_size: row.try_get("reserved_size")?,
-        reserved_at: row.try_get("reserved_at")?,
-        expires_at: row.try_get("expires_at")?,
-        consumed_at: row.try_get("consumed_at")?,
-        created_at: row.try_get("created_at")?,
-        updated_at: row.try_get("updated_at")?,
-        chunked_upload: row.try_get("chunked_upload")?,
-        total_chunks: row.try_get("total_chunks")?,
-        uploaded_chunks: row.try_get("uploaded_chunks")?,
-        file_hash: row.try_get("file_hash")?,
-        chunk_size: row.try_get("chunk_size")?,
-        upload_status: row.try_get("upload_status")?,
-    })
-}
-
-fn build_room_upload_reservation_any(row: &AnyRow) -> Result<RoomUploadReservation, sqlx::Error> {
-    // sqlite via Any driver may store booleans as integers; decode manually
-    let chunked_upload_raw: Option<i64> = match row.try_get("chunked_upload") {
-        Ok(v) => v,
-        Err(_) => {
-            let as_bool: Option<bool> = row.try_get("chunked_upload")?;
-            as_bool.map(|b| if b { 1 } else { 0 })
-        }
-    };
-    Ok(RoomUploadReservation {
-        id: row.try_get("id")?,
-        room_id: row.try_get("room_id")?,
-        owner_token_jti: row.try_get("owner_token_jti")?,
-        token_jti: row.try_get("token_jti")?,
-        file_manifest: row.try_get("file_manifest")?,
-        reserved_size: row.try_get("reserved_size")?,
-        reserved_at: read_datetime_from_any(row, "reserved_at")?,
-        expires_at: read_datetime_from_any(row, "expires_at")?,
-        consumed_at: read_optional_datetime_from_any(row, "consumed_at")?,
-        created_at: read_datetime_from_any(row, "created_at")?,
-        updated_at: read_datetime_from_any(row, "updated_at")?,
-        chunked_upload: chunked_upload_raw.map(|v| v != 0),
-        total_chunks: row.try_get("total_chunks")?,
-        uploaded_chunks: row.try_get("uploaded_chunks")?,
-        file_hash: row.try_get("file_hash")?,
-        chunk_size: row.try_get("chunk_size")?,
-        upload_status: row.try_get("upload_status")?,
-    })
-}
-
-impl<'r> FromRow<'r, SqliteRow> for RoomUploadReservation {
-    fn from_row(row: &'r SqliteRow) -> Result<Self, sqlx::Error> {
-        build_room_upload_reservation_sqlite(row)
-    }
-}
-
-impl<'r> FromRow<'r, PgRow> for RoomUploadReservation {
-    fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
-        build_room_upload_reservation_pg(row)
-    }
-}
-
 impl<'r> FromRow<'r, AnyRow> for RoomUploadReservation {
     fn from_row(row: &'r AnyRow) -> Result<Self, sqlx::Error> {
-        build_room_upload_reservation_any(row)
+        // sqlite via Any driver may store booleans as integers; decode manually
+        let chunked_upload_raw: Option<i64> = match row.try_get("chunked_upload") {
+            Ok(v) => v,
+            Err(_) => {
+                let as_bool: Option<bool> = row.try_get("chunked_upload")?;
+                as_bool.map(|b| if b { 1 } else { 0 })
+            }
+        };
+        Ok(RoomUploadReservation {
+            id: row.try_get("id")?,
+            room_id: row.try_get("room_id")?,
+            owner_token_jti: row.try_get("owner_token_jti")?,
+            token_jti: row.try_get("token_jti")?,
+            file_manifest: row.try_get("file_manifest")?,
+            reserved_size: row.try_get("reserved_size")?,
+            reserved_at: read_datetime_from_any(row, "reserved_at")?,
+            expires_at: read_datetime_from_any(row, "expires_at")?,
+            consumed_at: read_optional_datetime_from_any(row, "consumed_at")?,
+            created_at: read_datetime_from_any(row, "created_at")?,
+            updated_at: read_datetime_from_any(row, "updated_at")?,
+            chunked_upload: chunked_upload_raw.map(|v| v != 0),
+            total_chunks: row.try_get("total_chunks")?,
+            uploaded_chunks: row.try_get("uploaded_chunks")?,
+            file_hash: row.try_get("file_hash")?,
+            chunk_size: row.try_get("chunk_size")?,
+            upload_status: row.try_get("upload_status")?,
+        })
     }
 }
 

@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result, anyhow};
-use chrono::{DateTime, NaiveDateTime, Utc};
-use log::{debug, error, info, warn};
 
 use crate::models::Room;
 use crate::repository::room_refresh_token_repository::ITokenBlacklistRepository;
@@ -182,7 +180,7 @@ mod tests {
     use crate::repository::TokenBlacklistRepository;
     use crate::services::RoomTokenClaims;
     use crate::services::token::RoomTokenService;
-    use chrono::Duration;
+    use chrono::{Duration, Utc};
     use std::sync::Arc;
 
     const TEST_DB_URL: &str = "sqlite::memory:";
