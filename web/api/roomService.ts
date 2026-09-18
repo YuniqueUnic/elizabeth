@@ -299,4 +299,3 @@ export async function updateRoomSettings(
 
 // Legacy compatibility exports (for existing components)
 // getRoomDetails is already exported above
-

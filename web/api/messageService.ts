@@ -161,4 +161,3 @@ export async function updateMessage(
 
   return convertMessage(response.updated);
 }
-

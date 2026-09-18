@@ -12,4 +12,3 @@ export function decodeJWT(token: string): JWTPayload | null {
     return null;
   }
 }
-

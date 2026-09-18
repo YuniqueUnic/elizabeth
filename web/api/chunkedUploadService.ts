@@ -358,4 +358,3 @@ async function calculateSHA256Hash(data: ArrayBuffer | Blob): Promise<string> {
     return sha256Fallback(new Uint8Array(buffer));
   }
 }
-

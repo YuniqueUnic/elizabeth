@@ -167,7 +167,7 @@ jobs:
           JWT_SECRET: ci-test-secret-at-least-32-characters-long # pragma: allowlist secret
           # e2e fixture 通过平台管理员账号补签身份码；与 playwright 配置的默认值一致
           ELIZABETH_ADMIN_USERNAME: admin
-          ELIZABETH_ADMIN_PASSWORD: elizabeth-test-admin
+          ELIZABETH_ADMIN_PASSWORD: elizabeth-test-admin # pragma: allowlist secret
 
       - name: Wait for backend
         run: |
