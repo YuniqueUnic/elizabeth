@@ -67,6 +67,11 @@ export interface UseRoomEventsOptions {
   onRoomUpdate?: (payload: RoomUpdatePayload) => void;
   /** Callback after the websocket reconnects successfully */
   onReconnected?: () => void;
+  /**
+   * 服务端下发终止性错误帧（握手拒绝 / 订阅失败 / 房间删除或过期 / 会话被踢）。
+   * 这类失败重连必然复现，消费方应回到进入流程而不是依赖重连。
+   */
+  onSessionInvalidated?: (reason: string) => void;
   /** Enable automatic cache invalidation */
   enableCacheInvalidation?: boolean;
 }
@@ -96,6 +101,7 @@ export function useRoomEvents(options: UseRoomEventsOptions) {
     onContentDeleted,
     onRoomUpdate,
     onReconnected,
+    onSessionInvalidated,
     enableCacheInvalidation = true,
   } = options;
 
@@ -183,6 +189,7 @@ export function useRoomEvents(options: UseRoomEventsOptions) {
     roomName,
     onMessage: handleMessage,
     onReconnected,
+    onErrorFrame: onSessionInvalidated,
     enableReconnect: true,
   });
 

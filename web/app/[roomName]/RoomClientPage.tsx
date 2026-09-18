@@ -149,10 +149,12 @@ function RoomRealtimeSync({
   roomName,
   token,
   onRoomUpdate,
+  onSessionInvalidated,
 }: {
   roomName: string;
   token: string;
   onRoomUpdate?: (payload: RoomUpdatePayload) => void;
+  onSessionInvalidated?: (reason: string) => void;
 }) {
   const t = useTranslations("common");
   const queryClient = useQueryClient();
@@ -282,6 +284,7 @@ function RoomRealtimeSync({
         console.error("Failed to refresh messages after reconnect:", error);
       });
     },
+    onSessionInvalidated,
     onRoomUpdate: (payload) => {
       notifyRoomUpdate(payload);
       onRoomUpdate?.(payload);
@@ -315,6 +318,8 @@ export default function RoomPage() {
 
   const [entry, setEntry] = useState<RoomEntryPhase>({ kind: "loading" });
   const [manualCopyValue, setManualCopyValue] = useState("");
+  // 会话在途中被服务端吊销（改密 / 管理吊销 / 房间删除）时递增，重跑整个进入状态机
+  const [entryEpoch, setEntryEpoch] = useState(0);
   const wsToken = entry.kind === "ready" ? getRoomTokenString(roomName) : null;
 
   useEffect(() => {
@@ -410,7 +415,14 @@ export default function RoomPage() {
     return () => {
       isCancelled = true;
     };
-  }, [roomName, setCurrentRoomId, router, setRoomRedirectTarget, tErrors]);
+  }, [roomName, entryEpoch, setCurrentRoomId, router, setRoomRedirectTarget, tErrors]);
+
+  // WS 终止性错误帧（token 失效 / 房间删除或过期）意味着当前会话不可再用，
+  // 回到进入流程：本地 token 会被服务端校验拒绝并清除，密码房随之弹回密码门。
+  const handleSessionInvalidated = () => {
+    setEntry({ kind: "loading" });
+    setEntryEpoch((epoch) => epoch + 1);
+  };
 
   const handlePasswordSubmit = async (password: string) => {
     try {
@@ -495,6 +507,7 @@ export default function RoomPage() {
         <RoomRealtimeSync
           roomName={roomName}
           token={wsToken}
+          onSessionInvalidated={handleSessionInvalidated}
           onRoomUpdate={(payload) => {
             const nextSlug = payload?.room_info?.slug;
             if (typeof nextSlug !== "string" || !nextSlug.trim()) return;
