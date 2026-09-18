@@ -8,14 +8,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-/** 登录页（展示组件）：token 仅进入服务端校验，前端不做授权判定。 */
+/** 登录页（展示组件）：凭证只进入服务端校验，前端不做授权判定。 */
 export function AdminLogin({
   onSubmit,
 }: {
-  onSubmit: (adminToken: string) => void;
+  onSubmit: (username: string, password: string) => void;
 }) {
   const t = useTranslations("admin");
-  const [token, setToken] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+
+  const ready = username.trim() !== "" && password !== "";
 
   return (
     <div className="flex min-h-[60vh] items-center justify-center">
@@ -29,22 +32,31 @@ export function AdminLogin({
             className="space-y-4"
             onSubmit={(event) => {
               event.preventDefault();
-              const trimmed = token.trim();
-              if (trimmed) onSubmit(trimmed);
+              if (ready) onSubmit(username.trim(), password);
             }}
           >
             <div className="space-y-2">
-              <Label htmlFor="admin-token">{t("login.tokenLabel")}</Label>
+              <Label htmlFor="admin-username">{t("login.usernameLabel")}</Label>
               <Input
-                id="admin-token"
-                type="password"
-                autoComplete="off"
-                placeholder={t("login.tokenPlaceholder")}
-                value={token}
-                onChange={(event) => setToken(event.target.value)}
+                id="admin-username"
+                autoComplete="username"
+                placeholder={t("login.usernamePlaceholder")}
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
               />
             </div>
-            <Button type="submit" className="w-full">
+            <div className="space-y-2">
+              <Label htmlFor="admin-password">{t("login.passwordLabel")}</Label>
+              <Input
+                id="admin-password"
+                type="password"
+                autoComplete="current-password"
+                placeholder={t("login.passwordPlaceholder")}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+            </div>
+            <Button type="submit" className="w-full" disabled={!ready}>
               {t("login.submit")}
             </Button>
           </form>

@@ -24,7 +24,7 @@ use crate::repository::{
     RoomUploadReservationRepository,
 };
 use crate::scheduler::ScheduledTask;
-use crate::services::{RoomPasswordService, migrate_legacy_room_passwords};
+use crate::services::{PasswordHashService, migrate_legacy_room_passwords};
 use crate::state::AppState;
 use crate::tasks::UploadCleanupTask;
 use crate::websocket::handler::MessageHandler;
@@ -105,7 +105,7 @@ async fn legacy_passwords_are_migrated_and_room_views_never_leak_them() -> anyho
     room.password = Some("legacy-plaintext".to_string());
     let room = state.services.room_repository.create(&room).await?;
 
-    let migrated = migrate_legacy_room_passwords(&state.db_pool, &RoomPasswordService).await?;
+    let migrated = migrate_legacy_room_passwords(&state.db_pool, &PasswordHashService).await?;
     assert_eq!(migrated, 1);
 
     let stored = state
@@ -118,7 +118,7 @@ async fn legacy_passwords_are_migrated_and_room_views_never_leak_them() -> anyho
     assert!(encoded.starts_with("$argon2"));
     assert!(
         state
-            .room_password_service()
+            .password_hash_service()
             .verify("legacy-plaintext".to_string(), encoded.to_string())
             .await?
     );
@@ -137,7 +137,7 @@ async fn password_verification_does_not_consume_quota_or_create_tokens() -> anyh
     let mut room = future_room("password-side-effect-room");
     room.password = Some(
         state
-            .room_password_service()
+            .password_hash_service()
             .hash("correct-password".to_string())
             .await?,
     );

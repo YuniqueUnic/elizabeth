@@ -17,6 +17,11 @@ pub fn api_router(app_state: Arc<AppState>) -> OpenApiRouter {
         .routes(routes!(crate::handlers::admin::admin_storage))
         .routes(routes!(crate::handlers::admin::admin_config))
         .routes(routes!(crate::handlers::admin::admin_update_runtime_config))
-        .routes(routes!(crate::handlers::admin::admin_update_credential))
+        .routes(routes!(crate::handlers::admin_auth::admin_login))
+        .routes(routes!(crate::handlers::admin_auth::admin_me))
+        .routes(routes!(crate::handlers::admin_auth::admin_change_password))
+        .routes(routes!(crate::handlers::admin_auth::admin_list_api_keys))
+        .routes(routes!(crate::handlers::admin_auth::admin_create_api_key))
+        .routes(routes!(crate::handlers::admin_auth::admin_revoke_api_key))
         .with_state(app_state)
 }

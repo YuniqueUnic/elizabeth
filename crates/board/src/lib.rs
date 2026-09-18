@@ -66,9 +66,43 @@ pub async fn run() -> anyhow::Result<()> {
             let cfg = cfg_service::init(&args)?;
             start_server(&cfg).await?
         }
+        cmd::Cli::ResetAdminPassword {
+            common,
+            username,
+            password,
+        } => {
+            let cfg = cfg_service::init(&common)?;
+            reset_admin_password(&cfg, &username, &password).await?
+        }
         #[cfg(feature = "completions")]
         cmd::Cli::Completions { shell } => cmd::output_completions(shell)?,
     }
+    Ok(())
+}
+
+async fn reset_admin_password(cfg: &Config, username: &str, password: &str) -> anyhow::Result<()> {
+    log_service::init(cfg);
+    let db_settings = DbPoolSettings::new(cfg.app.database.url.clone());
+    let db_pool = init_db(&db_settings).await?;
+    run_migrations(&db_pool, &cfg.app.database.url).await?;
+    use crate::repository::IAdminAccountRepository;
+    let repo = crate::repository::AdminAccountRepository::new(Arc::new(db_pool));
+    let existing = repo
+        .find_by_username(username)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to load admin account: {e}"))?;
+    let Some(account) = existing else {
+        anyhow::bail!(
+            "Admin account '{username}' does not exist; bootstrap it with the environment variable instead"
+        );
+    };
+    crate::services::admin_auth::validate_password(password)
+        .map_err(|error| anyhow::anyhow!("{error}"))?;
+    let hash = crate::services::PasswordHashService
+        .hash(password.to_owned())
+        .await?;
+    repo.update_password(account.id, hash).await?;
+    println!("Admin '{username}' password updated; existing sessions are invalidated");
     Ok(())
 }
 
@@ -157,7 +191,7 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
     let app_state = Arc::new(AppState::new(app_config, db_pool)?);
     let migrated_passwords = crate::services::migrate_legacy_room_passwords(
         &app_state.db_pool,
-        app_state.room_password_service(),
+        app_state.password_hash_service(),
     )
     .await?;
     if migrated_passwords > 0 {
@@ -166,6 +200,11 @@ async fn start_server(cfg: &Config) -> anyhow::Result<()> {
             migrated_passwords
         );
     }
+
+    // 管理员账号 bootstrap：仅账号表为空且配置了引导环境变量时创建
+    crate::services::admin_auth::bootstrap_admin_account(&app_state.db_pool)
+        .await
+        .map_err(|error| anyhow::anyhow!("Admin account bootstrap failed: {error}"))?;
 
     let addr: SocketAddr = format!("{}:{}", cfg.app.server.addr, cfg.app.server.port).parse()?;
     let listener = tokio::net::TcpListener::bind(addr).await?;

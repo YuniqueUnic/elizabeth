@@ -69,6 +69,18 @@ pub enum Cli {
     #[command(alias = "run", alias = "serve")]
     Start(CliArgs),
 
+    /// 重置管理员账号密码（忘记密码时的恢复通道；账号必须已存在）
+    ResetAdminPassword {
+        #[command(flatten)]
+        common: CliArgs,
+        /// 管理员用户名
+        #[clap(long)]
+        username: String,
+        /// 新密码（至少 12 个字符，不含空白）
+        #[clap(long)]
+        password: String,
+    },
+
     #[cfg(feature = "completions")]
     /// Generate shell completions
     #[command(alias = "complete", alias = "comp", alias = "completion")]

@@ -64,13 +64,13 @@ function StatusBadge({ status }: { status: AdminRoomView["status"] }) {
 
 /** 房间管理（容器组件）：默认列表、搜索、分页、配置与删除的数据与副作用。 */
 export function AdminRooms({
-  adminToken,
+  sessionToken,
   refreshKey,
   onError,
   onDeleted,
   onSaved,
 }: {
-  adminToken: string;
+  sessionToken: string;
   /** 递增值触发列表重新加载（面板刷新按钮） */
   refreshKey: number;
   onError: (message: string) => void;
@@ -90,7 +90,7 @@ export function AdminRooms({
   const load = useCallback(
     async (nextOffset: number, search = query) => {
       try {
-        const result = await listAdminRooms(adminToken, {
+        const result = await listAdminRooms(sessionToken, {
           q: search || undefined,
           limit: PAGE_SIZE,
           offset: nextOffset,
@@ -103,7 +103,7 @@ export function AdminRooms({
         onError(error instanceof Error ? error.message : String(error));
       }
     },
-    [adminToken, onError, query],
+    [sessionToken, onError, query],
   );
 
   // 默认列出已有房间；refreshKey 变化（含首次挂载）时重新加载
@@ -116,7 +116,7 @@ export function AdminRooms({
     if (!pendingDelete) return;
     setDeleting(true);
     try {
-      await deleteAdminRoom(adminToken, pendingDelete.name);
+      await deleteAdminRoom(sessionToken, pendingDelete.name);
       setPendingDelete(null);
       onDeleted(pendingDelete.name);
       await load(offset);
@@ -129,7 +129,7 @@ export function AdminRooms({
 
   async function openConfig(room: AdminRoomView) {
     try {
-      setDetail(await getAdminRoomDetail(adminToken, room.name));
+      setDetail(await getAdminRoomDetail(sessionToken, room.name));
     } catch (error) {
       onError(error instanceof Error ? error.message : String(error));
     }
@@ -239,7 +239,7 @@ export function AdminRooms({
 
       <RoomConfigDialog
         detail={detail}
-        adminToken={adminToken}
+        sessionToken={sessionToken}
         onClose={() => setDetail(null)}
         onError={onError}
         onSaved={(updated) => {
@@ -283,13 +283,13 @@ export function AdminRooms({
 /** 房间配置对话框（展示组件）：概览 / 设置 / 身份码 三个分区。 */
 function RoomConfigDialog({
   detail,
-  adminToken,
+  sessionToken,
   onClose,
   onError,
   onSaved,
 }: {
   detail: AdminRoomDetailResponse | null;
-  adminToken: string;
+  sessionToken: string;
   onClose: () => void;
   onError: (message: string) => void;
   onSaved: (detail: AdminRoomDetailResponse) => void;
@@ -357,7 +357,7 @@ function RoomConfigDialog({
       } else if (password !== "") {
         update.password = password;
       }
-      const updated = await updateAdminRoom(adminToken, detail.name, update);
+      const updated = await updateAdminRoom(sessionToken, detail.name, update);
       onSaved(updated);
     } catch (error) {
       onError(error instanceof Error ? error.message : String(error));
@@ -370,7 +370,7 @@ function RoomConfigDialog({
     if (!detail || minting) return;
     setMinting(true);
     try {
-      const result = await mintAdminIdentityCode(adminToken, detail.name, {
+      const result = await mintAdminIdentityCode(sessionToken, detail.name, {
         code: mintCode || undefined,
         role: mintRole,
       });

@@ -16,7 +16,11 @@ room_expiry_allowed_ages_seconds: number[],
 /**
  * 新建房间的默认有效期（秒）
  */
-room_expiry_default_age_seconds: number, jwt_ttl_seconds: number, jwt_refresh_ttl_seconds: number, upload_reservation_ttl_seconds: number, admin_api_enabled: boolean, 
+room_expiry_default_age_seconds: number, jwt_ttl_seconds: number, jwt_refresh_ttl_seconds: number, upload_reservation_ttl_seconds: number, 
+/**
+ * 管理面是否可用：已完成管理员账号 bootstrap（存在账号）即为 true
+ */
+admin_api_enabled: boolean, 
 /**
  * 存储去重作用域："per-room" | "global"
  */
@@ -36,8 +40,4 @@ runtime_room_default_role_key: string | null,
 /**
  * None = 未覆盖（覆盖时整组替换，不会出现允许列表与默认时长不一致的中间态）
  */
-runtime_room_expiry?: RoomExpiryOverride, 
-/**
- * 管理凭证来源："env" | "runtime-override"（不回显凭证本身）
- */
-admin_token_source: string, };
+runtime_room_expiry?: RoomExpiryOverride, };

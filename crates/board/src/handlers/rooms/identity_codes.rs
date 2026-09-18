@@ -77,7 +77,7 @@ pub(crate) async fn mint_identity_code(
         None => Uuid::new_v4().simple().to_string()[..12].to_owned(),
     };
     let hash = app_state
-        .room_password_service()
+        .password_hash_service()
         .hash(code.clone())
         .await
         .map_err(|e| AppError::internal(format!("Failed to protect identity code: {e}")))?;
@@ -184,7 +184,7 @@ pub async fn update_identity_code(
     if let Some(raw_code) = payload.code {
         let code = validate_identity_code(&raw_code)?;
         let hash = app_state
-            .room_password_service()
+            .password_hash_service()
             .hash(code.clone())
             .await
             .map_err(|e| AppError::internal(format!("Failed to protect identity code: {e}")))?;
@@ -404,7 +404,7 @@ async fn find_matching_identity_code(
         .filter(|candidate| candidate.is_active_at(now))
     {
         let valid = app_state
-            .room_password_service()
+            .password_hash_service()
             .verify(code.clone(), candidate.code_hash.clone())
             .await
             .map_err(|e| AppError::internal(format!("Failed to verify identity code: {e}")))?;

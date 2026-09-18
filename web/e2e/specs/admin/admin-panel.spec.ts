@@ -1,16 +1,31 @@
 import { expect, test } from "../../screenplay/fixtures/screenplay.fixture";
-import { ADMIN_BOOTSTRAP_TOKEN } from "../../screenplay/abilities/CallElizabethApi.ability";
+import {
+  ADMIN_BOOTSTRAP_PASSWORD,
+  ADMIN_BOOTSTRAP_USERNAME,
+} from "../../screenplay/abilities/CallElizabethApi.ability";
 import { tAdmin, tCommon, tRoom } from "../../screenplay/support/i18n";
 import { parseUtcMillis, roomExpiryPolicy } from "../../screenplay/support/room-expiry";
 import { uniqueRoomName } from "../../screenplay/support/test-data";
 
 /**
- * 平台管理面板 E2E（issue #196 第三阶段）：
- * 覆盖 happy path 与异常路径——错误 token、搜索空态、删除确认/取消、
- * 会话持久化、退出登录、运行时配置写入与越界拒绝。
+ * 平台管理面板 E2E：
+ * 覆盖 happy path 与异常路径——错误凭证、搜索空态、删除确认/取消、
+ * 会话持久化、退出登录、改密、运行时配置写入与越界拒绝。
  */
 
-const adminHeaders = { "X-Elizabeth-Admin-Token": ADMIN_BOOTSTRAP_TOKEN };
+const SESSION_KEY = "elizabeth.admin-session";
+
+/** 经 API 登录平台管理员，返回 Bearer 会话头（服务端鉴权以服务端为准）。 */
+async function adminAuthHeaders(
+  request: import("@playwright/test").APIRequestContext,
+): Promise<Record<string, string>> {
+  const response = await request.post("/api/v1/admin/auth/login", {
+    data: { username: ADMIN_BOOTSTRAP_USERNAME, password: ADMIN_BOOTSTRAP_PASSWORD },
+  });
+  expect(response.ok()).toBeTruthy();
+  const body = await response.json();
+  return { Authorization: `Bearer ${body.token}` };
+}
 
 async function createRoomViaApi(
   request: import("@playwright/test").APIRequestContext,
@@ -28,27 +43,32 @@ async function gotoAdmin(page: import("@playwright/test").Page): Promise<void> {
   await page.goto("/admin");
 }
 
-async function login(page: import("@playwright/test").Page, token: string): Promise<void> {
-  await page.getByLabel(tAdmin("login.tokenLabel")).fill(token);
+async function login(
+  page: import("@playwright/test").Page,
+  username: string,
+  password: string,
+): Promise<void> {
+  await page.getByLabel(tAdmin("login.usernameLabel")).fill(username);
+  await page.getByLabel(tAdmin("login.passwordLabel")).fill(password);
   await page.getByRole("button", { name: tAdmin("login.submit") }).click();
 }
 
 test.describe("Admin panel", () => {
-  test("rejects an invalid token and stays on the login screen", async ({ page }) => {
+  test("rejects invalid credentials and stays on the login screen", async ({ page }) => {
     await gotoAdmin(page);
-    await login(page, "definitely-wrong-token");
+    await login(page, ADMIN_BOOTSTRAP_USERNAME, "definitely-wrong-password");
 
     await expect(page.getByText(tAdmin("login.invalid")).first()).toBeVisible();
-    await expect(page.getByLabel(tAdmin("login.tokenLabel"))).toBeVisible();
+    await expect(page.getByLabel(tAdmin("login.usernameLabel"))).toBeVisible();
     // 失败的登录不得留下任何会话痕迹
-    expect(await page.evaluate(() => sessionStorage.getItem("elizabeth.admin-token"))).toBeNull();
+    expect(await page.evaluate((key) => sessionStorage.getItem(key), SESSION_KEY)).toBeNull();
   });
 
   test("logs in, shows dashboard stats, and persists the session across reload", async ({
     page,
   }) => {
     await gotoAdmin(page);
-    await login(page, ADMIN_BOOTSTRAP_TOKEN);
+    await login(page, ADMIN_BOOTSTRAP_USERNAME, ADMIN_BOOTSTRAP_PASSWORD);
 
     // 概览统计卡片可见
     await expect(page.getByText(tAdmin("stats.roomsTotal"))).toBeVisible();
@@ -60,8 +80,8 @@ test.describe("Admin panel", () => {
 
     // 退出登录 → 回到登录页并清空会话
     await page.getByRole("button", { name: tAdmin("nav.logout") }).click();
-    await expect(page.getByLabel(tAdmin("login.tokenLabel"))).toBeVisible();
-    expect(await page.evaluate(() => sessionStorage.getItem("elizabeth.admin-token"))).toBeNull();
+    await expect(page.getByLabel(tAdmin("login.usernameLabel"))).toBeVisible();
+    expect(await page.evaluate((key) => sessionStorage.getItem(key), SESSION_KEY)).toBeNull();
   });
 
   test("manages rooms: search, empty state, detail, delete cancel and confirm", async ({
@@ -72,7 +92,7 @@ test.describe("Admin panel", () => {
     await createRoomViaApi(request, roomName);
 
     await gotoAdmin(page);
-    await login(page, ADMIN_BOOTSTRAP_TOKEN);
+    await login(page, ADMIN_BOOTSTRAP_USERNAME, ADMIN_BOOTSTRAP_PASSWORD);
     await page.getByRole("button", { name: tAdmin("nav.rooms") }).click();
 
     // 精确搜索命中
@@ -113,7 +133,7 @@ test.describe("Admin panel", () => {
 
     // 服务端确认已删除
     const detail = await request.get(`/api/v1/admin/rooms/${encodeURIComponent(roomName)}`, {
-      headers: adminHeaders,
+      headers: await adminAuthHeaders(request),
     });
     expect(detail.status()).toBe(404);
   });
@@ -124,7 +144,7 @@ test.describe("Admin panel", () => {
   }) => {
     // 运行时覆盖存活于服务进程内：先归零，保证断言的初始状态与执行顺序无关
     const reset = await request.put("/api/v1/admin/config/runtime", {
-      headers: adminHeaders,
+      headers: await adminAuthHeaders(request),
       data: {
         disallow_search_indexing: true,
         room_default_max_size: 0,
@@ -136,7 +156,7 @@ test.describe("Admin panel", () => {
     const { defaultAge: deploymentDefaultAge } = await roomExpiryPolicy(request);
 
     await gotoAdmin(page);
-    await login(page, ADMIN_BOOTSTRAP_TOKEN);
+    await login(page, ADMIN_BOOTSTRAP_USERNAME, ADMIN_BOOTSTRAP_PASSWORD);
     await page.getByRole("button", { name: tAdmin("nav.system") }).click();
 
     // robots 开关 → 服务端 robots.txt 即时生效（初始为禁止抓取）
@@ -165,7 +185,7 @@ test.describe("Admin panel", () => {
     const roomName = uniqueRoomName("admin-runtime");
     await createRoomViaApi(request, roomName);
     const detail = await request.get(`/api/v1/admin/rooms/${encodeURIComponent(roomName)}`, {
-      headers: adminHeaders,
+      headers: await adminAuthHeaders(request),
     });
     expect(detail.ok()).toBeTruthy();
     const detailJson = await detail.json();
@@ -189,7 +209,7 @@ test.describe("Admin panel", () => {
     await createRoomViaApi(request, overrideRoom);
     const overrideDetail = await request.get(
       `/api/v1/admin/rooms/${encodeURIComponent(overrideRoom)}`,
-      { headers: adminHeaders },
+      { headers: await adminAuthHeaders(request) },
     );
     expect(overrideDetail.ok()).toBeTruthy();
     expect(
@@ -206,7 +226,7 @@ test.describe("Admin panel", () => {
     expect(rejected.status()).toBe(400);
     const rejectedDetail = await request.get(
       `/api/v1/admin/rooms/${encodeURIComponent(rejectedRoom)}`,
-      { headers: adminHeaders },
+      { headers: await adminAuthHeaders(request) },
     );
     expect(rejectedDetail.status()).toBe(404);
 
@@ -217,7 +237,7 @@ test.describe("Admin panel", () => {
     await createRoomViaApi(request, restoredRoom);
     const restoredDetail = await request.get(
       `/api/v1/admin/rooms/${encodeURIComponent(restoredRoom)}`,
-      { headers: adminHeaders },
+      { headers: await adminAuthHeaders(request) },
     );
     expect(restoredDetail.ok()).toBeTruthy();
     expect(
@@ -238,7 +258,7 @@ test.describe("Admin panel", () => {
     const longestAge = allowedAges[allowedAges.length - 1];
 
     await gotoAdmin(page);
-    await login(page, ADMIN_BOOTSTRAP_TOKEN);
+    await login(page, ADMIN_BOOTSTRAP_USERNAME, ADMIN_BOOTSTRAP_PASSWORD);
     await page.getByRole("button", { name: tAdmin("nav.rooms") }).click();
 
     // 默认列出已有房间，无需先搜索
@@ -262,7 +282,7 @@ test.describe("Admin panel", () => {
     // 服务端确认三个字段都已生效：截止时刻按所选时长重算，上传策略已落盘
     const detail = await request.get(
       `/api/v1/admin/rooms/${encodeURIComponent(roomName)}`,
-      { headers: adminHeaders },
+      { headers: await adminAuthHeaders(request) },
     );
     expect(detail.ok()).toBeTruthy();
     const saved = await detail.json();
@@ -293,33 +313,35 @@ test.describe("Admin panel", () => {
     await page.keyboard.press("Escape");
   });
 
-  test("rotates the admin credential and re-logs in", async ({ page }) => {
+  test("changes the admin password and re-logs in", async ({ page }) => {
+    const newPassword = "rotated-e2e-password";
     await gotoAdmin(page);
-    await login(page, ADMIN_BOOTSTRAP_TOKEN);
+    await login(page, ADMIN_BOOTSTRAP_USERNAME, ADMIN_BOOTSTRAP_PASSWORD);
     await page.getByRole("button", { name: tAdmin("nav.system") }).click();
 
-    // 轮换后本会话自动切换凭证，来源标记为运行时覆盖
-    await page.getByTestId("admin-credential-new").fill("rotated-e2e-admin-token");
-    await page.getByTestId("admin-rotate-credential").click();
-    await expect(page.getByTestId("admin-credential-source")).toHaveText(
-      "runtime-override",
-    );
+    // 改密成功后本会话立即失效，面板回到登录页
+    await page.getByTestId("admin-password-current").fill(ADMIN_BOOTSTRAP_PASSWORD);
+    await page.getByTestId("admin-password-new").fill(newPassword);
+    await page.getByTestId("admin-password-confirm").fill(newPassword);
+    await page.getByTestId("admin-change-password").click();
+    await expect(page.getByText(tAdmin("system.passwordChanged")).first()).toBeVisible();
+    await expect(page.getByLabel(tAdmin("login.usernameLabel"))).toBeVisible();
 
-    // 旧凭证已失效，新凭证可登录（退出前处于系统 tab，重登后先切回概览）
-    await page.getByRole("button", { name: tAdmin("nav.logout") }).click();
-    await login(page, ADMIN_BOOTSTRAP_TOKEN);
+    // 旧密码失效，新密码可登录
+    await login(page, ADMIN_BOOTSTRAP_USERNAME, ADMIN_BOOTSTRAP_PASSWORD);
     await expect(page.getByText(tAdmin("login.invalid")).first()).toBeVisible();
-    await login(page, "rotated-e2e-admin-token");
+    await login(page, ADMIN_BOOTSTRAP_USERNAME, newPassword);
+    // 登录后 tab 状态保留在系统 tab，切回概览验证统计加载
     await page.getByRole("button", { name: tAdmin("nav.dashboard") }).click();
     await expect(page.getByText(tAdmin("stats.roomsTotal"))).toBeVisible();
 
-    // 轮换回原凭证，保持环境对后续用例可用
+    // 改回原密码，保持环境对后续用例可用
     await page.getByRole("button", { name: tAdmin("nav.system") }).click();
-    await page.getByTestId("admin-credential-new").fill(ADMIN_BOOTSTRAP_TOKEN);
-    await page.getByTestId("admin-rotate-credential").click();
-    await expect(page.getByTestId("admin-credential-source")).toHaveText(
-      "runtime-override",
-    );
+    await page.getByTestId("admin-password-current").fill(newPassword);
+    await page.getByTestId("admin-password-new").fill(ADMIN_BOOTSTRAP_PASSWORD);
+    await page.getByTestId("admin-password-confirm").fill(ADMIN_BOOTSTRAP_PASSWORD);
+    await page.getByTestId("admin-change-password").click();
+    await expect(page.getByLabel(tAdmin("login.usernameLabel"))).toBeVisible();
   });
 
   test("links to the panel from the home page entry", async ({ page }) => {
@@ -327,6 +349,6 @@ test.describe("Admin panel", () => {
     const entry = page.getByRole("link", { name: tCommon("adminEntry") });
     await expect(entry).toBeVisible();
     await entry.click();
-    await expect(page.getByLabel(tAdmin("login.tokenLabel"))).toBeVisible();
+    await expect(page.getByLabel(tAdmin("login.usernameLabel"))).toBeVisible();
   });
 });

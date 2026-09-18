@@ -134,7 +134,25 @@ TICKET=$(curl -sS -f -X POST "$BASE/api/v1/rooms/my-room/contents/$CONTENT_ID/re
 curl -sS -f -o report.md "$BASE$DOWNLOAD_URL?token=$TOKEN&ticket=$TICKET"
 ```
 
-## 7. 常用错误码
+## 7. 管理员密码恢复（CLI）
+
+管理后台（`/admin`）使用 bootstrap 管理员账号登录。首次启动由环境变量创建账号：
+
+```bash
+ELIZABETH_ADMIN_USERNAME=admin            # 可选，默认 admin
+ELIZABETH_ADMIN_PASSWORD=<强密码>          # 必填，至少 12 个字符且不含空白
+```
+
+已有账号时环境变量不再生效（改密请用管理面板，密码修改持久化到数据库）。
+忘记密码时用 CLI 重置：
+
+```bash
+board reset-admin-password --username admin --password <新强密码>
+```
+
+重置后该账号所有已登录会话立即失效；签发的管理 API Key 不受影响。
+
+## 8. 常用错误码
 
 | code                                         | status | 典型原因                                                  |
 | -------------------------------------------- | ------ | --------------------------------------------------------- |

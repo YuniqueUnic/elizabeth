@@ -4,6 +4,8 @@ import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
 
 import {
+  adminLogin,
+  adminMe,
   getAdminConfig,
   getAdminStats,
   getAdminStorage,
@@ -20,18 +22,18 @@ import type {
   AdminStorageResponse,
 } from "@/types/generated/api.types";
 
-const ADMIN_TOKEN_STORAGE_KEY = "elizabeth.admin-token";
+const ADMIN_SESSION_STORAGE_KEY = "elizabeth.admin-session";
 
 type AdminPanelState =
   | { status: "login" }
   | { status: "loading" }
-  | { status: "ready"; adminToken: string };
+  | { status: "ready"; sessionToken: string };
 
 type Tab = "dashboard" | "rooms" | "system";
 
 /**
  * 管理面板容器：登录态、tab 导航与数据加载。
- * token 只保存在 sessionStorage；真正的鉴权始终发生在服务端。
+ * 会话令牌只保存在 sessionStorage；真正的鉴权始终发生在服务端。
  */
 export function AdminPanel() {
   const t = useTranslations("admin");
@@ -52,10 +54,10 @@ export function AdminPanel() {
   );
 
   const loadSystem = useCallback(
-    async (adminToken: string) => {
+    async (sessionToken: string) => {
       const [nextStorage, nextConfig] = await Promise.all([
-        getAdminStorage(adminToken),
-        getAdminConfig(adminToken),
+        getAdminStorage(sessionToken),
+        getAdminConfig(sessionToken),
       ]);
       setStorage(nextStorage);
       setConfig(nextConfig);
@@ -64,48 +66,47 @@ export function AdminPanel() {
   );
 
   const refreshStats = useCallback(
-    async (adminToken: string) => {
-      setStats(await getAdminStats(adminToken));
+    async (sessionToken: string) => {
+      setStats(await getAdminStats(sessionToken));
     },
     [],
   );
 
   useEffect(() => {
-    const saved = sessionStorage.getItem(ADMIN_TOKEN_STORAGE_KEY);
+    const saved = sessionStorage.getItem(ADMIN_SESSION_STORAGE_KEY);
     if (!saved) return;
     setState({ status: "loading" });
-    getAdminStats(saved)
-      .then(async (result) => {
-        setStats(result);
+    adminMe(saved)
+      .then(async (session) => {
+        setStats(await getAdminStats(saved));
         await loadSystem(saved);
-        setState({ status: "ready", adminToken: saved });
+        setState({ status: "ready", sessionToken: saved });
       })
       .catch(() => {
-        sessionStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
+        sessionStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
         setState({ status: "login" });
       });
   }, [loadSystem]);
 
-  function handleLogin(adminToken: string) {
+  async function handleLogin(username: string, password: string) {
     setState({ status: "loading" });
-    getAdminStats(adminToken)
-      .then(async (result) => {
-        setStats(result);
-        await loadSystem(adminToken);
-        sessionStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, adminToken);
-        setState({ status: "ready", adminToken });
-      })
-      .catch(() => {
-        toast({
-          description: t("login.invalid"),
-          variant: "destructive",
-        });
-        setState({ status: "login" });
+    try {
+      const session = await adminLogin(username, password);
+      setStats(await getAdminStats(session.token));
+      await loadSystem(session.token);
+      sessionStorage.setItem(ADMIN_SESSION_STORAGE_KEY, session.token);
+      setState({ status: "ready", sessionToken: session.token });
+    } catch {
+      toast({
+        description: t("login.invalid"),
+        variant: "destructive",
       });
+      setState({ status: "login" });
+    }
   }
 
   function handleLogout() {
-    sessionStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
+    sessionStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
     setStats(null);
     setStorage(null);
     setConfig(null);
@@ -123,7 +124,7 @@ export function AdminPanel() {
     );
   }
 
-  const adminToken = state.adminToken;
+  const sessionToken = state.sessionToken;
 
   return (
     <div className="space-y-6">
@@ -155,8 +156,8 @@ export function AdminPanel() {
                 setRoomsRefreshKey((key) => key + 1);
                 return;
               }
-              refreshStats(adminToken).catch(reportError);
-              loadSystem(adminToken).catch(reportError);
+              refreshStats(sessionToken).catch(reportError);
+              loadSystem(sessionToken).catch(reportError);
             }}
           >
             {t("nav.refresh")}
@@ -172,12 +173,12 @@ export function AdminPanel() {
       ) : null}
       {tab === "rooms" ? (
         <AdminRooms
-          adminToken={adminToken}
+          sessionToken={sessionToken}
           refreshKey={roomsRefreshKey}
           onError={reportError}
           onDeleted={(name) => {
             toast({ description: t("rooms.deleted", { name }) });
-            refreshStats(adminToken).catch(reportError);
+            refreshStats(sessionToken).catch(reportError);
           }}
           onSaved={() => {
             toast({ description: t("rooms.saved") });
@@ -188,18 +189,16 @@ export function AdminPanel() {
         <AdminSystem
           storage={storage}
           config={config}
-          adminToken={adminToken}
+          sessionToken={sessionToken}
           onError={reportError}
           onSaved={(updated) => {
             setConfig(updated);
             toast({ description: t("system.saved") });
           }}
-          onCredentialRotated={(newToken) => {
-            // 轮换成功即切换本会话凭证并刷新配置视图，避免持有已轮换的旧值
-            sessionStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, newToken);
-            setState({ status: "ready", adminToken: newToken });
-            loadSystem(newToken).catch(reportError);
-            toast({ description: t("system.credentialRotated") });
+          onPasswordChanged={() => {
+            toast({ description: t("system.passwordChanged") });
+            // 改密使当前会话一并失效，回到登录页
+            handleLogout();
           }}
         />
       ) : null}
