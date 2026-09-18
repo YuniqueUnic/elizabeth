@@ -30,6 +30,19 @@ docker compose ps
 - `ELIZABETH_STORAGE_DIR`（上传文件）
 - `ELIZABETH_BACKEND_CONFIG`（后端配置文件挂载路径）
 
+## 开启管理面板 `/admin`（可选）
+
+管理面板使用 bootstrap 管理员账号登录。在 `.env` 里设置一次：
+
+```bash
+ELIZABETH_ADMIN_USERNAME=admin       # 可选，默认 admin
+ELIZABETH_ADMIN_PASSWORD=<强密码>     # 至少 12 个字符且不含空白
+```
+
+重启后首次启动会创建账号；此后在面板里修改密码会持久化到数据库，该环境变量
+可以移除。忘记密码时也可以用 CLI 重置（见 `docs/cli.md` 第 7 节）。不设置
+`ELIZABETH_ADMIN_PASSWORD` 则管理面板保持关闭。
+
 ## 可选：使用 PostgreSQL
 
 后端已支持 SQLite / PostgreSQL：按 `DATABASE_URL`

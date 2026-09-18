@@ -45,6 +45,10 @@ services:
     environment:
       # Security
       JWT_SECRET: ${JWT_SECRET:-please-change-this-secret-in-production-min-32-chars}
+      # Platform admin bootstrap（仅在 admin_accounts 表为空时创建账号；之后改密走管理面板并持久化）
+      # 不设置则管理面板保持关闭
+      ELIZABETH_ADMIN_USERNAME: ${ELIZABETH_ADMIN_USERNAME:-admin}
+      ELIZABETH_ADMIN_PASSWORD: ${ELIZABETH_ADMIN_PASSWORD:-}
       JWT_TTL_SECONDS: ${JWT_TTL_SECONDS:-7200}
       JWT_LEEWAY_SECONDS: ${JWT_LEEWAY_SECONDS:-5}
       JWT_REFRESH_TTL_SECONDS: ${JWT_REFRESH_TTL_SECONDS:-604800}
