@@ -12,7 +12,10 @@ env:
   CARGO_NET_RETRY: 10
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
-  RUSTFLAGS: -D warnings
+  # aarch64-musl 交叉链接器的 Cortex-A53 erratum 提示会以 linker_messages 警告出现，
+  # 该 lint 无法被 -D warnings 升级为错误，却会被发布 action 的 build.warnings=deny 判死；
+  # 显式豁免这一条，其余真实警告仍然全部拒绝。
+  RUSTFLAGS: -D warnings -A linker_messages
   RUSTUP_MAX_RETRIES: 10
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
