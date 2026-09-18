@@ -210,4 +210,3 @@ export function hasValidToken(roomName: string): boolean {
   // Check if token is not expired (with buffer)
   return !isTokenExpired(tokenInfo.expiresAt);
 }
-

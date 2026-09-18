@@ -42,11 +42,12 @@ GET /api/v1/rooms/demo/contents?token=<room-jwt>
 API 客户端应使用 Bearer 或 X-API-Key。
 
 平台管理面使用独立的 bootstrap 管理员账号（不与房间身份码合并）。首次启动时由
-`ELIZABETH_ADMIN_PASSWORD`（可选 `ELIZABETH_ADMIN_USERNAME`，默认 `admin`）创建账号，
-密码以 Argon2 存储于 `admin_accounts`；此后改密经 `PUT /admin/auth/password`
-持久化（忘记密码可用 CLI `reset-admin-password` 恢复）。登录换发的会话 JWT 与
-管理 API key（`X-Elizabeth-Admin-Key`）都没有房间角色，只用于运维端点，并可在签发
-房间 admin 身份码时作为 bootstrap credential。管理 secret 永远不能写入日志、JWT
+`ELIZABETH_ADMIN_PASSWORD`（可选 `ELIZABETH_ADMIN_USERNAME`，默认
+`admin`）创建账号，密码以 Argon2 存储于 `admin_accounts`；此后改密经
+`PUT /admin/auth/password` 持久化（忘记密码可用 CLI `reset-admin-password`
+恢复）。登录换发的会话 JWT 与 管理 API
+key（`X-Elizabeth-Admin-Key`）都没有房间角色，只用于运维端点，并可在签发 房间
+admin 身份码时作为 bootstrap credential。管理 secret 永远不能写入日志、JWT
 或前端持久化存储。
 
 前端输入身份码后的流程：

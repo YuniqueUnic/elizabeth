@@ -913,7 +913,7 @@ async fn test_admin_api_key_actas_bootstrap_token_issue() -> Result<()> {
     assert_eq!(
         response.status(),
         StatusCode::OK,
-        "API key 应可引导补签: {}",
+        "API key 应可引导补签：{}",
         body_json(response).await?
     );
     let issued = body_json(response).await?;

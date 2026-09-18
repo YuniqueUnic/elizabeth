@@ -49,16 +49,16 @@
 
 ### 1.1 交付形态
 
-| 项       | 现状                                                                               | 关键文件                                                       |
-| :------- | :--------------------------------------------------------------------------------- | :------------------------------------------------------------- |
-| 后端     | Rust + axum 0.8，单二进制单端口，承载 REST + WS + 内嵌 SPA                         | `crates/board/src/lib.rs:150`                                  |
-| 前端     | Next.js 16 静态导出 → `web/out` → `rust-embed` 编进二进制                          | `web/next.config.mjs:13`、`crates/board/src/lib.rs:272`        |
-| 数据库   | `sqlx::AnyPool`，SQLite 默认 / Postgres 可选，双套 migrations（8 + 9 个文件）      | `crates/board/src/db/mod.rs:12`                                |
-| 文件     | 本地文件系统直写，`storage/rooms/{room}/...`                                       | `crates/board/src/handlers/content/upload.rs:9`                |
-| 实时     | 进程内 `ConnectionManager`：`room_name -> Vec<connection_id>` + mpsc sender        | `crates/board/src/websocket/connection.rs:45`                  |
-| 定时任务 | 自研 `TaskScheduler`（tokio interval）：房间 GC / token 清理 / 上传清理 / 限流清理 | `crates/board/src/lib.rs:342`                                  |
-| 鉴权     | 房间 JWT（**HS256**）+ Argon2id 房间密码 + 管理员账号 / `X-Elizabeth-Admin-Key`   | `crates/board/src/services/token.rs:78`、`password.rs:31` |
-| 限流     | `tower_governor` + `SmartIpKeyExtractor`（进程内令牌桶）                           | `crates/board/src/middleware/rate_limit.rs`                    |
+| 项       | 现状                                                                               | 关键文件                                                  |
+| :------- | :--------------------------------------------------------------------------------- | :-------------------------------------------------------- |
+| 后端     | Rust + axum 0.8，单二进制单端口，承载 REST + WS + 内嵌 SPA                         | `crates/board/src/lib.rs:150`                             |
+| 前端     | Next.js 16 静态导出 → `web/out` → `rust-embed` 编进二进制                          | `web/next.config.mjs:13`、`crates/board/src/lib.rs:272`   |
+| 数据库   | `sqlx::AnyPool`，SQLite 默认 / Postgres 可选，双套 migrations（8 + 9 个文件）      | `crates/board/src/db/mod.rs:12`                           |
+| 文件     | 本地文件系统直写，`storage/rooms/{room}/...`                                       | `crates/board/src/handlers/content/upload.rs:9`           |
+| 实时     | 进程内 `ConnectionManager`：`room_name -> Vec<connection_id>` + mpsc sender        | `crates/board/src/websocket/connection.rs:45`             |
+| 定时任务 | 自研 `TaskScheduler`（tokio interval）：房间 GC / token 清理 / 上传清理 / 限流清理 | `crates/board/src/lib.rs:342`                             |
+| 鉴权     | 房间 JWT（**HS256**）+ Argon2id 房间密码 + 管理员账号 / `X-Elizabeth-Admin-Key`    | `crates/board/src/services/token.rs:78`、`password.rs:31` |
+| 限流     | `tower_governor` + `SmartIpKeyExtractor`（进程内令牌桶）                           | `crates/board/src/middleware/rate_limit.rs`               |
 
 ### 1.2 数据层形态（决定迁移难度的关键）
 

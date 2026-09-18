@@ -314,7 +314,7 @@ test.describe("Admin panel", () => {
   });
 
   test("changes the admin password and re-logs in", async ({ page }) => {
-    const newPassword = "rotated-e2e-password";
+    const newPassword = "rotated-e2e-password"; // pragma: allowlist secret
     await gotoAdmin(page);
     await login(page, ADMIN_BOOTSTRAP_USERNAME, ADMIN_BOOTSTRAP_PASSWORD);
     await page.getByRole("button", { name: tAdmin("nav.system") }).click();

@@ -49,4 +49,3 @@ export function useRoomCapabilities(
   }), [has]);
   return { token, payload, grants: effectiveGrants, capabilities: effectiveGrants.map((grant) => grant.capability), has, can, roleKey: payload?.role ?? tokenInfo?.roleKey ?? null, roomName: payload?.room_name ?? roomName ?? null, roomId: payload?.room_id ?? null };
 }
-
