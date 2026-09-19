@@ -2,6 +2,7 @@ mod attempt_guard;
 mod authz;
 mod cfg_service;
 mod chunk_temp_storage;
+mod cmd_health;
 mod db;
 mod robots_indexing;
 mod room_expiry;

@@ -10,10 +10,22 @@ from pathlib import Path
 
 
 IMAGE_RE = re.compile(r"(?m)^(\s*image:\s*)yunique001/elizabeth:[^\s]+\s*$")
-DOCUMENT_RE = re.compile(
-    r"https://github\.com/YuniqueUnic/elizabeth/blob/[^/]+/docs/DOCKER_QUICK_START\.md"
-)
+DOCUMENT_RE = re.compile(r"(?m)^(\s*document:\s*)(\S+)\s*$")
 VERSION_RE = re.compile(r"^[0-9][0-9A-Za-z._+-]*$")
+
+# Source evidence is release-scoped on purpose: it has to keep pointing at the
+# exact commit, release, and image the package was cut from, so every version
+# reference inside it is repinned on each release.
+EVIDENCE_IMAGE_RE = re.compile(r"yunique001/elizabeth:[0-9][0-9A-Za-z._+-]*")
+EVIDENCE_BLOB_RE = re.compile(r"/blob/v[0-9][0-9A-Za-z._+-]*/")
+EVIDENCE_RELEASE_RE = re.compile(r"/releases/tag/v[0-9][0-9A-Za-z._+-]*")
+
+# The store metadata must not pin a release path. `document` is the link users
+# open from the app card, so a version-pinned URL would have to be edited on
+# every release and would rot as soon as the tag stops being the tip.
+STABLE_DOCUMENT_URL = (
+    "https://github.com/YuniqueUnic/elizabeth/blob/main/docs/DOCKER_QUICK_START.md"
+)
 
 
 def normalize_version(raw_version: str) -> str:
@@ -39,6 +51,32 @@ def replace_once(path: Path, pattern: re.Pattern[str], replacement: str) -> None
     if count != 1:
         raise ValueError(f"expected one versioned value in {path}, found {count}")
     path.write_text(updated, encoding="utf-8")
+
+
+def pin_evidence_versions(path: Path, version: str) -> None:
+    """Repin every release-scoped reference inside the source evidence."""
+    original = path.read_text(encoding="utf-8")
+    updated = EVIDENCE_IMAGE_RE.sub(f"yunique001/elizabeth:{version}", original)
+    updated = EVIDENCE_BLOB_RE.sub(f"/blob/v{version}/", updated)
+    updated = EVIDENCE_RELEASE_RE.sub(f"/releases/tag/v{version}", updated)
+    path.write_text(updated, encoding="utf-8")
+
+
+def assert_stable_document_url(path: Path) -> None:
+    """Fail the release when the store metadata pins `document` to a release path.
+
+    This is a guard rather than a rewrite: silently repointing the link is what
+    produced version-pinned metadata in the first place, and the mistake only
+    shows up on the next release.
+    """
+    match = DOCUMENT_RE.search(path.read_text(encoding="utf-8"))
+    if match is None:
+        raise ValueError(f"missing `document` field in {path}")
+    if match.group(2) != STABLE_DOCUMENT_URL:
+        raise ValueError(
+            f"`document` in {path} must point at the default branch "
+            f"({STABLE_DOCUMENT_URL}), found {match.group(2)}"
+        )
 
 
 def prepare_release(source: Path, output_root: Path, raw_version: str) -> Path:
@@ -72,26 +110,11 @@ def prepare_release(source: Path, output_root: Path, raw_version: str) -> Path:
         IMAGE_RE,
         rf"\g<1>yunique001/elizabeth:{version}",
     )
-    replace_once(
-        output_app / "data.yml",
-        DOCUMENT_RE,
-        f"https://github.com/YuniqueUnic/elizabeth/blob/v{version}/docs/DOCKER_QUICK_START.md",
-    )
+    assert_stable_document_url(output_app / "data.yml")
 
     evidence_path = output_app / "source-evidence.json"
     if evidence_path.is_file():
-        evidence = evidence_path.read_text(encoding="utf-8")
-        evidence = re.sub(
-            r"https://github\.com/YuniqueUnic/elizabeth/blob/v[0-9][0-9A-Za-z._+-]*/",
-            f"https://github.com/YuniqueUnic/elizabeth/blob/v{version}/",
-            evidence,
-        )
-        evidence = re.sub(
-            r"https://github\.com/YuniqueUnic/elizabeth/releases/tag/v[0-9][0-9A-Za-z._+-]*",
-            f"https://github.com/YuniqueUnic/elizabeth/releases/tag/v{version}",
-            evidence,
-        )
-        evidence_path.write_text(evidence, encoding="utf-8")
+        pin_evidence_versions(evidence_path, version)
 
     return output_app
 

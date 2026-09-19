@@ -18,12 +18,13 @@ class PrepareAppstoreReleaseTests(unittest.TestCase):
         app = root / "source" / "elizabeth"
         app.mkdir(parents=True)
         (app / "data.yml").write_text(
-            "document: https://github.com/YuniqueUnic/elizabeth/blob/v1.4.0/docs/DOCKER_QUICK_START.md\n",
+            f"document: {MODULE.STABLE_DOCUMENT_URL}\n",
             encoding="utf-8",
         )
         (app / "README.md").write_text("Elizabeth\n", encoding="utf-8")
         (app / "source-evidence.json").write_text(
             "{\n"
+            '  "image": "yunique001/elizabeth:1.4.0",\n'
             '  "dockerDocs": "https://github.com/YuniqueUnic/elizabeth/blob/v1.4.0/docs/DOCKER_QUICK_START.md",\n'
             '  "release": "https://github.com/YuniqueUnic/elizabeth/releases/tag/v1.4.0"\n'
             "}\n",
@@ -58,10 +59,34 @@ class PrepareAppstoreReleaseTests(unittest.TestCase):
             compose = (prepared / "1.5.0" / "docker-compose.yml").read_text(encoding="utf-8")
             metadata = (prepared / "data.yml").read_text(encoding="utf-8")
             self.assertIn("image: yunique001/elizabeth:1.5.0", compose)
-            self.assertIn("/blob/v1.5.0/docs/DOCKER_QUICK_START.md", metadata)
+            self.assertIn(MODULE.STABLE_DOCUMENT_URL, metadata)
+            self.assertNotIn("/blob/v1.5.0/", metadata)
             evidence = (prepared / "source-evidence.json").read_text(encoding="utf-8")
+            self.assertIn("yunique001/elizabeth:1.5.0", evidence)
             self.assertIn("/blob/v1.5.0/docs/DOCKER_QUICK_START.md", evidence)
             self.assertIn("/releases/tag/v1.5.0", evidence)
+            self.assertNotIn("1.4.0", evidence)
+
+    def test_rejects_version_pinned_document_url(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = self.create_package(root)
+            (source / "data.yml").write_text(
+                "document: https://github.com/YuniqueUnic/elizabeth/blob/v1.4.0/docs/DOCKER_QUICK_START.md\n",
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "must point at the default branch"):
+                MODULE.prepare_release(source, root / "output", "1.5.0")
+
+    def test_rejects_missing_document_url(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = self.create_package(root)
+            (source / "data.yml").write_text("name: Elizabeth\n", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "missing `document` field"):
+                MODULE.prepare_release(source, root / "output", "1.5.0")
 
     def test_rejects_ambiguous_source_versions(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

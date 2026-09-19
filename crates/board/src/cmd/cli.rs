@@ -69,6 +69,13 @@ pub enum Cli {
     #[command(alias = "run", alias = "serve")]
     Start(CliArgs),
 
+    /// 探测本机健康检查接口，未就绪时以非零状态码退出
+    #[command(alias = "healthcheck")]
+    Health {
+        #[command(flatten)]
+        common: CliArgs,
+    },
+
     /// 重置管理员账号密码（忘记密码时的恢复通道；账号必须已存在）
     ResetAdminPassword {
         #[command(flatten)]

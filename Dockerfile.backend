@@ -75,20 +75,37 @@ COPY --from=frontend-builder /app/web/out ./crates/board/web-out
 RUN cargo build --release -p elizabeth-board
 
 # ----------------------------------------------------------------------------
-# Stage 4: Runtime - Minimal production image
+# Stage 4: Runtime tree - writable directories for the distroless runtime
+# ----------------------------------------------------------------------------
+# The distroless runtime has no shell, so it cannot create or chown anything at
+# build time. Lay the writable tree out here and copy it in with its final owner.
+# 65532 is the `nonroot` user that the runtime image already ships.
+FROM builder AS runtime-tree
+
+RUN install -d -m 0750 -o 65532 -g 65532 /runtime/data /runtime/storage/rooms
+
+# ----------------------------------------------------------------------------
+# Stage 5: Runtime - Minimal distroless image
 # ----------------------------------------------------------------------------
 # NOTE: The cargo-chef base image is built against glibc >= 2.38.
 # Debian bookworm ships glibc 2.36, which will fail at runtime with:
 #   `GLIBC_2.38' not found
-# Use a runtime image with glibc >= 2.38.
-FROM debian:trixie-slim AS runtime
-
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y \
-    ca-certificates \
-    sqlite3 \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+# `cc-debian13` is Debian 13 (glibc 2.41) and satisfies that requirement.
+#
+# It is used instead of `debian:trixie-slim` because it ships only the C runtime
+# (glibc, libgcc, ca-certificates, tzdata) and no userland: no shell, no package
+# manager, no perl, no util-linux, no curl. A full Debian userland carries base
+# image CVEs that this application never executes, and the shell is exactly what
+# an attacker wants after a foothold.
+#
+# Consequences to keep in mind when editing this file:
+# - There is no shell, so no `RUN` and no `CMD-SHELL` healthcheck. The container
+#   healthcheck calls `board health`, which probes the API in-process.
+# - There is no `sqlite3` CLI. Inspect the database from the host against the
+#   mounted data directory instead.
+# - The digest is pinned so the runtime cannot drift underneath a release;
+#   Dependabot bumps it (see `.github/dependabot.yml`).
+FROM gcr.io/distroless/cc-debian13:nonroot@sha256:54df941ed0d06a1bd95ef5e0ce391fd8d9f94b64782dc9a60062727849ee3f97 AS runtime
 
 WORKDIR /app
 
@@ -98,15 +115,30 @@ COPY --from=builder /app/crates/board/migrations /app/migrations/
 COPY --from=builder /app/crates/board/migrations_pg /app/migrations_pg/
 COPY docker/backend/config/backend.yaml /app/config/backend.yaml
 
-# Create data directories
-RUN mkdir -p /app/data /app/storage/rooms /app/config
+# Writable state, owned by the `nonroot` user the image runs as. Compose
+# deployments bind-mount over both paths; these copies keep the image usable
+# stand-alone.
+COPY --from=runtime-tree --chown=65532:65532 /runtime/data /app/data
+COPY --from=runtime-tree --chown=65532:65532 /runtime/storage /app/storage
 
 # Expose single application port (serves both API and embedded SPA)
 EXPOSE 4092
 
-# Set environment variables
+# Default log level for the `logrs` subscriber. `RUST_LOG` accepts per-target
+# directives and is read directly, so this is only the baseline.
 ENV RUST_LOG=info
-ENV DATABASE_URL=sqlite:///app/data/elizabeth.db
+
+# Healthcheck in exec form. `docker run --health-cmd` always wraps its argument in
+# `/bin/sh -c`, and this image has no shell, so the probe has to be declared here
+# with the JSON form. `board health` dials the API in-process instead of shelling
+# out to `curl`. Compose deployments override this with an equivalent entry.
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=10s \
+  CMD ["/app/board", "health", "--config-file", "/app/config/backend.yaml"]
+
+# NOTE: the default database URL deliberately lives in `config/backend.yaml` only.
+# Baking it as an `ENV` here would be applied after the `ELIZABETH__APP__*`
+# environment source and would therefore silently shadow
+# `ELIZABETH__APP__DATABASE__URL`.
 
 # Run the application
 ENTRYPOINT ["/app/board"]

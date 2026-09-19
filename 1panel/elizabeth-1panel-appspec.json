@@ -2,7 +2,7 @@
   "key": "elizabeth",
   "name": "Elizabeth",
   "title": "Elizabeth",
-  "version": "1.4.0",
+  "version": "2.0.2",
   "description": {
     "en": "Minimal, secure real-time file and message sharing rooms built with Rust and Next.js",
     "es-es": "Salas minimalistas y seguras para compartir archivos y mensajes en tiempo real, creadas con Rust y Next.js",
@@ -75,19 +75,22 @@
   ],
   "website": "https://github.com/YuniqueUnic/elizabeth",
   "github": "https://github.com/YuniqueUnic/elizabeth",
-  "document": "https://github.com/YuniqueUnic/elizabeth/blob/v1.4.0/docs/DOCKER_QUICK_START.md",
+  "document": "https://github.com/YuniqueUnic/elizabeth/blob/main/docs/DOCKER_QUICK_START.md",
   "source_evidence": [
-    "https://github.com/YuniqueUnic/elizabeth/blob/v1.4.0/Dockerfile.backend",
-    "https://github.com/YuniqueUnic/elizabeth/blob/v1.4.0/docker-compose.yml",
-    "https://github.com/YuniqueUnic/elizabeth/blob/v1.4.0/docker/backend/config/backend.yaml",
-    "https://github.com/YuniqueUnic/elizabeth/blob/v1.4.0/docs/DOCKER_QUICK_START.md",
-    "https://github.com/YuniqueUnic/elizabeth/blob/v1.4.0/.github/workflows/docker-publish.yml"
+    "https://github.com/YuniqueUnic/elizabeth/blob/v2.0.2/Dockerfile.backend",
+    "https://github.com/YuniqueUnic/elizabeth/blob/v2.0.2/docker-compose.yml",
+    "https://github.com/YuniqueUnic/elizabeth/blob/v2.0.2/docker/backend/config/backend.yaml",
+    "https://github.com/YuniqueUnic/elizabeth/blob/v2.0.2/docs/DOCKER_QUICK_START.md",
+    "https://github.com/YuniqueUnic/elizabeth/blob/v2.0.2/.github/workflows/docker-publish.yml"
   ],
   "notes": [
-    "Docker image yunique001/elizabeth:1.4.0 is published by the official repository workflow.",
+    "Docker image yunique001/elizabeth:2.0.2 is published by the official repository workflow.",
     "The image manifest was verified to include linux/amd64 and linux/arm64.",
+    "The runtime image is distroless cc-debian13 (no shell, no perl, no util-linux, no curl) and is scanned clean for CRITICAL/HIGH.",
+    "The container runs as the non-root user 65532; scripts/init.sh hands ./data and ./storage to that user before Compose starts.",
     "SQLite state uses APP_DATA_DIR -> /app/data; room uploads use APP_STORAGE_DIR -> /app/storage.",
-    "Container hardening matches upstream compose: read_only, cap_drop ALL, no-new-privileges, and /tmp tmpfs."
+    "Container hardening matches upstream compose: read_only, cap_drop ALL, no-new-privileges, and /tmp tmpfs.",
+    "Health checks call the bundled `board health` probe because the runtime ships no curl."
   ],
   "logo": "1panel/logo.png",
   "architectures": [
@@ -99,7 +102,7 @@
   "services": [
     {
       "name": "elizabeth",
-      "image": "yunique001/elizabeth:1.4.0",
+      "image": "yunique001/elizabeth:2.0.2",
       "primary": true,
       "ports": [
         {
@@ -127,15 +130,17 @@
       "healthcheck": {
         "test": [
           "CMD",
-          "curl",
-          "-f",
-          "http://127.0.0.1:4092/api/v1/health"
+          "/app/board",
+          "health",
+          "--config-file",
+          "/app/config/backend.yaml"
         ],
         "interval": "30s",
         "timeout": "10s",
         "retries": 3,
         "start_period": "15s"
-      }
+      },
+      "user": "65532:65532"
     }
   ],
   "form_fields": [
@@ -167,7 +172,7 @@
       "type": "number"
     },
     {
-      "default": "ElizabethJwtSecretKey2026",
+      "default": "ElizabethJwtSecretKey2026ChangeMe",
       "edit": true,
       "envKey": "JWT_SECRET",
       "labelEn": "JWT Secret",

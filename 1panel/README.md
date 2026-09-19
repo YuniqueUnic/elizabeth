@@ -6,10 +6,10 @@ Elizabeth 的 1Panel 商店应用位于：
 1panel/apps/elizabeth/
 ```
 
-当前商店版本为 `1.4.0`，对应：
+当前商店版本为 `2.0.2`，对应：
 
-- GitHub Release：<https://github.com/YuniqueUnic/elizabeth/releases/tag/v1.4.0>
-- Docker 镜像：`yunique001/elizabeth:1.4.0`
+- GitHub Release：<https://github.com/YuniqueUnic/elizabeth/releases/tag/v2.0.2>
+- Docker 镜像：`yunique001/elizabeth:2.0.2`
 - 支持架构：`linux/amd64`、`linux/arm64`
 - 1Panel 本地应用测试目录：`/opt/1panel/resource/apps/local/elizabeth`
 - 推荐提交目标：第三方应用商店
@@ -21,8 +21,8 @@ Elizabeth 的 1Panel 商店应用位于：
 ## 生成来源
 
 中间 AppSpec 为
-[elizabeth-1panel-appspec.json](./elizabeth-1panel-appspec.json)，使用仓库中的
-1Panel AppStore skill 生成基础包：
+[elizabeth-1panel-appspec.json](./elizabeth-1panel-appspec.json)，使用仓库中
+vendored 的 1Panel AppStore skill 生成基础包：
 
 ```bash
 python3 1panel/skills/appstore/scripts/generate_app_package.py \
@@ -31,6 +31,16 @@ python3 1panel/skills/appstore/scripts/generate_app_package.py \
   --force
 ```
 
+发布时由 [prepare_appstore_release.py](./scripts/prepare_appstore_release.py) 把
+`1panel/apps/elizabeth/<版本>/` 复制到输出目录，并：
+
+- 把 compose 的 `image:` 重钉到目标版本；
+- 把 `source-evidence.json` 中所有 release 域引用（镜像 tag、`/blob/v*/`、
+  `/releases/tag/v*`）重钉到目标版本；
+- **校验**（而非重写）根 `data.yml` 的 `document` 仍指向默认分支
+  `main`。`document` 一旦钉到 `v*` 路径，每次发版都要改，且 tag 不再是 tip
+  之后就会失效，所以这里选择让发布失败而不是静默改回。
+
 生成后需要保留与 Elizabeth 官方 Compose 一致的容器加固字段：
 
 - `init: true`
@@ -38,11 +48,15 @@ python3 1panel/skills/appstore/scripts/generate_app_package.py \
 - `cap_drop: [ALL]`
 - `read_only: true`
 - `tmpfs: [/tmp]`
+- `user: "65532:65532"`（distroless `nonroot`；由 `scripts/init.sh`
+  移交目录属主）
 
 并确认：
 
 - 数据目录：`${APP_DATA_DIR}:/app/data`
 - 文件目录：`${APP_STORAGE_DIR}:/app/storage`
+- 生命周期脚本：`scripts/init.sh`（把上面两个目录 chown 给 `65532:65532` 并
+  `chmod 0750`，以 root 运行）
 - 溯源文件：`source-evidence.json`
 
 根 `data.yml` 可保留
@@ -57,14 +71,25 @@ magick elizabeth.logo.png -resize 180x180 -strip -colors 64 PNG8:1panel/logo.png
 ## 校验
 
 ```bash
-python3 1panel/skills/appstore/scripts/validate_app_package.py \
-  1panel/apps/elizabeth
+# 版本准备与守卫（与 CI 一致）
+python3 1panel/scripts/prepare_appstore_release.py \
+  --version 2.0.2 \
+  --output dist/1panel-appstore/apps
 
+# 官方 1Panel 包校验器
+python3 1panel/skills/appstore/scripts/validate_app_package.py \
+  dist/1panel-appstore/apps/elizabeth
+
+# Compose 展开
 docker compose \
-  -f 1panel/apps/elizabeth/1.4.0/docker-compose.yml \
-  --env-file 1panel/apps/elizabeth/1.4.0/.env.sample \
+  -f dist/1panel-appstore/apps/elizabeth/2.0.2/docker-compose.yml \
+  --env-file 1panel/apps/elizabeth/2.0.2/.env.sample \
   config
 ```
+
+CI 另用上游 `1Panel-dev/1Panel-appstore-skills` 的 `validate-v2.sh` 以及
+`okxlin/1panel-app-adapter` 的 `runtime_script_utils.py` 复核包结构、
+`scripts/init.sh` 与 `source-evidence.json`。
 
 本地安装测试时，将整个 `elizabeth` 目录复制到 1Panel
 的本地应用目录，然后在应用商店更新本地应用列表。
@@ -102,10 +127,13 @@ docker compose \
 
 ## 官方依据
 
-- [Dockerfile.backend](https://github.com/YuniqueUnic/elizabeth/blob/v1.4.0/Dockerfile.backend)
-- [docker-compose.yml](https://github.com/YuniqueUnic/elizabeth/blob/v1.4.0/docker-compose.yml)
-- [Docker 配置](https://github.com/YuniqueUnic/elizabeth/blob/v1.4.0/docker/backend/config/backend.yaml)
-- [Docker 快速开始](https://github.com/YuniqueUnic/elizabeth/blob/v1.4.0/docs/DOCKER_QUICK_START.md)
-- [Docker 发布工作流](https://github.com/YuniqueUnic/elizabeth/blob/v1.4.0/.github/workflows/docker-publish.yml)
+以下链接固定指向默认分支 `main`，避免每次发版都要改（逐版本的溯源证据见
+`source-evidence.json`）：
+
+- [Dockerfile.backend](https://github.com/YuniqueUnic/elizabeth/blob/main/Dockerfile.backend)
+- [docker-compose.yml](https://github.com/YuniqueUnic/elizabeth/blob/main/docker-compose.yml)
+- [Docker 配置](https://github.com/YuniqueUnic/elizabeth/blob/main/docker/backend/config/backend.yaml)
+- [Docker 快速开始](https://github.com/YuniqueUnic/elizabeth/blob/main/docs/DOCKER_QUICK_START.md)
+- [Docker 发布工作流](https://github.com/YuniqueUnic/elizabeth/blob/main/.github/workflows/docker-publish.yml)
 - [1Panel 应用提交说明](https://github.com/1Panel-dev/appstore/wiki/How-to-submit-your-own-application)
 - [第三方应用商店](https://github.com/okxlin/appstore)

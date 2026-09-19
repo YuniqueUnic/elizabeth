@@ -176,7 +176,7 @@ docker pull "yunique001/elizabeth:${ELIZABETH_VERSION}"
 ### 方式一：Docker Hub 一键启动（推荐最快）
 
 镜像已经包含 Rust 服务、嵌入式 Web 前端、数据库 migrations、默认 YAML
-配置和健康检查所需的 `curl`，无需克隆仓库。先生成并保存一个稳定的 JWT 密钥：
+配置和健康检查，无需克隆仓库。先生成并保存一个稳定的 JWT 密钥：
 
 ```bash
 umask 077
@@ -198,17 +198,20 @@ docker run -d \
   --env-file .env.elizabeth \
   -v elizabeth-data:/app/data \
   -v elizabeth-storage:/app/storage \
-  --health-cmd='curl -fsS http://127.0.0.1:4092/api/v1/health || exit 1' \
-  --health-interval=30s \
-  --health-timeout=10s \
-  --health-retries=3 \
-  --health-start-period=10s \
   "yunique001/elizabeth:${ELIZABETH_VERSION}"
 ```
 
 > [!IMPORTANT]
 > 请安全保存 `.env.elizabeth`，并在重建或升级容器时复用同一个
 > `JWT_SECRET`。重新生成密钥会让已有 token 全部失效；不要把该文件提交到版本库。
+
+> [!NOTE]
+> 运行镜像基于 distroless，**不含 shell 与 `curl`**，因此健康检查由镜像内置的
+> `HEALTHCHECK` 完成（exec 形式调用 `/app/board health`）。不要改用
+> `--health-cmd`：Docker CLI 总会把它的参数包进 `/bin/sh -c`，而该镜像没有
+> `/bin/sh`。这里使用 named volume，Docker 会用镜像内 `/app/data`、
+> `/app/storage` 的内容与属主（uid/gid 65532）初始化它们，无需额外授权；若改为
+> bind mount，见下方 Compose 方式的目录属主说明。
 
 该命令默认只监听本机 `127.0.0.1:4092`，适合在前面配置 HTTPS
 反向代理。需要直接提供给局域网访问时，可改为 `-p 4092:4092`；不建议将未启用 TLS
@@ -235,6 +238,15 @@ docker compose up -d --no-build
 生产环境必须修改 `.env` 中的
 `JWT_SECRET`。如果需要选择其他已发布版本，可以在当前 shell 中设置
 `ELIZABETH_IMAGE=yunique001/elizabeth:<version>` 后再执行 Compose 命令。
+
+> [!NOTE]
+> 镜像以 distroless 的 `nonroot`（uid/gid `65532`）运行，没有 shell 也没有
+> `curl`。Compose 使用 bind mount，而 Linux 上 bind mount 保留宿主机属主，因此
+> `./scripts/docker_prepare_volumes.sh` 会把 `docker/backend/data` 与
+> `docker/backend/storage` 交给 `65532:65532` （需要 `sudo`）；Docker
+> Desktop（macOS / Windows）会虚拟化属主，脚本自动跳过。健康检查由镜像内置的
+> `HEALTHCHECK` 完成，不要改用 `--health-cmd`——Docker CLI 总会把参数包进
+> `/bin/sh -c`，而该镜像没有 `/bin/sh`。
 
 ### 方式三：从源码自行构建 Docker 镜像
 
@@ -324,22 +336,30 @@ DATABASE_URL=postgresql://用户名:密码@主机名:端口/数据库名 # pragm
 
 常用环境变量：
 
-| 环境变量                            | 默认值                            | 作用说明                                          |
-| :---------------------------------- | :-------------------------------- | :------------------------------------------------ |
-| `JWT_SECRET`                        | 示例值，仅供启动                  | 签名认证令牌；生产环境必须设置稳定的 32+ 字符密钥 |
-| `DATABASE_URL`                      | `sqlite:///app/data/elizabeth.db` | 数据库连接串，协议决定驱动和 migrations           |
-| `BACKEND_PORT`                      | `4092`                            | Compose 暴露到宿主机的端口                        |
-| `ROOM_MAX_SIZE`                     | `50MiB`                           | 新房间默认容量，支持 `50M`、`100M`、`1G`、`1GiB`  |
-| `ROOM_MAX_TIMES_ENTERED`            | `100`                             | 新房间默认最大进入次数                            |
-| `ROOM_DEFAULT_AGE`                  | `2h`                              | 新房间默认过期时间，支持 `m`、`h`、`d`、`w`       |
-| `ROOM_DEFAULT_PASSWORD`             | 空                                | 新房间默认密码；空值表示无密码                    |
-| `ROOM_DEFAULT_PERMISSION_*`         | `true`                            | 新房间 read/edit/share/delete 四位默认权限        |
-| `ROOM_SHARE_DISABLED_LOCK_DURATION` | `1h`                              | 关闭分享后的锁定时长，支持 humantime 单位         |
+| 环境变量                                       | 默认值                            | 作用说明                                                  |
+| :--------------------------------------------- | :-------------------------------- | :-------------------------------------------------------- |
+| `JWT_SECRET`                                   | 示例值，仅供启动                  | 签名认证令牌；生产环境必须设置稳定的 32+ 字符密钥         |
+| `DATABASE_URL`                                 | `sqlite:///app/data/elizabeth.db` | 数据库连接串，协议决定驱动和 migrations                   |
+| `BACKEND_PORT`                                 | `4092`                            | Compose 暴露到宿主机的端口                                |
+| `ELIZABETH_ADMIN_USERNAME` / `_PASSWORD`       | 空（管理面板关闭）                | 首次启动时创建平台管理员；之后改密走 `/admin` 面板        |
+| `LOG_LEVEL` / `RUST_LOG`                       | `info`                            | 日志级别；`RUST_LOG` 支持按模块指令，并优先于前者         |
+| `ROOM_MAX_SIZE`                                | `50MiB`                           | 新房间默认容量，支持 `50M`、`100M`、`1G`、`1GiB`          |
+| `ROOM_MAX_TIMES_ENTERED`                       | `100`                             | 新房间默认最大进入次数                                    |
+| `ROOM_ALLOWED_AGES`                            | `1m,30m,2h,12h,1d,7d,30d,365d`    | 前端可选、后端接受的房间期限，必须严格升序                |
+| `ROOM_DEFAULT_AGE`                             | `2h`                              | 新房间默认过期时间，必须包含在 `ROOM_ALLOWED_AGES` 中     |
+| `ROOM_DEFAULT_PASSWORD`                        | 空                                | 新房间默认密码；空值表示无密码                            |
+| `ROOM_DEFAULT_ROLE`                            | `reader`                          | 新房间默认加入角色：`admin` / `editor` / `reader`         |
+| `ROOM_SHARE_DISABLED_LOCK_DURATION`            | `1h`                              | 关闭分享后的锁定时长，支持 humantime 单位                 |
+| `STORAGE_BACKEND` / `STORAGE_TRANSFER`         | `fs` / `proxy`                    | 内容存放位置与传输方式；`s3` + `presigned` 走对象存储直传 |
+| `STORAGE_S3_ENDPOINT` 等 `STORAGE_S3_*`        | 空                                | `STORAGE_BACKEND=s3` 时的 endpoint、bucket 与凭据         |
+| `MIDDLEWARE_SECURITY_DISALLOW_SEARCH_INDEXING` | `true`                            | 服务 `Disallow: /` 的 robots.txt，并给 HTML 加 `noindex`  |
+
+后端支持的全部环境变量、分组说明与各自的内置默认值见仓库根目录的 `.env.docker`，
+`docker-compose.yml` 会把其中每一项透传给容器。
 
 镜像内置配置位于 `/app/config/backend.yaml`，仓库模板位于
 `docker/backend/config/backend.yaml`。YAML 不执行 `${VAR}`
-插值；容器环境变量会在启动时覆盖对应 YAML 值。Compose 已显式传递 `.env.docker`
-中的数据库、JWT、房间、上传、GC、日志和 middleware 配置。
+插值；容器环境变量会在启动时覆盖对应 YAML 值。
 
 ### 启动验证与日常维护
 
@@ -438,7 +458,9 @@ bun run e2e:report   # 生成并查看 Serenity 报告
 
 本项目采用
 **[GNU Affero General Public License v3.0 (AGPL-3.0)](https://www.gnu.org/licenses/agpl-3.0.html)**
-开源许可证托管。
+开源许可证托管，完整协议文本见仓库根目录的 [`LICENSE`](LICENSE)。
+
+Copyright (C) 2026 unic &lt;yuniqueunic@gmail.com&gt;
 
 > [!IMPORTANT]
 > **AGPL-3.0 协议与商业授权说明：**

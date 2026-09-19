@@ -231,7 +231,7 @@ fn room_creation_defaults_load_as_one_typed_yaml_policy() {
     let config_path = temp.path().join("custom.yaml");
     fs::write(
         &config_path,
-        "app:\n  room:\n    defaults:\n      password: null\n      max_times_entered: 100\n      max_size: 50MiB\n      permissions:\n        read: true\n        edit: true\n        share: true\n        delete: true\n    expiry:\n      allowed_ages: [1m, 2h]\n      default_age: 2h\n",
+        "app:\n  room:\n    defaults:\n      password: null\n      max_times_entered: 100\n      max_size: 50MiB\n      role: reader\n    expiry:\n      allowed_ages: [1m, 2h]\n      default_age: 2h\n",
     )
     .expect("write config");
 
@@ -540,4 +540,82 @@ fn room_limit_conversion_rejects_i64_overflow() {
         err.to_string()
             .contains("Share-disabled lock duration exceeds the supported range")
     );
+}
+
+/// `docker/backend/config/backend.yaml` is the config the published image ships,
+/// and serde drops keys that no longer exist on `configrs::Config` without
+/// complaining — a stale key therefore becomes a silent no-op. This pins both
+/// directions: the deployment profile must load as documented, and every key in
+/// the file must still be a real config key.
+#[test]
+#[serial]
+fn shipped_docker_config_matches_the_documented_profile() {
+    const YAML: &str = include_str!("../../../../docker/backend/config/backend.yaml");
+
+    let temp = tempdir().expect("tempdir");
+    let config_path = temp.path().join("backend.yaml");
+    fs::write(&config_path, YAML).expect("write config");
+    let cfg = load_custom_config(&config_path).expect("shipped docker config must load");
+
+    assert_eq!(cfg.app.server.addr, "0.0.0.0");
+    assert_eq!(cfg.app.server.port, 4092);
+    // `cfg_service::init` appends `mode=rwc` so SQLite can create the file.
+    assert!(
+        cfg.app
+            .database
+            .url
+            .starts_with("sqlite:///app/data/elizabeth.db"),
+        "unexpected database url: {}",
+        cfg.app.database.url
+    );
+    assert_eq!(cfg.app.database.max_connections, Some(10));
+    assert_eq!(cfg.app.database.min_connections, Some(1));
+    assert_eq!(cfg.app.storage.root, "/app/storage/rooms");
+    assert_eq!(cfg.app.storage.backend, configrs::StorageBackendKind::Fs);
+    assert_eq!(cfg.app.storage.transfer, configrs::TransferMode::Proxy);
+    assert_eq!(cfg.app.storage.presign_ttl_seconds, 300);
+    assert!(!cfg.app.storage.global_dedup);
+    assert_eq!(cfg.app.room.defaults.role, "reader");
+    assert_eq!(cfg.app.room.defaults.password, None);
+    assert_eq!(cfg.app.room.defaults.max_times_entered, 100);
+    assert_eq!(cfg.app.room.defaults.max_size.as_u64(), 50 * 1024 * 1024);
+    assert_eq!(cfg.app.room.share_disabled_lock_duration.as_secs(), 3600);
+    assert_eq!(cfg.app.upload.reservation_ttl_seconds, 3600);
+    assert_eq!(cfg.app.gc.interval_seconds, 60);
+    assert_eq!(cfg.app.gc.batch_limit, 200);
+    assert!(cfg.app.middleware.compression.enabled);
+    assert!(cfg.app.middleware.cors.enabled);
+    assert!(cfg.app.middleware.security.enabled);
+    assert!(cfg.app.middleware.security.disallow_search_indexing);
+    assert!(cfg.app.middleware.rate_limit.enabled);
+    assert_eq!(cfg.app.middleware.rate_limit.per_second, 20);
+    assert_eq!(cfg.app.middleware.rate_limit.burst_size, 40);
+
+    let file_value: serde_json::Value = serde_yaml::from_str(YAML).expect("valid YAML");
+    let cfg_value = serde_json::to_value(&cfg).expect("config serializes");
+    let mut unknown = Vec::new();
+    collect_unknown_config_paths(&file_value, &cfg_value, "", &mut unknown);
+    assert!(unknown.is_empty(), "unknown config keys: {unknown:?}");
+}
+
+fn collect_unknown_config_paths(
+    file: &serde_json::Value,
+    cfg: &serde_json::Value,
+    prefix: &str,
+    unknown: &mut Vec<String>,
+) {
+    let serde_json::Value::Object(map) = file else {
+        return;
+    };
+    for (key, value) in map {
+        let path = if prefix.is_empty() {
+            key.to_string()
+        } else {
+            format!("{prefix}.{key}")
+        };
+        match cfg.get(key) {
+            None => unknown.push(path),
+            Some(inner) => collect_unknown_config_paths(value, inner, &path, unknown),
+        }
+    }
 }

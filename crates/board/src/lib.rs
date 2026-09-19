@@ -66,6 +66,7 @@ pub async fn run() -> anyhow::Result<()> {
             let cfg = cfg_service::init(&args)?;
             start_server(&cfg).await?
         }
+        cmd::Cli::Health { common } => cmd::health::run(&common).await?,
         cmd::Cli::ResetAdminPassword {
             common,
             username,
