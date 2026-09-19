@@ -159,7 +159,7 @@ release-please 在 Release PR 中自动更新。
 <!-- x-release-please-start-version -->
 
 ```bash
-export ELIZABETH_VERSION=2.0.1
+export ELIZABETH_VERSION=2.0.2
 ```
 
 <!-- x-release-please-end -->
