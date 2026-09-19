@@ -225,6 +225,23 @@ jobs:
             fi
             sleep 1
           done
+
+          # The HTTP probe answers as soon as the server binds the port, but the
+          # healthcheck runs on its own schedule (interval 30s, start_period 15s).
+          # Measured locally: the port answers at ~2s while the first `healthy`
+          # verdict only lands at ~6s, so asserting straight after the curl above
+          # would read `starting` and fail. Wait for the verdict instead.
+          for attempt in $(seq 1 90); do
+            if [[ "$(docker inspect elizabeth-1panel-smoke --format '{{.State.Health.Status}}')" == "healthy" ]]; then
+              break
+            fi
+            if [[ "${attempt}" -eq 90 ]]; then
+              docker inspect elizabeth-1panel-smoke --format '{{json .State.Health}}'
+              exit 1
+            fi
+            sleep 1
+          done
+
           test "$(docker inspect elizabeth-1panel-smoke --format '{{.HostConfig.ReadonlyRootfs}}')" = true
           test "$(docker inspect elizabeth-1panel-smoke --format '{{.Config.User}}')" = "65532:65532"
           test "$(docker inspect elizabeth-1panel-smoke --format '{{.State.Health.Status}}')" = healthy
