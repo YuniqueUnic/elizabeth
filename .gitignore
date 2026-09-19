@@ -2,6 +2,10 @@
 .DS_Store
 .context
 skills
+# The bare `skills` rule above also swallows any nested `skills` directory, so the
+# repository's own agent skills need an explicit carve-out.
+!docs/skills/
+!docs/skills/**
 storage
 !1panel/apps/**/storage/
 !1panel/apps/**/storage/.gitkeep
