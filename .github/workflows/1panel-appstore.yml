@@ -158,14 +158,20 @@ jobs:
         run: |
           set -euo pipefail
           version="${{ steps.version.outputs.version }}"
-          test_root="${RUNNER_TEMP}/elizabeth-1panel-smoke"
-          rm -rf "${test_root}"
-          mkdir -p "${test_root}"
-          cp -R "dist/1panel-appstore/apps/elizabeth/${version}/." "${test_root}/"
-          # 1Panel installs app directories as root. GitHub checkout files belong to the
-          # runner UID, which cannot be written by a container after cap_drop: ALL.
-          sudo chown -R 0:0 "${test_root}/data" "${test_root}/storage"
-          sudo chmod -R u+rwX,go+rX "${test_root}/data" "${test_root}/storage"
+          # 1Panel installs the app under a root-owned prefix, so mirror that here:
+          # `scripts/init.sh` refuses to run when any ancestor of the version root is
+          # not owned by uid 0 or is group/other-writable.
+          test_root=/opt/elizabeth-1panel-smoke
+          sudo rm -rf "${test_root}"
+          sudo mkdir -p "${test_root}"
+          sudo cp -R "dist/1panel-appstore/apps/elizabeth/${version}/." "${test_root}/"
+          sudo chown -R 0:0 "${test_root}"
+
+          # The image runs as distroless `nonroot` (65532); hand the bind mounts to
+          # that user exactly the way 1Panel does before starting the container.
+          sudo APP_DATA_DIR=./data APP_STORAGE_DIR=./storage bash "${test_root}/scripts/init.sh"
+          test "$(sudo stat -c '%u:%g:%a' "${test_root}/data")" = "65532:65532:750"
+          test "$(sudo stat -c '%u:%g:%a' "${test_root}/storage")" = "65532:65532:750"
 
           created_network=0
           if ! docker network inspect 1panel-network >/dev/null 2>&1; then
@@ -220,7 +226,9 @@ jobs:
             sleep 1
           done
           test "$(docker inspect elizabeth-1panel-smoke --format '{{.HostConfig.ReadonlyRootfs}}')" = true
-          test -f "${test_root}/data/elizabeth.db"
+          test "$(docker inspect elizabeth-1panel-smoke --format '{{.Config.User}}')" = "65532:65532"
+          test "$(docker inspect elizabeth-1panel-smoke --format '{{.State.Health.Status}}')" = healthy
+          sudo test -f "${test_root}/data/elizabeth.db"
 
       - name: Upload 1Panel package
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0

@@ -192,8 +192,8 @@ deployments should still prefer exact versions.
 ### Option 1: One-command Start from Docker Hub (fastest)
 
 The image bundles the Rust service, the embedded web frontend, database
-migrations, the default YAML configuration, and the `curl` binary needed by the
-health check — no clone required. First generate and store a stable JWT secret:
+migrations, the default YAML configuration, and its own health check — no clone
+required. First generate and store a stable JWT secret:
 
 ```bash
 umask 077
@@ -215,11 +215,6 @@ docker run -d \
   --env-file .env.elizabeth \
   -v elizabeth-data:/app/data \
   -v elizabeth-storage:/app/storage \
-  --health-cmd='curl -fsS http://127.0.0.1:4092/api/v1/health || exit 1' \
-  --health-interval=30s \
-  --health-timeout=10s \
-  --health-retries=3 \
-  --health-start-period=10s \
   "yunique001/elizabeth:${ELIZABETH_VERSION}"
 ```
 
@@ -227,6 +222,15 @@ docker run -d \
 > Keep `.env.elizabeth` safe and reuse the same `JWT_SECRET` whenever the
 > container is recreated or upgraded. Regenerating the secret invalidates all
 > existing tokens; never commit the file to version control.
+
+> [!NOTE]
+> The runtime image is distroless and ships **no shell and no `curl`**, so the
+> health check is the image's own `HEALTHCHECK` (exec form calling
+> `/app/board health`). Do not replace it with `--health-cmd`: the Docker CLI
+> always wraps that argument in `/bin/sh -c`, and this image has no `/bin/sh`.
+> The named volumes above are populated from the image's `/app/data` and
+> `/app/storage`, including their owner (uid/gid 65532), so no extra permission
+> step is needed; bind mounts are covered under Option 2.
 
 The command above only listens on `127.0.0.1:4092`, which suits an HTTPS reverse
 proxy in front. To serve a LAN directly, use `-p 4092:4092`; avoid exposing
@@ -347,23 +351,32 @@ The `docker run` example uses named volumes; Compose binds them to
 
 Common environment variables:
 
-| Variable                            | Default                           | Purpose                                                                  |
-| :---------------------------------- | :-------------------------------- | :----------------------------------------------------------------------- |
-| `JWT_SECRET`                        | Sample value, startup only        | Token-signing key; production must set a stable 32+ character secret     |
-| `DATABASE_URL`                      | `sqlite:///app/data/elizabeth.db` | Database connection string; the scheme selects the driver and migrations |
-| `BACKEND_PORT`                      | `4092`                            | Port exposed to the host by Compose                                      |
-| `ROOM_MAX_SIZE`                     | `50MiB`                           | Default room capacity; accepts `50M`, `100M`, `1G`, `1GiB`               |
-| `ROOM_MAX_TIMES_ENTERED`            | `100`                             | Default maximum entries per room                                         |
-| `ROOM_DEFAULT_AGE`                  | `2h`                              | Default room expiry; accepts `m`, `h`, `d`, `w`                          |
-| `ROOM_DEFAULT_PASSWORD`             | Empty                             | Default room password; empty means no password                           |
-| `ROOM_DEFAULT_PERMISSION_*`         | `true`                            | Default read/edit/share/delete flags for new rooms                       |
-| `ROOM_SHARE_DISABLED_LOCK_DURATION` | `1h`                              | Lock duration after sharing is disabled; humantime units                 |
+| Variable                                           | Default                           | Purpose                                                                                 |
+| :------------------------------------------------- | :-------------------------------- | :-------------------------------------------------------------------------------------- |
+| `JWT_SECRET`                                       | Sample value, startup only        | Token-signing key; production must set a stable 32+ character secret                    |
+| `DATABASE_URL`                                     | `sqlite:///app/data/elizabeth.db` | Database connection string; the scheme selects the driver and migrations                |
+| `BACKEND_PORT`                                     | `4092`                            | Port exposed to the host by Compose                                                     |
+| `ELIZABETH_ADMIN_USERNAME` / `_PASSWORD`           | Empty (panel disabled)            | Creates the platform admin on first start; change it later in `/admin`                  |
+| `LOG_LEVEL` / `RUST_LOG`                           | `info`                            | Log level; `RUST_LOG` accepts per-target directives and wins over the former            |
+| `ROOM_MAX_SIZE`                                    | `50MiB`                           | Default room capacity; accepts `50M`, `100M`, `1G`, `1GiB`                              |
+| `ROOM_MAX_TIMES_ENTERED`                           | `100`                             | Default maximum entries per room                                                        |
+| `ROOM_ALLOWED_AGES`                                | `1m,30m,2h,12h,1d,7d,30d,365d`    | Room lifetimes the UI offers and the backend accepts; strictly ascending                |
+| `ROOM_DEFAULT_AGE`                                 | `2h`                              | Default room expiry; must appear in `ROOM_ALLOWED_AGES`                                 |
+| `ROOM_DEFAULT_PASSWORD`                            | Empty                             | Default room password; empty means no password                                          |
+| `ROOM_DEFAULT_ROLE`                                | `reader`                          | Role granted in newly created rooms: `admin` / `editor` / `reader`                      |
+| `ROOM_SHARE_DISABLED_LOCK_DURATION`                | `1h`                              | Lock duration after sharing is disabled; humantime units                                |
+| `STORAGE_BACKEND` / `STORAGE_TRANSFER`             | `fs` / `proxy`                    | Where content lives and how it moves; `s3` + `presigned` uploads straight to the bucket |
+| `STORAGE_S3_ENDPOINT` and the other `STORAGE_S3_*` | Empty                             | Endpoint, bucket, and credentials for `STORAGE_BACKEND=s3`                              |
+| `MIDDLEWARE_SECURITY_DISALLOW_SEARCH_INDEXING`     | `true`                            | Serves `Disallow: /` robots.txt and adds `noindex` to HTML                              |
+
+`.env.docker` at the repository root documents every environment variable the
+backend reads, grouped with the built-in default of each one;
+`docker-compose.yml` forwards all of them to the container.
 
 The baked-in configuration lives at `/app/config/backend.yaml`; the repository
 template is `docker/backend/config/backend.yaml`. YAML performs no `${VAR}`
 interpolation; container environment variables override the matching YAML values
-at startup. Compose explicitly forwards the database, JWT, room, upload, GC,
-logging, and middleware settings from `.env.docker`.
+at startup.
 
 ### Verifying the Deployment & Day-2 Operations
 

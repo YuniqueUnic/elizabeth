@@ -13,10 +13,14 @@ ENV_FILE="$ROOT_DIR/.env"
 ENV_DATA_DIR=""
 ENV_STORAGE_DIR=""
 ENV_CONFIG_FILE=""
+ENV_UID=""
+ENV_GID=""
 if [ -f "$ENV_FILE" ]; then
   ENV_DATA_DIR="$(read_env_var "ELIZABETH_DATA_DIR" "$ENV_FILE")"
   ENV_STORAGE_DIR="$(read_env_var "ELIZABETH_STORAGE_DIR" "$ENV_FILE")"
   ENV_CONFIG_FILE="$(read_env_var "ELIZABETH_BACKEND_CONFIG" "$ENV_FILE")"
+  ENV_UID="$(read_env_var "ELIZABETH_UID" "$ENV_FILE")"
+  ENV_GID="$(read_env_var "ELIZABETH_GID" "$ENV_FILE")"
 fi
 
 resolve_path() {
@@ -34,8 +38,25 @@ STORAGE_ROOMS_DIR="$STORAGE_DIR/rooms"
 CONFIG_FILE="$(resolve_path "${ELIZABETH_BACKEND_CONFIG:-${ENV_CONFIG_FILE:-docker/backend/config/backend.yaml}}")"
 DB_FILE="$DATA_DIR/elizabeth.db"
 
+# Must match the `user:` directive in docker-compose.yml.
+CONTAINER_UID="${ELIZABETH_UID:-${ENV_UID:-65532}}"
+CONTAINER_GID="${ELIZABETH_GID:-${ENV_GID:-65532}}"
+
 mkdir -p "$DATA_DIR"
 mkdir -p "$STORAGE_ROOMS_DIR"
+
+# The image runs as the distroless `nonroot` user, and on Linux a bind mount keeps
+# the host ownership, so directories created here would belong to the invoking user
+# and the container could not write to them. Docker Desktop (macOS/Windows)
+# virtualises bind-mount ownership and needs no chown.
+if [ "$(uname -s)" = "Linux" ]; then
+  if [ "$(id -u)" -eq 0 ]; then
+    chown -R "$CONTAINER_UID:$CONTAINER_GID" "$DATA_DIR" "$STORAGE_DIR"
+  else
+    echo "将挂载目录移交给容器用户 $CONTAINER_UID:$CONTAINER_GID（需要 sudo）："
+    sudo chown -R "$CONTAINER_UID:$CONTAINER_GID" "$DATA_DIR" "$STORAGE_DIR"
+  fi
+fi
 
 if [ ! -f "$CONFIG_FILE" ]; then
   cat >&2 <<'EOF'
@@ -62,3 +83,4 @@ echo "Docker 后端挂载目录就绪："
 echo "  - $DATA_DIR"
 echo "  - $STORAGE_ROOMS_DIR"
 echo "  - $CONFIG_FILE"
+echo "容器运行身份：$CONTAINER_UID:$CONTAINER_GID"

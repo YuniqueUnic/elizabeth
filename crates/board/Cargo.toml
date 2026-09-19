@@ -78,6 +78,7 @@ rust-embed = { workspace = true }
 tower = { workspace = true }
 serial_test = { workspace = true }
 tempfile = { workspace = true }
+serde_yaml = { workspace = true }
 
 [build-dependencies]
 anyhow = { workspace = true }

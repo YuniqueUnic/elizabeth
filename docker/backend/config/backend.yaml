@@ -25,7 +25,17 @@ app:
     journal_mode: "delete"
 
   storage:
+    # 内容存储位置；容器内固定指向 /app/storage bind mount。
     root: "/app/storage/rooms"
+    # 以下四项与 docker-compose.yml 的 STORAGE_* 默认值保持一致。
+    # fs = 本地文件系统；s3 = S3 兼容对象存储（需同时提供 s3.* 连接信息）。
+    backend: fs
+    # proxy = 所有上传下载经服务端代理；presigned = 签发短时效直传/直下 URL（仅 backend=s3）。
+    transfer: proxy
+    # 预签名 URL 有效期（秒）。
+    presign_ttl_seconds: 300
+    # 跨房间内容去重构成存在性 oracle，默认关闭。
+    global_dedup: false
 
   jwt:
     # 生产环境必须通过 env 覆盖（长度 >= 32）
@@ -42,11 +52,9 @@ app:
       password: null
       max_times_entered: 100
       max_size: 50MiB
-      permissions:
-        read: true
-        edit: true
-        share: true
-        delete: true
+      # 新房间默认加入角色（admin / editor / reader）。权限位由角色推导，
+      # 不存在 per-flag 的默认值开关。
+      role: reader
     expiry:
       # 支持 humantime 格式，例如 m/min、h、d、w
       allowed_ages: [1m, 30m, 2h, 12h, 1d, 7d, 30d, 365d]
@@ -86,5 +94,12 @@ app:
       expose_headers: []
     security:
       enabled: true
+      # 私人分享工具默认不应被搜索引擎收录。
+      disallow_search_indexing: true
     rate_limit:
-      enabled: false
+      # 与 docker-compose.yml 的 MIDDLEWARE_RATE_LIMIT_* 默认值保持一致。
+      # 按客户端 IP 计数的令牌桶；需要高于前端实际上传请求速率。
+      enabled: true
+      per_second: 20
+      burst_size: 40
+      cleanup_interval_seconds: 60

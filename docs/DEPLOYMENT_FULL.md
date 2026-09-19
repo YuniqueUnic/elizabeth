@@ -135,10 +135,13 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --buil
 - 连接池：`DB_MAX_CONNECTIONS` / `DB_MIN_CONNECTIONS`
 - 日志：`LOG_LEVEL` / `RUST_LOG`
 - 新房间默认值：`ROOM_MAX_SIZE` / `ROOM_MAX_TIMES_ENTERED` / `ROOM_DEFAULT_AGE`
-  / `ROOM_DEFAULT_PASSWORD` / `ROOM_DEFAULT_PERMISSION_*`
+  / `ROOM_DEFAULT_PASSWORD` / `ROOM_DEFAULT_ROLE`
 - 房间生命周期/上传：`ROOM_SHARE_DISABLED_LOCK_DURATION` /
   `UPLOAD_RESERVATION_TTL_SECONDS`
-- 中间件：`MIDDLEWARE_*`（详见 `.env.docker`）
+- 内容存储：`STORAGE_BACKEND` / `STORAGE_TRANSFER` / `STORAGE_S3_*`
+- 中间件：`MIDDLEWARE_*`
+- 其余全部变量（含各自的内置默认值）见仓库根目录 `.env.docker`，
+  `docker-compose.yml` 会把每一项透传给容器
 
 2. `docker/backend/config/backend.yaml`（应用配置文件）
 
@@ -146,7 +149,7 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --buil
 - `app.database.url`（Docker 内建议使用 `/app/data`）
 - `app.database.journal_mode`（SQLite
   在不同宿主/文件系统下建议不同，详见该文件注释）
-- `app.storage.root`
+- `app.storage.root` / `app.storage.backend` / `app.storage.transfer`
 - `app.room.defaults` / `app.room.expiry` /
   `app.room.share_disabled_lock_duration`
 
@@ -154,6 +157,10 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --buil
 
 - YAML
   不会自动从环境变量插值；生产密钥等通过环境变量注入（实现：`crates/board/src/init/cfg_service.rs`）。
+- 配置文件中不存在的键会被 serde 静默丢弃（`configrs` 未启用
+  `deny_unknown_fields`），因此写入已删除的键不会报错，只会变成空操作。
+  回归防线见
+  `crates/board/src/tests/cfg_service.rs::shipped_docker_config_matches_the_documented_profile`。
 - 如需用环境变量覆盖任意配置字段，可使用 configrs
   前缀：`ELIZABETH__APP__...`（实现：`crates/configrs/src/lib.rs`）。
 
@@ -170,11 +177,9 @@ app:
       max_times_entered: 100
       # SI 单位：50M、100MB、1G；IEC 单位：50MiB、1GiB
       max_size: 50MiB
-      permissions:
-        read: true
-        edit: true
-        share: true
-        delete: true
+      # 新房间默认加入角色（admin / editor / reader）。
+      # 权限位由角色推导，不存在 per-flag 的默认值开关。
+      role: reader
     expiry:
       allowed_ages: [1m, 30m, 2h, 12h, 1d, 7d, 30d, 365d]
       default_age: 2h
@@ -636,6 +641,9 @@ echo "Restoring configuration..."
 tar -xzf "$BACKUP_DIR/config.tar.gz" -C /
 
 # 5. 修复权限
+# Docker 部署：镜像以 distroless 的 nonroot 运行，属主必须是 65532:65532
+#   chown -R 65532:65532 "$DATA_DIR" "$STORAGE_DIR"
+# systemd 部署：使用服务账号
 chown -R elizabeth:elizabeth "$DATA_DIR" "$STORAGE_DIR"
 
 # 6. 启动服务

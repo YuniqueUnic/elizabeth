@@ -27,6 +27,15 @@ services:
     container_name: elizabeth
     restart: unless-stopped
     init: true
+    # The image runs as distroless `nonroot` (65532) and has no shell. On Linux a
+    # bind mount keeps the host ownership, so both host directories must belong to
+    # this user before the first start — `./scripts/docker_prepare_volumes.sh`
+    # creates them and applies the chown (see `docs/DOCKER_QUICK_START.md`).
+    # Docker Desktop (macOS / Windows) virtualises bind-mount ownership and needs
+    # no chown. Set ELIZABETH_UID/ELIZABETH_GID only if you deliberately want
+    # another identity; 0 runs the container as root, which the packaged app never
+    # does.
+    user: "${ELIZABETH_UID:-65532}:${ELIZABETH_GID:-65532}"
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -42,70 +51,130 @@ services:
       - ${ELIZABETH_STORAGE_DIR:-./docker/backend/storage}:/app/storage
       # Configuration
       - ${ELIZABETH_BACKEND_CONFIG:-./docker/backend/config/backend.yaml}:/app/config/backend.yaml:ro
+    # Every variable the backend reads is forwarded here, so anything set in
+    # `.env` takes effect. The fallbacks below are this deployment's defaults and
+    # deliberately differ from the compiled-in defaults in a few places (JWT TTL,
+    # compression, CORS, rate limiting, connection pool) — `.env.docker` documents
+    # each divergence.
     environment:
-      # Security
-      JWT_SECRET: ${JWT_SECRET:-please-change-this-secret-in-production-min-32-chars}
-      # Platform admin bootstrap（仅在 admin_accounts 表为空时创建账号；之后改密走管理面板并持久化）
-      # 不设置则管理面板保持关闭
+      # ---- Logging -----------------------------------------------------------
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # RUST_LOG wins over LOG_LEVEL and accepts per-target directives, e.g.
+      #   RUST_LOG=warn,board=debug,sqlx=info
+      RUST_LOG: ${RUST_LOG:-info}
+
+      # ---- Platform admin bootstrap ------------------------------------------
+      # Only used while the `admin_accounts` table is empty; afterwards change the
+      # password in the /admin panel and it is persisted in the database.
+      # Leave ELIZABETH_ADMIN_PASSWORD empty to keep the panel disabled.
       ELIZABETH_ADMIN_USERNAME: ${ELIZABETH_ADMIN_USERNAME:-admin}
       ELIZABETH_ADMIN_PASSWORD: ${ELIZABETH_ADMIN_PASSWORD:-}
+
+      # ---- Database ----------------------------------------------------------
+      # SQLite by default. Switch drivers with a PostgreSQL URL, e.g.
+      #   DATABASE_URL=postgresql://elizabeth:password@postgres:5432/elizabeth
+      DATABASE_URL: ${DATABASE_URL:-sqlite:///app/data/elizabeth.db}
+      DB_MAX_CONNECTIONS: ${DB_MAX_CONNECTIONS:-10}
+      DB_MIN_CONNECTIONS: ${DB_MIN_CONNECTIONS:-1}
+
+      # ---- JWT ---------------------------------------------------------------
+      # Production must set a stable secret of at least 32 characters.
+      JWT_SECRET: ${JWT_SECRET:-please-change-this-secret-in-production-min-32-chars-long-for-security}
       JWT_TTL_SECONDS: ${JWT_TTL_SECONDS:-7200}
       JWT_LEEWAY_SECONDS: ${JWT_LEEWAY_SECONDS:-5}
       JWT_REFRESH_TTL_SECONDS: ${JWT_REFRESH_TTL_SECONDS:-604800}
       JWT_CLEANUP_INTERVAL_SECONDS: ${JWT_CLEANUP_INTERVAL_SECONDS:-86400}
       JWT_ENABLE_REFRESH_TOKEN_ROTATION: ${JWT_ENABLE_REFRESH_TOKEN_ROTATION:-true}
-      # Logging
-      LOG_LEVEL: ${LOG_LEVEL:-info}
-      RUST_LOG: ${RUST_LOG:-info}
-      # Database
-      # Default: SQLite (file in /app/data)
-      # Override in .env to switch to PostgreSQL, e.g.
-      #   DATABASE_URL=postgresql://elizabeth:password@postgres:5432/elizabeth
-      DATABASE_URL: ${DATABASE_URL:-sqlite:///app/data/elizabeth.db}
-      DB_MAX_CONNECTIONS: ${DB_MAX_CONNECTIONS:-10}
-      DB_MIN_CONNECTIONS: ${DB_MIN_CONNECTIONS:-1}
-      # Room configuration
+
+      # ---- Rooms -------------------------------------------------------------
       ROOM_MAX_SIZE: ${ROOM_MAX_SIZE:-50MiB}
       ROOM_MAX_TIMES_ENTERED: ${ROOM_MAX_TIMES_ENTERED:-100}
+      # Empty means "new rooms have no password".
+      ROOM_DEFAULT_PASSWORD: "${ROOM_DEFAULT_PASSWORD:-}"
+      # Role handed to whoever joins a newly created room: admin / editor / reader
+      ROOM_DEFAULT_ROLE: ${ROOM_DEFAULT_ROLE:-reader}
+      # Comma-separated humantime values; the UI offers exactly these options.
       ROOM_ALLOWED_AGES: ${ROOM_ALLOWED_AGES:-1m,30m,2h,12h,1d,7d,30d,365d}
       ROOM_DEFAULT_AGE: ${ROOM_DEFAULT_AGE:-2h}
-      ROOM_DEFAULT_PASSWORD: ${ROOM_DEFAULT_PASSWORD:-}
-      ROOM_DEFAULT_PERMISSION_READ: ${ROOM_DEFAULT_PERMISSION_READ:-true}
-      ROOM_DEFAULT_PERMISSION_EDIT: ${ROOM_DEFAULT_PERMISSION_EDIT:-true}
-      ROOM_DEFAULT_PERMISSION_SHARE: ${ROOM_DEFAULT_PERMISSION_SHARE:-true}
-      ROOM_DEFAULT_PERMISSION_DELETE: ${ROOM_DEFAULT_PERMISSION_DELETE:-true}
       ROOM_SHARE_DISABLED_LOCK_DURATION: ${ROOM_SHARE_DISABLED_LOCK_DURATION:-1h}
+
+      # ---- Uploads and housekeeping ------------------------------------------
+      UPLOAD_RESERVATION_TTL_SECONDS: ${UPLOAD_RESERVATION_TTL_SECONDS:-3600}
       GC_INTERVAL_SECONDS: ${GC_INTERVAL_SECONDS:-60}
       GC_BATCH_LIMIT: ${GC_BATCH_LIMIT:-200}
-      UPLOAD_RESERVATION_TTL_SECONDS: ${UPLOAD_RESERVATION_TTL_SECONDS:-3600}
-      # Middleware configuration
+
+      # ---- Content storage ---------------------------------------------------
+      # `fs` (default) keeps uploads on the /app/storage bind mount.
+      # `s3` stores them in an S3-compatible bucket (AWS S3 / MinIO / Cloudflare R2).
+      # Unrecognised values silently fall back to `fs`.
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-fs}
+      # Only read when STORAGE_BACKEND=s3; the four connection fields are required.
+      STORAGE_S3_ENDPOINT: "${STORAGE_S3_ENDPOINT:-}"
+      STORAGE_S3_BUCKET: "${STORAGE_S3_BUCKET:-}"
+      STORAGE_S3_ACCESS_KEY_ID: "${STORAGE_S3_ACCESS_KEY_ID:-}"
+      STORAGE_S3_SECRET_ACCESS_KEY: "${STORAGE_S3_SECRET_ACCESS_KEY:-}"
+      STORAGE_S3_REGION: "${STORAGE_S3_REGION:-}"
+      # `proxy` (default) streams every transfer through the backend.
+      # `presigned` hands out short-lived bucket URLs; requires STORAGE_BACKEND=s3.
+      STORAGE_TRANSFER: ${STORAGE_TRANSFER:-proxy}
+      # Public base URL for presigned links (CDN / custom domain); empty uses the S3 endpoint.
+      STORAGE_PRESIGN_BASE_URL: "${STORAGE_PRESIGN_BASE_URL:-}"
+      STORAGE_PRESIGN_TTL_SECONDS: ${STORAGE_PRESIGN_TTL_SECONDS:-300}
+      # Cross-room content dedup. Off by default: it forms an existence oracle
+      # across rooms, so enable it only after assessing the privacy cost.
+      STORAGE_GLOBAL_DEDUP: ${STORAGE_GLOBAL_DEDUP:-false}
+
+      # ---- Middleware: tracing -----------------------------------------------
       MIDDLEWARE_TRACING_ENABLED: ${MIDDLEWARE_TRACING_ENABLED:-true}
       MIDDLEWARE_TRACING_LEVEL: ${MIDDLEWARE_TRACING_LEVEL:-info}
       MIDDLEWARE_TRACING_INCLUDE_HEADERS: ${MIDDLEWARE_TRACING_INCLUDE_HEADERS:-false}
       MIDDLEWARE_TRACING_INCLUDE_BODY: ${MIDDLEWARE_TRACING_INCLUDE_BODY:-false}
+
+      # ---- Middleware: request id --------------------------------------------
       MIDDLEWARE_REQUEST_ID_ENABLED: ${MIDDLEWARE_REQUEST_ID_ENABLED:-true}
       MIDDLEWARE_REQUEST_ID_HEADER_NAME: ${MIDDLEWARE_REQUEST_ID_HEADER_NAME:-X-Request-Id}
       MIDDLEWARE_REQUEST_ID_GENERATE_IF_MISSING: ${MIDDLEWARE_REQUEST_ID_GENERATE_IF_MISSING:-true}
+
+      # ---- Middleware: compression -------------------------------------------
       MIDDLEWARE_COMPRESSION_ENABLED: ${MIDDLEWARE_COMPRESSION_ENABLED:-true}
       MIDDLEWARE_COMPRESSION_MIN_CONTENT_LENGTH: ${MIDDLEWARE_COMPRESSION_MIN_CONTENT_LENGTH:-1024}
+
+      # ---- Middleware: CORS --------------------------------------------------
       MIDDLEWARE_CORS_ENABLED: ${MIDDLEWARE_CORS_ENABLED:-true}
+      # For production, specify exact origins instead of *
       MIDDLEWARE_CORS_ALLOWED_ORIGINS: "${MIDDLEWARE_CORS_ALLOWED_ORIGINS:-*}"
       MIDDLEWARE_CORS_ALLOWED_METHODS: ${MIDDLEWARE_CORS_ALLOWED_METHODS:-GET,POST,PUT,DELETE,OPTIONS}
       MIDDLEWARE_CORS_ALLOWED_HEADERS: "${MIDDLEWARE_CORS_ALLOWED_HEADERS:-*}"
       MIDDLEWARE_CORS_ALLOW_CREDENTIALS: ${MIDDLEWARE_CORS_ALLOW_CREDENTIALS:-false}
       MIDDLEWARE_CORS_MAX_AGE: ${MIDDLEWARE_CORS_MAX_AGE:-3600}
+      # Comma-separated response headers the browser may read. Empty = none.
+      MIDDLEWARE_CORS_EXPOSE_HEADERS: "${MIDDLEWARE_CORS_EXPOSE_HEADERS:-}"
+
+      # ---- Middleware: security headers --------------------------------------
       MIDDLEWARE_SECURITY_ENABLED: ${MIDDLEWARE_SECURITY_ENABLED:-true}
       MIDDLEWARE_SECURITY_CONTENT_TYPE_OPTIONS: ${MIDDLEWARE_SECURITY_CONTENT_TYPE_OPTIONS:-true}
       MIDDLEWARE_SECURITY_FRAME_OPTIONS: ${MIDDLEWARE_SECURITY_FRAME_OPTIONS:-DENY}
       MIDDLEWARE_SECURITY_XSS_PROTECTION: "${MIDDLEWARE_SECURITY_XSS_PROTECTION:-1; mode=block}"
       MIDDLEWARE_SECURITY_STRICT_TRANSPORT_SECURITY: "${MIDDLEWARE_SECURITY_STRICT_TRANSPORT_SECURITY:-max-age=31536000; includeSubDomains}"
       MIDDLEWARE_SECURITY_REFERRER_POLICY: ${MIDDLEWARE_SECURITY_REFERRER_POLICY:-strict-origin-when-cross-origin}
+      # Serves `Disallow: /` robots.txt and adds X-Robots-Tag: noindex to HTML.
+      MIDDLEWARE_SECURITY_DISALLOW_SEARCH_INDEXING: ${MIDDLEWARE_SECURITY_DISALLOW_SEARCH_INDEXING:-true}
+
+      # ---- Middleware: rate limiting -----------------------------------------
+      # Per-client-IP token bucket. Keep it above the frontend's upload request
+      # rate, otherwise chunked uploads start receiving 429.
       MIDDLEWARE_RATE_LIMIT_ENABLED: ${MIDDLEWARE_RATE_LIMIT_ENABLED:-true}
       MIDDLEWARE_RATE_LIMIT_PER_SECOND: ${MIDDLEWARE_RATE_LIMIT_PER_SECOND:-20}
       MIDDLEWARE_RATE_LIMIT_BURST_SIZE: ${MIDDLEWARE_RATE_LIMIT_BURST_SIZE:-40}
       MIDDLEWARE_RATE_LIMIT_CLEANUP_INTERVAL_SECONDS: ${MIDDLEWARE_RATE_LIMIT_CLEANUP_INTERVAL_SECONDS:-60}
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1:4092/api/v1/health"]
+      # The distroless runtime ships no `curl`, so the probe is the binary itself.
+      test:
+        - CMD
+        - /app/board
+        - health
+        - "--config-file"
+        - /app/config/backend.yaml
       interval: 30s
       timeout: 10s
       retries: 3

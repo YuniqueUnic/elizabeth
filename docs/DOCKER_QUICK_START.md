@@ -13,6 +13,9 @@ cp .env.docker .env
 # 生产环境务必修改 JWT_SECRET（长度 >= 32）
 ${EDITOR:-nano} .env
 
+# 创建挂载目录，并在 Linux 上把它们交给容器运行身份（见下方「运行身份」）
+./scripts/docker_prepare_volumes.sh
+
 docker compose up -d --build
 docker compose ps
 ```
@@ -29,6 +32,25 @@ docker compose ps
 - `ELIZABETH_DATA_DIR`（SQLite DB 文件）
 - `ELIZABETH_STORAGE_DIR`（上传文件）
 - `ELIZABETH_BACKEND_CONFIG`（后端配置文件挂载路径）
+
+## 运行身份与目录属主
+
+镜像以 distroless 的 `nonroot` 用户运行（uid/gid `65532`），没有 shell，也不包含
+`curl`：
+
+- **Linux**：bind mount 保留宿主机属主，所以 `docker/backend/data` 与
+  `docker/backend/storage` 必须属于
+  `65532:65532`，否则容器无法写入、启动即失败。
+  `./scripts/docker_prepare_volumes.sh` 会用 `sudo chown`
+  完成这一步；若你自定义了 `ELIZABETH_UID` /
+  `ELIZABETH_GID`，该脚本会读取并沿用同样的值。
+- **macOS / Windows（Docker Desktop）**：bind mount 的属主由 Docker Desktop
+  虚拟化，无需 chown，脚本会自动跳过。
+- 健康检查由镜像内置的 `HEALTHCHECK` 完成（exec 形式调用 `/app/board health`）。
+  不要改用 `docker run --health-cmd`：Docker CLI 总会把参数包进 `/bin/sh -c`，
+  而该镜像没有 `/bin/sh`。
+- 由于没有 shell，`docker exec -it <container> sh` 不可用；排障请看
+  `docker compose logs`，或用 `docker exec <container> /app/board --help`。
 
 ## 开启管理面板 `/admin`（可选）
 
