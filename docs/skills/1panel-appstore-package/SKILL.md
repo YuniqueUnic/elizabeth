@@ -81,6 +81,9 @@ docker run --rm -v /tmp/adapter:/adapter -v /abs/pkg-out:/pkg debian:trixie-slim
 与 Homebrew 的 `python3` 常常都没有。用一个带 PyYAML 的解释器，或临时建
 venv（`python3 -c 'import yaml'` 自检）。
 
+**要 clone 整个仓库，不能只下单个文件**：`source_evidence.py` 还会
+`from gen_env_sample import read_env_sample`，缺了它直接 `ModuleNotFoundError`。
+
 好处：**Python 侧校验不需要 bash 4**，可以单独快速迭代：
 
 ```bash
@@ -89,6 +92,11 @@ PYTHONPATH=/tmp/adapter/scripts <python-with-yaml> /tmp/adapter/scripts/source_e
   --compose <pkg>/<ver>/docker-compose.yml --env-file <pkg>/<ver>/.env.sample \
   --version-name <ver> [--require-delivery]
 ```
+
+- `--compose` 与 `--env-file` **必须成对**，只给一个直接失败。
+- `--artifact-root` 指**包根**（含版本目录那一层），`--version-name`
+  是版本目录名；脚本会据此去找 `<pkg>/<ver>/scripts/init.sh`
+  并读其文本做交叉校验。
 
 ## 档位与常见缺口
 
@@ -103,9 +111,12 @@ PYTHONPATH=/tmp/adapter/scripts <python-with-yaml> /tmp/adapter/scripts/source_e
   `--source-evidence <外部路径>`。
 - 大量 `warn` 是**正常**的（多语言 label/description 缺失，`fa`/`lo`
   等小语种常年缺），已合并的基线也是 100+ warn。**只看 `fail` 是不是 0**。
-- delivery
-  档专属缺口：`images[].digest`（**必须等镜像真的发布后才存在，无法提前填**）、
-  `redistributionEvidence`（官方档范畴）。第三方档不要求，不必为此阻塞。
+- delivery 档要求 `licenseEvidence`（非占位）、`images[]`（每项都要 `digest`）、
+  可写挂载对应的 `runtimeIdentity`、以及
+  `redistributionEvidence.status == "verified"`。
+  第三方档不要求这些，不必为此阻塞；但只要想让 delivery
+  档过，这四项一个都不能少（实测：补完 `licenseEvidence` 后仍报
+  `missing key: redistributionEvidence`）。
 
 ## `source-evidence.json` 契约
 
@@ -123,12 +134,29 @@ PYTHONPATH=/tmp/adapter/scripts <python-with-yaml> /tmp/adapter/scripts/source_e
 
 - `licenseEvidence` 只要 `spdx` 或 `url` 之一；`spdx` **不能**命中占位黑名单
   （`n/a`、`na`、`none`、`placeholder`、`tbd`、`todo`、`unknown`、`unspecified`、`unverified`）。
+- `images[]` 每项比看起来严：`version` 必须等于 compose 的版本目录名，`service`
+  必须是 compose 服务名，`reference` 必须与 compose 里的 `image`
+  **逐字符相同**，`digest` 必填（`sha256:` + 64 hex），`platforms` 可选（OCI
+  形式，如 `linux/amd64`）。
+- 服务有**可写 bind mount** 时还要 `runtimeIdentity`：四个 `startupUid` /
+  `startupGid` / `steadyStateUid` / `steadyStateGid` 为非负整数，`source` 为
+  https URL，`writableBindOwner` 取 `host-init` / `image-managed` /
+  `root-runtime`。用 `host-init` 时 `steadyStateUid` **必须非 0**，且 `init.sh`
+  里要有与之匹配的 `ensure_owned_dir` 行（脚本会去读脚本文本比对）。
 - 若同时给了 `logoEvidence` 且 `redistributionEvidence.assets` 里有 `logo.png`，
-  两者的 `source` / `license` / `sha256` **必须逐字段一致**。
-- `redistributionEvidence.status = "verified"` 时 `assets` 不能为空，且每个
-  asset 的 `license` 不能是占位值、`source` 不能是 `unverified:`。
-- 若给了 `images`，其 `version` 必须等于 compose 的版本目录名、`service` 必须是
-  compose 服务名。
+  两者的 `source` / `license` / `sha256` **必须逐字段一致**，且 `sha256`
+  要与包内实际文件相符。
+- `redistributionEvidence.status = "verified"` 时：`assets` 不能为空，每个 asset
+  的 `license` 不能是占位值、`source` 不能是 `unverified:`； `source` 用
+  `bundled:<相对路径>` 时该路径必须出现在 `requiredFiles` 里，而**每一个**
+  `requiredFiles` 都必须在 `materials`
+  里有对应哈希。纯自研包通常只需登记随包分发的 `logo.png` 一项。
+- 校验这些的 `inspect_redistribution_delivery()` **不在**
+  `validate_source_evidence()` 里，`main()` 也不调它 ——
+  别以为「没报错就是没查」。
+- **这个文件被上游 `.gitignore`
+  排除**（`apps/**/source-evidence.json`），所以它永远不会出现在提交给商店的 PR
+  里；它只服务于 delivery 档，改它不影响第三方档的 PR 内容。
 
 ## 版本引用重钉 vs 稳定链接（维护者最在意的一点）
 
@@ -144,10 +172,26 @@ PYTHONPATH=/tmp/adapter/scripts <python-with-yaml> /tmp/adapter/scripts/source_e
   ```
 
 - 反之，**`source-evidence.json`
-  里的版本引用应当重钉**（它是发布证据，要指向确切的 tag/镜像）：用正则替换
-  `<registry>/<image>:<ver>`、`/blob/v<ver>/`、`/releases/tag/v<ver>` 三类模式。
-  注意 `/blob/main/` **不会被 `/blob/v[0-9]…/`
+  里的版本引用应当重钉**（它是发布证据，要指向确切的
+  tag/镜像）：`<registry>/<image>:<ver>`、`/blob/v<ver>/`、`/releases/tag/v<ver>`
+  三类模式。注意 `/blob/main/` **不会被 `/blob/v[0-9]…/`
   模式命中**，所以稳定链接能安全共存。
+
+- **重钉必须只针对「包所切自的那个版本」**（把源版本目录名传进去），不能匹配任意版本号。
+  否则 `notes` 里描述**历史版本**的实测记录会被一并改写：例如「2.0.1 报了 3
+  CRITICAL / 59
+  HIGH」会被改成正在发布的版本，历史数字变成对**新版本**的虚假声明。这类错误只在
+  下一个版本才暴露 —— 本地跑一次 `--version <新版本>` 再 `diff` 就能发现。
+
+- **`images[].version`
+  必须一起重钉**。它是按版本目录做键的，漏掉它下一个版本会报
+  `Compose service image lacks evidence`。
+
+- **哈希不能随发布延续**。`digest`
+  只对应一次镜像构建：版本号变化时应**丢弃并打印提示**，
+  而不是把上一版哈希记到新版本名下（否则会「用过期哈希通过」delivery
+  校验）。`logo.png` 这类不随发布变化的哈希则适合加**守卫** ——
+  记录值与实际文件不符就失败。
 
 ## 提交方式（不要在应用仓库里手搓 PR）
 
@@ -223,3 +267,26 @@ PYTHONPATH=/tmp/adapter/scripts <python-with-yaml> /tmp/adapter/scripts/source_e
    键**闭合**（无缺失、无多余）
 6. 历史版本目录未被删除
 7. 新增/修改的容器断言已本地实测过时序
+8. 改了 `source-evidence.json` 时：用 `--version <新版本>` 生成一次并 `diff -rq`
+   对比入库包 —— **同版本必须逐字节一致**，换版本再看行为是否符合预期
+9. 新增 64 位 hex 哈希（digest、`sha256` 证据）时，确认 `detect-secrets` 门禁过
+
+## 64 位 hex 哈希会触发 `detect-secrets`
+
+`Hex High Entropy String` 会把镜像 digest 与 `sha256` 证据当密钥拦下。**JSON
+里不能写 `# pragma: allowlist secret`**（那不是合法 JSON），只能加进
+`.secrets.baseline`：
+
+```bash
+detect-secrets scan --baseline .secrets.baseline \
+  --exclude-files '<与钩子完全相同的 exclude 正则>'
+```
+
+两个坑：
+
+- CLI 的 `--exclude-files` 会被写进基线的 `filters_used`，等于把钩子的 `exclude`
+  **复制**进基线，日后必然漂移 → 生成后把 `filters_used` 还原成原值。
+- 照抄钩子的 exclude 时**别加 `^`**（钩子里是未锚定的
+  `tests/.*$`），否则会扫进一批本该排除的文件，基线里多出几十条无意义条目。
+- 基线改动后钩子会提示 `Your baseline file is unstaged` → 先
+  `git add .secrets.baseline` 再跑。
