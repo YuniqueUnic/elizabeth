@@ -158,21 +158,29 @@ jobs:
         run: |
           set -euo pipefail
           version="${{ steps.version.outputs.version }}"
-          # 1Panel installs the app under a root-owned prefix, so mirror that here:
-          # `scripts/init.sh` refuses to run when any ancestor of the version root is
-          # not owned by uid 0 or is group/other-writable.
+          # 1Panel installs the app under a root-owned prefix, so mirror that here.
+          # `scripts/init.sh` walks from the version root up to `/` and refuses to run
+          # unless every level is owned by uid 0 and free of group/other write bits.
+          # A GitHub runner is not a 1Panel host: it ships `/opt` as 0775 and its umask
+          # is not 0022, so normalise the chain instead of assuming it. Print each mode
+          # as we go, because init.sh names the offending path but never the mode.
           test_root=/opt/elizabeth-1panel-smoke
           sudo rm -rf "${test_root}"
           sudo mkdir -p "${test_root}"
           sudo cp -R "dist/1panel-appstore/apps/elizabeth/${version}/." "${test_root}/"
           sudo chown -R 0:0 "${test_root}"
-          # `scripts/init.sh` walks from the version root up to `/` and refuses to run
-          # when any level is group- or other-writable. `mkdir` inherits the runner's
-          # umask, which is not 0022 here, so set the mode explicitly instead of
-          # assuming the default — and print it, because init.sh only reports the
-          # offending path, not the mode it rejected.
+          ancestor="$(dirname "${test_root}")"
+          while [[ "${ancestor}" != "/" ]]; do
+            if [[ "$(sudo stat -c '%u' "${ancestor}")" != "0" ]]; then
+              echo "ancestor ${ancestor} is not owned by uid 0; cannot mirror a 1Panel host" >&2
+              exit 1
+            fi
+            sudo chmod go-w "${ancestor}"
+            echo "ancestor ${ancestor}: $(sudo stat -c '%u:%g:%a' "${ancestor}")"
+            ancestor="$(dirname "${ancestor}")"
+          done
           sudo chmod 0755 "${test_root}"
-          echo "version root mode: $(sudo stat -c '%u:%g:%a' "${test_root}")"
+          echo "version root ${test_root}: $(sudo stat -c '%u:%g:%a' "${test_root}")"
 
           # The image runs as distroless `nonroot` (65532); hand the bind mounts to
           # that user exactly the way 1Panel does before starting the container.
