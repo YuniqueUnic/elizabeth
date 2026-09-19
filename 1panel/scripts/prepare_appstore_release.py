@@ -4,8 +4,11 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import re
 import shutil
+import sys
 from pathlib import Path
 
 
@@ -14,11 +17,13 @@ DOCUMENT_RE = re.compile(r"(?m)^(\s*document:\s*)(\S+)\s*$")
 VERSION_RE = re.compile(r"^[0-9][0-9A-Za-z._+-]*$")
 
 # Source evidence is release-scoped on purpose: it has to keep pointing at the
-# exact commit, release, and image the package was cut from, so every version
-# reference inside it is repinned on each release.
-EVIDENCE_IMAGE_RE = re.compile(r"yunique001/elizabeth:[0-9][0-9A-Za-z._+-]*")
-EVIDENCE_BLOB_RE = re.compile(r"/blob/v[0-9][0-9A-Za-z._+-]*/")
-EVIDENCE_RELEASE_RE = re.compile(r"/releases/tag/v[0-9][0-9A-Za-z._+-]*")
+# exact commit, release, and image the package was cut from, so the references
+# to the version it was cut from are repinned on each release. Only that version
+# is rewritten: notes that describe an earlier release, such as the findings
+# recorded against it, have to keep naming the version they actually describe.
+EVIDENCE_IMAGE_TEMPLATE = r"yunique001/elizabeth:{version}(?![\w.+-])"
+EVIDENCE_BLOB_TEMPLATE = r"/blob/v{version}/"
+EVIDENCE_RELEASE_TEMPLATE = r"/releases/tag/v{version}(?![\w.+-])"
 
 # The store metadata must not pin a release path. `document` is the link users
 # open from the app card, so a version-pinned URL would have to be edited on
@@ -53,13 +58,103 @@ def replace_once(path: Path, pattern: re.Pattern[str], replacement: str) -> None
     path.write_text(updated, encoding="utf-8")
 
 
-def pin_evidence_versions(path: Path, version: str) -> None:
-    """Repin every release-scoped reference inside the source evidence."""
-    original = path.read_text(encoding="utf-8")
-    updated = EVIDENCE_IMAGE_RE.sub(f"yunique001/elizabeth:{version}", original)
-    updated = EVIDENCE_BLOB_RE.sub(f"/blob/v{version}/", updated)
-    updated = EVIDENCE_RELEASE_RE.sub(f"/releases/tag/v{version}", updated)
-    path.write_text(updated, encoding="utf-8")
+def pin_evidence_versions(path: Path, source_version: str, version: str) -> None:
+    """Repin the release-scoped references inside the source evidence.
+
+    `images[]` entries are keyed by version directory as well, and leaving that
+    field behind makes the delivery validator report the Compose service as
+    uncovered.
+    """
+    token = re.escape(source_version)
+    rewrites = (
+        (
+            re.compile(EVIDENCE_IMAGE_TEMPLATE.format(version=token)),
+            f"yunique001/elizabeth:{version}",
+        ),
+        (
+            re.compile(EVIDENCE_BLOB_TEMPLATE.format(version=token)),
+            f"/blob/v{version}/",
+        ),
+        (
+            re.compile(EVIDENCE_RELEASE_TEMPLATE.format(version=token)),
+            f"/releases/tag/v{version}",
+        ),
+    )
+
+    def repin(value: object) -> object:
+        if isinstance(value, str):
+            for pattern, replacement in rewrites:
+                value = pattern.sub(replacement, value)
+            return value
+        if isinstance(value, list):
+            return [repin(item) for item in value]
+        if isinstance(value, dict):
+            return {key: repin(item) for key, item in value.items()}
+        return value
+
+    payload = repin(json.loads(path.read_text(encoding="utf-8")))
+    images = payload.get("images") if isinstance(payload, dict) else None
+    dropped: list[str] = []
+    if isinstance(images, list):
+        for image in images:
+            if not isinstance(image, dict) or "version" not in image:
+                continue
+            if image["version"] != version:
+                # A digest identifies one image build, so it cannot follow the
+                # release. Drop it and say so rather than attributing the
+                # previous build's hash to this one; the delivery validator then
+                # reports the missing digest instead of passing a stale hash.
+                if image.pop("digest", None) is not None:
+                    dropped.append(str(image.get("service", "?")))
+            image["version"] = version
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    if dropped:
+        print(
+            f"notice: dropped the stale image digest for {version} "
+            f"(service {', '.join(dropped)}); record the digest of the "
+            f"published {version} image before submitting with source evidence",
+            file=sys.stderr,
+        )
+
+
+def assert_logo_evidence_hashes(path: Path, package_root: Path) -> None:
+    """Fail the release when the recorded logo hash stops matching the shipped file.
+
+    The hash binds `logoEvidence` and the `logo.png` redistribution asset to the
+    delivered artwork. Nothing regenerates it, so without this guard replacing
+    the logo would silently ship stale redistribution evidence.
+    """
+    logo = package_root / "logo.png"
+    if not logo.is_file():
+        raise ValueError(f"missing package logo: {logo}")
+    actual = hashlib.sha256(logo.read_bytes()).hexdigest()
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"source evidence must be a JSON object: {path}")
+
+    recorded: list[tuple[str, object]] = []
+    logo_evidence = payload.get("logoEvidence")
+    if isinstance(logo_evidence, dict):
+        recorded.append(("logoEvidence.sha256", logo_evidence.get("sha256")))
+    assets = payload.get("redistributionEvidence", {})
+    if isinstance(assets, dict) and isinstance(assets.get("assets"), list):
+        for index, asset in enumerate(assets["assets"]):
+            if isinstance(asset, dict) and asset.get("path") == "logo.png":
+                recorded.append(
+                    (
+                        f"redistributionEvidence.assets[{index}].sha256",
+                        asset.get("sha256"),
+                    )
+                )
+
+    for field, value in recorded:
+        if not isinstance(value, str) or value.lower() != actual:
+            raise ValueError(
+                f"{field} does not match the shipped logo.png ({actual})"
+            )
 
 
 def assert_stable_document_url(path: Path) -> None:
@@ -114,7 +209,8 @@ def prepare_release(source: Path, output_root: Path, raw_version: str) -> Path:
 
     evidence_path = output_app / "source-evidence.json"
     if evidence_path.is_file():
-        pin_evidence_versions(evidence_path, version)
+        pin_evidence_versions(evidence_path, source_versions[0].name, version)
+        assert_logo_evidence_hashes(evidence_path, output_app)
 
     return output_app
 

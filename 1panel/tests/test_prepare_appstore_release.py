@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -12,6 +14,9 @@ assert SPEC is not None and SPEC.loader is not None
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 
+LOGO_BYTES = b"\x89PNG\r\n\x1a\n" + b"prepare-appstore-release-test-logo"
+LOGO_SHA256 = hashlib.sha256(LOGO_BYTES).hexdigest()
+
 
 class PrepareAppstoreReleaseTests(unittest.TestCase):
     def create_package(self, root: Path, versions: tuple[str, ...] = ("1.4.0",)) -> Path:
@@ -22,11 +27,38 @@ class PrepareAppstoreReleaseTests(unittest.TestCase):
             encoding="utf-8",
         )
         (app / "README.md").write_text("Elizabeth\n", encoding="utf-8")
+        (app / "logo.png").write_bytes(LOGO_BYTES)
         (app / "source-evidence.json").write_text(
             "{\n"
             '  "image": "yunique001/elizabeth:1.4.0",\n'
             '  "dockerDocs": "https://github.com/YuniqueUnic/elizabeth/blob/v1.4.0/docs/DOCKER_QUICK_START.md",\n'
-            '  "release": "https://github.com/YuniqueUnic/elizabeth/releases/tag/v1.4.0"\n'
+            '  "release": "https://github.com/YuniqueUnic/elizabeth/releases/tag/v1.4.0",\n'
+            '  "notes": [\n'
+            '    "The yunique001/elizabeth:1.3.0 image still carried the findings this release removes."\n'
+            "  ],\n"
+            '  "images": [\n'
+            "    {\n"
+            '      "version": "1.4.0",\n'
+            '      "service": "elizabeth",\n'
+            '      "reference": "yunique001/elizabeth:1.4.0",\n'
+            f'      "digest": "sha256:{"a" * 64}"\n'
+            "    }\n"
+            "  ],\n"
+            '  "logoEvidence": {\n'
+            '    "source": "bundled:logo.png",\n'
+            '    "license": "AGPL-3.0-only",\n'
+            f'    "sha256": "{LOGO_SHA256}"\n'
+            "  },\n"
+            '  "redistributionEvidence": {\n'
+            '    "status": "verified",\n'
+            '    "assets": [\n'
+            "      {\n"
+            '        "path": "logo.png",\n'
+            '        "source": "bundled:logo.png",\n'
+            f'        "sha256": "{LOGO_SHA256}"\n'
+            "      }\n"
+            "    ]\n"
+            "  }\n"
             "}\n",
             encoding="utf-8",
         )
@@ -66,6 +98,59 @@ class PrepareAppstoreReleaseTests(unittest.TestCase):
             self.assertIn("/blob/v1.5.0/docs/DOCKER_QUICK_START.md", evidence)
             self.assertIn("/releases/tag/v1.5.0", evidence)
             self.assertNotIn("1.4.0", evidence)
+            # References to an earlier release describe that release, so repinning
+            # must leave them alone instead of retagging history.
+            self.assertIn("yunique001/elizabeth:1.3.0", evidence)
+            # `images[]` is keyed by version directory, so the entry has to follow
+            # the release instead of stranding the delivery validator.
+            self.assertEqual(
+                json.loads(evidence)["images"][0]["version"],
+                "1.5.0",
+            )
+
+    def test_drops_stale_image_digest_on_version_bump(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = self.create_package(root)
+
+            prepared = MODULE.prepare_release(source, root / "output", "1.5.0")
+
+            image = json.loads(
+                (prepared / "source-evidence.json").read_text(encoding="utf-8")
+            )["images"][0]
+            self.assertEqual(image["version"], "1.5.0")
+            # A digest identifies one build, so it must not be carried forward.
+            self.assertNotIn("digest", image)
+
+    def test_keeps_image_digest_when_the_version_is_unchanged(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = self.create_package(root)
+
+            prepared = MODULE.prepare_release(source, root / "output", "1.4.0")
+
+            image = json.loads(
+                (prepared / "source-evidence.json").read_text(encoding="utf-8")
+            )["images"][0]
+            self.assertEqual(image["digest"], "sha256:" + "a" * 64)
+
+    def test_rejects_stale_logo_hash(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = self.create_package(root)
+            (source / "logo.png").write_bytes(LOGO_BYTES + b"rotated")
+
+            with self.assertRaisesRegex(ValueError, "does not match the shipped logo.png"):
+                MODULE.prepare_release(source, root / "output", "1.5.0")
+
+    def test_rejects_missing_logo(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = self.create_package(root)
+            (source / "logo.png").unlink()
+
+            with self.assertRaisesRegex(ValueError, "missing package logo"):
+                MODULE.prepare_release(source, root / "output", "1.5.0")
 
     def test_rejects_version_pinned_document_url(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
