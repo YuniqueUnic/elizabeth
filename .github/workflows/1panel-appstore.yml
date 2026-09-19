@@ -166,6 +166,13 @@ jobs:
           sudo mkdir -p "${test_root}"
           sudo cp -R "dist/1panel-appstore/apps/elizabeth/${version}/." "${test_root}/"
           sudo chown -R 0:0 "${test_root}"
+          # `scripts/init.sh` walks from the version root up to `/` and refuses to run
+          # when any level is group- or other-writable. `mkdir` inherits the runner's
+          # umask, which is not 0022 here, so set the mode explicitly instead of
+          # assuming the default — and print it, because init.sh only reports the
+          # offending path, not the mode it rejected.
+          sudo chmod 0755 "${test_root}"
+          echo "version root mode: $(sudo stat -c '%u:%g:%a' "${test_root}")"
 
           # The image runs as distroless `nonroot` (65532); hand the bind mounts to
           # that user exactly the way 1Panel does before starting the container.
