@@ -8,8 +8,56 @@
     "spdx": "AGPL-3.0-only",
     "url": "https://github.com/YuniqueUnic/elizabeth/blob/v2.0.2/LICENSE"
   },
+  "images": [
+    {
+      "version": "2.0.2",
+      "service": "elizabeth",
+      "reference": "yunique001/elizabeth:2.0.2",
+      "digest": "sha256:7075becf9fec4d17a9abde0cc98a669a3ff91d4de4d2ec97c05369e95b62c8a9",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ],
+      "runtimeIdentity": {
+        "startupUid": 65532,
+        "startupGid": 65532,
+        "steadyStateUid": 65532,
+        "steadyStateGid": 65532,
+        "source": "https://github.com/YuniqueUnic/elizabeth/blob/v2.0.2/Dockerfile.backend",
+        "writableBindOwner": "host-init"
+      }
+    }
+  ],
+  "logoEvidence": {
+    "source": "bundled:logo.png",
+    "license": "AGPL-3.0-only",
+    "sha256": "7c25214c7a0fbe2c7ae135a1773173d774697f4ac95ec8bda5919f2dae89c13b"
+  },
+  "redistributionEvidence": {
+    "status": "verified",
+    "assets": [
+      {
+        "path": "logo.png",
+        "source": "bundled:logo.png",
+        "license": "AGPL-3.0-only",
+        "sha256": "7c25214c7a0fbe2c7ae135a1773173d774697f4ac95ec8bda5919f2dae89c13b",
+        "requiredFiles": [
+          "logo.png"
+        ]
+      }
+    ],
+    "materials": [
+      {
+        "path": "logo.png",
+        "sha256": "7c25214c7a0fbe2c7ae135a1773173d774697f4ac95ec8bda5919f2dae89c13b",
+        "purpose": "Application logo shipped in the package; the project's own artwork under the project license."
+      }
+    ]
+  },
   "notes": [
     "Official multi-arch image yunique001/elizabeth:2.0.2 publishes linux/amd64 and linux/arm64.",
+    "The `images[].digest` value is the multi-arch index digest. Per-platform manifest digests are read from `docker buildx imagetools inspect <reference>` and are deliberately not duplicated here, because they change with every build and a copied hash would outlive the build it describes.",
+    "The distroless runtime reports 0 CRITICAL and 0 HIGH findings under trivy. The earlier Debian-based runtime published as 2.0.1 reported 3 CRITICAL and 59 HIGH, and the bare debian:trixie-slim base reports 0 CRITICAL and 43 HIGH, so removing the userland clears the findings instead of waiting for point releases.",
     "The runtime stage is gcr.io/distroless/cc-debian13, pinned by digest. It ships the C runtime, CA certificates, and timezone data only.",
     "The previous runtime base (debian:trixie-slim) shipped perl-base 5.40.1-6, which carried CVE-2026-13221, CVE-2026-42496, and CVE-2026-8376. The distroless runtime removes perl and the rest of the Debian userland rather than relying on a point release.",
     "The image contains no shell, package manager, perl, util-linux, or curl, so container exec cannot open a shell and the healthcheck uses the bundled `board health` probe.",
