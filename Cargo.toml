@@ -58,7 +58,7 @@ tower_governor = "0.8"
 sqlx = { version = "0.9", features = ["runtime-tokio", "tls-rustls-aws-lc-rs", "sqlite", "postgres", "any", "migrate", "chrono"] }
 
 # === API Documentation ===
-utoipa = { version = "5", features = ["chrono"] }
+utoipa = { version = "6", features = ["chrono"] }
 utoipa-scalar = { version = "0.3", features = ["axum"] }
 utoipa-axum = "0.2"
 
