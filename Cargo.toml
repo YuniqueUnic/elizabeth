@@ -59,7 +59,7 @@ sqlx = { version = "0.9", features = ["runtime-tokio", "tls-rustls-aws-lc-rs", "
 
 # === API Documentation ===
 utoipa = { version = "5", features = ["chrono"] }
-utoipa-scalar = { version = "0.3", features = ["axum"] }
+utoipa-scalar = { version = "0.4", features = ["axum"] }
 utoipa-axum = "0.2"
 
 # === Security & Authentication ===
