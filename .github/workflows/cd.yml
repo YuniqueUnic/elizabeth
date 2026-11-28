@@ -108,7 +108,7 @@ jobs:
       - name: Install Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v2.0.0
 
-      - uses: taiki-e/setup-cross-toolchain-action@v1.42.0
+      - uses: taiki-e/setup-cross-toolchain-action@v1.43.1
         with:
           target: ${{ matrix.target }}
         if: startsWith(matrix.os, 'ubuntu') && !contains(matrix.target, '-musl')
